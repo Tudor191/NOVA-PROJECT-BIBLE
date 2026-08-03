@@ -23,6 +23,19 @@ The full specification is split by section under [`docs/bible`](docs/bible/READM
 
 See [`docs/bible/README.md`](docs/bible/README.md) for the full table of contents.
 
+In addition to the Bible, this repository contains the **Software Architecture
+Document (SAD)** and **Engineering Roadmap** that translate the Bible into a concrete,
+production engineering plan:
+
+- [`docs/architecture`](docs/architecture/README.md) — technology stack, repository
+  structure, and per-subsystem architecture (backend, frontend, desktop, AI layer,
+  databases, memory, event bus, inter-engine communication, APIs, agents, security,
+  deployment, workflow, testing, CI/CD, local-first/cloud sync, and scalability).
+- [`docs/roadmap/ENGINEERING_ROADMAP.md`](docs/roadmap/ENGINEERING_ROADMAP.md) — the
+  phased implementation plan (objectives, deliverables, dependencies, complexity,
+  order, testing strategy, and acceptance criteria per phase).
+
 ## Status
 
-Specification only. No implementation exists in this repository yet.
+Specification and architecture only. No implementation code exists in this repository
+yet — the SAD and Roadmap are drafts pending approval before Phase 0 begins.
