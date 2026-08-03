@@ -85,3 +85,56 @@ decision, Bible traceability) is required before implementation starts, reviewed
 async via PR against `docs/architecture/proposals/` — keeping the SAD a living document
 rather than a one-time artifact, per Part 1's expectation that the architecture "evolve
 continuously for many years" without requiring fundamental redesigns.
+
+## 9. Per-Subsystem Deliverable Checklist
+
+Per explicit user directive starting with Phase 1: **documentation, tests, and
+observability are part of the implementation, not something added afterward.** No
+subsystem (engine, shared package, or `agent-os` component) is considered
+implemented — and no PR delivering one may be treated as done for Definition of Done
+purposes ([§4](#4-definition-of-done-per-pr)) — until all ten items below exist for it,
+in the same PR or PR series that introduces the subsystem:
+
+1. **Architecture documentation** — the subsystem's design doc (e.g.
+   `docs/design/phase-N/NN-<engine>.md`), covering at minimum its internal component
+   breakdown, responsibilities, and how it satisfies its Bible Part(s). For subsystems
+   built after Phase 1, this lives alongside that phase's design package; the doc must
+   exist *before* implementation per the phase's own approval gate, and is amended if
+   implementation diverges from the design.
+2. **Sequence diagrams** — Mermaid `sequenceDiagram` blocks in the design doc for
+   every non-trivial multi-step flow (write paths, retrieval pipelines, cross-engine
+   calls, failure/recovery paths) — not just the happy path.
+3. **Component diagrams** — a component tree or Mermaid `graph`/`classDiagram` showing
+   the subsystem's internal module breakdown and its dependencies on shared packages,
+   matching what's actually in `src/`.
+4. **API documentation** — every exposed REST endpoint, event (published and
+   subscribed), and request/reply contract, generated or hand-written, kept current
+   per [§7](#7-documentation-as-code)'s README staleness check and
+   [11 §5](11-api-architecture.md#5-openapi-as-the-source-of-truth).
+5. **Unit tests** — domain logic tested with no I/O, per the base of the testing
+   pyramid in [16](16-testing-strategy.md).
+6. **Integration tests** — real dependencies (Postgres/Neo4j/Redis/NATS) via
+   `nova-testkit` + testcontainers, per [16](16-testing-strategy.md).
+7. **Performance benchmarks** — automated tests asserting the subsystem's design doc
+   performance targets (its own "Performance considerations" section) are met, not
+   just prose claims; these run in CI or are tracked as a scheduled job if too slow
+   for per-PR execution.
+8. **Failure scenarios** — each failure mode named in the subsystem's design doc
+   ("Failure recovery" section) has a corresponding test that induces it (process
+   crash mid-write, dependency unavailable, timeout) and asserts the documented
+   recovery behavior, not just that the happy path works.
+9. **Logging strategy** — structured JSON logs via `nova-observability`
+   ([01 §Observability & Structured Logging](01-technology-stack.md)) at the
+   subsystem's key decision points (state transitions, retries, degraded-mode
+   fallbacks), with enough context (correlation id, entity id) to reconstruct a
+   request's path without attaching a debugger.
+10. **Observability metrics** — Prometheus metrics (via `nova-observability`, pull
+    model per the Phase 0 metrics design) for the subsystem's key rates and latencies
+    (write/read latency, cache hit rate, queue depth, failure rate), plus traces
+    (OTLP push) for its non-trivial request paths — enough to build the dashboard a
+    future on-call engineer would actually need.
+
+This checklist is what "documentation is part of the implementation" means
+concretely, and it is what the Sign-off section of every
+[Architecture Review Report](../roadmap/architecture-reviews/TEMPLATE.md) checks
+against for every subsystem the phase touched.

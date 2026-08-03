@@ -92,6 +92,8 @@ nova/
 │   ├── nova-eventbus-sdk/      # EventBus interface (ADR-006) + default NATS implementation
 │   ├── nova-eventbus-sdk-ts/   # TypeScript client for the same
 │   ├── nova-graphstore-sdk/    # GraphStore interface (ADR-007) + default Neo4j implementation
+│   ├── nova-vectorstore-sdk/   # VectorStore interface + default pgvector implementation
+│   ├── nova-embeddings-sdk/    # EmbeddingProvider interface (ADR-009) + default Ollama implementation
 │   ├── nova-observability/     # Shared OTel setup, structured logging, tracing decorators
 │   ├── nova-auth/              # Shared auth/permission primitives (Python)
 │   ├── nova-testkit/           # Shared test fixtures, event-bus test harness, fake model gateway

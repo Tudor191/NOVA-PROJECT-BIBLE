@@ -307,6 +307,65 @@ marketplace-style discovery) is an addition behind an existing interface, never 
 redesign. This is the 10x Test applied to the one subsystem the Bible most explicitly
 asks to scale by three orders of magnitude.
 
+### ADR-009 — Embedding generation abstracted behind an explicit `EmbeddingProvider` interface
+
+**Context.** Memory Engine and Knowledge Engine both need vector embeddings for
+semantic search starting in Phase 1 ([Phase 1 design, 00 §New Architecture
+Decisions](../design/phase-1/00-shared-foundations.md#new-architecture-decisions-this-design-introduces)).
+The AI Model Orchestration Engine that will eventually route all model calls,
+embeddings included, is a Phase 2 deliverable
+([Roadmap](../roadmap/ENGINEERING_ROADMAP.md#phase-2--ai-core-model-orchestration--reasoning)).
+Phase 1 cannot depend on a Phase 2 engine, and per the 10x Test, embedding generation
+must not be hard-wired to one provider even temporarily — the same reasoning already
+applied to the Event Bus (ADR-006) and Graph Store (ADR-007).
+
+**Decision.** A new shared package, `packages/nova-embeddings-sdk`, defines an
+`EmbeddingProvider` Protocol:
+
+```python
+class EmbeddingProvider(Protocol):
+    async def embed(self, text: str) -> Embedding: ...
+    async def embed_batch(self, texts: list[str]) -> list[Embedding]: ...
+```
+
+with a default `OllamaEmbeddingProvider` implementation — the same
+interface-first-then-default-implementation pattern as ADR-006/007. Memory and
+Knowledge Engines depend only on the Protocol, never on Ollama directly. When the AI
+Model Orchestration Engine ships in Phase 2, it becomes a second `EmbeddingProvider`
+implementation (routing through the Model Gateway for provider selection, cost
+tracking, and privacy classification per
+[06 §1](06-ai-layer-architecture.md#1-model-gateway-ai-model-orchestration-engine)),
+swapped in via configuration — not a redesign of either engine.
+
+**Consequence.** Embedding backend selection becomes one configuration value,
+resolved by `nova-embeddings-sdk` at startup, exactly mirroring
+`EVENT_BUS_BACKEND` (ADR-006) and the `GraphStore` backend selection (ADR-007).
+
+### ADR-010 — One embedding model, standardized system-wide, for Phase 1
+
+**Context.** Memory Engine, Knowledge Engine, and (transitively, via shared UUID
+cross-referencing) World Model Engine all need embeddings. Running a different model
+per engine would mean operating multiple local models simultaneously for no
+architectural benefit, and would permanently forfeit the option of comparing
+embeddings across engines directly (e.g., "does this memory relate to this knowledge
+node" via vector similarity, not just a graph edge).
+
+**Decision.** Phase 1 standardizes on a single embedding model, **`nomic-embed-text`
+(768 dimensions)**, served locally via Ollama — chosen for strong open-benchmark
+performance at its size, native Ollama support (zero-budget default per Part 7), and a
+practical dimension count (768 keeps HNSW index memory and build time reasonable at
+Phase 1's target row counts, versus 1536+-dimension alternatives). Every `VECTOR(...)`
+column across Memory and Knowledge Engine schemas is `VECTOR(768)`. An
+`embedding_model` column is present on every embedded table specifically so this
+choice is changeable later without a migration disaster: a future model change is a
+background re-embedding job, not a schema change.
+
+**Consequence.** Any future change to the system-wide embedding model is an
+operational migration (re-embed via the `EmbeddingProvider` interface, tracked per-row
+via `embedding_model`), not an architectural one. Cross-engine embedding comparison
+(Memory ↔ Knowledge) remains possible for as long as this standardization holds,
+which is the explicit reason a single model was chosen over per-engine optimization.
+
 ## Canonical Service Inventory
 
 | Service / unit | Bible Part(s) | Layer |

@@ -1,6 +1,6 @@
 # NOVA Engineering Roadmap
 
-Status: **Draft v1.1 — companion document to the [Software Architecture Document](../architecture/00-overview-and-decisions.md). Technology stack, Event Bus (ADR-006), Graph Store (ADR-007), and Agent Architecture (ADR-008) approved; Phase 0 is cleared to begin.**
+Status: **Draft v1.2 — companion document to the [Software Architecture Document](../architecture/00-overview-and-decisions.md). Technology stack, Event Bus (ADR-006), Graph Store (ADR-007), Agent Architecture (ADR-008), Embedding Provider (ADR-009), and the standardized embedding model (ADR-010) approved. Phase 0 is implemented. Phase 1's scope has been refined to production-grade — see the [Phase 1 design package](../design/phase-1/README.md), pending approval before implementation begins.**
 
 ## How this roadmap is organized
 
@@ -17,7 +17,7 @@ which is not yet decided).
 | Phase | Name | Complexity | Producible outcome at the end |
 |---|---|---|---|
 | 0 | Platform Bootstrap | Medium | Empty-but-real monorepo; `nova-host` boots, does nothing yet, but boots correctly |
-| 1 | Data & Memory Substrate | Medium | NOVA can store and retrieve memories, knowledge, and world objects |
+| 1 | Data & Memory Substrate | Very High | NOVA can store and retrieve memories, knowledge, and world objects, on a production-grade foundation every later engine builds on |
 | 2 | AI Core: Model Orchestration & Reasoning | High | You can talk to NOVA; it remembers you, reasons before answering, and picks models intelligently |
 | 3 | Planning & the NOVA Agent Operating System | Very High | NOVA can take a real objective, plan it, delegate it through NAOS to agents, and execute real actions |
 | 4 | Perception, Autonomy & Digital Twin | High | NOVA notices what you're doing on your machine and proactively assists, within trust boundaries you control |
@@ -72,41 +72,121 @@ which is not yet decided).
 
 ## Phase 1 — Data & Memory Substrate
 
+Status: **Scope refined to production-grade, per explicit user directive.** Memory,
+Knowledge, and World Model Engines are the foundation almost every later engine reads
+from or writes into — a design mistake here is systemic, not local — so this phase is
+no longer scoped as a lighter "storage and retrieval" pass. A full technical design
+package precedes implementation and requires explicit approval before code is written;
+see [docs/design/phase-1/](../design/phase-1/README.md) (00 — Shared Foundations
+introducing ADR-009/010 and three new shared packages; 01 — Memory Engine; 02 —
+Knowledge Engine; 03 — World Model Engine; 04 — Cross-Engine Integration), each against
+all 20 requested design dimensions (internal architecture, data flow, schema, graph
+model, lifecycle, retrieval, indexing, caching, embedding, search, versioning, event
+flow, APIs, performance, scalability, failure recovery, security, testing, extension
+points).
+
 **Objectives**
-- Implement `memory-engine`, `knowledge-engine`, and `world-model-engine` at a *storage and retrieval* level — the cognitive intelligence (reasoning over this data) comes in Phase 2; this phase proves the data model and lifecycle are correct.
-- Prove the polyglot persistence strategy ([07](../architecture/07-database-architecture.md)) end-to-end: relational, vector, and graph stores all working together behind their owning engines.
+- Implement `memory-engine`, `knowledge-engine`, and `world-model-engine` as
+  production-grade foundations, not minimal CRUD services — the cognitive intelligence
+  (reasoning over this data) comes in Phase 2, but the data model, lifecycle, retrieval
+  pipeline, and failure-recovery behavior built here must not need a redesign once
+  Phase 2 through Phase 8 engines start depending on it.
+- Prove the polyglot persistence strategy ([07](../architecture/07-database-architecture.md))
+  end-to-end: relational, vector, and graph stores all working together behind their
+  owning engines, including the cross-datastore consistency problem (Postgres + Neo4j,
+  no shared transaction) solved once via a transactional-outbox-backed saga pattern and
+  reused by both Knowledge and World Model Engines.
+- Close two abstraction gaps the SAD didn't yet cover: embedding generation
+  (ADR-009 — `EmbeddingProvider` interface, Ollama default) and a standardized
+  system-wide embedding model (ADR-010 — `nomic-embed-text`, 768 dimensions).
 
 **Deliverables**
-- `memory-engine`: sensory intake → working → short-term → long-term pipeline; all 9 memory type modules per [08](../architecture/08-memory-architecture.md), CRUD + semantic/timeline search working; consolidation worker (merge duplicates, decay lifecycle stages) running on a schedule.
-- `knowledge-engine`: Knowledge Graph in Neo4j, node/relationship CRUD, source attribution, confidence scoring, contradiction detection (structural — flags conflicting edges, doesn't yet resolve them intelligently, which needs Reasoning Engine).
-- `world-model-engine`: object/relationship graph (merged Part 5 + Part 18 spec per ADR-002), event-driven object state updates, basic World View query API.
-- Event contracts for all `memory.*`, `knowledge.*`, `world_model.*` subjects registered in `nova-contracts`.
-- A minimal internal CLI/admin API for manually inspecting memory/knowledge/world state (used through Phase 2 before the real UI exists).
+- Three new shared packages, built first: `nova-vectorstore-sdk` (`VectorStore`
+  interface, pgvector/HNSW default), `nova-graphstore-sdk` (`GraphStore` interface per
+  ADR-007, Neo4j default), `nova-embeddings-sdk` (`EmbeddingProvider` interface per
+  ADR-009, Ollama default) — see
+  [00 §New shared packages](../design/phase-1/00-shared-foundations.md#new-shared-packages-this-design-requires).
+- `memory-engine`: sensory intake → working → short-term → long-term pipeline; all 9
+  memory type modules per [08](../architecture/08-memory-architecture.md) and
+  [01](../design/phase-1/01-memory-engine.md), unified `memory_record` schema
+  (discriminated by `memory_type`), CRUD + semantic/timeline search, consolidation
+  worker, transactional outbox, no graph of its own (delegates relationships to
+  Knowledge Engine — see [01 §5](../design/phase-1/01-memory-engine.md#5-graph-model)).
+- `knowledge-engine`: Knowledge Graph in Neo4j, node/relationship CRUD, source
+  attribution, confidence scoring, structural contradiction detection, full
+  Raw→...→Strategic evolution state machine, node version history, Postgres-then-graph
+  saga (see [02](../design/phase-1/02-knowledge-engine.md)).
+- `world-model-engine`: object/relationship graph (merged Part 5 + Part 18 spec per
+  ADR-002), event-driven object state updates, Redis-primary Active Context with a
+  sub-20ms p95 context-request budget, World Simulation shipped as a stub interface
+  only (see [03](../design/phase-1/03-world-model-engine.md)).
+- The one real Phase 1 cross-engine integration (Memory ↔ Knowledge, fully tested) plus
+  a synthetic event harness in `nova-testkit` so Perception-dependent code paths are
+  fully tested before Phase 4's real Perception Engine exists (see
+  [04](../design/phase-1/04-cross-engine-integration.md)).
+- Event contracts for all `memory.*`, `knowledge.*`, `world_model.*` subjects
+  registered in `nova-contracts`.
+- A minimal internal CLI/admin API for manually inspecting memory/knowledge/world state
+  (used through Phase 2 before the real UI exists).
+- The full per-subsystem deliverable checklist
+  ([SAD 15 §9](../architecture/15-development-workflow.md#9-per-subsystem-deliverable-checklist))
+  satisfied for all three engines and all three new shared packages: architecture docs,
+  sequence diagrams, component diagrams, API docs, unit tests, integration tests,
+  performance benchmarks, failure-scenario tests, logging strategy, observability
+  metrics — delivered as part of the implementation, not after it.
+- An [Architecture Review Report](../roadmap/architecture-reviews/TEMPLATE.md) filed at
+  `docs/roadmap/architecture-reviews/phase-1-data-memory-substrate.md`, required for
+  this phase to be considered complete.
 
 **Dependencies:** Phase 0 (Event Bus, `nova-core`, CI/CD, `nova-contracts`).
 
-**Estimated complexity:** Medium — mostly well-understood CRUD-plus-search engineering; the one non-trivial piece is the consolidation worker's duplicate-merge/promotion logic.
+**Estimated complexity:** Very High — revised up from the original Medium rating.
+Production-grade design across three foundational engines, a cross-datastore saga
+pattern used by two of them, an embedding abstraction with a system-wide model
+standardization decision, and the newly-mandatory full deliverable checklist (docs,
+diagrams, benchmarks, failure-scenario tests, observability) for every subsystem
+together represent materially more engineering and architectural risk than the
+original CRUD-plus-search scope.
 
-**Implementation order**
-1. Postgres schemas + Alembic migrations for all three engines (per-engine schema, per [07 §1](../architecture/07-database-architecture.md#1-store-to-engine-ownership-map)).
-2. `memory-engine`: working/short-term (Redis + Postgres) first, since nothing downstream needs long-term yet.
-3. `memory-engine`: long-term + pgvector search.
-4. `knowledge-engine`: Neo4j graph CRUD + semantic search over knowledge text.
-5. `world-model-engine`: object graph + event ingestion from a synthetic event generator (real Perception Engine input arrives in Phase 4).
-6. Memory consolidation worker.
-7. Contradiction detection (structural).
+**Implementation order** (design package's own build order, not yet started —
+implementation begins only after the [design package](../design/phase-1/README.md) is
+approved)
+1. `nova-vectorstore-sdk`, `nova-graphstore-sdk`, `nova-embeddings-sdk` — interfaces and
+   default implementations, before any engine that depends on them.
+2. Postgres schemas + Alembic migrations for all three engines (per-engine schema, per
+   [07 §1](../architecture/07-database-architecture.md#1-store-to-engine-ownership-map)).
+3. `memory-engine`: working/short-term (Redis + Postgres) first, since nothing
+   downstream needs long-term yet.
+4. `memory-engine`: long-term + pgvector search + consolidation worker + outbox.
+5. `knowledge-engine`: Neo4j graph CRUD + semantic search + Postgres-then-graph saga.
+6. `world-model-engine`: object graph + Active Context + event ingestion from the
+   synthetic event harness (real Perception Engine input arrives in Phase 4).
+7. Memory ↔ Knowledge integration, contract-tested end-to-end.
+8. Contradiction detection (structural).
 
 **Testing strategy**
-- Unit tests per memory type module (retention rules, importance scoring).
-- Integration tests against real Postgres/Neo4j/Redis via `nova-testkit` testcontainers, per [16 §3](../architecture/16-testing-strategy.md#3-integration-testing).
-- Contract tests for every `memory.*`/`knowledge.*`/`world_model.*` event.
+- Unit tests per memory type module (retention rules, importance scoring) and per
+  domain module in Knowledge/World Model.
+- Integration tests against real Postgres/Neo4j/Redis via `nova-testkit` testcontainers,
+  per [16 §3](../architecture/16-testing-strategy.md#3-integration-testing).
+- Contract tests for every `memory.*`/`knowledge.*`/`world_model.*` event, and
+  specifically for the Memory↔Knowledge integration loop
+  ([04 §1](../design/phase-1/04-cross-engine-integration.md#1-memory--knowledge-integration-real-phase-1)).
+- Failure-scenario tests for every documented failure mode (§17 of each engine's design
+  doc): process crash mid-consolidation, process crash between the Postgres and Neo4j
+  halves of the saga (assert exactly-once, not lost or duplicated), VectorStore/GraphStore
+  unavailability, Redis unavailability for World Model's Active Context (fails fast, by
+  design).
+- Performance benchmarks asserting each engine's §15 targets, not just prose claims.
 - A scripted scenario test: write 500 synthetic memories with controlled importance/recency, run the consolidation worker, assert the expected lifecycle-stage distribution.
 
 **Acceptance criteria**
-- A memory written via the admin API is retrievable by semantic search with reasonable relevance ranking within 100ms (p95) on a 10k-memory dataset.
+- A memory written via the admin API is retrievable by semantic search with reasonable relevance ranking within 200ms (p95) on a 100k-memory dataset (per [01 §15](../design/phase-1/01-memory-engine.md#15-performance-considerations)).
 - A knowledge contradiction (two conflicting facts about the same node) is detected and flagged, not silently overwritten (Part 10).
-- Killing and restarting `memory-engine` mid-consolidation resumes without data loss (Part 6 "Cognitive Memory").
+- Killing and restarting `memory-engine` mid-consolidation, or killing the outbox dispatcher between the Postgres and Neo4j halves of a Knowledge/World Model write, resumes without data loss or duplicate application (Part 6 "Cognitive Memory"; [02 §17](../design/phase-1/02-knowledge-engine.md#17-failure-recovery)).
 - Project Memory scoping works: retrieving `project_id=X` context returns only that project's memories.
+- World Model's `world_model.context.request` responds within 20ms p95.
+- The full per-subsystem deliverable checklist ([SAD 15 §9](../architecture/15-development-workflow.md#9-per-subsystem-deliverable-checklist)) is satisfied for all three engines and the three new shared packages, verified in the phase's Architecture Review Report.
 
 ---
 
