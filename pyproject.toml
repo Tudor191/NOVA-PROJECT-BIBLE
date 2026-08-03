@@ -26,6 +26,15 @@ warn_redundant_casts = true
 disallow_untyped_defs = true
 no_implicit_optional = true
 
+# asyncpg and pgvector ship no type stubs / py.typed marker. Both are used only
+# inside nova-vectorstore-sdk's pgvector backend (docs/design/phase-1/
+# 00-shared-foundations.md) -- no engine ever imports them directly for vector
+# search (an engine's own SQLAlchemy models may still use `pgvector.sqlalchemy`
+# to declare a VECTOR column type, which is schema definition, not vector search).
+[[tool.mypy.overrides]]
+module = ["asyncpg.*", "pgvector.*"]
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 
@@ -60,4 +69,14 @@ forbidden_modules = [
     "nats",
     "aiokafka",
     "aio_pika",
+]
+
+[[tool.importlinter.contracts]]
+name = "No engine imports a graph database client directly (ADR-007): only nova_graphstore_sdk may"
+type = "forbidden"
+source_modules = [
+    "nova_core",
+]
+forbidden_modules = [
+    "neo4j",
 ]

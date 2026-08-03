@@ -1,0 +1,10 @@
+{
+  "name": "@nova/nova-embeddings-sdk",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "lint": "uv run --package nova-embeddings-sdk ruff check . && uv run --package nova-embeddings-sdk mypy src",
+    "test": "uv run --package nova-embeddings-sdk pytest",
+    "build": "echo 'nova-embeddings-sdk: no build step (pure Python library)'"
+  }
+}

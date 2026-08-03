@@ -122,6 +122,15 @@ def _update_root_pyproject(module: str) -> None:
         f'    "nova_core",\n    "{module}",\n]',
         1,
     )
+    text = text.replace(
+        'name = "No engine imports a graph database client directly (ADR-007): '
+        'only nova_graphstore_sdk may"\ntype = "forbidden"\nsource_modules = [\n'
+        '    "nova_core",\n]',
+        'name = "No engine imports a graph database client directly (ADR-007): '
+        'only nova_graphstore_sdk may"\ntype = "forbidden"\nsource_modules = [\n'
+        f'    "nova_core",\n    "{module}",\n]',
+        1,
+    )
     ROOT_PYPROJECT.write_text(text)
 
 

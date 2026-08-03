@@ -1,0 +1,10 @@
+{
+  "name": "@nova/nova-graphstore-sdk",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "lint": "uv run --package nova-graphstore-sdk ruff check . && uv run --package nova-graphstore-sdk mypy src",
+    "test": "uv run --package nova-graphstore-sdk pytest",
+    "build": "echo 'nova-graphstore-sdk: no build step (pure Python library)'"
+  }
+}
