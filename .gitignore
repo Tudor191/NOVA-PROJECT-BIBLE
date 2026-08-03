@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Node / TypeScript
+node_modules/
+dist/
+.turbo/
+*.tsbuildinfo
+
+# Rust
+target/
+
+# Env / secrets
+.env
+.env.local
+!.env.*.example
+
+# OS
+.DS_Store
+
+# Editors
+.vscode/
+.idea/
+
+# Docker volumes mounted locally (if any)
+infra/docker/.data/

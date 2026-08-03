@@ -1,0 +1,19 @@
+{
+  "name": "nova",
+  "private": true,
+  "packageManager": "pnpm@10.33.0",
+  "description": "NOVA - Neural Operational Virtual Architecture. Monorepo root.",
+  "scripts": {
+    "bootstrap": "pnpm install && uv sync --all-packages",
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "test": "turbo run test"
+  },
+  "devDependencies": {
+    "turbo": "^2.10.8"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

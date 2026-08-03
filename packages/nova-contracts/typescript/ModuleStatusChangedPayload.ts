@@ -1,0 +1,14 @@
+export type Module = string;
+/**
+ * Mirrors the module lifecycle states from Part 20's Module Lifecycle.
+ */
+export type ModuleStatus = "starting" | "healthy" | "degraded" | "down";
+export type Reason = string | null;
+
+export interface ModuleStatusChangedPayload {
+  module: Module;
+  previous_status?: ModuleStatus | null;
+  status: ModuleStatus;
+  reason?: Reason;
+  [k: string]: unknown;
+}

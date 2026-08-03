@@ -1,0 +1,59 @@
+{
+  "id": null,
+  "uid": "nova-core-heartbeat",
+  "title": "NOVA Core - Heartbeat",
+  "description": "Bible Part 20 'Heartbeat System', made visible. Confirms nova-core (and, as engines are added, every other module) is alive and reports its own uptime -- the first thing a real Command Center 'System' panel (docs/architecture/04) will build on.",
+  "tags": ["nova", "phase-0"],
+  "timezone": "browser",
+  "refresh": "5s",
+  "time": { "from": "now-15m", "to": "now" },
+  "schemaVersion": 39,
+  "panels": [
+    {
+      "id": 1,
+      "title": "nova-core status",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [
+        {
+          "expr": "increase(nova_core_heartbeat_total[1m]) > 0",
+          "legendFormat": "alive"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "type": "value", "options": { "0": { "text": "DOWN", "color": "red" } } },
+            { "type": "value", "options": { "1": { "text": "HEALTHY", "color": "green" } } }
+          ]
+        }
+      }
+    },
+    {
+      "id": 2,
+      "title": "nova-core uptime",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 6, "x": 6, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [
+        { "expr": "nova_core_uptime_seconds", "legendFormat": "uptime" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s" } }
+    },
+    {
+      "id": 3,
+      "title": "Heartbeat rate",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "targets": [
+        {
+          "expr": "rate(nova_core_heartbeat_total[1m])",
+          "legendFormat": "{{module}} ({{status}})"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "hz" } }
+    }
+  ]
+}

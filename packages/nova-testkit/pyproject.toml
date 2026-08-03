@@ -1,0 +1,30 @@
+[project]
+name = "nova-testkit"
+version = "0.1.0"
+description = "Shared pytest fixtures for every NOVA engine: in-memory event bus harness, async waiting helpers."
+requires-python = ">=3.12"
+dependencies = [
+    "nova-eventbus-sdk",
+    "pytest>=8.3",
+]
+
+[project.entry-points.pytest11]
+nova_testkit = "nova_testkit.plugin"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/nova_testkit"]
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.uv.sources]
+nova-eventbus-sdk = { workspace = true }
+
+[dependency-groups]
+dev = [
+    "pytest-asyncio>=0.24",
+]

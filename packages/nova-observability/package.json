@@ -1,0 +1,10 @@
+{
+  "name": "@nova/nova-observability",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "lint": "uv run --package nova-observability ruff check . && uv run --package nova-observability mypy src",
+    "test": "uv run --package nova-observability pytest",
+    "build": "echo 'nova-observability: no build step (pure Python library)'"
+  }
+}

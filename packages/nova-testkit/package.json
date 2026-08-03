@@ -1,0 +1,10 @@
+{
+  "name": "@nova/nova-testkit",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "lint": "uv run --package nova-testkit ruff check . && uv run --package nova-testkit mypy src",
+    "test": "uv run --package nova-testkit pytest",
+    "build": "echo 'nova-testkit: no build step (pure Python library)'"
+  }
+}

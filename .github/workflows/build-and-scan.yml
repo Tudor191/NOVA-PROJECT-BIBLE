@@ -1,0 +1,79 @@
+name: Build & Scan
+
+# Container image builds + dependency/image vulnerability scanning --
+# docs/architecture/17-cicd-pipeline.md §2, §6 ("Zero critical/high CVEs").
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: build-and-scan-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  dependency-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          python-version: "3.12"
+
+      - name: Install Python workspace
+        run: uv sync --all-packages --frozen
+
+      - name: pip-audit (Python dependencies)
+        run: uv run pip-audit --local
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+
+      - name: Install JS dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: pnpm audit (JS dependencies)
+        run: pnpm audit --audit-level=high
+
+  build-and-scan:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # One entry per services/<name>/Dockerfile. Add a line here whenever
+        # tools/scaffold-engine.py creates a new engine.
+        service:
+          - nova-core
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build ${{ matrix.service }}
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: services/${{ matrix.service }}/Dockerfile
+          tags: nova-${{ matrix.service }}:${{ github.sha }}
+          push: false
+          load: true
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+
+      - name: Scan ${{ matrix.service }} image
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          image-ref: nova-${{ matrix.service }}:${{ github.sha }}
+          severity: CRITICAL,HIGH
+          exit-code: "1"
+          ignore-unfixed: true

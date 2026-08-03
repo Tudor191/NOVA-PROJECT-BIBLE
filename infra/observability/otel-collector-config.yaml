@@ -1,0 +1,29 @@
+# Traces only. Metrics are Prometheus-pull (each engine's own /internal/metrics,
+# scraped directly by prometheus.yml) -- routing them through the collector too
+# would double-count every sample for no benefit. Logs are JSON on stdout, shipped
+# to Loki at the Compose/log-driver level, not through this collector.
+# See packages/nova-observability/README.md.
+
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+      grpc:
+        endpoint: 0.0.0.0:4317
+
+processors:
+  batch: {}
+
+exporters:
+  otlp/tempo:
+    endpoint: tempo:4317
+    tls:
+      insecure: true
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlp/tempo]

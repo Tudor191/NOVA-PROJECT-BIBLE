@@ -1,0 +1,14 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: nova-core
+    static_configs:
+      - targets: ["nova-core:8000"]
+    metrics_path: /internal/metrics
+
+  # As new engines are scaffolded (tools/scaffold-engine.py) and added to
+  # docker-compose.local.yml, add one static_config target per engine here.
+  # Migrating to Prometheus service discovery (docker_sd_configs) is a Roadmap
+  # Phase 8 scale-out concern (docs/architecture/19-scalability-strategy.md), not a
+  # Phase 0 one -- a handful of engines is well within static config's comfort zone.

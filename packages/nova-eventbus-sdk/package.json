@@ -1,0 +1,10 @@
+{
+  "name": "@nova/nova-eventbus-sdk",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "lint": "uv run --package nova-eventbus-sdk ruff check . && uv run --package nova-eventbus-sdk mypy src",
+    "test": "uv run --package nova-eventbus-sdk pytest",
+    "build": "echo 'nova-eventbus-sdk: no build step (pure Python library)'"
+  }
+}

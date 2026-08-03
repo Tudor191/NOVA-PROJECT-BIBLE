@@ -1,0 +1,63 @@
+[tool.uv.workspace]
+members = ["packages/*", "services/*"]
+
+[tool.uv]
+dev-dependencies = [
+    "ruff>=0.8",
+    "mypy>=1.13",
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "import-linter>=2.1",
+    "pip-audit>=2.7",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.mypy]
+python_version = "3.12"
+plugins = ["pydantic.mypy"]
+warn_unused_ignores = true
+warn_redundant_casts = true
+disallow_untyped_defs = true
+no_implicit_optional = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+
+# ADR-004 (docs/architecture/00-overview-and-decisions.md): engines may only cross-
+# communicate via the Event Bus, never by importing each other's internals, and never
+# by importing a broker's native client library directly (ADR-006 -- that's what
+# nova-eventbus-sdk's backends/ exist to encapsulate). `uv run lint-imports` checks
+# both, and is wired into CI (docs/architecture/17-cicd-pipeline.md, "import-boundary
+# check"). Add every new engine's top-level module name to `root_packages` and to the
+# "Engines are independent" contract's `modules` list as it's scaffolded
+# (tools/scaffold-engine.py does this automatically).
+[tool.importlinter]
+root_packages = [
+    "nova_core",
+]
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "Engines are independent (ADR-004): no engine imports another engine's internals directly"
+type = "independence"
+modules = [
+    "nova_core",
+]
+
+[[tool.importlinter.contracts]]
+name = "No engine imports a message broker client directly (ADR-006): only nova_eventbus_sdk may"
+type = "forbidden"
+source_modules = [
+    "nova_core",
+]
+forbidden_modules = [
+    "nats",
+    "aiokafka",
+    "aio_pika",
+]

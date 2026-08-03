@@ -1,0 +1,11 @@
+{
+  "name": "@nova/nova-core",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "lint": "uv run --package nova-core ruff check . && uv run --package nova-core mypy src",
+    "test": "uv run --package nova-core pytest",
+    "build": "echo 'nova-core: no build step (container image built via Dockerfile in CI)'",
+    "dev": "uv run --package nova-core uvicorn nova_core.main:app --reload --port 8000"
+  }
+}
