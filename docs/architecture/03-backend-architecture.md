@@ -78,7 +78,7 @@ sequenceDiagram
     participant WM as World Model Engine
     participant RE as Reasoning Engine
     participant PE as Planning Engine
-    participant AO as Agent Orchestrator
+    participant NAOS as NAOS (Agent Kernel)
     participant AE as Action Engine
     participant PersE as Personality Engine
 
@@ -90,14 +90,19 @@ sequenceDiagram
     ECE->>RE: reasoning.request (objective + context)
     RE->>RE: hypotheses, alternatives, confidence
     RE->>PE: planning.request (chosen strategy)
-    PE->>AO: task_graph.dispatch
-    AO->>AE: action.execute (per task node)
-    AE-->>AO: action.result
-    AO-->>ECE: task_graph.completed
+    PE->>NAOS: task_graph.dispatch
+    NAOS->>AE: action.execute (per task node, via an agent instance)
+    AE-->>NAOS: action.result
+    NAOS-->>ECE: task_graph.completed
     ECE->>PersE: response.stylize
     PersE->>CE: communication.intent (final)
     CE->>U: response (channel-appropriate)
 ```
+
+`NAOS (Agent Kernel)` above stands in for the full NOVA Agent Operating System
+([12](12-agent-architecture.md)) — internally this single arrow expands into
+Kernel Scheduler dispatch, Supervisor delegation, and one or more agent instances
+executing, per [12 §7](12-agent-architecture.md#7-agent-kernel--process-management--scheduling).
 
 Every arrow above is an **event on the bus** (see
 [10](10-inter-engine-communication.md) for the full topic catalogue), never a direct

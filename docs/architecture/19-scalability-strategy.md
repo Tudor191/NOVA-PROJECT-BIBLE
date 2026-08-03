@@ -20,7 +20,7 @@ change.
 | Engine | Bottleneck as load grows | Lever |
 |---|---|---|
 | `reasoning-engine` | Model inference latency/throughput | Horizontal pod scaling + GPU node pool autoscaling; request queue with priority (Executive Cognition's Cognitive Priority Matrix) |
-| `agent-orchestrator` | Concurrent agent executions | Horizontal scaling + NATS queue-group load balancing across instances; agent execution moves to a Kubernetes Job/pod-per-execution model at high concurrency (Part 4's 10,000 micro-agents target) instead of in-process async tasks |
+| `agent-os-kernel` (NAOS) | Concurrent agent instances, distribution across machines | Purpose-built for this axis from day one (ADR-008): the kernel schedules agent instances onto pluggable execution backends — in-process (v1 default) → subprocess → container (Kubernetes Job/pod-per-instance) → remote `agent-os-worker` nodes — as concurrency grows toward Part 4's 10,000 micro-agents target, with zero change to agent implementations or the kernel's own scheduling logic. See [12](12-agent-architecture.md) for the execution-backend interface. |
 | `memory-engine` / `knowledge-engine` | Vector search QPS, embedding volume | Swap `VectorStore` adapter from pgvector to **Qdrant** (sharded) — interface unchanged ([07 §3](07-database-architecture.md#3-vector-storage-pgvector)); read replicas for Postgres |
 | `world-model-engine` / `knowledge-engine` (Neo4j) | Graph traversal depth/volume at millions of nodes | Neo4j causal clustering (read replicas); query result caching in Redis for hot traversal paths; graph partitioning by project/tenant for enterprise multi-tenancy |
 | `event-bus` | Message throughput, consumer lag | NATS JetStream cluster scale-out; per-subject stream sharding (e.g., `perception.*` on its own high-throughput, low-durability stream separate from `planning.*`) |
@@ -75,7 +75,7 @@ without a rewrite:
   a humanoid robot's sensor suite is architecturally the same shape as a laptop's.
 - New Event Bus topology tiers (edge device → regional hub → global) are a NATS
   supercluster configuration, not an application change, because engines already only
-  know about "the bus," never about network topology ([09 §5](09-event-bus-architecture.md#5-local-first-vs-enterprise-topology)).
+  know about "the bus," never about network topology ([09 §7](09-event-bus-architecture.md#7-local-first-vs-enterprise-topology)).
 - This is the concrete payoff of ADR-001 and ADR-004 held consistently through every
   other document in this SAD: scalability is not a phase bolted on at the end, it is
   the reason every module boundary was drawn the way it was drawn from Part 0 forward.

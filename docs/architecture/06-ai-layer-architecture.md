@@ -66,7 +66,7 @@ stage rather than a prompt convention:
 | 1 — Instant | Simple factual/deterministic queries | Single model call, no hypothesis generation |
 | 2 — Analytical | Programming, research, writing, debugging | Hypothesis generation + evidence collection + single-pass evaluation |
 | 3 — Strategic | Architecture, business planning, system design | Multiple alternatives (Decision Matrix, Part 8) + risk estimation + confidence scoring |
-| 4 — Deep | Multi-day/enterprise-scale problems | Full pipeline + multi-agent peer review (delegates to Agent Orchestrator) + failure simulation |
+| 4 — Deep | Multi-day/enterprise-scale problems | Full pipeline + multi-agent peer review (delegates to the [NOVA Agent Operating System](12-agent-architecture.md)) + failure simulation |
 
 The `domain/pipeline.py` module implements the fixed 13-step sequence from Part 8
 verbatim (receive objective → understand intent → load memories → load World Model →

@@ -22,15 +22,15 @@ the reasoning is written out explicitly rather than asserted.
 | HTTP/WebSocket API surface per engine | **FastAPI** | Async-native, Pydantic v2 request/response validation doubles as the engine's typed contract (feeds `nova-contracts` codegen), automatic OpenAPI generation satisfies "every subsystem must expose clean APIs" (Part 1) with zero hand-written spec drift. |
 | Internal (non-HTTP) service contracts | **Pydantic v2 models + Protocols**, versioned in `packages/nova-contracts` | Bible Part 20: "every subsystem registers itself... supported APIs." A single schema source generates both the Python types and the TS client, so a breaking change is a compile-time error in every consumer, not a runtime surprise. |
 | Background job / long-running task execution | **Arq** (Redis-backed async task queue) | The Action Engine (Part 12) and Autonomy Engine (Part 14) need a durable, async-native queue with retries, priorities, and scheduling; Arq is asyncio-native (fits the rest of the stack) versus Celery's heavier, sync-first worker model. |
-| Agent process runtime | Custom `nova-agent-runtime` on top of the Event Bus (see [12](12-agent-architecture.md)) | Part 4 defines a bespoke agent lifecycle (Idle → Assigned → Context Loading → ... → Learning → Idle) and structured inter-agent messages with confidence/priority/dependencies that do not map cleanly onto any off-the-shelf agent framework's assumptions. Building it natively keeps NOVA's orchestration semantics (peer review, conflict resolution, chief-executive delegation) first-class instead of working around a framework's opinions. |
+| Agent runtime | Custom-built **NOVA Agent Operating System (NAOS)** — kernel, registry, SDK, pluggable execution backends, on top of the Event Bus (see [12](12-agent-architecture.md), ADR-008) | Part 4 defines a bespoke agent lifecycle, structured inter-agent messages with confidence/priority/dependencies, peer review, conflict resolution, hierarchical delegation, and an explicit 10,000-agent scale target that do not map onto any off-the-shelf agent framework's assumptions. This is intentionally treated as a core architectural pillar, not a library choice — see [00 ADR-008](00-overview-and-decisions.md#adr-008--the-agent-orchestrator-becomes-the-nova-agent-operating-system-naos) for why an off-the-shelf framework (LangGraph/AutoGen/CrewAI-style) was rejected in favor of a purpose-built OS-shaped design. |
 
 ## 3. Data Stores
 
 | Store | Technology | Owning engines | Reasoning |
 |---|---|---|---|
-| System of record (relational) | **PostgreSQL 16** | nova-core, capability-engine, autonomy-engine, agent-orchestrator, planning-engine | ACID guarantees for permissions, capability registry, action ledger, plans, audit logs. Best-in-class open-source RDBMS; enterprise-proven. |
+| System of record (relational) | **PostgreSQL 16** | nova-core, capability-engine, autonomy-engine, agent-os-kernel, planning-engine | ACID guarantees for permissions, capability registry, action ledger, plans, audit logs. Best-in-class open-source RDBMS; enterprise-proven. |
 | Vector search | **pgvector** (Postgres extension), abstracted behind a `VectorStore` interface | memory-engine, knowledge-engine | Co-locating vectors with their relational metadata avoids a second store for v1 ("zero budget," Part 7) while the `VectorStore` interface (ADR-001) allows swapping to Qdrant/Milvus when scale demands a dedicated ANN index — see [19](19-scalability-strategy.md). |
-| Knowledge / relationship graph | **Neo4j Community** (self-hosted) | knowledge-engine, world-model-engine | Parts 10 and 18 describe genuinely graph-shaped data (nodes, typed relationships, multi-hop traversal, contradiction detection across paths). Modeling this relationally would require recursive CTEs that don't scale; a native graph engine is the correct tool. |
+| Knowledge / relationship graph | **Neo4j Community** (self-hosted), behind an explicit `GraphStore` interface (ADR-007) | knowledge-engine, world-model-engine | Parts 10 and 18 describe genuinely graph-shaped data (nodes, typed relationships, multi-hop traversal, contradiction detection across paths). Modeling this relationally would require recursive CTEs that don't scale; a native graph engine is the correct tool. Neo4j is the *default* implementation, not a hard dependency — see [07 §4](07-database-architecture.md#4-graph-storage--the-graphstore-interface-neo4j-default-per-adr-007). |
 | Working / short-term memory, cache, pub-sub side channel | **Redis 7** | memory-engine, cognitive-state-engine, event-bus (JetStream KV alt.), rate limiting | Sub-millisecond TTL-based storage matches Part 3's Working Memory ("extremely fast... leave automatically once the task finishes") and Part 6's Active Thoughts almost exactly. |
 | Object / blob storage | **MinIO (self-hosted, S3-compatible)** locally, **AWS S3** in cloud mode | memory-engine (attachments), knowledge-engine (documents), backups | Same API in both deployment modes (local-first and cloud) — satisfies [18](18-local-first-and-cloud-sync.md) without a code fork. |
 | Time-series / telemetry (Phase 2+) | **TimescaleDB** (Postgres extension) | world-model-engine (system health), nova-core (observability) | Avoids a fourth database engine for v1; graduates to a dedicated TSDB only if enterprise telemetry volume requires it (Part 19). |
@@ -51,8 +51,9 @@ the reasoning is written out explicitly rather than asserted.
 
 | Concern | Choice | Reasoning |
 |---|---|---|
-| Local-first mode | **NATS (embedded server) with JetStream** | Single static binary, <20MB footprint, runs embedded in `nova-host` with no external ops burden — critical for "zero budget," single-machine local-first (Part 7, Part 18). Supports pub/sub, request/reply, and durable streams (needed for Part 11's "replay events," Part 20's "replay missed events" on recovery) out of the box. |
-| Enterprise/cloud mode | **NATS JetStream cluster** (default) with a documented migration path to **Kafka/Redpanda** for organizations with existing Kafka infrastructure | Same client API in both deployment modes (see [09](09-event-bus-architecture.md)); Kafka is offered as an alternative backend behind the same `EventBus` interface, not a rewrite. |
+| Abstraction | Explicit `EventBus` interface (ADR-006) in `packages/nova-eventbus-sdk` — every engine/agent depends on this Protocol, never on a broker client library | The user's explicit condition on approving NATS: it must be swappable for Kafka, RabbitMQ, or another enterprise platform without touching engine code. See [09 §1](09-event-bus-architecture.md#1-the-eventbus-interface-the-contract-not-the-technology). |
+| Local-first mode (default `EventBus` implementation) | **NATS (embedded server) with JetStream** | Single static binary, <20MB footprint, runs embedded in `nova-host` with no external ops burden — critical for "zero budget," single-machine local-first (Part 7, Part 18). Supports pub/sub, request/reply, and durable streams (needed for Part 11's "replay events," Part 20's "replay missed events" on recovery) out of the box. |
+| Enterprise/cloud mode | **NATS JetStream cluster** (default), with **Kafka** and **RabbitMQ** as officially supported alternative `EventBus` implementations selectable by configuration | Same `EventBus` interface in every deployment mode (see [09](09-event-bus-architecture.md)); switching backend is a configuration change plus a bounded adapter implementation, never a rewrite. |
 
 ## 6. Frontend Stack
 
@@ -92,13 +93,13 @@ the reasoning is written out explicitly rather than asserted.
 | Layer | Primary Technology |
 |---|---|
 | Cognitive engines | Python 3.12 / FastAPI / Pydantic v2 |
-| Agent runtime | Custom, on Event Bus |
+| Agent runtime | NOVA Agent Operating System (NAOS) — custom, on Event Bus (ADR-008) |
 | Relational data | PostgreSQL 16 |
-| Vector search | pgvector → Qdrant (scale) |
-| Graph data | Neo4j |
+| Vector search | `VectorStore` interface → pgvector default → Qdrant (scale) |
+| Graph data | `GraphStore` interface (ADR-007) → Neo4j default → Memgraph/ArangoDB/Neptune (alt.) |
 | Cache / working memory | Redis 7 |
 | Object storage | MinIO → S3 |
-| Event bus | NATS JetStream (embedded → clustered) |
+| Event bus | `EventBus` interface (ADR-006) → NATS JetStream default → Kafka/RabbitMQ (alt.) |
 | Local inference | Ollama (Llama/Qwen/Mistral/DeepSeek/Gemma/Phi) |
 | Speech | Whisper (STT) / Piper (TTS) |
 | Web frontend | React 18 / TypeScript / Vite |

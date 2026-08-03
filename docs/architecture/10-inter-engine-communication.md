@@ -24,20 +24,20 @@ flowchart TB
     DigitalTwin --> Reasoning
 
     Reasoning --> Planning[planning-engine]
-    Planning --> AgentOrch[agent-orchestrator]
-    AgentOrch --> Action[action-engine]
-    AgentOrch --> Capability[capability-engine]
+    Planning --> AgentOS[agent-os-kernel + supervisors]
+    AgentOS --> Action[action-engine]
+    AgentOS --> Capability[capability-engine]
     Action --> Companion
 
     Executive --> Reasoning
     Executive --> Planning
     Executive --> Autonomy[autonomy-engine]
     Autonomy --> Action
-    Autonomy --> AgentOrch
+    Autonomy --> AgentOS
 
     Reasoning --> Communication[communication-engine]
     Planning --> Communication
-    AgentOrch --> Communication
+    AgentOS --> Communication
     Personality[personality-engine] --> Communication
     Communication --> UserOut[User: voice/text/HUD/notification]
 
@@ -59,13 +59,17 @@ flowchart TB
     NovaCore -. heartbeat/registry .- Capability
     NovaCore -. heartbeat/registry .- Communication
     NovaCore -. heartbeat/registry .- Personality
-    NovaCore -. heartbeat/registry .- AgentOrch
+    NovaCore -. heartbeat/registry .- AgentOS
     NovaCore -. heartbeat/registry .- CogState
     NovaCore -. heartbeat/registry .- DigitalTwin
 ```
 
 All arrows are Event Bus subjects (ADR-004) — no direct calls. `nova-core` (dotted
 lines) does not sit in the data path; it only tracks liveness/registry per Part 20.
+`agent-os-kernel + supervisors` is drawn as one node here for readability; its internal
+structure (kernel, supervisors, agent instances, execution backends) is the full
+[NOVA Agent Operating System](12-agent-architecture.md) — this diagram shows NAOS's
+external interface to the rest of NOVA, not its internals.
 
 ## 2. Canonical event-flow table
 
@@ -78,16 +82,16 @@ Every row cites the Bible passage it implements.
 | 3 | User sends a message | communication-engine → `communication.intent.received` | executive-cognition-engine begins pipeline (see [03 §3](03-backend-architecture.md#3-request-lifecycle-the-thinking-pipeline-concretely)) | Part 13 "Communication Principle" |
 | 4 | Executive needs context | executive-cognition-engine → `memory.retrieve.request` / `knowledge.retrieve.request` / `world_model.context.request` (request/reply) | memory-engine, knowledge-engine, world-model-engine reply synchronously | Part 2 "Thinking Pipeline" |
 | 5 | Reasoning concludes | reasoning-engine → `reasoning.result` (with confidence) | planning-engine consumes to build/adjust Task Graph; memory-engine writes Decision Memory | Part 8 "Reasoning Memory"; Part 3 "Decision Memory" |
-| 6 | Plan ready | planning-engine → `planning.task_graph.created` | agent-orchestrator assigns nodes to agents; communication-engine may notify user of roadmap | Part 9 "Roadmap Generation" |
-| 7 | Agent needs to act | agent-orchestrator → `action.execute` | action-engine validates permissions/risk, executes via companion or cloud adapter, replies `action.result` | Part 12 "Action Principle" |
+| 6 | Plan ready | planning-engine → `planning.task_graph.created` | agent-os-kernel's Scheduler assigns nodes to agent instances via the relevant Supervisor ([12 §7](12-agent-architecture.md#7-agent-kernel--process-management--scheduling)); communication-engine may notify user of roadmap | Part 9 "Roadmap Generation" |
+| 7 | Agent needs to act | an agent instance (via its Supervisor) → `action.execute` | action-engine validates permissions/risk, executes via companion or cloud adapter, replies `action.result` | Part 12 "Action Principle" |
 | 8 | Action carries risk | action-engine → `autonomy.approval.requested` | autonomy-engine evaluates Autonomy Level/Trust/Policy, replies `autonomy.decision.made`; if approval required, communication-engine prompts the user | Part 14 "Approval Workflows" |
 | 9 | Meeting begins (multi-modal fusion example) | perception-engine (calendar) → `perception.calendar.observed`; (mic) → `perception.voice.observed` | world-model-engine fuses both into `world_model.context.changed {activity: "meeting"}`; communication-engine reduces notification priority; planning-engine postpones background tasks; autonomy-engine pauses proactive suggestions | Part 18 "Situational Awareness" example (verbatim scenario) |
-| 10 | Deployment triggered | agent-orchestrator (devops-agent) → `action.execute {type: deployment}` | action-engine runs Dry Run first if configured, then executes; world-model-engine updates Project State; knowledge-engine reindexes docs; memory-engine stores the event; digital-twin-engine updates workflow model | Part 18 "Event Propagation" example (verbatim scenario) |
+| 10 | Deployment triggered | a `devops-agent` instance (under the Operations Supervisor) → `action.execute {type: deployment}` | action-engine runs Dry Run first if configured, then executes; world-model-engine updates Project State; knowledge-engine reindexes docs; memory-engine stores the event; digital-twin-engine updates workflow model | Part 18 "Event Propagation" example (verbatim scenario) |
 | 11 | Repository updated | perception-engine (filesystem/git) → `perception.filesystem.observed` | knowledge-engine reindexes documentation; memory-engine stores event; planning-engine updates roadmap; capability-engine refreshes dependency graph; communication-engine notifies user | Part 18 "Event Propagation" example |
 | 12 | Contradiction found | knowledge-engine → `knowledge.contradiction.detected` | reasoning-engine is notified before using the affected knowledge node; nothing auto-overwrites | Part 10 "Contradiction Detection" |
 | 13 | Autonomous opportunity detected | autonomy-engine → `autonomy.opportunity.detected` | executive-cognition-engine scores against Cognitive Priority Matrix; if pursued, planning-engine creates a task graph | Part 14 "Initiative Engine" |
-| 14 | Response ready | reasoning/planning/agent-orchestrator → `communication.intent.ready` | personality-engine validates tone/consistency (synchronous call, request/reply); communication-engine renders to the active channel(s) | ADR-005; Part 17 "Validate Personality Consistency" |
-| 15 | Task/decision completed | agent-orchestrator → `agent.task.completed` | reasoning-engine and cognitive-state-engine trigger Self Reflection/Retrospective; memory-engine stores lessons learned; capability/agent performance metrics update | Part 2 "Self Improvement Engine"; Part 6 "Reflection Engine" |
+| 14 | Response ready | reasoning-engine / planning-engine / agent-os-kernel (via Executive Cognition) → `communication.intent.ready` | personality-engine validates tone/consistency (synchronous call, request/reply); communication-engine renders to the active channel(s) | ADR-005; Part 17 "Validate Personality Consistency" |
+| 15 | Task/decision completed | an agent instance → its Supervisor → agent-os-kernel → `agent_os.task.completed` | reasoning-engine and cognitive-state-engine trigger Self Reflection/Retrospective; memory-engine stores lessons learned; Agent Registry updates the instance's performance score ([12 §6](12-agent-architecture.md#6-agent-registry--discovery-install-versioning-hot-loadunload)) | Part 2 "Self Improvement Engine"; Part 6 "Reflection Engine" |
 | 16 | System boot | nova-core → phase-gated `nova.module.status_changed` events | every engine registers, then reports healthy before the next boot phase proceeds | Part 20 "System Boot Sequence" |
 | 17 | Engine crash | nova-core detects missed heartbeat → `nova.module.status_changed {status: down}` | nova-core restarts the module; on recovery the module replays missed JetStream events; dependent engines are notified | Part 20 "Fault Tolerance", "Recovery Engine" |
 | 18 | Mode change (e.g., user starts gaming) | any engine or user action → `nova.mode.changed {mode: "gaming"}` | communication-engine silences non-critical notifications; autonomy-engine adjusts interruption thresholds; world-model-engine raises Attention on performance monitoring | Part 6 "Attention shifts... if gaming begins, performance monitoring becomes dominant"; Part 13 "Communication Policies" |

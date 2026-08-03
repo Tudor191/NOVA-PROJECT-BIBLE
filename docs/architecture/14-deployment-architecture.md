@@ -18,7 +18,7 @@ flowchart TB
     subgraph "User's machine"
     Desktop[desktop-client / Tauri]
     Companion[nova-companion]
-    Host[nova-host: all 17 engines, embedded mode]
+    Host[nova-host: all 16 engines + agent-os-kernel, embedded mode]
     PG[(Postgres)]
     Neo[(Neo4j)]
     Redis[(Redis)]
@@ -51,19 +51,32 @@ flowchart TB
     E2[reasoning-engine x N]
     E3[... every engine, independently scaled]
     end
-    NATS[(NATS JetStream cluster)]
+    subgraph NAOS["NOVA Agent Operating System"]
+    AK[agent-os-kernel x N]
+    AW[agent-os-worker nodes - remote execution backend]
+    end
+    NATS[(EventBus backend: NATS / Kafka / RabbitMQ)]
+    Neo4jIface[(GraphStore backend: Neo4j / alt.)]
     PGC[(Postgres - managed, HA)]
-    NeoC[(Neo4j - clustered)]
     RedisC[(Redis - clustered)]
     end
     ObjStore[(S3)]
     Ingress --> Engines
+    Ingress --> NAOS
     Engines --- NATS
+    NAOS --- NATS
     Engines --- PGC
-    Engines --- NeoC
+    Engines --- Neo4jIface
     Engines --- RedisC
     Engines --- ObjStore
+    NAOS --- AW
 ```
+
+`agent-os-worker` nodes (§NAOS subgraph) are the `remote` execution backend from
+[12 §8](12-agent-architecture.md#8-execution-backends--how-distributed-from-day-one-actually-works)
+— present only once a deployment turns that backend on (Roadmap Phase 8); a
+single-cluster deployment can run entirely on `agent-os-kernel`'s in-cluster
+`container` backend without any `agent-os-worker` nodes at all.
 
 Each engine is a separate Helm release with its own `HorizontalPodAutoscaler`, scaled
 independently based on its own load characteristics (Reasoning Engine scales on

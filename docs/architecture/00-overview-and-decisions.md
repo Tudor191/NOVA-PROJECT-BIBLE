@@ -24,7 +24,7 @@ silently.
 | 09 | [Event Bus Architecture](09-event-bus-architecture.md) | Event bus architecture |
 | 10 | [Inter-Engine Communication Flows](10-inter-engine-communication.md) | Communication flow between every engine |
 | 11 | [API Architecture](11-api-architecture.md) | API architecture |
-| 12 | [Agent Architecture](12-agent-architecture.md) | Agent architecture |
+| 12 | [Agent Architecture — NOVA Agent Operating System](12-agent-architecture.md) | Agent architecture |
 | 13 | [Authentication & Security Architecture](13-auth-and-security.md) | Auth & security |
 | 14 | [Deployment Architecture](14-deployment-architecture.md) | Deployment architecture |
 | 15 | [Development Workflow](15-development-workflow.md) | Development workflow |
@@ -49,6 +49,36 @@ silently.
    Part 20 "AI Model Abstraction").
 5. **Architecture over speed, scalability over simplicity** (Part 1, "First Principle").
 6. **Everything is observable, explainable, and reversible** (Parts 8, 12, 14, 19).
+7. **Design for 10x** (user directive, added after initial SAD approval — see below).
+
+## The 10x Test
+
+In addition to the six constraints above, every architectural decision in this
+document set — existing or new — must satisfy one further question, per explicit
+user instruction:
+
+> "Will this still be the correct design if NOVA becomes ten times larger in five
+> years? If the answer is no, redesign it before implementation."
+
+This is stricter than ordinary "design for scale" advice: it is a mandatory
+pre-implementation gate, not a background aspiration. Two concrete consequences
+already reshape this document set as of this revision:
+
+1. **Any interface an ADR relies on for future swappability must be an explicit,
+   first-class contract with more than one intended implementation from day one** —
+   never an implicit assumption that "it could probably be swapped later." ADR-006
+   and ADR-007 exist because of this: the Event Bus and Graph Store were previously
+   described only in prose as "swappable"; they are now promoted to named interfaces
+   with a documented multi-backend contract.
+2. **Any subsystem whose Bible specification names an explicit scale target must be
+   designed against that target, not against initial load.** Part 4's "10,000
+   micro-agents... without redesigning the core orchestration system" is the most
+   extreme such target in the entire Bible. ADR-008 redesigns the Agent Orchestrator
+   accordingly — as a standalone Agent Operating System, not an engine that happens to
+   run agents.
+
+Every ADR below has been re-reviewed against this test; ADR-006, 007, and 008 are the
+result.
 
 ## Architecture Decision Records (ADRs)
 
@@ -103,8 +133,10 @@ and does not create duplicate services:
   There is no separate "ai-core" service; Part 2 is the narrative introduction to what
   Parts 7–20 build concretely.
 
-**Consequence.** The canonical service inventory has 17 cognitive/functional engines
-(below), not 21. This is captured once here so no other document re-litigates it.
+**Consequence.** The canonical service inventory has 16 cognitive/functional engines
+(below), not 21 — the Agent Orchestrator is additionally elevated out of this count
+entirely by ADR-008, since NAOS is a standalone framework, not one more engine. This
+is captured once here so no other document re-litigates it.
 
 ### ADR-003 — Polyglot by layer, not by engine
 
@@ -151,14 +183,137 @@ Engine converts into channel-appropriate output, filtered through the Personalit
 for tone/style consistency (Part 17). This is what guarantees "the illusion of a single
 mind" (Part 1) at the architecture level, not just the prompt level.
 
+### ADR-006 — Event Bus abstracted behind an explicit `EventBus` interface
+
+**Context.** NATS JetStream was approved as the *initial* Event Bus implementation
+(see [09](09-event-bus-architecture.md)), but per the user's explicit condition, it
+must be "completely abstracted behind an internal interface so that it can later be
+replaced with Kafka, RabbitMQ or another enterprise messaging platform without
+affecting the rest of the system." ADR-004 already forbids direct engine-to-engine
+calls; this ADR ensures the bus implementation itself, not just the pattern of using
+it, is swappable.
+
+**Decision.** `EventBus` is defined as an explicit Protocol in
+`packages/nova-eventbus-sdk`, designed against the intersection of capabilities NATS,
+Kafka, and RabbitMQ can all provide (publish, subscribe, request/reply, durable
+replayable streams, consumer/queue groups) — never against a NATS-specific extension.
+No engine, agent, or tool imports a broker's native client library directly; every
+caller depends only on this Protocol:
+
+```python
+class EventBus(Protocol):
+    async def publish(self, envelope: EventEnvelope) -> None: ...
+    async def subscribe(self, subject_pattern: str, handler: EventHandler,
+                         *, queue_group: str | None = None) -> Subscription: ...
+    async def request(self, subject: str, payload: BaseModel,
+                       *, timeout_ms: int) -> EventEnvelope: ...
+    async def open_stream(self, subject_pattern: str, *, durable_name: str,
+                           replay: ReplayPolicy) -> EventStream: ...
+    async def health(self) -> BusHealth: ...
+```
+
+**Consequence.** Backend selection becomes one configuration value
+(`EVENT_BUS_BACKEND=nats|kafka|rabbitmq`), resolved by a small backend registry at
+`nova-eventbus-sdk` startup — the same adapter pattern already used for
+`ModelConnector` ([06](06-ai-layer-architecture.md)) and `VectorStore`
+([07](07-database-architecture.md)). Writing a `KafkaEventBus` or `RabbitMQEventBus`
+is a bounded, isolated task (implement the Protocol, pass the existing contract-test
+suite per [16 §4](16-testing-strategy.md#4-contract-testing)) — never a cross-cutting
+rewrite. See [09](09-event-bus-architecture.md) for the full interface and backend
+comparison.
+
+### ADR-007 — Graph persistence abstracted behind an explicit `GraphStore` interface
+
+**Context.** Neo4j was approved as the *initial* graph database for the World Model
+and Knowledge Graph, on the same condition: the persistence layer must stay
+abstracted so alternative graph databases can be introduced later "without a
+redesign."
+
+**Decision.** `GraphStore` is defined as an explicit interface in a new shared
+package, `packages/nova-graphstore-sdk`, promoted out of being an implicit detail of
+`knowledge-engine`/`world-model-engine` — mirroring the `VectorStore` interface
+already defined in [07 §3](07-database-architecture.md#3-vector-storage-pgvector):
+
+```python
+class GraphStore(Protocol):
+    async def upsert_node(self, label: str, node_id: str, properties: dict) -> None: ...
+    async def upsert_relationship(self, from_id: str, rel_type: str, to_id: str,
+                                   properties: dict) -> None: ...
+    async def query(self, query: GraphQuery) -> GraphResult: ...
+    async def traverse(self, start_id: str, spec: TraversalSpec) -> GraphResult: ...
+    async def delete_node(self, node_id: str) -> None: ...
+```
+
+`GraphQuery`/`TraversalSpec` are backend-agnostic builder types, not raw Cypher —
+`knowledge-engine` and `world-model-engine` construct queries against these types, and
+only the Neo4j adapter translates them to Cypher. This is what keeps the interface
+honest: a query method that just accepted a raw Cypher string would silently couple
+every caller to Neo4j regardless of what the Protocol claimed.
+
+**Consequence.** Graph backend selection becomes one configuration value, and the
+contract tests that validate `knowledge-engine`'s and `world-model-engine`'s graph
+behavior run unchanged against any conformant `GraphStore` implementation (Memgraph,
+ArangoDB, Amazon Neptune, or a future NOVA-specific engine). This directly answers the
+10x Test for graph storage, whose Bible-stated target (Parts 10 & 18: "millions of
+interconnected objects") is exactly the kind of requirement that may eventually demand
+a different graph engine than the one that made sense at launch.
+
+### ADR-008 — The Agent Orchestrator becomes the NOVA Agent Operating System (NAOS)
+
+**Context.** Part 4 describes an "AI organization": a Chief-Executive-style
+orchestrator, a standardized agent lifecycle, structured inter-agent messages, peer
+review, conflict resolution, and an explicit scale target — "10 agents. 100 agents.
+1,000 agents. 10,000 micro-agents... without redesigning the core orchestration
+system." The original design in this SAD ([12 — Agent Architecture, v1](12-agent-architecture.md))
+treated the orchestrator as one more `services/` engine running each agent as an
+in-process asyncio task. Under the 10x Test, that design does not hold: it does not
+survive a jump from tens of agents to hundreds or thousands, it provides no path to
+distributed execution across machines (Part 20 "Distributed Execution": desktop,
+cloud, home server, robot, vehicle), and it treats "agent" as a fixed set of
+hand-authored Python classes rather than a genuinely pluggable, dynamically
+loadable, versioned unit — the same mistake ADR-001 was written specifically to avoid
+for engines.
+
+**Decision.** The Agent Orchestrator is promoted from "one engine among seventeen" to
+a standalone framework — the **NOVA Agent Operating System (NAOS)** — living in its
+own top-level `agent-os/` directory, not `services/`, and designed explicitly as an
+operating system for agents, not a task dispatcher. Full design in the rewritten
+[12 — Agent Architecture](12-agent-architecture.md). In summary, NAOS has five parts:
+
+- **Agent Kernel** — control plane only (process/instance management, scheduling,
+  supervision trees, health monitoring). Contains no agent-specific logic, exactly as
+  `nova-core` contains no engine-specific logic.
+- **Agent SDK** — the standardized interface (lifecycle, capabilities, permissions,
+  communication, metrics) every agent implements — the "syscall interface" of the
+  Agent OS.
+- **Agent Registry** — dynamic discovery, installation, versioning, hot load/unload,
+  marketplace-ready, mirroring the Capability Engine's registry pattern (Part 15)
+  applied to agents themselves.
+- **Execution Backends** — pluggable strategies (in-process, subprocess, container,
+  remote worker node) behind one `AgentExecutionBackend` interface, so scaling from
+  10 to 10,000 agents, or distributing execution across machines, is a scheduling
+  decision, never a rewrite.
+- **Supervision Trees** — Erlang/OTP-style hierarchical supervision (domain
+  supervisors overseeing leaf agents), giving Part 4's scale target a structural
+  mechanism instead of a flat registry that would bottleneck at hundreds of agents.
+
+**Consequence.** `services/agent-orchestrator` is removed from the Service Inventory
+below; `agent-os/` becomes a new top-level pillar alongside `apps/`, `services/`,
+`companion/` (see [02](02-repository-and-folder-structure.md)). The v1 (Phase 3)
+implementation stays intentionally simple — in-process execution backend only, a flat
+supervision tree, a filesystem-based registry — but every extension point needed to
+reach the full design (subprocess/container/remote backends, multi-level supervision,
+marketplace-style discovery) is an addition behind an existing interface, never a
+redesign. This is the 10x Test applied to the one subsystem the Bible most explicitly
+asks to scale by three orders of magnitude.
+
 ## Canonical Service Inventory
 
-| Service | Bible Part(s) | Layer |
+| Service / unit | Bible Part(s) | Layer |
 |---|---|---|
 | `nova-core` | 20 | Orchestration / nervous system |
 | `executive-cognition-engine` | 19 | Orchestration |
 | `cognitive-state-engine` | 6 | Orchestration |
-| `event-bus` (infra, not a Bible "engine" but required by all) | 4, 11–20 | Infrastructure |
 | `ai-model-orchestration-engine` | 7 (realizes Part 2) | AI layer |
 | `reasoning-engine` | 8 (realizes Part 2) | AI layer |
 | `planning-engine` | 9 (realizes Part 2) | AI layer |
@@ -172,10 +327,17 @@ mind" (Part 1) at the architecture level, not just the prompt level.
 | `communication-engine` | 13 | Interaction |
 | `personality-engine` | 17 | Interaction |
 | `autonomy-engine` | 14 | Governance |
-| `agent-orchestrator` + agent runtimes | 4 | Multi-agent |
+| `agent-os-kernel` (NAOS control plane — see ADR-008) | 4 | Multi-agent |
+| `api-gateway` | 1 (implied — clean external APIs) | Presentation edge |
+| `ws-gateway` | 1, 9, 13 | Presentation edge |
 | `nova-companion` (Rust desktop sensor/actuator daemon) | 11, 12 | Sensing/Acting (desktop) |
-| `web-client`, `desktop-client` | 1 | Presentation |
+| `web-client` | 1 | Presentation |
+| `desktop-client` | 1 | Presentation |
 
-19 deployable units total. Each is described structurally in
-[02](02-repository-and-folder-structure.md) and behaviorally in its corresponding
-document above.
+22 NOVA-authored deployable units (excludes third-party infrastructure — NATS,
+Postgres, Neo4j, Redis, MinIO — which are configured, not built). Enterprise/distributed
+deployments additionally introduce `agent-os-worker` (remote execution backend nodes,
+[12](12-agent-architecture.md)) and `nova-sync-service` ([18](18-local-first-and-cloud-sync.md))
+as opt-in units, not part of the default local-first baseline. Each unit is described
+structurally in [02](02-repository-and-folder-structure.md) and behaviorally in its
+corresponding document above.

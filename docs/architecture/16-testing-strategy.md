@@ -70,7 +70,7 @@ A small, deliberately limited suite (Playwright, driving the real web-client aga
 full local-first stack in CI) covering the golden paths only:
 
 1. First-run onboarding → first successful conversation with memory recall.
-2. A multi-step coding task flowing through Planning → Agent Orchestrator → Action →
+2. A multi-step coding task flowing through Planning → the NOVA Agent Operating System ([12](12-agent-architecture.md)) → Action →
    result surfaced to the user.
 3. An autonomy approval round-trip (autonomous suggestion → user approval → execution).
 4. Engine crash-and-recover (kill a container mid-task, verify resumption per Part 20's

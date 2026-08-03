@@ -12,7 +12,7 @@ the Bible's requirements well.
 
 | Store | Owning engine(s) | Data |
 |---|---|---|
-| PostgreSQL | nova-core, capability-engine, autonomy-engine, planning-engine, agent-orchestrator, communication-engine | Service registry, capability registry, action ledger, policies, task graphs, agent registry, conversation sessions, permissions, audit log |
+| PostgreSQL | nova-core, capability-engine, autonomy-engine, planning-engine, agent-os-kernel, communication-engine | Service registry, capability registry, action ledger, policies, task graphs, agent registry, conversation sessions, permissions, audit log |
 | PostgreSQL + pgvector | memory-engine, knowledge-engine | Long-term/semantic/episodic memory records + their embeddings; knowledge item text + embeddings |
 | Neo4j | knowledge-engine, world-model-engine | Knowledge Graph (Part 10), Digital Environment Graph / World Object Graph (Part 5, 18) |
 | Redis | memory-engine (working/short-term), cognitive-state-engine, ws-gateway (session/presence) | Working Memory, Active Thoughts, Attention layers, ephemeral caches, pub/sub side-channel |
@@ -100,7 +100,33 @@ Abstracted behind `packages/nova-eventbus-sdk`'s sibling `VectorStore` interface
 can swap the HNSW-in-Postgres implementation for Qdrant at enterprise scale by changing
 one adapter, not the calling code.
 
-## 4. Graph storage (Neo4j)
+## 4. Graph storage — the `GraphStore` interface (Neo4j default, per ADR-007)
+
+Per the user's approval condition on Neo4j, `knowledge-engine` and `world-model-engine`
+never call the Neo4j driver directly. Both depend only on `packages/nova-graphstore-sdk`'s
+`GraphStore` Protocol:
+
+```python
+class GraphStore(Protocol):
+    async def upsert_node(self, label: str, node_id: str, properties: dict) -> None: ...
+    async def upsert_relationship(self, from_id: str, rel_type: str, to_id: str,
+                                   properties: dict) -> None: ...
+    async def query(self, query: GraphQuery) -> GraphResult: ...
+    async def traverse(self, start_id: str, spec: TraversalSpec) -> GraphResult: ...
+    async def delete_node(self, node_id: str) -> None: ...
+```
+
+`GraphQuery`/`TraversalSpec` are backend-agnostic builder types (label filters,
+relationship-type filters, depth bounds, property predicates) — not raw Cypher —
+specifically so the interface cannot be silently defeated by callers embedding
+Neo4j-specific query strings. The default `Neo4jGraphStore` adapter translates these
+builders to Cypher; an alternative adapter (Memgraph, ArangoDB, Amazon Neptune) would
+translate the same builders to its own query language, with the shared contract-test
+suite ([16 §4](16-testing-strategy.md#4-contract-testing)) verifying behavioral
+equivalence. See [ADR-007](00-overview-and-decisions.md#adr-007--graph-persistence-abstracted-behind-an-explicit-graphstore-interface)
+for the full reasoning.
+
+### Default implementation: Neo4j
 
 ```cypher
 // Knowledge Engine (Part 10)
@@ -120,7 +146,9 @@ Two logically separate graphs (Knowledge Graph vs. World Object Graph) in **the 
 Neo4j instance** but distinct label namespaces and distinct owning engines — chosen
 over two separate graph databases to avoid unnecessary operational overhead at v1,
 revisited in [19](19-scalability-strategy.md) if traversal volume ever requires
-physical separation.
+physical separation. Because both engines only ever speak to `GraphStore`, this
+physical separation — or a full backend swap — is an infrastructure and adapter
+change, not an engine code change.
 
 ## 5. Redis key-space conventions
 

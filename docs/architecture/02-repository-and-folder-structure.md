@@ -2,7 +2,7 @@
 
 ## 1. Repository strategy: single monorepo
 
-**Decision.** All 19 deployable units from the [Service Inventory](00-overview-and-decisions.md)
+**Decision.** All deployable units from the [Service Inventory](00-overview-and-decisions.md#canonical-service-inventory)
 live in one repository, `nova` (this repository will be renamed/expanded from
 `NOVA-PROJECT-BIBLE`, or a sibling `NOVA` implementation repo will be created — a
 decision for the user, noted in the Roadmap's Phase 0).
@@ -47,10 +47,29 @@ nova/
 │   ├── communication-engine/
 │   ├── personality-engine/
 │   ├── autonomy-engine/
-│   ├── agent-orchestrator/
+│   ├── api-gateway/             # External REST surface (see 11)
 │   └── ws-gateway/             # Browser <-> Event Bus bridge (see 04, 09, 13)
 │
-├── agents/                     # Concrete agent implementations (Part 4 categories)
+├── agent-os/                   # NOVA Agent Operating System (NAOS) — standalone
+│   │                            # framework, a core architectural pillar (ADR-008),
+│   │                            # not "one more engine." See 12.
+│   ├── kernel/                  # Agent Kernel: process manager, scheduler,
+│   │                            # supervision trees, health monitor — control plane only
+│   ├── registry/                # Agent Registry: discovery, install pipeline,
+│   │                            # versioning, hot load/unload
+│   ├── sdk/
+│   │   ├── python/              # nova-agent-sdk — the standardized Agent interface
+│   │   └── rust/                # nova-agent-sdk-rs — for future performance-critical agents
+│   ├── execution-backends/
+│   │   ├── inprocess/           # v1 default — asyncio task in the kernel process
+│   │   ├── subprocess/          # OS-process isolation
+│   │   ├── container/           # Docker/Firecracker isolation
+│   │   └── remote/              # Dispatches to an agent-os-worker node (distributed mode)
+│   └── supervisors/              # Built-in domain supervisor agents (Engineering,
+│                                  # Research, Operations, ...) — see 12 §9
+│
+├── agents/                     # Concrete agent packages (Part 4 categories), each built
+│   │                            # against agent-os/sdk — see 12 §3 for the package format
 │   ├── research-agent/
 │   ├── architect-agent/
 │   ├── backend-agent/
@@ -70,8 +89,9 @@ nova/
 │
 ├── packages/                   # Shared libraries, consumed by services/apps, never the reverse
 │   ├── nova-contracts/         # Pydantic + generated TS types: the ONE schema source of truth
-│   ├── nova-eventbus-sdk/      # Python client for the Event Bus (pub/sub, req/reply, streams)
+│   ├── nova-eventbus-sdk/      # EventBus interface (ADR-006) + default NATS implementation
 │   ├── nova-eventbus-sdk-ts/   # TypeScript client for the same
+│   ├── nova-graphstore-sdk/    # GraphStore interface (ADR-007) + default Neo4j implementation
 │   ├── nova-observability/     # Shared OTel setup, structured logging, tracing decorators
 │   ├── nova-auth/              # Shared auth/permission primitives (Python)
 │   ├── nova-testkit/           # Shared test fixtures, event-bus test harness, fake model gateway
@@ -137,6 +157,15 @@ import `services/Y/src/*` directly. Cross-engine interaction happens only via
 `packages/nova-eventbus-sdk` (ADR-004). This is checked with an import-graph linter
 (see [15](15-development-workflow.md)).
 
+`agent-os/` and `agents/` are intentionally **not** instances of this template —
+`agent-os/kernel` is control-plane infrastructure (see [12](12-agent-architecture.md)
+for its internal shape) and `agents/<name>-agent` follows the Agent Package format
+defined there, since an agent is a dynamically loadable unit, not an always-on FastAPI
+service. The same import-boundary rule still applies at the framework level: nothing
+under `agents/*` may import another agent's internals, and nothing outside
+`agent-os/kernel` may import the kernel's internals — only its published API and the
+Agent SDK.
+
 ## 4. `nova-contracts` — the schema source of truth
 
 ```
@@ -164,8 +193,14 @@ once here.
 | TS package | `@nova/<name>` | `@nova/ui`, `@nova/eventbus-sdk` |
 | Docker image | `ghcr.io/<org>/nova-<service>` | `ghcr.io/nova/nova-memory-engine` |
 | Helm release | matches Docker image short name | `memory-engine` |
+| Agent package | kebab-case, `<category>-agent` | `coding-agent` |
+| Agent OS component | kebab-case under `agent-os/` | `agent-os/kernel`, `agent-os/registry` |
 
 This structure is stable from Phase 0 through the enterprise scale-out phase — engines
 move from `docker-compose.local.yml` to individual `k8s/` Helm releases with **no
 change to their internal directory layout**, which is the concrete, filesystem-level
-expression of ADR-001.
+expression of ADR-001. `agent-os/` follows the same rule for a different axis of
+scale: the number and distribution of *agents*, not engines — see
+[12](12-agent-architecture.md) and [19](19-scalability-strategy.md) for how it scales
+from a handful of in-process agents to hundreds of distributed ones without moving out
+of this directory layout.

@@ -22,7 +22,7 @@ decisions (and the reasoning behind them) that every other document builds on.
 | 09 | [Event Bus Architecture](09-event-bus-architecture.md) |
 | 10 | [Inter-Engine Communication Flows](10-inter-engine-communication.md) |
 | 11 | [API Architecture](11-api-architecture.md) |
-| 12 | [Agent Architecture](12-agent-architecture.md) |
+| 12 | [Agent Architecture — NOVA Agent Operating System](12-agent-architecture.md) |
 | 13 | [Authentication & Security Architecture](13-auth-and-security.md) |
 | 14 | [Deployment Architecture](14-deployment-architecture.md) |
 | 15 | [Development Workflow](15-development-workflow.md) |
@@ -34,8 +34,20 @@ decisions (and the reasoning behind them) that every other document builds on.
 See also: [Engineering Roadmap](../roadmap/ENGINEERING_ROADMAP.md) — the phased
 implementation plan built on top of this SAD.
 
+## Revision history
+
+- **v1.1** — Event Bus (ADR-006) and Graph Store (ADR-007) promoted to explicit,
+  swappable interfaces per approval conditions on NATS and Neo4j; Agent Orchestrator
+  redesigned as the standalone NOVA Agent Operating System (ADR-008); the **10x Test**
+  added as a mandatory design rule applied to every decision in this document set
+  going forward (see [00](00-overview-and-decisions.md#the-10x-test)).
+- **v1.0** — Initial SAD: technology stack, repository structure, and all 19
+  architecture domains requested by the user, plus the companion Engineering Roadmap.
+
 ## Status
 
-**Draft v1 — pending approval.** No implementation code exists yet. Per the project's
-governing instruction (the Bible's System Instruction section), this architecture is
-proposed for review and confirmation before Phase 0 implementation begins.
+**Draft v1.1 — Technology stack, Event Bus, Graph Store, and Agent Architecture
+approved with conditions (all incorporated above); remaining sections pending final
+review.** No implementation code exists yet. Per the project's governing instruction
+(the Bible's System Instruction section), this architecture is proposed for review and
+confirmation before Phase 0 implementation begins.

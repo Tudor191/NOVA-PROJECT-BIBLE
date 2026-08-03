@@ -1,6 +1,6 @@
 # NOVA Engineering Roadmap
 
-Status: **Draft v1 — companion document to the [Software Architecture Document](../architecture/00-overview-and-decisions.md). Pending approval before Phase 0 begins.**
+Status: **Draft v1.1 — companion document to the [Software Architecture Document](../architecture/00-overview-and-decisions.md). Technology stack, Event Bus (ADR-006), Graph Store (ADR-007), and Agent Architecture (ADR-008) approved; Phase 0 is cleared to begin.**
 
 ## How this roadmap is organized
 
@@ -19,7 +19,7 @@ which is not yet decided).
 | 0 | Platform Bootstrap | Medium | Empty-but-real monorepo; `nova-host` boots, does nothing yet, but boots correctly |
 | 1 | Data & Memory Substrate | Medium | NOVA can store and retrieve memories, knowledge, and world objects |
 | 2 | AI Core: Model Orchestration & Reasoning | High | You can talk to NOVA; it remembers you, reasons before answering, and picks models intelligently |
-| 3 | Planning & Multi-Agent Execution | Very High | NOVA can take a real objective, plan it, delegate it to agents, and execute real actions |
+| 3 | Planning & the NOVA Agent Operating System | Very High | NOVA can take a real objective, plan it, delegate it through NAOS to agents, and execute real actions |
 | 4 | Perception, Autonomy & Digital Twin | High | NOVA notices what you're doing on your machine and proactively assists, within trust boundaries you control |
 | 5 | Desktop App & Living Interface | High | The actual JARVIS-like command center exists, on your desktop, visually alive |
 | 6 | Executive Cognition & Full Orchestration | Very High | NOVA coordinates all engines as one coherent mind, not a pipeline of parts |
@@ -153,43 +153,49 @@ which is not yet decided).
 
 ---
 
-## Phase 3 — Planning & Multi-Agent Execution
+## Phase 3 — Planning & the NOVA Agent Operating System (NAOS)
 
 **Objectives**
-- Implement `planning-engine`, `agent-orchestrator`, and the first concrete agents, plus `action-engine` and `capability-engine` — the point at which NOVA moves from "answers questions" to "does work."
+- Implement `planning-engine`, the **NOVA Agent Operating System** ([12](../architecture/12-agent-architecture.md), ADR-008) — Agent Kernel, Agent Registry, Agent SDK, and the `inprocess` execution backend — plus the first concrete agents, `action-engine`, and `capability-engine`. This is the point at which NOVA moves from "answers questions" to "does work," and where NAOS ships as a real but intentionally minimal instance of the full architecture in [12 §15](../architecture/12-agent-architecture.md#15-what-ships-in-phase-3-vs-what-the-architecture-already-supports).
 
 **Deliverables**
 - `planning-engine`: objective decomposition, Work Breakdown Structure, Task Graph data model + dependency/critical-path analysis, per [06 §3](../architecture/06-ai-layer-architecture.md#3-planning-engine).
-- `agent-orchestrator`: full lifecycle state machine ([12](../architecture/12-agent-architecture.md)), Agent Registry, parallel dispatch, peer review, conflict resolution (escalating to Reasoning Engine).
-- First agent set: `research-agent`, `coding-agent`, `qa-agent`, `architect-agent`, `documentation-agent` (five of the Part 4 categories — enough to prove the pattern before building all ~20).
+- `agent-os/kernel`: process/instance management, Kernel Scheduler, health monitoring, the `inprocess` execution backend (only backend enabled this phase).
+- `agent-os/sdk/python`: the `AgentHandler` Protocol, `AgentContext`, `AgentMessage` types — published in `nova-contracts`.
+- `agent-os/registry`: filesystem-based discovery/install pipeline, versioning, Agent Package manifest validation.
+- `agent-os/supervisors`: one supervisor (`engineering`) implemented to prove hierarchical supervision, peer review, and conflict-resolution escalation end-to-end before more supervisors are added in later phases.
+- First agent set (as Agent Packages under `agents/`): `research-agent`, `coding-agent`, `qa-agent`, `architect-agent`, `documentation-agent` — five of the Part 4 categories, enough to prove the pattern before building the rest.
 - `action-engine`: Action Object Model, validation/risk pipeline, terminal + filesystem + git adapters, rollback for reversible actions, Action Queue.
 - `capability-engine`: registry, installation pipeline (sandboxed), and a first batch of built-in capabilities (git, filesystem, terminal, HTTP) that agents declare and consume.
-- `reasoning-engine` extended to Levels 3–4 (now that Planning/Agents exist to delegate to).
+- `reasoning-engine` extended to Levels 3–4 (now that Planning/NAOS exist to delegate to).
 - `apps/web-client`: Planning + Agent Activity panels added.
 
 **Dependencies:** Phase 2 (Reasoning Engine must exist to feed Planning; Communication Engine to report progress/results).
 
-**Estimated complexity:** Very High — this phase implements the most bespoke, least off-the-shelf part of the entire system (custom agent runtime, peer review, conflict resolution) and integrates the most engines simultaneously.
+**Estimated complexity:** Very High — this phase implements the most bespoke, least off-the-shelf part of the entire system (a purpose-built agent operating system, not a wrapper around an existing agent framework — see ADR-008) and integrates the most engines simultaneously. Building NAOS's kernel/registry/SDK/supervision structure correctly here, even in its minimal Phase-3 form, is what avoids a redesign later per the 10x Test ([00](../architecture/00-overview-and-decisions.md#the-10x-test)) — this phase deliberately spends more design care than its immediate feature scope would otherwise justify.
 
 **Implementation order**
 1. `planning-engine` Task Graph model + decomposition (no agents yet — output inspected manually).
 2. `capability-engine` registry + sandboxing + the four foundational capabilities.
 3. `action-engine` (depends on capabilities existing to execute against).
-4. `agent-orchestrator` lifecycle + Agent Registry, with a single trivial agent first (e.g., `research-agent`) to validate the full loop.
+4. `agent-os/sdk` + `agent-os/kernel` (inprocess backend only) + `agent-os/registry`, validated with a single trivial agent (`research-agent`) to prove the full loop before adding more.
 5. Remaining four agents.
-6. Peer review + conflict resolution.
+6. `engineering` Supervisor: peer review + conflict resolution (escalating to Reasoning Engine only when the Supervisor can't resolve it itself).
 7. `reasoning-engine` Levels 3–4.
 
 **Testing strategy**
 - Structural assertions on generated Task Graphs (no cycles, expected dependency shape) for scripted objectives, per [16 §5](../architecture/16-testing-strategy.md#5-multi-agent--orchestration-testing).
 - Sandboxed capability execution tests proving no capability can escape its declared permission scope.
-- Integration test: a real, scripted end-to-end objective ("add a health-check endpoint to a sample repo") flows through Reasoning → Planning → Agent Orchestrator → Action Engine → a real git commit in a throwaway repo.
+- Agent SDK contract tests: every shipped agent's manifest and handler validated against the `AgentHandler` Protocol before it can be registered.
+- Integration test: a real, scripted end-to-end objective ("add a health-check endpoint to a sample repo") flows through Reasoning → Planning → NAOS (Kernel → Engineering Supervisor → agent instances, including a peer-review round) → Action Engine → a real git commit in a throwaway repo.
 - Rollback test: force an action to fail mid-execution, assert the rollback strategy restores prior state.
+- Supervision test: force an agent instance to crash mid-task, assert the Engineering Supervisor applies the configured restart strategy (`one_for_one` by default) correctly.
 
 **Acceptance criteria**
-- A non-trivial multi-step coding objective, given to NOVA, produces a correct Task Graph, executes via at least two agents working in parallel where dependencies allow, and produces a verifiable result (e.g., a passing test suite in the target repo).
+- A non-trivial multi-step coding objective, given to NOVA, produces a correct Task Graph, executes via at least two agent instances working in parallel where dependencies allow, includes at least one real peer-review round (e.g., `architect-agent` reviewing `coding-agent`'s output), and produces a verifiable result (e.g., a passing test suite in the target repo).
 - A deliberately risky action (e.g., deleting a file) is blocked pending approval per its risk classification, and proceeds only after approval — end-to-end proof of Part 12's Safety Layers, ahead of the full Autonomy Engine (Phase 4) providing the policy layer around it.
-- Killing `agent-orchestrator` mid-execution and restarting resumes the in-flight Task Graph rather than restarting it from scratch.
+- Killing `agent-os-kernel` mid-execution and restarting resumes in-flight Task Graph work rather than restarting it from scratch.
+- Installing a new version of an existing agent package (e.g., `coding-agent@1.1.0` → `1.2.0`) hot-loads without a kernel restart and without dropping in-flight instances of the old version — proving [12 §6](../architecture/12-agent-architecture.md#6-agent-registry--discovery-install-versioning-hot-loadunload)'s hot-swap claim in the simplest case, ahead of the fuller registry (git/HTTP discovery, marketplace) built in Phase 8.
 
 ---
 
@@ -287,7 +293,7 @@ which is not yet decided).
 
 **Implementation order**
 1. Goal Hierarchy + Priority Engine (read-only coordination first — observes and scores, doesn't yet override).
-2. Cognitive Load Management + Delegation Engine (now actively shaping Agent Orchestrator dispatch).
+2. Cognitive Load Management + Delegation Engine (now actively shaping NAOS Kernel Scheduler dispatch).
 3. Generalized conflict resolution.
 4. `nova-core` Recovery Engine levels.
 5. Hot reload.
@@ -349,9 +355,10 @@ which is not yet decided).
 - Deploy NOVA as a horizontally scaled, multi-tenant Kubernetes platform, exercising every scaling lever designed into the architecture since Phase 0 but not yet turned on.
 
 **Deliverables**
-- Helm charts for all 19 deployable units + umbrella chart, per [14 §3](../architecture/14-deployment-architecture.md#3-enterprisecloud-topology).
+- Helm charts for every NOVA-authored deployable unit in the [Service Inventory](../architecture/00-overview-and-decisions.md#canonical-service-inventory) + umbrella chart, per [14 §3](../architecture/14-deployment-architecture.md#3-enterprisecloud-topology).
 - Terraform stacks for AWS and GCP.
-- `VectorStore` adapter swap to Qdrant; Neo4j causal clustering; NATS JetStream clustering; Redis Cluster.
+- `VectorStore` adapter swap to Qdrant; `GraphStore` adapter validated against a second backend (e.g., Memgraph) to prove ADR-007 holds under real use, not just in contract tests; NATS JetStream clustering (or the Kafka/RabbitMQ `EventBus` backend, per ADR-006, if a launch customer requires it); Redis Cluster.
+- NAOS `container` and `remote` execution backends activated ([12 §8](../architecture/12-agent-architecture.md#8-execution-backends--how-distributed-from-day-one-actually-works)); `agent-os-worker` node type shipped for distributed/multi-machine agent execution.
 - `nova-sync-service` for multi-device/cloud sync per [18](../architecture/18-local-first-and-cloud-sync.md).
 - Autoscaling policies per engine, tied to the metrics/thresholds defined in [19 §5](../architecture/19-scalability-strategy.md#5-capacity-planning-signals).
 - Load-tested SLAs published (latency/throughput targets per engine, matching each Bible Part's stated "Performance Targets").
@@ -359,12 +366,12 @@ which is not yet decided).
 
 **Dependencies:** Phase 7 (enterprise security posture must exist before enterprise scale is exposed to real multi-tenant traffic).
 
-**Estimated complexity:** Very High — this phase validates every architectural bet made since Phase 0 (ADR-001 in particular) under real load; discovering that a boundary was drawn wrong is expensive here, which is exactly why the earlier phases were structured to keep every engine's contract clean from the start.
+**Estimated complexity:** Very High — this phase validates every architectural bet made since Phase 0 (ADR-001 and ADR-008 in particular) under real load; discovering that a boundary was drawn wrong is expensive here, which is exactly why the earlier phases were structured to keep every engine's and NAOS's contract clean from the start.
 
 **Implementation order**
 1. Helm charts + Terraform for a single-region deployment (functional parity with Compose first).
-2. Load testing against the Bible's stated performance targets, per engine.
-3. Turn on scaling levers only where load testing shows the current default insufficient (per [19 §4](../architecture/19-scalability-strategy.md#4-horizontal-scale-out-is-opt-in-complexity) — no premature complexity).
+2. Load testing against the Bible's stated performance targets, per engine, including NAOS's `inprocess` backend at increasing agent concurrency.
+3. Turn on scaling levers only where load testing shows the current default insufficient (per [19 §4](../architecture/19-scalability-strategy.md#4-horizontal-scale-out-is-opt-in-complexity) — no premature complexity) — this includes activating NAOS's `container`/`remote` execution backends only once `inprocess` concurrency actually becomes the bottleneck under test, not preemptively.
 4. `nova-sync-service` for cross-device/cloud sync.
 5. Multi-region groundwork.
 
@@ -389,8 +396,13 @@ which is not yet decided).
 - **Re-planning is expected.** Per Part 9's own "Dynamic Replanning" principle, this
   roadmap should be revised as each phase completes and reveals what the next one
   actually needs — it is a living plan, not a contract frozen on day one.
-- **Phase 0 does not start until this document and the SAD are explicitly approved**,
-  per the user's original request: "once the architecture is finalized and approved,
-  we will begin implementation starting with Phase 1" (Phase 0 was added here as the
-  necessary bootstrap step beneath the user's "Phase 1"; renumber on approval if the
-  user prefers Phase 0 to be folded into Phase 1).
+- **Approved.** The technology stack, Event Bus (ADR-006), Graph Store (ADR-007), and
+  Agent Architecture/NAOS (ADR-008) decisions are approved, with the conditions from
+  that approval incorporated throughout the SAD and this roadmap. Phase 0 is cleared
+  to begin. (Phase 0 was added here as the necessary bootstrap step beneath the user's
+  originally requested "Phase 1"; the numbering has been kept as-is since it was not
+  flagged for change.)
+- **The 10x Test applies to every future addition to this roadmap**, per
+  [00](../architecture/00-overview-and-decisions.md#the-10x-test): any new deliverable
+  proposed in a later phase must be checked against "will this still be correct at
+  10x scale in five years" before it is added, not after.
