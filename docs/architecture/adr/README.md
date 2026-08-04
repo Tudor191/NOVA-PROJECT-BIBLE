@@ -49,7 +49,9 @@ next unused number, regardless of which subsystem they originate from.
 | [017](ADR-017-world-model-boundary-separation.md) | World Model boundary: no embeddings, no forgetting lifecycle, no validated-fact graph | World Model Engine |
 | [018](ADR-018-world-object-state-reads-from-postgres.md) | World Object "current state" reads come from Postgres, never Neo4j | World Model Engine |
 | [019](ADR-019-deferred-idle-sweep-worker.md) | The idle-sweep worker is deliberately deferred, not shipped half-correct | World Model Engine |
+| [020](ADR-020-sole-legal-llm-provider-channel.md) | AI Model Orchestration Engine is the only legal channel to any LLM/AI provider — no exceptions | AI Model Orchestration Engine; binding on every subsystem from Phase 2A onward |
 
 See also: [Phase 1 Architecture Review Report](../../roadmap/architecture-reviews/phase-1-data-memory-substrate.md)
 and [Doc 20 — Engine Responsibility Boundaries](../20-engine-responsibility-boundaries.md),
-both produced alongside this ADR set on Phase 1's completion.
+both produced alongside this ADR set on Phase 1's completion. ADR-020 was added on
+authorizing Phase 2A.

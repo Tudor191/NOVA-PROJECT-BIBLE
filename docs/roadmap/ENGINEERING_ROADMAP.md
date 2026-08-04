@@ -1,6 +1,6 @@
 # NOVA Engineering Roadmap
 
-Status: **Draft v1.4 — companion document to the [Software Architecture Document](../architecture/00-overview-and-decisions.md). Technology stack, Event Bus (ADR-006), Graph Store (ADR-007), Agent Architecture (ADR-008), Embedding Provider (ADR-009), and the standardized embedding model (ADR-010) approved. Phase 0 is implemented. Phase 1 is implemented and Gate-Reviewed (Go)** — `memory-engine`, `knowledge-engine`, and `world-model-engine` all built at production-grade per the [Phase 1 design package](../design/phase-1/README.md), with the [Architecture Review Report](architecture-reviews/phase-1-data-memory-substrate.md), the [Memory/Knowledge/World Model boundary reference](../architecture/20-engine-responsibility-boundaries.md), structured [ADRs](../architecture/adr/README.md), and the formal [Phase 1 Gate Review](architecture-reviews/phase-1-gate-review.md) filed. **Phase 2 has not yet started.**
+Status: **Draft v1.5 — companion document to the [Software Architecture Document](../architecture/00-overview-and-decisions.md). Technology stack, Event Bus (ADR-006), Graph Store (ADR-007), Agent Architecture (ADR-008), Embedding Provider (ADR-009), and the standardized embedding model (ADR-010) approved. Phase 0 is implemented. Phase 1 is implemented and Gate-Reviewed (Go)** — `memory-engine`, `knowledge-engine`, and `world-model-engine` all built at production-grade per the [Phase 1 design package](../design/phase-1/README.md), with the [Architecture Review Report](architecture-reviews/phase-1-data-memory-substrate.md), the [Memory/Knowledge/World Model boundary reference](../architecture/20-engine-responsibility-boundaries.md), structured [ADRs](../architecture/adr/README.md), and the formal [Phase 1 Gate Review](architecture-reviews/phase-1-gate-review.md) filed. **Phase 2 is split into four sub-phases (2A–2D, per explicit user directive) — [Phase 2A: AI Model Orchestration Layer](#phase-2a--ai-model-orchestration-layer) is now in progress.**
 
 ## How this roadmap is organized
 
@@ -28,7 +28,10 @@ which is not yet decided).
 |---|---|---|---|
 | 0 | Platform Bootstrap | Medium | Empty-but-real monorepo; `nova-host` boots, does nothing yet, but boots correctly |
 | 1 | Data & Memory Substrate | Very High | NOVA can store and retrieve memories, knowledge, and world objects, on a production-grade foundation every later engine builds on |
-| 2 | AI Core: Model Orchestration & Reasoning | High | You can talk to NOVA; it remembers you, reasons before answering, and picks models intelligently |
+| 2A | AI Model Orchestration Layer | High | A single, provider-agnostic gateway can route a request to any local or cloud model, stream the response, call tools, and track cost — with zero UI, proven at the API level |
+| 2B | Reasoning Engine | High | Given an objective, NOVA runs a real 13-step reasoning pipeline (Levels 1–2) and produces a confidence-scored result, calling models only through 2A |
+| 2C | Executive Cognition (minimal) | Medium | Competing requests between the Orchestration and Reasoning engines are arbitrated by a real priority mechanism, not first-come-first-served |
+| 2D | Give NOVA a Voice | High | You can talk to NOVA; it remembers you, reasons before answering, stays personality-consistent across models, and responds through a real (if minimal) web UI |
 | 3 | Planning & the NOVA Agent Operating System | Very High | NOVA can take a real objective, plan it, delegate it through NAOS to agents, and execute real actions |
 | 4 | Perception, Autonomy & Digital Twin | High | NOVA notices what you're doing on your machine and proactively assists, within trust boundaries you control |
 | 5 | Desktop App & Living Interface | High | The actual JARVIS-like command center exists, on your desktop, visually alive |
@@ -221,46 +224,182 @@ all steps below are complete)
 
 ---
 
-## Phase 2 — AI Core: Model Orchestration & Reasoning
+## Phase 2 — AI Core
+
+Per explicit user directive on approving the Phase 1 Gate Review: **AI Core is no
+longer one implementation effort.** It is four sequential sub-phases — 2A, 2B, 2C,
+2D — each gets its own Architecture Review Report, Gate Review, ADRs, and Project
+Metrics (the same standing requirements established at Phase 1), and each is closed
+before the next begins. This ordering was chosen specifically to **reduce coupling
+between cognitive systems**: the AI Model Orchestration Layer (2A) is built and
+proven as a pure intelligence-provider gateway *before* anything that reasons or
+plans exists to depend on it, so that dependency can never accidentally run the other
+way.
+
+**New permanent engineering rule, effective from 2A onward (see
+[ADR-020](../architecture/adr/ADR-020-sole-legal-llm-provider-channel.md)): no
+subsystem may ever depend directly on an LLM/AI provider.** Every interaction with
+any AI model — text generation, embeddings, vision, speech, anything — passes
+exclusively through `ai-model-orchestration-engine`. No exceptions, and no
+grandfathering: Memory Engine's and Knowledge Engine's existing direct Ollama
+embedding calls (via `nova-embeddings-sdk`, built under ADR-009 before this engine
+existed) are recorded as tracked migration debt in ADR-020, not silently exempted.
+
+### Phase 2A — AI Model Orchestration Layer
 
 **Objectives**
-- Deliver the first genuinely intelligent, user-facing slice of NOVA: a conversational interface backed by memory, multi-model routing, and structured reasoning — not a bare LLM wrapper.
-- Implement `ai-model-orchestration-engine`, `reasoning-engine` (Levels 1–2 only; 3–4 need Planning/Agents from Phase 3), `personality-engine`, and `communication-engine` (text channel only).
-- Ship a minimal web chat UI as the first observable "you can talk to NOVA" milestone.
+- Build the single, provider-agnostic gateway between NOVA and every intelligence
+  provider (Bible Part 7) — and nothing else. Per Part 7's own "Architectural
+  Requirements": this engine **must remain completely independent from Memory,
+  Planning, Knowledge, Personality, World Model, Executive Cognition, Action, and
+  Capabilities.** It serves only as the intelligence provider layer.
+- Full design in [docs/design/phase-2a/](../design/phase-2a/README.md).
+
+**Deliverables** — `ai-model-orchestration-engine`:
+- Model Registry (name, version, provider, capabilities, context window, latency,
+  cost, health — Part 7).
+- Provider Abstraction (`ModelConnector` protocol: generate/stream/tool_call/embed),
+  Ollama connector (default, zero-budget), one cloud connector (Anthropic) as proof
+  the abstraction holds.
+- Prompt Pipeline & Context Builder — a *provider-formatting* mechanism (fit
+  pre-assembled, named context components into a chosen model's token budget and
+  request format), explicitly **not** a context-*sourcing* mechanism (deciding what's
+  relevant is Reasoning Engine's job, Phase 2B) — see the design doc's boundary
+  section for the full reasoning.
+- Tool Calling & Function Registry — a provider-agnostic tool-schema translation
+  layer (register a tool's schema once, get it correctly formatted for whichever
+  provider's tool-calling convention is in use); registering what a tool *does* is a
+  future Capability Engine concern (Phase 3), not this engine's.
+- Model Router (capability × historical success / (latency, cost) scoring, per
+  [06 §1](../architecture/06-ai-layer-architecture.md#1-model-gateway-ai-model-orchestration-engine)),
+  Local vs. Cloud execution policy, Fallback Strategy (Part 7).
+- Streaming, Token Management, Cost Tracking (Part 7 "Cost Management"),
+  Observability (per every prior engine's pattern).
+
+**Dependencies:** Phase 1 infra (Postgres for the registry/cost-tracking tables),
+Phase 0 (Event Bus, `nova-core`).
+
+**Estimated complexity:** High — thirteen distinct capability areas in one engine,
+and the independence boundary (§ above) is easy to erode by convenience if not
+actively defended, the same discipline the World Model boundary required in Phase 1.
+
+**Testing strategy**
+- `FakeModelConnector`-driven integration tests for deterministic CI runs; a small,
+  separate "live model smoke test" job (manually triggered, not on every PR) against
+  real Ollama.
+- A contract test proving connector-swap independence (`test_connector_swap.py`, per
+  [06 §6](../architecture/06-ai-layer-architecture.md#6-independence-from-any-single-provider-verification)) —
+  every domain behavior passes against a fake connector with zero code path touching
+  a real provider SDK outside `connectors/*_connector.py`.
+
+**Acceptance criteria**
+- A scripted request completes correctly through both the Ollama and Anthropic
+  connectors, verified at the API level — no UI required.
+- Killing the preferred model mid-request triggers the documented fallback chain
+  automatically (Part 7 "Fallback Strategy").
+- Token/cost tracking for a completed request is queryable via API immediately after
+  the request finishes.
+- The import-linter contract set gains a fourth rule: no engine other than
+  `ai-model-orchestration-engine` imports an LLM/embedding provider SDK directly
+  (mirrors ADR-006/007's existing broker/graph-client rules).
+
+### Phase 2B — Reasoning Engine
+
+**Objectives**
+- Implement Levels 1–2 of the 13-step reasoning pipeline
+  ([06 §2](../architecture/06-ai-layer-architecture.md#2-reasoning-engine)),
+  consuming Memory/Knowledge/World Model Engine context (Phase 1) and calling models
+  *exclusively* through `ai-model-orchestration-engine` (ADR-020 — this is the first
+  engine built under that rule with something to prove it against).
+
+**Deliverables:** `reasoning-engine` — full pipeline for Levels 1–2, confidence
+scoring (`{value, tier, evidence}`), Reasoning Memory writes to `memory-engine`.
+
+**Dependencies:** Phase 2A (every model call routes through it), Phase 1 (Memory/
+Knowledge/World Model to retrieve from).
+
+**Estimated complexity:** High.
+
+**Testing strategy:** Golden-scenario tests per
+[16 §5](../architecture/16-testing-strategy.md#5-multi-agent--orchestration-testing)
+(assert pipeline stage completion and confidence presence, not exact text); the
+whole suite also runs against 2A's `FakeModelConnector` to keep CI deterministic.
+
+**Acceptance criteria**
+- Given a scripted objective via API, the pipeline runs end-to-end and produces a
+  confidence-scored reasoning result, inspectable via API/logs and traceable by
+  `correlation_id` — no UI required yet.
+- Zero direct imports of any provider SDK anywhere in `reasoning-engine` (import-linter
+  enforced, per 2A's new contract).
+
+### Phase 2C — Executive Cognition (minimal)
+
+**Objectives**
+- The minimal viable slice of Part 19 needed once two AI-layer engines exist:
+  arbitrate attention/priority between `ai-model-orchestration-engine` and
+  `reasoning-engine` when both want resources simultaneously. **This is not** the
+  full `executive-cognition-engine` of
+  [Phase 6](#phase-6--executive-cognition--full-orchestration) (Goal Hierarchy,
+  Delegation Engine, Meta Reasoning, cross-engine conflict resolution) — Phase 6
+  *extends* the service this phase starts, once Planning, Autonomy, Personality, and
+  Communication also exist to coordinate.
+
+**Deliverables:** `executive-cognition-engine` (initial version) — Cognitive
+Priority Matrix (urgency × importance × risk × learning value × resource cost, Part
+6) applied to exactly two contending engines.
+
+**Dependencies:** Phase 2A, Phase 2B.
+
+**Estimated complexity:** Medium — small in scope by design; the point is standing
+the service up correctly, not building its full feature set yet.
+
+**Acceptance criteria**
+- Two concurrent, competing requests from simulated callers are arbitrated
+  correctly by the Priority Matrix (verifiable via test), never resolved by simple
+  first-come-first-served ordering.
+
+### Phase 2D — Give NOVA a Voice
+
+**Objectives**
+- What remains of the original "first conversation" milestone once the cognitively-
+  pure engines above are built and proven independently: make NOVA's intelligence
+  actually reachable by a person.
 
 **Deliverables**
-- `ai-model-orchestration-engine`: Model Registry, Ollama connector (default, zero-budget), one cloud connector (Anthropic) as proof the abstraction holds, routing algorithm per [06 §1](../architecture/06-ai-layer-architecture.md#1-model-gateway-ai-model-orchestration-engine).
-- `reasoning-engine`: full 13-step pipeline for Levels 1–2, confidence scoring, Reasoning Memory writes to `memory-engine`.
-- `personality-engine`: core identity/values encoded as a behavioral constraint layer (not a system prompt string) with consistency validation.
-- `communication-engine`: conversation session model, text channel, response streaming.
+- `personality-engine`: core identity/values as a behavioral constraint layer (not a
+  system prompt string), with consistency validation.
+- `communication-engine`: conversation session model, text channel, response
+  streaming.
 - `api-gateway` + `ws-gateway` minimal implementation ([11](../architecture/11-api-architecture.md)).
-- `apps/web-client`: conversation panel only (other panels are stubs) — the first real UI.
-- Prompt Orchestration assembly ([06 §4](../architecture/06-ai-layer-architecture.md#4-prompt-orchestration)) pulling from Memory/Knowledge/World Model/Personality.
+- `apps/web-client`: conversation panel only (other panels are stubs) — the first
+  real UI.
+- Prompt Orchestration assembly ([06 §4](../architecture/06-ai-layer-architecture.md#4-prompt-orchestration))
+  pulling from Memory/Knowledge/World Model/Personality, formatted for the chosen
+  model via 2A's Context Builder.
 
-**Dependencies:** Phase 1 (Memory/Knowledge/World Model must exist for the Thinking Pipeline to retrieve from), Phase 0 infra.
+**Dependencies:** Phases 2A + 2B + 2C complete.
 
-**Estimated complexity:** High — this is where the "many independent engines must feel like one mind" requirement first gets tested for real, and where prompt orchestration and confidence scoring need genuine design iteration, not just plumbing.
-
-**Implementation order**
-1. `ai-model-orchestration-engine` with Ollama connector only — get local inference working first (zero-budget default, Part 7).
-2. `reasoning-engine` Level 1 (instant reasoning) — simplest path end-to-end.
-3. `communication-engine` text channel + `ws-gateway` streaming.
-4. `personality-engine` + consistency validation wired into the response path.
-5. `reasoning-engine` Level 2 (hypothesis generation, evidence collection, Decision Memory writes).
-6. Anthropic connector + routing algorithm (proves multi-model abstraction).
-7. `apps/web-client` conversation panel.
+**Estimated complexity:** High — this is where the "many independent engines must
+feel like one mind" requirement first gets tested for real, at the user-facing
+surface.
 
 **Testing strategy**
 - Contract + integration tests as in Phase 1, extended to the new engines.
-- Golden-scenario tests per [16 §5](../architecture/16-testing-strategy.md#5-multi-agent--orchestration-testing): assert pipeline stage completion and confidence presence, not exact text.
-- `FakeModelGateway`-driven integration tests for deterministic CI runs; a small, separate "live model smoke test" job (manually triggered, not on every PR) against real Ollama to catch integration drift.
-- E2E: "first-run onboarding → first successful conversation with memory recall" (the first golden path from [16 §6](../architecture/16-testing-strategy.md#6-end-to-end-testing)).
+- E2E: "first-run onboarding → first successful conversation with memory recall"
+  (the first golden path from
+  [16 §6](../architecture/16-testing-strategy.md#6-end-to-end-testing)).
 
 **Acceptance criteria**
-- A fresh install, zero API keys, can hold a coherent multi-turn conversation using only local models.
-- Asking about something mentioned three turns ago (or in a previous session) is answered correctly via memory retrieval (Part 3's "memory first principle" demonstrated, not just claimed).
-- Personality stays recognizably consistent across at least two different underlying models (Ollama vs. Anthropic) for the same query style — the concrete test of Part 17's core promise.
-- Every response is traceable via `correlation_id` through the full event chain in the observability stack.
+- A fresh install, zero API keys, can hold a coherent multi-turn conversation using
+  only local models.
+- Asking about something mentioned three turns ago (or in a previous session) is
+  answered correctly via memory retrieval (Part 3's "memory first principle"
+  demonstrated, not just claimed).
+- Personality stays recognizably consistent across at least two different underlying
+  models (Ollama vs. Anthropic) for the same query style — the concrete test of Part
+  17's core promise.
+- Every response is traceable via `correlation_id` through the full event chain in
+  the observability stack.
 
 ---
 
@@ -281,7 +420,8 @@ all steps below are complete)
 - `reasoning-engine` extended to Levels 3–4 (now that Planning/NAOS exist to delegate to).
 - `apps/web-client`: Planning + Agent Activity panels added.
 
-**Dependencies:** Phase 2 (Reasoning Engine must exist to feed Planning; Communication Engine to report progress/results).
+**Dependencies:** Phases 2A–2D complete (`reasoning-engine` from 2B must exist to feed
+Planning; `communication-engine` from 2D to report progress/results).
 
 **Estimated complexity:** Very High — this phase implements the most bespoke, least off-the-shelf part of the entire system (a purpose-built agent operating system, not a wrapper around an existing agent framework — see ADR-008) and integrates the most engines simultaneously. Building NAOS's kernel/registry/SDK/supervision structure correctly here, even in its minimal Phase-3 form, is what avoids a redesign later per the 10x Test ([00](../architecture/00-overview-and-decisions.md#the-10x-test)) — this phase deliberately spends more design care than its immediate feature scope would otherwise justify.
 
@@ -389,10 +529,19 @@ all steps below are complete)
 ## Phase 6 — Executive Cognition & Full Orchestration
 
 **Objectives**
-- Implement `executive-cognition-engine`, wiring attention allocation, goal hierarchy, and conflict resolution across every engine built so far, and harden `nova-core`'s recovery/hot-reload capabilities — the phase where NOVA stops being "a pipeline of engines" and becomes "one coordinated mind," per Part 19 and Part 20.
+- Extend `executive-cognition-engine` — first stood up in
+  [Phase 2C](#phase-2c--executive-cognition-minimal) as a minimal two-engine
+  arbitrator — into its full form: attention allocation, goal hierarchy, and
+  conflict resolution across every engine built so far, plus hardening `nova-core`'s
+  recovery/hot-reload capabilities — the phase where NOVA stops being "a pipeline of
+  engines" and becomes "one coordinated mind," per Part 19 and Part 20. This is
+  additive to 2C's existing service, not a rewrite.
 
 **Deliverables**
-- `executive-cognition-engine`: Goal Hierarchy, Priority Engine, Cognitive Load Management, Delegation Engine, Meta Reasoning, Explainability APIs — per [06 §5](../architecture/06-ai-layer-architecture.md#5-executive-cognition-engine--coordination-layer).
+- `executive-cognition-engine`: Goal Hierarchy, Priority Engine (extends 2C's
+  Cognitive Priority Matrix from two contending engines to every engine),
+  Cognitive Load Management, Delegation Engine, Meta Reasoning, Explainability APIs
+  — per [06 §5](../architecture/06-ai-layer-architecture.md#5-executive-cognition-engine--coordination-layer).
 - `nova-core` hardening: hot reload for capabilities/agents/models, full Recovery Engine (task/module/engine/session/full-system recovery levels), Version Management, Dependency Graph enforcement — per [Part 20](../bible/part-20-nova-core.md).
 - Cross-engine conflict resolution generalized (Phase 3 built it for agents specifically; this phase extends it to any two engines disagreeing, e.g., Planning vs. Autonomy).
 - Executive dashboard panel completed in the UI.
