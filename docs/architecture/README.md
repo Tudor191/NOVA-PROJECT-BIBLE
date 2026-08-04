@@ -30,12 +30,23 @@ decisions (and the reasoning behind them) that every other document builds on.
 | 17 | [CI/CD Pipeline](17-cicd-pipeline.md) |
 | 18 | [Local-First & Cloud Sync](18-local-first-and-cloud-sync.md) |
 | 19 | [Scalability Strategy](19-scalability-strategy.md) |
+| 20 | [Engine Responsibility Boundaries — Memory, Knowledge, World Model](20-engine-responsibility-boundaries.md) |
 
 See also: [Engineering Roadmap](../roadmap/ENGINEERING_ROADMAP.md) — the phased
-implementation plan built on top of this SAD.
+implementation plan built on top of this SAD, and
+[Architecture Decision Records](adr/README.md) — the structured, per-subsystem ADR
+log (Context/Problem/Alternatives/Decision/Consequences/Tradeoffs/Future
+implications) filed for every significant decision made *during* implementation,
+complementing ADR-001 through ADR-010 below.
 
 ## Revision history
 
+- **v1.2** — Doc 20 added: the canonical Memory/Knowledge/World Model responsibility
+  boundary reference, written on Phase 1 completion per explicit user directive, and
+  declared the reference every future engine's design must be checked against. The
+  structured `adr/` directory established as the permanent home for per-decision ADRs
+  going forward (ADR-011 onward), a new standing requirement for every completed
+  subsystem.
 - **v1.1** — Event Bus (ADR-006) and Graph Store (ADR-007) promoted to explicit,
   swappable interfaces per approval conditions on NATS and Neo4j; Agent Orchestrator
   redesigned as the standalone NOVA Agent Operating System (ADR-008); the **10x Test**

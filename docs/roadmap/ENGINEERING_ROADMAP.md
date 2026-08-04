@@ -1,6 +1,6 @@
 # NOVA Engineering Roadmap
 
-Status: **Draft v1.2 — companion document to the [Software Architecture Document](../architecture/00-overview-and-decisions.md). Technology stack, Event Bus (ADR-006), Graph Store (ADR-007), Agent Architecture (ADR-008), Embedding Provider (ADR-009), and the standardized embedding model (ADR-010) approved. Phase 0 is implemented. Phase 1's scope has been refined to production-grade — see the [Phase 1 design package](../design/phase-1/README.md), pending approval before implementation begins.**
+Status: **Draft v1.3 — companion document to the [Software Architecture Document](../architecture/00-overview-and-decisions.md). Technology stack, Event Bus (ADR-006), Graph Store (ADR-007), Agent Architecture (ADR-008), Embedding Provider (ADR-009), and the standardized embedding model (ADR-010) approved. Phase 0 is implemented. Phase 1 is implemented** — `memory-engine`, `knowledge-engine`, and `world-model-engine` all built at production-grade per the [Phase 1 design package](../design/phase-1/README.md), with the [Architecture Review Report](architecture-reviews/phase-1-data-memory-substrate.md), the [Memory/Knowledge/World Model boundary reference](../architecture/20-engine-responsibility-boundaries.md), and structured [ADRs](../architecture/adr/README.md) filed. **Phase 2 has not yet started.**
 
 ## How this roadmap is organized
 
@@ -72,18 +72,24 @@ which is not yet decided).
 
 ## Phase 1 — Data & Memory Substrate
 
-Status: **Scope refined to production-grade, per explicit user directive.** Memory,
-Knowledge, and World Model Engines are the foundation almost every later engine reads
-from or writes into — a design mistake here is systemic, not local — so this phase is
-no longer scoped as a lighter "storage and retrieval" pass. A full technical design
-package precedes implementation and requires explicit approval before code is written;
-see [docs/design/phase-1/](../design/phase-1/README.md) (00 — Shared Foundations
+Status: **Implemented.** Memory, Knowledge, and World Model Engines are the
+foundation almost every later engine reads from or writes into — a design mistake
+here is systemic, not local — so this phase was scoped and built as production-grade
+throughout, not a lighter "storage and retrieval" pass. The full technical design
+package ([docs/design/phase-1/](../design/phase-1/README.md): 00 — Shared Foundations
 introducing ADR-009/010 and three new shared packages; 01 — Memory Engine; 02 —
-Knowledge Engine; 03 — World Model Engine; 04 — Cross-Engine Integration), each against
-all 20 requested design dimensions (internal architecture, data flow, schema, graph
-model, lifecycle, retrieval, indexing, caching, embedding, search, versioning, event
-flow, APIs, performance, scalability, failure recovery, security, testing, extension
-points).
+Knowledge Engine; 03 — World Model Engine; 04 — Cross-Engine Integration) was approved
+before implementation began and no design deviation occurred during the build beyond
+one schema-supported repository method addition, recorded in the
+[Architecture Review Report](architecture-reviews/phase-1-data-memory-substrate.md).
+244 tests passing across the three engines, `ruff`/`mypy` clean, import-linter
+contracts enforced. **One listed deliverable below (the internal CLI/admin API) was
+not built** — see the Architecture Review Report's Known Limitations for why and
+when to pick it up; every other listed deliverable is complete. See also the
+[Memory/Knowledge/World Model boundary reference](../architecture/20-engine-responsibility-boundaries.md)
+(now canonical for every future subsystem) and
+[ADR-011 through ADR-019](../architecture/adr/README.md) for every significant
+decision made during this phase's implementation.
 
 **Objectives**
 - Implement `memory-engine`, `knowledge-engine`, and `world-model-engine` as
@@ -127,7 +133,9 @@ points).
 - Event contracts for all `memory.*`, `knowledge.*`, `world_model.*` subjects
   registered in `nova-contracts`.
 - A minimal internal CLI/admin API for manually inspecting memory/knowledge/world state
-  (used through Phase 2 before the real UI exists).
+  (used through Phase 2 before the real UI exists). **Not yet built** — see the
+  Architecture Review Report's Known Limitations and Future Improvements; each
+  engine's own FastAPI `/docs` covers ad hoc per-engine inspection in the meantime.
 - The full per-subsystem deliverable checklist
   ([SAD 15 §9](../architecture/15-development-workflow.md#9-per-subsystem-deliverable-checklist))
   satisfied for all three engines and all three new shared packages: architecture docs,
@@ -148,9 +156,8 @@ diagrams, benchmarks, failure-scenario tests, observability) for every subsystem
 together represent materially more engineering and architectural risk than the
 original CRUD-plus-search scope.
 
-**Implementation order** (design package's own build order, not yet started —
-implementation begins only after the [design package](../design/phase-1/README.md) is
-approved)
+**Implementation order** (design package's own build order — followed as planned;
+all steps below are complete)
 1. `nova-vectorstore-sdk`, `nova-graphstore-sdk`, `nova-embeddings-sdk` — interfaces and
    default implementations, before any engine that depends on them.
 2. Postgres schemas + Alembic migrations for all three engines (per-engine schema, per

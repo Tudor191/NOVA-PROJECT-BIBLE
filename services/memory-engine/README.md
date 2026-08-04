@@ -1,6 +1,6 @@
 # memory-engine
 
-NOVA's memory subsystem (Bible Part 5 / `docs/design/phase-1/01-memory-engine.md`).
+NOVA's memory subsystem (Bible Part 3 / `docs/design/phase-1/01-memory-engine.md`).
 Owns every tier of memory -- sensory, working, short-term, and long-term (episodic,
 semantic, procedural, preference, project, decision) -- plus the lifecycle,
 importance scoring, consolidation, and retrieval logic that ties them together. It

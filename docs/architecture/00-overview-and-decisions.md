@@ -366,6 +366,15 @@ via `embedding_model`), not an architectural one. Cross-engine embedding compari
 (Memory ↔ Knowledge) remains possible for as long as this standardization holds,
 which is the explicit reason a single model was chosen over per-engine optimization.
 
+**This log continues in [`adr/`](adr/README.md).** ADR-001 through ADR-010 above are
+the foundational decisions made during design, before any code existed, and stay
+recorded inline here. Starting with ADR-011, every significant architectural decision
+made *during* a subsystem's implementation is filed as its own structured record
+(Context/Problem/Alternatives considered/Decision/Consequences/Tradeoffs/Future
+implications) in that directory — a standing requirement established on Phase 1's
+completion, so that every major architectural decision in NOVA stays traceable years
+from now regardless of format.
+
 ## Canonical Service Inventory
 
 | Service / unit | Bible Part(s) | Layer |

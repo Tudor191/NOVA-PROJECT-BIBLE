@@ -1,7 +1,7 @@
 # world-model-engine
 
-NOVA's world-state subsystem (Bible Part 11 / `docs/design/phase-1/
-03-world-model-engine.md`). Owns the current state of reality -- object
+NOVA's world-state subsystem (the merged Bible Part 5 + Part 18, per ADR-002 /
+`docs/design/phase-1/03-world-model-engine.md`). Owns the current state of reality -- object
 lifecycle, Active Context, Attention, relationship consistency between world
 objects, and short-horizon prediction. It is the only engine that ever writes
 to `world_model.*` Postgres tables, `:WorldProject|File|Window|Application|
