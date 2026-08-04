@@ -190,6 +190,93 @@ services:
       nats:
         condition: service_healthy
 
+  # ---------------------------------------------------------------------------
+  # Phase 1 engines (docs/design/phase-1/) -- added on the Phase 1 Gate Review
+  # (docs/roadmap/architecture-reviews/phase-1-gate-review.md): the compose file
+  # previously only wired up nova-core, so the full stack had never actually been
+  # composed and booted together even in local dev. Host ports 8001/8002/8003
+  # match each engine's own README "Running locally" section.
+  # ---------------------------------------------------------------------------
+
+  memory-engine:
+    build:
+      context: ../..
+      dockerfile: services/memory-engine/Dockerfile
+    restart: unless-stopped
+    environment:
+      EVENT_BUS_BACKEND: nats
+      NATS_URL: nats://nats:4222
+      NOVA_ENGINE_NAME: memory-engine
+      MEMORY_ENGINE_POSTGRES_DSN: postgresql+asyncpg://${POSTGRES_USER:-nova}:${POSTGRES_PASSWORD:-nova_dev_password}@postgres:5432/${POSTGRES_DB:-nova}
+      MEMORY_ENGINE_REDIS_URL: redis://redis:6379/0
+      EMBEDDING_PROVIDER_BACKEND: ollama
+      OLLAMA_URL: http://ollama:11434
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+    ports:
+      - "8001:8000"
+    depends_on:
+      nats:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  knowledge-engine:
+    build:
+      context: ../..
+      dockerfile: services/knowledge-engine/Dockerfile
+    restart: unless-stopped
+    environment:
+      EVENT_BUS_BACKEND: nats
+      NATS_URL: nats://nats:4222
+      NOVA_ENGINE_NAME: knowledge-engine
+      KNOWLEDGE_ENGINE_POSTGRES_DSN: postgresql+asyncpg://${POSTGRES_USER:-nova}:${POSTGRES_PASSWORD:-nova_dev_password}@postgres:5432/${POSTGRES_DB:-nova}
+      GRAPH_STORE_BACKEND: neo4j
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USER: neo4j
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:-nova_dev_password}
+      EMBEDDING_PROVIDER_BACKEND: ollama
+      OLLAMA_URL: http://ollama:11434
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+    ports:
+      - "8002:8000"
+    depends_on:
+      nats:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+
+  world-model-engine:
+    build:
+      context: ../..
+      dockerfile: services/world-model-engine/Dockerfile
+    restart: unless-stopped
+    environment:
+      EVENT_BUS_BACKEND: nats
+      NATS_URL: nats://nats:4222
+      NOVA_ENGINE_NAME: world-model-engine
+      WORLD_MODEL_ENGINE_POSTGRES_DSN: postgresql+asyncpg://${POSTGRES_USER:-nova}:${POSTGRES_PASSWORD:-nova_dev_password}@postgres:5432/${POSTGRES_DB:-nova}
+      WORLD_MODEL_ENGINE_REDIS_URL: redis://redis:6379/0
+      GRAPH_STORE_BACKEND: neo4j
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USER: neo4j
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:-nova_dev_password}
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+    ports:
+      - "8003:8000"
+    depends_on:
+      nats:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+
 volumes:
   postgres-data:
   neo4j-data:

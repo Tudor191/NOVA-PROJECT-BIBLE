@@ -1,6 +1,6 @@
 # NOVA Engineering Roadmap
 
-Status: **Draft v1.3 — companion document to the [Software Architecture Document](../architecture/00-overview-and-decisions.md). Technology stack, Event Bus (ADR-006), Graph Store (ADR-007), Agent Architecture (ADR-008), Embedding Provider (ADR-009), and the standardized embedding model (ADR-010) approved. Phase 0 is implemented. Phase 1 is implemented** — `memory-engine`, `knowledge-engine`, and `world-model-engine` all built at production-grade per the [Phase 1 design package](../design/phase-1/README.md), with the [Architecture Review Report](architecture-reviews/phase-1-data-memory-substrate.md), the [Memory/Knowledge/World Model boundary reference](../architecture/20-engine-responsibility-boundaries.md), and structured [ADRs](../architecture/adr/README.md) filed. **Phase 2 has not yet started.**
+Status: **Draft v1.4 — companion document to the [Software Architecture Document](../architecture/00-overview-and-decisions.md). Technology stack, Event Bus (ADR-006), Graph Store (ADR-007), Agent Architecture (ADR-008), Embedding Provider (ADR-009), and the standardized embedding model (ADR-010) approved. Phase 0 is implemented. Phase 1 is implemented and Gate-Reviewed (Go)** — `memory-engine`, `knowledge-engine`, and `world-model-engine` all built at production-grade per the [Phase 1 design package](../design/phase-1/README.md), with the [Architecture Review Report](architecture-reviews/phase-1-data-memory-substrate.md), the [Memory/Knowledge/World Model boundary reference](../architecture/20-engine-responsibility-boundaries.md), structured [ADRs](../architecture/adr/README.md), and the formal [Phase 1 Gate Review](architecture-reviews/phase-1-gate-review.md) filed. **Phase 2 has not yet started.**
 
 ## How this roadmap is organized
 
@@ -9,6 +9,16 @@ engine that a later phase introduces). Phases are scoped so that **every phase e
 with a runnable, demonstrable increase in NOVA's capability** — never a phase that only
 produces internal scaffolding with nothing observable at the end, per Part 9's
 "Milestone System": "each milestone represents measurable progress."
+
+**Standing requirement, established at the Phase 1 Gate Review:** every phase, on
+completion, gets a formal Architecture Gate Review (architecture assessment, risk/debt/
+scalability/security/reliability analysis, consistency reviews, dependency and SOLID/
+DDD/Bible compliance verification, and a final Go/No-Go) before the next phase begins,
+plus the thirteen [engineering metrics](architecture-reviews/METRICS_TEMPLATE.md)
+(SLOC, module/API/test counts, coverage, ADR count, static analysis, dependency graph,
+performance/memory/startup — measured, never estimated). Filed in
+`docs/roadmap/architecture-reviews/phase-N-gate-review.md`, alongside that phase's own
+Architecture Review Report.
 
 Complexity is rated Low / Medium / High / Very High, reflecting engineering effort and
 architectural risk combined, not calendar time (calendar time depends on team size,
@@ -72,7 +82,21 @@ which is not yet decided).
 
 ## Phase 1 — Data & Memory Substrate
 
-Status: **Implemented.** Memory, Knowledge, and World Model Engines are the
+Status: **Implemented, Gate Review passed (Go), phase closed.** See the
+[Phase 1 Gate Review](architecture-reviews/phase-1-gate-review.md) — a formal
+verification, run before Phase 2 began, that the foundation is strong enough to
+support the rest of NOVA (20 sections: architecture assessment, risk/debt/scalability/
+security/reliability analysis, API/Event-Bus/database/ADR consistency, dependency and
+circular-dependency verification, SOLID/Clean-Architecture/DDD compliance, Bible
+compliance, and a final Go/No-Go), plus the phase's
+[engineering metrics](architecture-reviews/phase-1-gate-review.md#21-engineering-metrics)
+(SLOC, module/API/test counts, coverage, ADR count, static analysis, dependency graph
+— every completed phase reports these from Phase 1 onward, per
+[METRICS_TEMPLATE.md](architecture-reviews/METRICS_TEMPLATE.md)). Three real gaps found
+during the Gate Review were fixed as part of it (the three engines are now wired into
+`infra/docker/docker-compose.local.yml` and into `build-and-scan.yml`'s CI matrix; test
+coverage tooling was added) — see the Gate Review's §4 and §19 for detail. Memory,
+Knowledge, and World Model Engines are the
 foundation almost every later engine reads from or writes into — a design mistake
 here is systemic, not local — so this phase was scoped and built as production-grade
 throughout, not a lighter "storage and retrieval" pass. The full technical design

@@ -53,6 +53,9 @@ jobs:
         # tools/scaffold-engine.py creates a new engine.
         service:
           - nova-core
+          - memory-engine
+          - knowledge-engine
+          - world-model-engine
     steps:
       - uses: actions/checkout@v4
 

@@ -9,6 +9,7 @@ dev-dependencies = [
     "pytest-asyncio>=0.24",
     "import-linter>=2.1",
     "pip-audit>=2.7",
+    "pytest-cov>=7.1.0",
 ]
 
 [tool.ruff]
