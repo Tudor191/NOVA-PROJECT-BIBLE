@@ -1,90 +1,143 @@
-# Phase N Engineering Metrics
+# Phase N Project Metrics
 
-> Standing requirement (established at the Phase 1 Gate Review, permanent going
-> forward): every completed phase reports these thirteen metrics, either as a section
-> of that phase's gate review / architecture review report, or as a standalone
-> companion document linked from it. Every number must come from a command actually
-> run against the repository during that phase's review — never estimated,
-> extrapolated, or carried over from a prior phase's numbers. If a metric genuinely
-> cannot be measured (e.g. no live infrastructure available in the review
-> environment), say so explicitly and name what measuring it would require — do not
-> fill in a plausible-looking placeholder.
+> Standing requirement (established at the Phase 1 Gate Review, refined immediately
+> after into this structure, permanent going forward): every phase report includes a
+> Project Metrics section in exactly this shape, either as a section of that phase's
+> gate review / architecture review report, or as a standalone companion document
+> linked from it. Every number must come from a command actually run against the
+> repository during that phase's review — never estimated, extrapolated, or carried
+> over from a prior phase's numbers. If a metric genuinely cannot be measured (e.g. no
+> live infrastructure available in the review environment), say so explicitly and name
+> what measuring it would require — do not fill in a plausible-looking placeholder.
+>
+> **Recommended tooling**: `cloc` (SLOC excluding blanks/comments, per language,
+> `--skip-uniqueness` to avoid silently deduplicating identical scaffolded files),
+> `radon cc`/a small `ast`-based script (cyclomatic complexity, function/class size),
+> `grimp` (dependency graph / cycle detection, independent of any import-linter-scoped
+> contract), and each language's own test runner with coverage plugin (`pytest-cov`
+> for Python). Install what's missing as a durable dev dependency rather than
+> reporting a metric as unmeasurable because the tool wasn't there.
 
-## Total source lines of code
+## Project Statistics — total repository, not implementation size
 
-Report production (`src/`) and test (`tests/`) lines separately, plus a total, plus a
-per-package/service breakdown. Command: `find <path> -name "*.py" -exec cat {} + | wc -l`.
+Distinguish clearly from Implementation Statistics below; these numbers are expected
+to be much larger, and that gap is itself informative (e.g. reinstallable caches like
+`node_modules`/`.venv` dwarfing the actual versioned content is a healthy sign, not a
+concern). Scope to **git-tracked files** for reproducibility — an untracked local
+cache isn't part of "the repository," it's regenerable local state that would make the
+number environment-dependent.
 
-## Number of modules
+- **Total files** — `git ls-files | wc -l`.
+- **Total directories** — `git ls-files | xargs -n1 dirname | sort -u | wc -l`.
+- **Total repository size (MB)** — `git ls-files -z | xargs -0 du -cb | tail -1`,
+  converted to MB. Report the `.git` history size separately (it is not working-tree
+  content). Optionally report the full on-disk working directory size (including
+  build caches) as context for why this distinction matters, clearly labeled as
+  informational/environment-dependent, never as the headline number.
 
-Report both: count of first-party packages (workspace members), and count of `.py`
-files within them (source and test counted separately).
+## Implementation Statistics
 
-## Number of public APIs
+**Production SLOC is the official implementation-size number** (see §10 of
+[SAD 15](../../architecture/15-development-workflow.md#10-project-metrics--the-sloc-milestone-gate)
+for the 50,000-SLOC milestone gate this number drives). Always excludes blank lines
+and comments. Scope precisely and state the scope: application `src/` code plus
+database schema migrations (both genuinely ship and run in production); dev tooling
+scripts, tests, generated clients, and documentation are each reported as their own
+line below, never folded into Production SLOC.
 
-Report HTTP REST endpoints (route handler count, plus any mounted ASGI apps like a
-metrics endpoint) and event-bus-facing contracts (published event types + served
-request/reply RPCs) separately — they are different kinds of "public API" and
-conflating them hides information.
+- **SLOC excluding comments and blank lines** — total, across every tracked language.
+- **Total comment lines**
+- **Comment-to-code ratio** — comment lines ÷ SLOC, as both a ratio and a percentage.
+- **Total documentation lines** — Markdown content lines (not blank).
+- **Total configuration lines** — YAML + TOML + JSON + INI + Dockerfile content lines
+  combined.
+- **Total test code SLOC** — everything under a `tests/` directory, any language.
+- **Production code SLOC** — see scope note above.
+- **Generated code SLOC** (if any) — code produced by a codegen script and committed
+  (e.g. a generated TypeScript client). State the source of generation and confirm
+  it's current (regenerate and diff before reporting, not just measure whatever is
+  on disk) — a stale generated artifact is a real bug this metric should catch, not
+  paper over.
 
-## Test count
+## Language Breakdown
 
-Per-package breakdown plus a total. Command: `pytest --collect-only -q`, per package.
-State whether all tests pass, not just how many exist.
+SLOC (excluding comments/blanks) per language actually present. Report every language
+the template lists even if the count is zero, and add any language present that the
+template doesn't list under "Other." If a language's real source is embedded inside
+another language's files (e.g. SQL as Python string literals in migration files
+rather than standalone `.sql` files), say so explicitly and give an approximate
+embedded-line count rather than silently reporting zero.
 
-## Test coverage
+- Python SLOC
+- TypeScript SLOC
+- React SLOC (`.tsx`/`.jsx` specifically, if any — distinct from plain TypeScript)
+- SQL SLOC (standalone `.sql` files; note embedded SQL separately if none)
+- YAML SLOC
+- Dockerfile SLOC
+- Other languages (name each, e.g. Cypher, Mako, TOML, JSON, INI)
 
-Per-package/service breakdown plus an aggregate. If coverage tooling isn't installed
-yet, install it (durably, as a dev dependency, not a one-off) rather than skipping the
-metric. Flag any package whose coverage number is a measurement artifact rather than a
-real quality signal (e.g. a contracts/schema package exercised mostly by *other*
-packages' test suites) — report the number, but don't let it stand uncontextualized in
-a headline aggregate.
+## Architecture Metrics
 
-## ADR count
+- Number of modules (report both: first-party packages, and source files within them)
+- Number of services (deployable services vs. shared packages, reported separately)
+- Number of APIs (HTTP REST endpoints and event-bus-facing contracts, reported
+  separately — they are different kinds of "API")
+- Number of database tables (across all schemas)
+- Number of graph node types (Neo4j labels, or equivalent)
+- Number of graph relationships (relationship *types* defined/actually used, not
+  instance counts — and say plainly if a capability exists in code but is not yet
+  exercised by any real caller)
+- Number of events (published types, served request/reply contracts, and total
+  registered payload schemas, reported separately)
+- Number of ADRs (running total, not just this phase's additions)
+- Number of architecture documents (Bible parts, SAD docs, ADRs, phase design docs,
+  READMEs — counted separately, plus a grand total)
 
-Total ADRs in the canonical log (`docs/architecture/00-overview-and-decisions.md` +
-`docs/architecture/adr/`), with the running total, not just this phase's additions.
+## Quality Metrics
 
-## Architecture documents
+- Total tests
+- Unit tests
+- Integration tests
+- End-to-end tests
+- Test coverage (per package/service, plus an aggregate over production services only
+  — flag any package whose number is a cross-process measurement artifact rather than
+  a real quality signal, same as Implementation Statistics' generated-code caveat)
+- Ruff status (or the project's linter — pass/fail plus raw issue count)
+- MyPy status (or the project's type checker — pass/fail plus files checked)
+- Import-linter status (contracts kept/broken, files/dependencies analyzed)
 
-Count Bible parts, SAD docs, ADR files, phase design docs, and README files
-separately, plus a grand total and a total word count for `docs/`.
+## Growth Metrics
 
-## Build duration
+- SLOC added this phase (current cumulative Production SLOC minus the prior phase's
+  reported cumulative Production SLOC — if this is the first phase reporting in this
+  format, state that plainly rather than fabricating a prior baseline)
+- Total cumulative production SLOC
+- Total cumulative test SLOC
+- Documentation growth (documentation line count, this phase vs. prior)
+- ADR growth (ADR count, this phase vs. prior)
 
-If no compiled build step exists, report what actually approximates it (dependency
-sync time, full test suite wall time) and say so explicitly rather than inventing a
-number. Report Docker image build time if a Docker daemon is reachable in the review
-environment; state plainly if one isn't, rather than guessing.
+**Report cumulative Production SLOC against the 50,000 milestone explicitly** (current
+value, percentage of threshold) every phase, even when nowhere close — this is what
+makes the milestone a checked gate rather than something watched for informally.
 
-## Static analysis results
+## Complexity Metrics
 
-Linter, type checker, import-boundary linter, and dependency vulnerability scanner
-results — each as a pass/fail plus the raw count (files checked, issues found,
-contracts kept/broken, vulnerabilities found).
-
-## Dependency graph
-
-Package count, edge count, cycle count — built independently of any existing
-import-boundary tool's own scoped contracts (e.g. via `grimp` directly), so the check
-validates the *actual* graph, not just the specific rules another tool already
-enforces.
-
-## Performance benchmarks
-
-Only report real measurements against real infrastructure. If no live infrastructure
-was available during the review, state that explicitly and name the specific
-follow-up needed to produce real numbers, rather than restating design-time targets as
-if they were measured results.
-
-## Memory usage
-
-Same standard as Performance benchmarks — real measurement or an explicit "not
-measured, here's what's needed."
-
-## Startup time
-
-Same standard. If Dockerfiles have `HEALTHCHECK --start-period=...` values, note that
-those are configured guesses, not measurements, unless actually verified against a
-running container.
+- Cyclomatic Complexity (average, plus the grade distribution — e.g. how many
+  functions fall into each radon-style A-F band — and name the highest-complexity
+  outliers rather than only reporting the average)
+- Average Function Length (lines)
+- Average Class Size (lines)
+- Largest Module (the package/service with the most total SLOC — distinct from
+  Largest File)
+- Largest File (the single largest source file, by line count)
+- Number of Public APIs (business-domain endpoints, e.g. everything under a `/v1/...`
+  prefix)
+- Number of Internal APIs (operational endpoints, e.g. health/readiness/metrics under
+  `/internal/...`)
+- Number of Event Types (cross-reference against Architecture Metrics' event counts
+  rather than recomputing independently)
+- Number of Active Services (deployable services that exist — note explicitly if
+  "active" means "defined" rather than "currently running," when no live environment
+  is available to check)
+- Number of Background Workers (separate worker processes/modules, distinct from the
+  API service each belongs to)

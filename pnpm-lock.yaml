@@ -18,6 +18,26 @@ importers:
         specifier: ^15.0.4
         version: 15.0.4
 
+  packages/nova-embeddings-sdk: {}
+
+  packages/nova-eventbus-sdk: {}
+
+  packages/nova-graphstore-sdk: {}
+
+  packages/nova-observability: {}
+
+  packages/nova-testkit: {}
+
+  packages/nova-vectorstore-sdk: {}
+
+  services/knowledge-engine: {}
+
+  services/memory-engine: {}
+
+  services/nova-core: {}
+
+  services/world-model-engine: {}
+
 packages:
 
   '@apidevtools/json-schema-ref-parser@11.9.3':

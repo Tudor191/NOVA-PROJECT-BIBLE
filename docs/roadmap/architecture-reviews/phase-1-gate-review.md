@@ -546,188 +546,156 @@ foundation-level defects that would compound if built on top of.
 
 Phase 1 is closed. Phase 2 — AI Core: Model Orchestration & Reasoning — may begin.
 
+
 ---
 
-## 21. Engineering metrics
+## 21. Project Metrics
 
-Per the new standing requirement: every completed phase reports these thirteen metrics
-going forward. All numbers below were produced by commands actually run against this
-repository during this review (see each row); none are estimated. Three metrics could
-not be measured in this environment and are reported as such rather than guessed — see
-the notes under Performance benchmarks / Memory usage / Startup time. The reusable
-format for future phases is
-[`METRICS_TEMPLATE.md`](METRICS_TEMPLATE.md) in this directory.
+Per the standing requirement established at this Gate Review and immediately refined
+into the structure below (permanent going forward — see
+[SAD 15 §10](../../architecture/15-development-workflow.md#10-project-metrics--the-sloc-milestone-gate)
+and [`METRICS_TEMPLATE.md`](METRICS_TEMPLATE.md)): every phase report distinguishes
+total repository size from actual implementation size, and reports **Production SLOC
+(excluding blank lines and comments) as the official measure of NOVA's implementation
+size** — the number the 50,000-SLOC Engineering Review Milestone gate is measured
+against. Every number below comes from a tool actually run against this repository
+this session (`cloc --skip-uniqueness` for SLOC, `radon cc` and a direct `ast`-based
+script for complexity, `du`/`git ls-files` for repository size) — none are estimated.
+This is the first phase reporting in this format, so Growth Metrics report Phase 0 vs.
+Phase 1 as the only available comparison, not a fabricated earlier baseline.
 
-### Source lines of code
+### Project Statistics — total repository, not implementation size
 
-| Scope | Lines |
+| Metric | Value |
 |---|---|
-| Production source (`src/`, all 11 packages) | 14,177 |
-| Tests (`tests/`, all 11 packages) | 5,904 |
-| **Total** | **20,081** |
+| Total files (git-tracked) | **437** |
+| Total directories (git-tracked) | **93** |
+| Total repository size (git-tracked working-tree content) | **~1.96 MB** |
+| `.git` history size (separate from working-tree content) | ~4.6 MB |
+| Full on-disk working directory (informational only — includes `node_modules`, `.venv`, other reinstallable caches; environment-dependent, not part of "the repository") | ~385 MB (`node_modules` 64 MB + `.venv` 224 MB + the rest) |
 
-Per package/service (`src/` only):
+The ~200x gap between the 1.96 MB of actual versioned content and the 385 MB on-disk
+footprint is exactly the distinction this section exists to make explicit: almost all
+of a fresh checkout's disk usage is regenerable dependency caches, not NOVA's own
+work.
 
-| Package | Lines | Files |
+### Implementation Statistics
+
+Production SLOC is scoped precisely: application `src/` code (9,492 SLOC) + database
+schema migrations (302 SLOC, Alembic — genuinely ships and runs against production
+databases) = **9,794 SLOC**. Dev tooling scripts, tests, the generated TypeScript
+client, and documentation are each reported separately below, never folded into this
+number.
+
+| Metric | Value |
+|---|---|
+| **SLOC, excluding comments/blanks (all tracked languages, all purposes)** | **30,946** |
+| Total comment lines | 3,268 |
+| Comment-to-code ratio | 3,268 / 30,946 ≈ **10.6%** (roughly 1 comment line per 9.5 lines of code) |
+| Total documentation lines (Markdown content lines, `docs/`) | 14,526 |
+| Total configuration lines (YAML + TOML + JSON + INI + Dockerfile) | 1,366 |
+| Total test code SLOC | 4,398 |
+| **Production code SLOC (official implementation-size number)** | **9,794** |
+| Generated code SLOC | 464 (TypeScript client, `packages/nova-contracts/typescript/`) |
+
+**Generated code note.** The generated TypeScript client was found stale during this
+review — only 4 of the 32 payload types registered in `nova_contracts`'s codegen
+`MODELS` list had corresponding generated `.ts` files (the client hadn't been
+regenerated since Phase 0; every Memory/Knowledge/World Model payload type added in
+Phase 1 was silently missing from it). Fixed as part of this review: re-ran
+`codegen/generate_typescript.py`, which now produces all 32 files correctly (464 SLOC,
+up from the stale 55). This is exactly the kind of drift the Generated Code SLOC
+metric exists to catch — confirming the metric's value on its very first use, not
+just a formality.
+
+**Other production Python not counted as "Production code" above:** 329 SLOC of dev
+tooling (the codegen script itself, both engines' `cypher/apply_constraints.py`, and
+`tools/scaffold-engine.py`) — real, maintained code, but build/developer tooling
+rather than code that ships and runs as part of a deployed engine.
+
+### Language Breakdown
+
+| Language | SLOC | Note |
 |---|---|---|
-| `knowledge-engine` | 3,704 | 36 |
-| `memory-engine` | 3,644 | 41 |
-| `world-model-engine` | 2,996 | 37 |
-| `nova-eventbus-sdk` | 810 | 7 |
-| `nova-graphstore-sdk` | 793 | 7 |
-| `nova-contracts` | 715 | 8 |
-| `nova-vectorstore-sdk` | 512 | 6 |
-| `nova-core` | 452 | 12 |
-| `nova-embeddings-sdk` | 285 | 6 |
-| `nova-observability` | 199 | 4 |
-| `nova-testkit` | 67 | 3 |
+| Python | **14,521** | 9,492 `src/` + 302 Alembic migrations + 329 dev tooling + 4,398 tests |
+| TypeScript | **464** | 100% generated (see above); no hand-written TypeScript exists yet — `apps/` is empty |
+| React (`.tsx`/`.jsx`) | **0** | No frontend work has started (`apps/web-client` is a Phase 2 deliverable) |
+| SQL | **0 standalone `.sql` files** | All SQL is embedded as string literals inside Python Alembic migrations (`op.execute("""...""")`) — approximately **213 lines** of embedded DDL across the three engines' schemas, a subset of the 302 Python/Alembic SLOC above, not additive to the total |
+| YAML | **572** | CI workflows, `docker-compose.local.yml`, observability configs |
+| Dockerfile | **106** | 4 files, one per deployable service |
+| Other — TOML | 383 | `pyproject.toml` files (dependency/tool config) |
+| Other — JSON | 215 | `package.json` files, tsconfig, etc. |
+| Other — INI | 90 | `alembic.ini`, one per engine |
+| Other — Mako | 57 | Alembic migration-file templates (scaffolding boilerplate) |
+| Other — Cypher | 12 | Neo4j constraint DDL, 2 files (`.cypher` is unrecognized by `cloc`'s language database — counted manually: 6 blank, 14 comment, 12 code lines per file × 2, code only shown here) |
 
-*Measured by: `find <path> -name "*.py" -exec cat {} + \| wc -l` per package.*
+### Architecture Metrics
 
-### Number of modules
-
-- **11 first-party Python packages** (7 shared packages under `packages/`, 4 services
-  under `services/`).
-- **167 source modules** (`.py` files under `src/`, summed across all 11 packages) + **86
-  test modules** (`.py` files under `tests/`) = **253 total Python modules**.
-
-### Number of public APIs
-
-| Kind | Count |
+| Metric | Value |
 |---|---|
-| HTTP REST route handlers (`@router.<verb>(...)`) | 32 |
-| Mounted `/internal/metrics` endpoints (one per service) | 4 |
-| **Total HTTP endpoints** | **36** |
-| Published event types (`events/published.py`, across all 4 services) | 23 |
-| Served request/reply RPCs (`bus.serve(...)`) | 5 |
-| **Total event-bus-facing contracts** | **28** |
+| Modules | 11 first-party packages; 167 `src/` source files (+33 generated TypeScript files, +10 Alembic/tooling scripts); 86 test files |
+| Services | 4 deployable services (`nova-core`, `memory-engine`, `knowledge-engine`, `world-model-engine`) + 7 shared packages = 11 total first-party packages |
+| APIs — HTTP | 36 total (32 route handlers + 4 mounted `/internal/metrics` endpoints) |
+| APIs — event-bus | 28 total (23 published event types + 5 served request/reply RPCs; 33 payload schemas registered in `nova_contracts.registry` counting reply types) |
+| Database tables | **17** (Knowledge 6, Memory 6, World Model 5) |
+| Graph node types (Neo4j labels) | **20** (Knowledge 12: Concept/Technology/Framework/ProgrammingLanguage/Company/Person/Project/Document/API/Database/Pattern/Decision; World Model 8: WorldProject/File/Window/Application/Agent/Task/Device/SystemResource; Memory Engine owns no graph) |
+| Graph relationships | **2 relationship types actively defined** (Knowledge Engine: `MENTIONED_IN`, `RELATED_TO`). World Model Engine's relationship capability exists structurally (`ObjectRelationship`, `plan_object_relationship`) but **0 relationship types are currently populated by any event handler** — the capability is unused in Phase 1, not broken; no perception signal yet carries relationship information for it to act on. |
+| Events | 23 published event types, 5 served request/reply RPCs, 33 total registered payload schemas |
+| ADRs | **19** (ADR-001 through ADR-010 foundational/pre-implementation; ADR-011 through ADR-019 per-subsystem, filed this phase) |
+| Architecture documents | 65 `docs/` markdown files (22 Bible parts, 22 SAD docs, 9 ADR files, 6 design docs, 4 architecture-review docs, 2 other roadmap docs) + 11 engine/package READMEs = **76 total**, ~82,400 words in `docs/` alone |
 
-*Measured by: `grep -rE "@(router\|app)\.(get\|post\|patch\|put\|delete)\("` for HTTP
-routes; direct count of `published.py` entries and `serve()` registrations for event-bus
-contracts.*
+### Quality Metrics
 
-### Test count
-
-| Package | Tests |
+| Metric | Value |
 |---|---|
-| `memory-engine` | 123 |
-| `knowledge-engine` | 67 |
-| `world-model-engine` | 54 |
-| `nova-core` | 13 |
-| `nova-contracts` | 31 |
-| `nova-eventbus-sdk` | 23 |
-| `nova-graphstore-sdk` | 24 |
-| `nova-vectorstore-sdk` | 19 |
-| `nova-embeddings-sdk` | 11 |
-| `nova-observability` | 7 |
-| `nova-testkit` | 4 |
-| **Total** | **376** |
+| Total tests | **376** |
+| Unit tests | 269 (150 across the 4 services' `tests/unit/` + 119 across the 7 shared packages, which test isolated library code without a full app boot) |
+| Integration tests | 107 (across the 4 services' `tests/integration/`) |
+| End-to-end tests | **0** — no `e2e/` test suite exists anywhere yet |
+| Test coverage — production services (aggregate) | **79%** (3,150/3,997 statements — `nova-core` 99%, `memory-engine` 80%, `knowledge-engine` 79%, `world-model-engine` 73%; uncovered lines concentrate almost entirely in the real Postgres/Redis repository modules, untestable without live infra in this environment) |
+| Test coverage — shared packages | Reported for completeness, not comparability: measurement artifacts (see §21's Implementation Statistics precedent) — `nova-contracts` 4%, `nova-eventbus-sdk` 40%, `nova-graphstore-sdk` 67%, `nova-vectorstore-sdk` 71%, `nova-embeddings-sdk` 82%, `nova-observability` 94% |
+| Ruff status | **PASS** — 0 issues, whole repository |
+| MyPy status | **PASS** — 0 issues, 167 source files across all 11 packages (per-package invocation, matching CI exactly) |
+| Import-linter status | **PASS** — 3/3 contracts kept, 0 broken, 153 files / 691 dependencies analyzed |
 
-All 376 pass. *Measured by: `pytest --collect-only -q` and `pytest -q`, per package, this
-session.*
+### Growth Metrics
 
-### Test coverage
+This is the first phase reporting in this format — Phase 0 vs. Phase 1 is the only
+available comparison; there is no earlier Project Metrics report to diff against, so
+none is fabricated.
 
-`pytest-cov` did not exist in this repository before this review — added as a root dev
-dependency specifically to make this metric answerable (§19). Real numbers, this
-session:
-
-| Service | Statements | Missed | Coverage |
-|---|---|---|---|
-| `nova-core` | 220 | 1 | **99%** |
-| `memory-engine` | 1,287 | 258 | **80%** |
-| `knowledge-engine` | 1,389 | 286 | **79%** |
-| `world-model-engine` | 1,101 | 302 | **73%** |
-| **Aggregate, 4 services** | **3,997** | **847** | **79%** |
-
-The uncovered lines are concentrated almost entirely in one place per engine: the real
-Postgres/Redis repository modules (`postgres_*_repository.py`,
-`redis_context_repository.py` — 24-28% covered each) and the `main.py` lazy real-backend
-construction branches — both untestable without a live Postgres/Redis/Neo4j, which this
-environment does not have (§4). Every fake-backed/in-memory-backed code path (`domain/`,
-API routes exercised via `TestClient`, the saga dispatcher against
-`InMemoryGraphStore`/`InMemoryEventBus`) is at 85-100%.
-
-Shared packages were also measured but are **not included in the headline number**: their
-coverage (4-94%, e.g. `nova-contracts` at 4%) is a measurement artifact, not a quality
-signal — `nova-contracts`' event payload classes are exercised extensively by every
-engine's *own* test suite (a separate pytest process/coverage context each), not by
-`nova-contracts`' own narrow test suite in isolation. Reported for completeness, not
-comparability: `nova-contracts` 4%, `nova-eventbus-sdk` 40%, `nova-graphstore-sdk` 67%,
-`nova-vectorstore-sdk` 71%, `nova-embeddings-sdk` 82%, `nova-observability` 94%,
-`nova-testkit` unmeasured (trivial test-harness code).
-
-*Measured by: `pytest --cov=<package> --cov-report=term-missing`, per package, this
-session.*
-
-### ADR count
-
-**19 total** — ADR-001 through ADR-010 (foundational/pre-implementation) + ADR-011
-through ADR-019 (per-subsystem, filed this phase). See §12.
-
-### Architecture documents
-
-| Category | Count |
+| Metric | Value |
 |---|---|
-| Bible parts (`docs/bible/`) | 22 |
-| SAD architecture docs (`docs/architecture/`, numbered 00-20 + README) | 22 |
-| ADR files (`docs/architecture/adr/`) | 9 |
-| Phase 1 design docs (`docs/design/`) | 6 |
-| Roadmap + architecture review docs (`docs/roadmap/`) | 3 |
-| **Total markdown files under `docs/`** | **63** |
-| Engine/package `README.md` files (`services/*/`, `packages/*/`) | 11 |
-| **Grand total documentation files** | **74** |
-| Total word count, `docs/` only | **~74,862** |
+| Production SLOC added this phase (Phase 1) | **8,389** — `nova-vectorstore-sdk`/`nova-graphstore-sdk`/`nova-embeddings-sdk` + all three engines (`src/` + Alembic) |
+| Production SLOC, Phase 0 baseline (`nova-core`, `nova-contracts`, `nova-eventbus-sdk`, `nova-observability`, `nova-testkit`) | 1,405 |
+| **Total cumulative Production SLOC (through Phase 1)** | **9,794** |
+| Test SLOC added this phase (Phase 1) | 3,587 (Phase 0 baseline: 811) |
+| **Total cumulative test SLOC** | **4,398** |
+| Documentation growth | Current: 65 files / ~82,400 words. A precise Phase-0-close baseline was not captured in this format (this is the first phase reporting it) — stated plainly rather than estimated. |
+| ADR growth | +9 this phase (ADR-011 through ADR-019), from a baseline of 10 (ADR-001 through ADR-010, all pre-Phase-1). |
 
-*Measured by: `find docs -name "*.md" \| wc -l` and `wc -w`.*
+**50,000 SLOC milestone status: 9,794 / 50,000 ≈ 19.6%.** No Engineering Review
+Milestone is triggered. At Phase 1's own growth rate (8,389 SLOC in one phase), the
+threshold is not imminent, but this must be checked and reported at every future
+phase boundary regardless — see SAD 15 §10.
 
-### Build duration
+### Complexity Metrics
 
-No compiled build step exists for this pure-Python-plus-not-yet-started-frontend
-monorepo, so "build duration" is reported as the two durations that actually exist:
+Computed via `radon cc` (cyclomatic complexity, 796 blocks: every function, method,
+and class in every `src/` directory) and a direct `ast`-based script (function/class
+length), both run against the full `src/` tree this session.
 
-| Step | Duration |
+| Metric | Value |
 |---|---|
-| `uv sync --all-packages` (warm cache) | 0.035s |
-| Full test suite, all 11 packages, sequential (`pytest -q` × 11 processes) | 16.9s |
-| Docker image build (4 Dockerfiles) | **NOT MEASURED** — no Docker daemon reachable in this environment (`docker info` fails; starting one fails on a sandbox `ulimit` permission restriction). Static verification only (§4, §11 methodology): every Dockerfile's `COPY` list matches its `pyproject.toml` dependencies exactly, and every `COPY` source path exists. Real build timing requires the environment recommended in §19 item 4. |
-
-*Measured by: `time uv sync --all-packages`, `time <sequential test loop>`, this session.*
-
-### Static analysis results
-
-| Tool | Result |
-|---|---|
-| `ruff check .` (whole repo) | **0 issues** |
-| `mypy` (per-package, matching CI's exact invocation) | **0 issues**, 167 source files across 11 packages |
-| `import-linter` (`lint-imports`) | **3/3 contracts kept**, 0 broken, 153 files / 691 dependencies analyzed |
-| `pip-audit` | **0 known vulnerabilities**, all third-party dependencies |
-
-*Measured by: direct invocation of each tool, this session — see §1.*
-
-### Dependency graph
-
-**11 first-party packages, 20 edges, 0 cycles.** Built with `grimp` independent of
-import-linter's own scoped contracts; full diagram and methodology in §13/§14.
-
-### Performance benchmarks
-
-**NOT MEASURED.** No engine has ever been load-tested against real infrastructure, in
-this environment or any prior session. Every stated performance target (each design
-doc's §15) is a design-time intention, not a measured result. Requires the Docker-capable
-environment recommended in §19 item 4. See §8 for full discussion — this is the single
-most consequential open item before Phase 2.
-
-### Memory usage
-
-**NOT MEASURED.** No engine process has been run against real infrastructure in this
-environment (no Docker daemon reachable — confirmed via `docker info`, §4). Requires the
-same environment as Performance benchmarks above.
-
-### Startup time
-
-**NOT MEASURED.** Same reason as Memory usage. The `docker-compose.local.yml` wiring
-fixed in this review (§4, §19) is what a Docker-capable environment would use to produce
-this number — `HEALTHCHECK` directives already exist in every Dockerfile
-(`--start-period=5s`, an untested guess at startup time, not a measurement) and would be
-the natural first real data point once a daemon is available.
+| Cyclomatic complexity — average | **A (1.88)** |
+| Cyclomatic complexity — grade distribution | 759 A (simple) / 27 B / 10 C (moderate) / **0 D, E, or F** (no function anywhere needs urgent simplification) |
+| Cyclomatic complexity — highest-complexity outliers | `InMemoryGraphStore.traverse` and `_matches_filter` (C, 20 each), `retrieve` (C, 15), `find_duplicate_clusters` and `next_layer` (C, 14 each) — concentrated exactly where real complexity should live: graph traversal, retrieval fan-out, duplicate detection, knowledge evolution |
+| Average function/method length | **12.9 lines** (608 functions/methods analyzed; longest: 115 lines) |
+| Average class size | **20.7 lines** (225 classes analyzed; largest: 291 lines) |
+| Largest module (by production SLOC) | `knowledge-engine` — 2,645 SLOC |
+| Largest file (by line count) | `knowledge-engine/repository/postgres_metadata_repository.py` — 400 lines |
+| Number of Public APIs (`/v1/...`) | **24** |
+| Number of Internal APIs (`/internal/...`, health/readiness/metrics) | **12** (8 route handlers + 4 mounted metrics endpoints) |
+| Number of Event Types | 33 (see Architecture Metrics) |
+| Number of Active Services | **4 defined** (`nova-core`, `memory-engine`, `knowledge-engine`, `world-model-engine`) — "active" means "exists and is deployable," not "currently running": no live environment is available in this sandbox (no Docker daemon, confirmed in §4/§8) to check actual running instances |
+| Number of Background Workers | **9** (3 each in `memory-engine`, `knowledge-engine`, `world-model-engine`: consolidation/embedding/outbox, maintenance/embedding/outbox, outbox/prediction/snapshot respectively; `nova-core` has none — its heartbeat runs in-process, not as a separate Arq worker) |

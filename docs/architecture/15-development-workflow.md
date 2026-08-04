@@ -138,3 +138,48 @@ This checklist is what "documentation is part of the implementation" means
 concretely, and it is what the Sign-off section of every
 [Architecture Review Report](../roadmap/architecture-reviews/TEMPLATE.md) checks
 against for every subsystem the phase touched.
+
+## 10. Project Metrics & the SLOC Milestone Gate
+
+Per explicit user directive, established at the Phase 1 Gate Review: **every phase
+report must include a Project Metrics section**, and **cumulative Production Source
+Lines of Code (SLOC) is the official measure of NOVA's implementation size** —
+excluding blank lines and comments, and excluding tests, generated code, and
+documentation. See
+[`docs/roadmap/architecture-reviews/METRICS_TEMPLATE.md`](../roadmap/architecture-reviews/METRICS_TEMPLATE.md)
+for the required structure (Project Statistics, Implementation Statistics, Language
+Breakdown, Architecture Metrics, Quality Metrics, Growth Metrics, Complexity Metrics)
+and for how "Production SLOC" is precisely scoped (`src/` application code + Alembic
+schema migrations; tooling scripts, tests, generated clients, and documentation are
+each reported separately, never folded into this number).
+
+**The 50,000 SLOC gate.** When cumulative Production SLOC reaches approximately
+50,000, feature development pauses automatically — no phase may begin new feature
+work past that threshold without first completing an **Engineering Review
+Milestone**, covering:
+
+1. Architecture audit
+2. Dependency audit
+3. Performance profiling
+4. Security review
+5. Refactoring opportunities
+6. Dead code analysis
+7. Duplicate code detection
+8. Technical debt review
+9. Database optimization review
+10. Event Bus review
+11. API consistency review
+12. Documentation review
+
+The milestone is filed the same way a Gate Review is
+(`docs/roadmap/architecture-reviews/`) and requires the same explicit approval before
+feature development resumes. This is a distinct trigger from the per-phase Gate Review
+([§9 above](#9-per-subsystem-deliverable-checklist),
+[architecture-reviews/TEMPLATE.md](../roadmap/architecture-reviews/TEMPLATE.md)): a
+phase can pass its own Gate Review (architecture sound, tests green) while the
+*system-wide* SLOC threshold still independently triggers this broader audit — the
+Gate Review asks "is this phase's work sound," the Engineering Review Milestone asks
+"is the codebase as a whole still healthy at this scale." Whichever phase's own
+Project Metrics section first reports cumulative Production SLOC at or above ~50,000
+is the phase that must produce this milestone before any later phase's feature work
+begins — it is checked at every phase boundary, not just watched for informally.

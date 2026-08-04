@@ -1,0 +1,14 @@
+export type PredictionId = string;
+export type UserId = string;
+export type Prediction = string;
+export type Confidence = number;
+export type PredictedFor = string | null;
+
+export interface PredictionPayload {
+  prediction_id: PredictionId;
+  user_id: UserId;
+  prediction: Prediction;
+  confidence: Confidence;
+  predicted_for?: PredictedFor;
+  [k: string]: unknown;
+}
