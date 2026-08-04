@@ -45,6 +45,15 @@ from nova_contracts.events.system import (
     ModuleStatusChangedPayload,
     SystemMode,
 )
+from nova_contracts.events.world_model import (
+    AttentionShiftedPayload,
+    ContextChangedPayload,
+    ContextReplyPayload,
+    ContextRequestPayload,
+    ObjectState,
+    PredictionPayload,
+    WorldObjectChangedPayload,
+)
 from nova_contracts.registry import (
     known_subjects,
     payload_model_for,
@@ -53,8 +62,12 @@ from nova_contracts.registry import (
 )
 
 __all__ = [
+    "AttentionShiftedPayload",
     "ConsolidationCompletedPayload",
     "ConsolidationStartedPayload",
+    "ContextChangedPayload",
+    "ContextReplyPayload",
+    "ContextRequestPayload",
     "ContradictionPayload",
     "DecisionRecordedPayload",
     "EmbeddingCompletedPayload",
@@ -83,9 +96,12 @@ __all__ = [
     "ModeChangedPayload",
     "ModuleStatus",
     "ModuleStatusChangedPayload",
+    "ObjectState",
+    "PredictionPayload",
     "PrivacyLevel",
     "ShortTermMemoryCreatedPayload",
     "SystemMode",
+    "WorldObjectChangedPayload",
     "known_subjects",
     "payload_model_for",
     "register_payload",

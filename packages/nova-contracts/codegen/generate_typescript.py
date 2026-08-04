@@ -17,8 +17,12 @@ import sys
 from pathlib import Path
 
 from nova_contracts import (
+    AttentionShiftedPayload,
     ConsolidationCompletedPayload,
     ConsolidationStartedPayload,
+    ContextChangedPayload,
+    ContextReplyPayload,
+    ContextRequestPayload,
     ContradictionPayload,
     DecisionRecordedPayload,
     EmbeddingCompletedPayload,
@@ -42,7 +46,9 @@ from nova_contracts import (
     MemorySearchResultPayload,
     ModeChangedPayload,
     ModuleStatusChangedPayload,
+    PredictionPayload,
     ShortTermMemoryCreatedPayload,
+    WorldObjectChangedPayload,
 )
 from pydantic import BaseModel
 
@@ -73,6 +79,12 @@ MODELS: list[type[BaseModel]] = [
     KnowledgeSearchResultPayload,
     KnowledgeRetrieveRequestPayload,
     KnowledgeRetrieveReplyPayload,
+    WorldObjectChangedPayload,
+    ContextChangedPayload,
+    AttentionShiftedPayload,
+    PredictionPayload,
+    ContextRequestPayload,
+    ContextReplyPayload,
 ]
 
 PACKAGE_ROOT = Path(__file__).resolve().parent.parent

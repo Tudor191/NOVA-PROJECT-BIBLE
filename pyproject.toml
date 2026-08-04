@@ -51,6 +51,7 @@ root_packages = [
     "nova_core",
     "nova_memory_engine",
     "nova_knowledge_engine",
+    "nova_world_model_engine",
 ]
 include_external_packages = true
 
@@ -61,6 +62,7 @@ modules = [
     "nova_core",
     "nova_memory_engine",
     "nova_knowledge_engine",
+    "nova_world_model_engine",
 ]
 
 [[tool.importlinter.contracts]]
@@ -70,6 +72,7 @@ source_modules = [
     "nova_core",
     "nova_memory_engine",
     "nova_knowledge_engine",
+    "nova_world_model_engine",
 ]
 forbidden_modules = [
     "nats",
@@ -84,6 +87,7 @@ source_modules = [
     "nova_core",
     "nova_memory_engine",
     "nova_knowledge_engine",
+    "nova_world_model_engine",
 ]
 forbidden_modules = [
     "neo4j",

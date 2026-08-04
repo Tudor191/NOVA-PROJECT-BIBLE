@@ -1,0 +1,11 @@
+{
+  "name": "@nova/world-model-engine",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "lint": "uv run --package world-model-engine ruff check . && uv run --package world-model-engine mypy src",
+    "test": "uv run --package world-model-engine pytest",
+    "build": "echo 'world-model-engine: no build step (container image built via Dockerfile in CI)'",
+    "dev": "uv run --package world-model-engine uvicorn nova_world_model_engine.main:app --reload --port 8000"
+  }
+}
