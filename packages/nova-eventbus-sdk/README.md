@@ -35,6 +35,30 @@ bound = BoundEventBus(
     bus,
     engine_name="memory-engine",
     publishable_subjects=frozenset({"memory.*.created", "memory.consolidation.completed"}),
-    subscribable_subjects=frozenset({"perception.*.observed"}),
+    subscribable_subjects=frozenset({"perception.*.observed", "memory.retrieve.request"}),
 )
+```
+
+## Request/reply: `request()` (caller) vs. `serve()` (server)
+
+`request()` is the caller side: publish a payload and wait for a single reply
+envelope. `serve()` is the server side: subscribe to a subject and reply to every
+request `handler` receives, using whichever mechanism the backend actually needs
+(NATS: publish to the ephemeral reply-to inbox NATS attaches to the message; the
+in-memory backend: resolve the caller's pending future directly). Handling this
+inside `serve()` -- instead of leaving each engine to reconstruct a reply envelope
+and `publish()` it -- is what makes the reply path actually work against NATS: a
+hand-rolled `publish()` of a "reply" has no NATS inbox to deliver to and the caller's
+`request()` would simply time out.
+
+```python
+from pydantic import BaseModel
+
+class Reply(BaseModel):
+    ok: bool
+
+async def handle_ping(envelope):
+    return Reply(ok=True)
+
+await bound.serve("memory.retrieve.request", handle_ping, source_engine="memory-engine")
 ```

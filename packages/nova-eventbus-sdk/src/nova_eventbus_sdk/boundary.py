@@ -20,6 +20,7 @@ from nova_eventbus_sdk.interface import (
     EventHandler,
     EventStream,
     ReplayPolicy,
+    RequestHandler,
     Subscription,
 )
 
@@ -105,6 +106,26 @@ class BoundEventBus:
             source_engine=source_engine,
             correlation_id=correlation_id,
             timeout_ms=timeout_ms,
+        )
+
+    async def serve(
+        self,
+        subject_pattern: str,
+        handler: RequestHandler,
+        *,
+        source_engine: str,
+        queue_group: str | None = None,
+    ) -> Subscription:
+        if not _matches_any(subject_pattern, self._subscribable):
+            raise SubjectNotAllowedError(
+                f"{self._engine_name!r} is not permitted to serve {subject_pattern!r}. "
+                f"Declare it in this engine's events/subscribed.py first."
+            )
+        return await self._bus.serve(  # type: ignore[attr-defined]
+            subject_pattern,
+            handler,
+            source_engine=source_engine,
+            queue_group=queue_group,
         )
 
     async def open_stream(

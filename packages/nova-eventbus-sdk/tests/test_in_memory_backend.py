@@ -111,6 +111,56 @@ async def test_request_reply_round_trip() -> None:
     assert reply.subject == "ping.reply"
 
 
+async def test_serve_responds_to_request() -> None:
+    bus = await _bus()
+
+    async def handler(envelope: EventEnvelope) -> _Ping:
+        assert envelope.payload["message"] == "ping"
+        return _Ping(message="pong")
+
+    await bus.serve("ping", handler, source_engine="responder")
+    reply = await bus.request(
+        "ping", _Ping(message="ping"), source_engine="requester", timeout_ms=500
+    )
+    assert reply.payload["message"] == "pong"
+
+
+async def test_serve_reply_carries_correlation_and_causation() -> None:
+    bus = await _bus()
+
+    async def handler(envelope: EventEnvelope) -> _Ping:
+        return _Ping(message="pong")
+
+    await bus.serve("ping", handler, source_engine="responder")
+    correlation_id = uuid4()
+    reply = await bus.request(
+        "ping",
+        _Ping(message="ping"),
+        source_engine="requester",
+        correlation_id=correlation_id,
+        timeout_ms=500,
+    )
+    assert reply.correlation_id == correlation_id
+    assert reply.source_engine == "responder"
+
+
+async def test_serve_does_not_reply_to_its_own_reply() -> None:
+    # Regression guard: serve()'s handler must not fire again when the reply
+    # envelope itself is delivered -- replies carry a causation_id and are
+    # short-circuited before invoking the handler a second time.
+    bus = await _bus()
+    call_count = 0
+
+    async def handler(envelope: EventEnvelope) -> _Ping:
+        nonlocal call_count
+        call_count += 1
+        return _Ping(message="pong")
+
+    await bus.serve("ping", handler, source_engine="responder")
+    await bus.request("ping", _Ping(message="ping"), source_engine="requester", timeout_ms=500)
+    assert call_count == 1
+
+
 async def test_request_times_out_when_nobody_replies() -> None:
     bus = await _bus()
     with pytest.raises(asyncio.TimeoutError):

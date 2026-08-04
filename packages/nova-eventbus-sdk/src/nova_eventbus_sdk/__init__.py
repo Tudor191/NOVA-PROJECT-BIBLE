@@ -13,6 +13,7 @@ from nova_eventbus_sdk.interface import (
     EventHandler,
     EventStream,
     ReplayPolicy,
+    RequestHandler,
     Subscription,
 )
 
@@ -23,6 +24,7 @@ __all__ = [
     "EventHandler",
     "EventStream",
     "ReplayPolicy",
+    "RequestHandler",
     "SubjectNotAllowedError",
     "Subscription",
     "get_event_bus",

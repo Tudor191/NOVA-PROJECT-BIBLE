@@ -7,6 +7,28 @@ under `typescript/` (see codegen/generate_typescript.py).
 """
 
 from nova_contracts.envelope import EventEnvelope
+from nova_contracts.events.knowledge import (
+    KnowledgeLinkReplyPayload,
+    KnowledgeLinkRequestPayload,
+    KnowledgeTraverseReplyPayload,
+    KnowledgeTraverseRequestPayload,
+)
+from nova_contracts.events.memory import (
+    ConsolidationCompletedPayload,
+    ConsolidationStartedPayload,
+    DecisionRecordedPayload,
+    EmbeddingCompletedPayload,
+    LifecycleState,
+    LifecycleTransitionedPayload,
+    LongTermMemoryCreatedPayload,
+    LongTermMemoryUpdatedPayload,
+    MemoryRetrieveReplyPayload,
+    MemoryRetrieveRequestPayload,
+    MemorySearchResultPayload,
+    MemoryType,
+    PrivacyLevel,
+    ShortTermMemoryCreatedPayload,
+)
 from nova_contracts.events.system import (
     HeartbeatPayload,
     ModeChangedPayload,
@@ -22,11 +44,29 @@ from nova_contracts.registry import (
 )
 
 __all__ = [
+    "ConsolidationCompletedPayload",
+    "ConsolidationStartedPayload",
+    "DecisionRecordedPayload",
+    "EmbeddingCompletedPayload",
     "EventEnvelope",
     "HeartbeatPayload",
+    "KnowledgeLinkReplyPayload",
+    "KnowledgeLinkRequestPayload",
+    "KnowledgeTraverseReplyPayload",
+    "KnowledgeTraverseRequestPayload",
+    "LifecycleState",
+    "LifecycleTransitionedPayload",
+    "LongTermMemoryCreatedPayload",
+    "LongTermMemoryUpdatedPayload",
+    "MemoryRetrieveReplyPayload",
+    "MemoryRetrieveRequestPayload",
+    "MemorySearchResultPayload",
+    "MemoryType",
     "ModeChangedPayload",
     "ModuleStatus",
     "ModuleStatusChangedPayload",
+    "PrivacyLevel",
+    "ShortTermMemoryCreatedPayload",
     "SystemMode",
     "known_subjects",
     "payload_model_for",

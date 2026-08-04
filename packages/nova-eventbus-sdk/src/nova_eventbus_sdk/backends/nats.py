@@ -19,7 +19,7 @@ from uuid import UUID, uuid4
 from nova_contracts import EventEnvelope
 from pydantic import BaseModel
 
-from nova_eventbus_sdk.interface import BusHealth, EventHandler, ReplayPolicy
+from nova_eventbus_sdk.interface import BusHealth, EventHandler, ReplayPolicy, RequestHandler
 
 if TYPE_CHECKING:
     from nats.aio.client import Client as NatsClient
@@ -125,6 +125,38 @@ class NatsEventBus:
         except nats.errors.TimeoutError as exc:
             raise TimeoutError(f"No reply on {subject!r} within {timeout_ms}ms") from exc
         return EventEnvelope.model_validate_json(msg.data)
+
+    async def serve(
+        self,
+        subject_pattern: str,
+        handler: RequestHandler,
+        *,
+        source_engine: str,
+        queue_group: str | None = None,
+    ) -> _NatsSubscription:
+        nc = self._require_connected()
+
+        async def _callback(msg: object) -> None:
+            # `msg.reply` is the ephemeral inbox subject NATS generates for
+            # `nc.request()` calls; publishing there -- not to `subject_pattern` --
+            # is what actually routes the reply back to that specific caller. A
+            # message with no `.reply` was published via plain `publish()`, not
+            # `request()`, and has nothing to respond to.
+            envelope = EventEnvelope.model_validate_json(msg.data)  # type: ignore[attr-defined]
+            reply_payload = await handler(envelope)
+            reply_to = msg.reply  # type: ignore[attr-defined]
+            if reply_to:
+                reply_envelope = EventEnvelope(
+                    subject=reply_to,
+                    source_engine=source_engine,
+                    correlation_id=envelope.correlation_id,
+                    causation_id=envelope.event_id,
+                    payload=reply_payload.model_dump(mode="json"),
+                )
+                await nc.publish(reply_to, reply_envelope.model_dump_json().encode())
+
+        sub = await nc.subscribe(subject_pattern, queue=queue_group or "", cb=_callback)
+        return _NatsSubscription(sub)
 
     async def open_stream(
         self,

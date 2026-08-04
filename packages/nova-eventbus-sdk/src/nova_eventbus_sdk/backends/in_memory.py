@@ -15,7 +15,7 @@ from uuid import UUID, uuid4
 from nova_contracts import EventEnvelope
 from pydantic import BaseModel
 
-from nova_eventbus_sdk.interface import BusHealth, EventHandler, ReplayPolicy
+from nova_eventbus_sdk.interface import BusHealth, EventHandler, ReplayPolicy, RequestHandler
 
 
 @dataclass
@@ -152,6 +152,24 @@ class InMemoryEventBus:
         if future is not None and not future.done():
             future.set_result(reply_envelope)
             self._pending_requests.pop(to.event_id, None)
+
+    async def serve(
+        self,
+        subject_pattern: str,
+        handler: RequestHandler,
+        *,
+        source_engine: str,
+        queue_group: str | None = None,
+    ) -> _Subscription:
+        self._require_connected()
+
+        async def _respond(envelope: EventEnvelope) -> None:
+            if envelope.causation_id is not None:
+                return  # a reply is itself delivered through publish(); never re-served
+            reply_payload = await handler(envelope)
+            await self.reply(to=envelope, payload=reply_payload, source_engine=source_engine)
+
+        return await self.subscribe(subject_pattern, _respond, queue_group=queue_group)
 
     async def open_stream(
         self,

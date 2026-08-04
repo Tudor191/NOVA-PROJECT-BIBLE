@@ -49,6 +49,7 @@ asyncio_mode = "auto"
 [tool.importlinter]
 root_packages = [
     "nova_core",
+    "nova_memory_engine",
 ]
 include_external_packages = true
 
@@ -57,6 +58,7 @@ name = "Engines are independent (ADR-004): no engine imports another engine's in
 type = "independence"
 modules = [
     "nova_core",
+    "nova_memory_engine",
 ]
 
 [[tool.importlinter.contracts]]
@@ -64,6 +66,7 @@ name = "No engine imports a message broker client directly (ADR-006): only nova_
 type = "forbidden"
 source_modules = [
     "nova_core",
+    "nova_memory_engine",
 ]
 forbidden_modules = [
     "nats",
@@ -76,6 +79,7 @@ name = "No engine imports a graph database client directly (ADR-007): only nova_
 type = "forbidden"
 source_modules = [
     "nova_core",
+    "nova_memory_engine",
 ]
 forbidden_modules = [
     "neo4j",

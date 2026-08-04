@@ -19,6 +19,12 @@ from pydantic import BaseModel
 EventHandler = Callable[[EventEnvelope], Awaitable[None]]
 """An async callback invoked once per matching event delivered to a subscription."""
 
+RequestHandler = Callable[[EventEnvelope], Awaitable[BaseModel]]
+"""An async callback invoked once per request envelope delivered to a `serve()`
+subscription. Returns the reply payload; the backend delivers it back to the
+original `request()` caller using its own native reply mechanism -- the handler
+never constructs a reply envelope or subject itself."""
+
 
 class ReplayPolicy(StrEnum):
     """How a durable stream should be replayed when opened (docs/architecture/09 §5)."""
@@ -107,6 +113,26 @@ class EventBus(Protocol):
     ) -> EventEnvelope:
         """Synchronous cross-engine RPC without violating ADR-004: publish `payload`
         to `subject` and wait up to `timeout_ms` for a single reply envelope.
+        """
+        ...
+
+    async def serve(
+        self,
+        subject_pattern: str,
+        handler: RequestHandler,
+        *,
+        source_engine: str,
+        queue_group: str | None = None,
+    ) -> Subscription:
+        """The server side of `request()` (docs/architecture/10-inter-engine-
+        communication.md §3): subscribe to `subject_pattern` and reply to every
+        matching request with whatever `handler` returns. Every backend routes the
+        reply back to the original caller using its own native mechanism (a NATS
+        reply-to inbox; the in-memory backend's pending-request table) -- this is
+        precisely the part that varies by backend and that a hand-rolled `publish()`
+        of a reply envelope inside engine code would get wrong for at least one of
+        them, which is why this exists as its own Protocol method rather than being
+        left as "just call publish() with the right causation_id".
         """
         ...
 
