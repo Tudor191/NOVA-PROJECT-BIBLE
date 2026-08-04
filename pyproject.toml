@@ -50,6 +50,7 @@ asyncio_mode = "auto"
 root_packages = [
     "nova_core",
     "nova_memory_engine",
+    "nova_knowledge_engine",
 ]
 include_external_packages = true
 
@@ -59,6 +60,7 @@ type = "independence"
 modules = [
     "nova_core",
     "nova_memory_engine",
+    "nova_knowledge_engine",
 ]
 
 [[tool.importlinter.contracts]]
@@ -67,6 +69,7 @@ type = "forbidden"
 source_modules = [
     "nova_core",
     "nova_memory_engine",
+    "nova_knowledge_engine",
 ]
 forbidden_modules = [
     "nats",
@@ -80,6 +83,7 @@ type = "forbidden"
 source_modules = [
     "nova_core",
     "nova_memory_engine",
+    "nova_knowledge_engine",
 ]
 forbidden_modules = [
     "neo4j",

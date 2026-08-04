@@ -1,0 +1,11 @@
+{
+  "name": "@nova/knowledge-engine",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "lint": "uv run --package knowledge-engine ruff check . && uv run --package knowledge-engine mypy src",
+    "test": "uv run --package knowledge-engine pytest",
+    "build": "echo 'knowledge-engine: no build step (container image built via Dockerfile in CI)'",
+    "dev": "uv run --package knowledge-engine uvicorn nova_knowledge_engine.main:app --reload --port 8000"
+  }
+}

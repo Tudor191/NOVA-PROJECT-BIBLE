@@ -8,10 +8,19 @@ under `typescript/` (see codegen/generate_typescript.py).
 
 from nova_contracts.envelope import EventEnvelope
 from nova_contracts.events.knowledge import (
+    ContradictionPayload,
+    KnowledgeEdgeCreatedPayload,
+    KnowledgeLayer,
     KnowledgeLinkReplyPayload,
     KnowledgeLinkRequestPayload,
+    KnowledgeNodeChangedPayload,
+    KnowledgeRetrieveReplyPayload,
+    KnowledgeRetrieveRequestPayload,
+    KnowledgeScope,
+    KnowledgeSearchResultPayload,
     KnowledgeTraverseReplyPayload,
     KnowledgeTraverseRequestPayload,
+    LayerAdvancedPayload,
 )
 from nova_contracts.events.memory import (
     ConsolidationCompletedPayload,
@@ -46,14 +55,23 @@ from nova_contracts.registry import (
 __all__ = [
     "ConsolidationCompletedPayload",
     "ConsolidationStartedPayload",
+    "ContradictionPayload",
     "DecisionRecordedPayload",
     "EmbeddingCompletedPayload",
     "EventEnvelope",
     "HeartbeatPayload",
+    "KnowledgeEdgeCreatedPayload",
+    "KnowledgeLayer",
     "KnowledgeLinkReplyPayload",
     "KnowledgeLinkRequestPayload",
+    "KnowledgeNodeChangedPayload",
+    "KnowledgeRetrieveReplyPayload",
+    "KnowledgeRetrieveRequestPayload",
+    "KnowledgeScope",
+    "KnowledgeSearchResultPayload",
     "KnowledgeTraverseReplyPayload",
     "KnowledgeTraverseRequestPayload",
+    "LayerAdvancedPayload",
     "LifecycleState",
     "LifecycleTransitionedPayload",
     "LongTermMemoryCreatedPayload",
