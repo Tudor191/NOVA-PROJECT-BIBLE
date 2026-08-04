@@ -53,6 +53,7 @@ root_packages = [
     "nova_memory_engine",
     "nova_knowledge_engine",
     "nova_world_model_engine",
+    "nova_ai_model_orchestration_engine",
 ]
 include_external_packages = true
 
@@ -64,6 +65,7 @@ modules = [
     "nova_memory_engine",
     "nova_knowledge_engine",
     "nova_world_model_engine",
+    "nova_ai_model_orchestration_engine",
 ]
 
 [[tool.importlinter.contracts]]
@@ -74,6 +76,7 @@ source_modules = [
     "nova_memory_engine",
     "nova_knowledge_engine",
     "nova_world_model_engine",
+    "nova_ai_model_orchestration_engine",
 ]
 forbidden_modules = [
     "nats",
@@ -89,7 +92,34 @@ source_modules = [
     "nova_memory_engine",
     "nova_knowledge_engine",
     "nova_world_model_engine",
+    "nova_ai_model_orchestration_engine",
 ]
 forbidden_modules = [
     "neo4j",
 ]
+
+# ADR-020 (docs/architecture/adr/ADR-020-sole-legal-llm-provider-channel.md): only
+# ai-model-orchestration-engine's connectors/ may import an LLM/AI provider SDK.
+# Every other engine must go through ai-model-orchestration-engine's own API/event
+# contracts (nova-contracts) for any AI model interaction -- no exceptions.
+[[tool.importlinter.contracts]]
+name = "No engine imports an LLM/AI provider SDK directly (ADR-020): only nova_ai_model_orchestration_engine may"
+type = "forbidden"
+source_modules = [
+    "nova_core",
+    "nova_memory_engine",
+    "nova_knowledge_engine",
+    "nova_world_model_engine",
+]
+forbidden_modules = [
+    "anthropic",
+    "openai",
+    "cohere",
+    "mistralai",
+    "ollama",
+]
+# Note: Google's Gemini SDK (`google.genai`/`google.generativeai`) is a subpackage
+# of the `google` namespace package, which import-linter's "forbidden" contract
+# type rejects as too broad to list directly ("subpackages of external packages
+# are not valid"). Add its actual top-level distribution name here once a Google
+# connector is built and that name is confirmed, rather than guessing now.

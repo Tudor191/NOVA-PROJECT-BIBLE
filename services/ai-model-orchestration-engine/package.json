@@ -1,0 +1,11 @@
+{
+  "name": "@nova/ai-model-orchestration-engine",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "lint": "uv run --package ai-model-orchestration-engine ruff check . && uv run --package ai-model-orchestration-engine mypy src",
+    "test": "uv run --package ai-model-orchestration-engine pytest",
+    "build": "echo 'ai-model-orchestration-engine: no build step (container image built via Dockerfile in CI)'",
+    "dev": "uv run --package ai-model-orchestration-engine uvicorn nova_ai_model_orchestration_engine.main:app --reload --port 8000"
+  }
+}
