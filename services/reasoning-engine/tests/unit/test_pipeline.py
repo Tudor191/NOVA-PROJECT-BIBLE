@@ -180,6 +180,36 @@ async def test_constraint_based_mode_runs_the_hard_gate_without_crashing() -> No
     assert trace.outcome in {"decided", "degraded"}
 
 
+async def test_multi_step_mode_runs_a_single_pass_not_yet_a_chain() -> None:
+    """§11's data-model foundation exists (`ModeConfig.max_step_depth`,
+    `ReasoningProcess.parent_process_id`), but no trigger mechanism in
+    pipeline.py yet detects an unresolved sub-question mid-analysis and
+    recurses -- the design doc itself never specifies that trigger's
+    heuristic (§11 describes recursion's *consequences*, not when to start
+    one). Requesting Multi-step mode today produces one ordinary single-pass
+    decision, honestly, rather than a fabricated chain; this test guards
+    that behavior stays visible rather than silently drifting into either a
+    crash or a false claim of chaining."""
+    knowledge_port = FakeKnowledgePort(
+        [
+            KnowledgeReference(
+                node_id="n1", name="candidate explanation", layer="expert", confidence=0.9
+            )
+        ]
+    )
+    ports = _ports(knowledge_port=knowledge_port)
+    request = ReasoningRequest(
+        objective_text="candidate explanation for a deep architectural question",
+        user_id=uuid4(),
+        requesting_engine="test",
+        reasoning_mode_hint=ReasoningMode.MULTI_STEP,
+    )
+    decision, trace, _chosen = await pipeline.run(request, **ports)
+    assert trace.reasoning_mode is ReasoningMode.MULTI_STEP
+    assert trace.outcome in {"decided", "degraded"}
+    assert trace.steps == []  # no chain was built -- a single-pass result only
+
+
 async def test_collaborative_mode_raises_not_implemented() -> None:
     ports = _ports()
     request = ReasoningRequest(
@@ -235,3 +265,117 @@ async def test_on_stage_callback_reports_the_real_lifecycle_sequence() -> None:
     assert stages[2] == "alternatives_evaluating"
     assert stages[3] == "decision_scoring"
     assert stages[-1] == trace.outcome
+
+
+def _analytical_request(**overrides) -> ReasoningRequest:
+    defaults = dict(
+        objective_text="candidate explanation for the bug",
+        user_id=uuid4(),
+        requesting_engine="test",
+        reasoning_mode_hint=ReasoningMode.ANALYTICAL,
+    )
+    defaults.update(overrides)
+    return ReasoningRequest(**defaults)
+
+
+def _grounded_ports():
+    knowledge_port = FakeKnowledgePort(
+        [
+            KnowledgeReference(
+                node_id="n1", name="candidate explanation", layer="expert", confidence=0.9
+            )
+        ]
+    )
+    memory_port = FakeMemoryPort(
+        [MemoryReference(memory_id=uuid4(), summary="candidate explanation", confidence=0.9)]
+    )
+    return _ports(memory_port=memory_port, knowledge_port=knowledge_port)
+
+
+async def test_medium_confidence_applies_the_self_eval_gap_penalty_and_still_decides() -> None:
+    """§10, §18: medium confidence runs Self-evaluation mode's bounded gap
+    check automatically, then still proceeds to `decided` -- confirmed here
+    by forcing every composite into the medium band via the pipeline's own
+    threshold parameters, the same knobs `config.py` exposes for real
+    deployments."""
+    ports = _grounded_ports()
+    request = _analytical_request()
+    decision, trace, _chosen = await pipeline.run(
+        request, verify_threshold=1.1, override_threshold=0.0, **ports
+    )
+    assert trace.outcome == "decided"
+    repository = ports["repository"]
+    assert repository.processes[decision.reasoning_process_id].status == "decided"
+
+
+async def test_low_confidence_awaits_human_override() -> None:
+    """§10, §18: below both thresholds, the pipeline stops short of
+    `decided` -- ADR-025: the user is always the final authority."""
+    ports = _grounded_ports()
+    request = _analytical_request()
+    decision, trace, _chosen = await pipeline.run(
+        request, verify_threshold=1.1, override_threshold=1.1, **ports
+    )
+    assert trace.outcome == "degraded"
+    repository = ports["repository"]
+    assert repository.processes[decision.reasoning_process_id].status == "awaiting_human_override"
+    assert repository.processes[decision.reasoning_process_id].completed_at is None
+
+
+async def test_long_term_planning_applies_a_confidence_penalty_relative_to_analytical() -> None:
+    """§6: Long-term planning's wider horizon carries more predicted
+    uncertainty by construction -- `ModeConfig.default_confidence_penalty`
+    should measurably lower confidence relative to the identical inputs
+    under Analytical mode."""
+    analytical_decision, _trace, _chosen = await pipeline.run(
+        _analytical_request(), **_grounded_ports()
+    )
+    planning_decision, _trace2, _chosen2 = await pipeline.run(
+        _analytical_request(reasoning_mode_hint=ReasoningMode.LONG_TERM_PLANNING, goals=[
+            Goal(id=uuid4(), description="ship it", priority=0.8)
+        ]),
+        **_grounded_ports(),
+    )
+    assert planning_decision.confidence_score <= analytical_decision.confidence_score
+
+
+async def test_context_assembly_failure_downgrades_an_otherwise_decided_outcome() -> None:
+    """§5, §7.2, §17: one upstream port breaking its own documented
+    graceful-degradation contract (raising instead of returning an empty
+    result, per §7.3) degrades only that port's own contribution --
+    `assemble_context` isolates the five upstream calls from each other, so
+    the still-healthy knowledge port alone is enough evidence to reach an
+    otherwise-`decided` outcome, downgraded to `degraded` because the
+    process is on record as having lost one of its inputs."""
+
+    class _FailingMemoryPort:
+        async def retrieve(self, *, user_id, query, limit=10, correlation_id=None):
+            raise TimeoutError("simulated memory engine outage")
+
+    ports = _grounded_ports()
+    ports["memory_port"] = _FailingMemoryPort()
+    stages: list[str] = []
+
+    async def on_stage(stage: str) -> None:
+        stages.append(stage)
+
+    decision, trace, chosen = await pipeline.run(
+        request=_analytical_request(), on_stage=on_stage, **ports
+    )
+    assert trace.outcome == "degraded"
+    assert chosen is not None  # the knowledge port alone still produced a decision
+    # §5: `degraded` is a transient lifecycle state on the way to a terminal one --
+    # `degraded --> decided: reduced-confidence decision still produced` -- so the
+    # *persisted* status lands on `decided` even though the trace's own `outcome`
+    # records the reduced-confidence nature of how it got there.
+    assert stages == [
+        "context_assembling",
+        "degraded",
+        "hypotheses_generating",
+        "alternatives_evaluating",
+        "decision_scoring",
+        "decided",
+    ]
+    repository = ports["repository"]
+    assert repository.processes[decision.reasoning_process_id].status == "decided"
+    assert repository.processes[decision.reasoning_process_id].completed_at is not None

@@ -39,7 +39,7 @@ async def assemble_context(
     constraints: list[Constraint],
     correlation_id: UUID,
     scope: str | None = None,
-) -> ContextBundle:
+) -> tuple[ContextBundle, bool]:
     """§7's parallel fan-out. `caller_goals` (explicit, on `ReasoningRequest`)
     take precedence over `GoalsPort`'s own result when both are supplied --
     `GoalsPort`'s Phase 2B placeholder implementation returns the same
@@ -47,6 +47,16 @@ async def assemble_context(
     real Planning Engine adapter without changing this function's own logic.
     `correlation_id` ties every upstream call back to the parent
     `ReasoningProcess`.
+
+    Each of the five upstream calls is isolated from the others (`gather(...,
+    return_exceptions=True)`): a port that breaks its own documented
+    graceful-degradation contract (§7.2, §7.3 -- an empty result or `None` on
+    timeout, never a raised exception) degrades only *that* port's own
+    contribution to the bundle, never the whole bundle. Returns `(bundle,
+    degraded)` -- `degraded` is `True` if any port failed this way, letting
+    the pipeline reach §5's `degraded --> decided: reduced-confidence
+    decision still produced` transition using whatever context the other,
+    still-healthy ports did supply.
     """
     memories, knowledge, world_model, personal_context, ported_goals = await asyncio.gather(
         memory_port.retrieve(
@@ -56,9 +66,22 @@ async def assemble_context(
         world_model_port.get_context(user_id=user_id, scope=scope, correlation_id=correlation_id),
         personal_context_port.get_personal_context(user_id=user_id, correlation_id=correlation_id),
         goals_port.current_goals(user_id=user_id, scope=scope, correlation_id=correlation_id),
+        return_exceptions=True,
     )
 
-    return ContextBundle(
+    degraded = False
+    if isinstance(memories, BaseException):
+        memories, degraded = [], True
+    if isinstance(knowledge, BaseException):
+        knowledge, degraded = [], True
+    if isinstance(world_model, BaseException):
+        world_model, degraded = None, True
+    if isinstance(personal_context, BaseException):
+        personal_context, degraded = None, True
+    if isinstance(ported_goals, BaseException):
+        ported_goals, degraded = [], True
+
+    bundle = ContextBundle(
         memories=memories,
         knowledge=knowledge,
         world_model=world_model,
@@ -66,3 +89,4 @@ async def assemble_context(
         goals=caller_goals or ported_goals,
         constraints=constraints,
     )
+    return bundle, degraded

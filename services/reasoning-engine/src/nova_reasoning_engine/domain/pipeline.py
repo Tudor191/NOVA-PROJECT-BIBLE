@@ -187,9 +187,8 @@ async def run(
     await _report_stage(on_stage, "context_assembling")
 
     # Steps: Load memories, Load World Model, Retrieve knowledge.
-    context_degraded = False
     try:
-        context = await context_assembly.assemble_context(
+        context, context_degraded = await context_assembly.assemble_context(
             user_id=request.user_id,
             objective_text=request.objective_text,
             memory_port=memory_port,
@@ -201,13 +200,13 @@ async def run(
             constraints=request.constraints,
             correlation_id=request.correlation_id,
         )
-    except Exception:  # noqa: BLE001 -- any upstream port failure degrades, never crashes
-        # §17: a context-assembly failure recommends "restart" (retried by a caller, not
-        # looped here) and moves the lifecycle to `degraded` (§5) rather than aborting --
-        # the pipeline still attempts a reduced-confidence decision from whatever the
-        # remaining steps can produce.
+    except Exception:  # noqa: BLE001 -- a catastrophic failure of assembly itself (not a
+        # single port -- those degrade gracefully inside `assemble_context` -- but a
+        # bug in the fan-out code itself) still degrades, never crashes (§17).
         context_degraded = True
         context = ContextBundle(goals=request.goals, constraints=request.constraints)
+
+    if context_degraded:
         await repository.transition_process(process.id, status="degraded")
         await _report_stage(on_stage, "degraded")
 
