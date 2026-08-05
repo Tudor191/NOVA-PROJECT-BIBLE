@@ -50,8 +50,13 @@ next unused number, regardless of which subsystem they originate from.
 | [018](ADR-018-world-object-state-reads-from-postgres.md) | World Object "current state" reads come from Postgres, never Neo4j | World Model Engine |
 | [019](ADR-019-deferred-idle-sweep-worker.md) | The idle-sweep worker is deliberately deferred, not shipped half-correct | World Model Engine |
 | [020](ADR-020-sole-legal-llm-provider-channel.md) | AI Model Orchestration Engine is the only legal channel to any LLM/AI provider — no exceptions | AI Model Orchestration Engine; binding on every subsystem from Phase 2A onward |
+| [021](ADR-021-deterministic-explainable-routing.md) | Deterministic, explainable model routing with mandatory structured telemetry | AI Model Orchestration Engine |
+| [022](ADR-022-stateless-cognitive-gateway.md) | The AI Model Orchestration Engine is a stateless cognitive gateway | AI Model Orchestration Engine |
+| [023](ADR-023-uniform-connector-compliance-suite.md) | Every provider connector passes one identical compliance test suite | AI Model Orchestration Engine |
+| [024](ADR-024-interface-versioning-from-day-one.md) | Every public interface is versioned from the beginning | AI Model Orchestration Engine; binding on every subsystem's public interfaces from Phase 2A onward |
 
 See also: [Phase 1 Architecture Review Report](../../roadmap/architecture-reviews/phase-1-data-memory-substrate.md)
 and [Doc 20 — Engine Responsibility Boundaries](../20-engine-responsibility-boundaries.md),
-both produced alongside this ADR set on Phase 1's completion. ADR-020 was added on
-authorizing Phase 2A.
+both produced alongside this ADR set on Phase 1's completion. ADR-020 through
+ADR-024 were added during Phase 2A, before its first production connector was
+considered complete.

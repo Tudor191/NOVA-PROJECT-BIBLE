@@ -1,1 +1,2 @@
-"""Ai Model Orchestration Engine. TODO: one paragraph on responsibility and the Bible Part it implements."""
+"""AI Model Orchestration Engine (Bible Part 7) -- the sole, provider-agnostic
+gateway between NOVA and every intelligence provider (ADR-020)."""

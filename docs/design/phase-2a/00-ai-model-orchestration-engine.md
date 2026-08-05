@@ -232,7 +232,7 @@ CREATE TABLE model_orchestration.model_registry (
     license TEXT,
     cost_per_input_token NUMERIC(12, 8),
     cost_per_output_token NUMERIC(12, 8),
-    min_privacy_tier TEXT NOT NULL,       -- lowest PrivacyLevel this model may serve
+    max_privacy_tier TEXT NOT NULL,       -- highest PrivacyLevel this model may serve
     health_status TEXT NOT NULL DEFAULT 'unknown',
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
