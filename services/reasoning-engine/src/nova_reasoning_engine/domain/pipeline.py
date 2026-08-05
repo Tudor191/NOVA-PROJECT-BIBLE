@@ -13,9 +13,15 @@ mechanism can act on it once one exists.
 from __future__ import annotations
 
 import time
+from collections.abc import Awaitable, Callable
+from datetime import UTC, datetime
 from uuid import UUID
 
-from nova_contracts import PrivacyLevel
+from nova_contracts import (
+    PrivacyLevel,
+    ReasoningProcessCompletedPayload,
+    ReasoningProcessFailedPayload,
+)
 
 from nova_reasoning_engine.domain import (
     alternative_generation,
@@ -37,6 +43,7 @@ from nova_reasoning_engine.domain.models import (
     Decision,
     Evidence,
     HypothesisGenerationRequest,
+    LifecycleStatus,
     ReasoningMode,
     ReasoningProcess,
     ReasoningRequest,
@@ -47,6 +54,7 @@ from nova_reasoning_engine.domain.ports import (
     KnowledgePort,
     MemoryPort,
     ModelOrchestrationPort,
+    OutboxEvent,
     PersonalContextPort,
     ReasoningRepository,
     WorldModelPort,
@@ -68,6 +76,11 @@ applied here as a caller-overridable default instead."""
 DEFAULT_OVERRIDE_THRESHOLD = 0.35
 """§10, §18: below this composite confidence, the pipeline stops short of
 `decided` and requests Human Override rather than proceeding."""
+
+
+async def _report_stage(on_stage: Callable[[str], Awaitable[None]] | None, stage: str) -> None:
+    if on_stage is not None:
+        await on_stage(stage)
 
 
 async def _resolve_reactive(
@@ -137,12 +150,18 @@ async def run(
     privacy_hint: PrivacyLevel = PrivacyLevel.INTERNAL,
     verify_threshold: float = DEFAULT_VERIFY_THRESHOLD,
     override_threshold: float = DEFAULT_OVERRIDE_THRESHOLD,
-) -> tuple[Decision, ReasoningTrace]:
+    on_stage: Callable[[str], Awaitable[None]] | None = None,
+) -> tuple[Decision, ReasoningTrace, Alternative | None]:
     """Runs the full fourteen-step cognitive pipeline for one `ReasoningRequest`
-    and returns its `Decision` plus `ReasoningTrace` (§4, §19). Raises
+    and returns its `Decision`, `ReasoningTrace`, and the chosen `Alternative`
+    (`None` for a failed process) (§4, §19). Raises
     `modes.NotImplementedModeError` for `ReasoningMode.COLLABORATIVE` (§6,
-    §25) -- the caller (`api/reason.py`, task #66) translates this into a
-    clear "not yet available" response."""
+    §25) -- the caller (`api/reason.py`, `events/handlers.py`) translates
+    this into a clear "not yet available" response.
+
+    `on_stage`, when supplied, is awaited with each lifecycle status (§5) as
+    it is reached -- `api/reason.py`'s `/reason/stream` endpoint (§21) uses
+    this for genuine real-time "visible progress," not polling."""
     start = time.monotonic()
 
     # Step: Understand intent.
@@ -165,6 +184,7 @@ async def run(
         status="context_assembling",
     )
     await repository.create_process(process)
+    await _report_stage(on_stage, "context_assembling")
 
     # Steps: Load memories, Load World Model, Retrieve knowledge.
     context_degraded = False
@@ -189,6 +209,7 @@ async def run(
         context_degraded = True
         context = ContextBundle(goals=request.goals, constraints=request.constraints)
         await repository.transition_process(process.id, status="degraded")
+        await _report_stage(on_stage, "degraded")
 
     if mode is ReasoningMode.REACTIVE:
         decision, alternatives, all_evidence, rejected_reasons = await _resolve_reactive(
@@ -204,24 +225,36 @@ async def run(
         )
         confidence = confidence.model_copy(update={"composite": decision.confidence_score})
         outcome = "degraded" if context_degraded else "decided"
-        await repository.transition_process(
-            process.id, status="degraded" if context_degraded else "decided"
+        final_status: LifecycleStatus = "degraded" if context_degraded else "decided"
+        await repository.transition_process(process.id, status=final_status)
+        await _report_stage(on_stage, final_status)
+        process = process.model_copy(
+            update={"status": final_status, "completed_at": datetime.now(UTC)}
         )
+        duration_ms = (time.monotonic() - start) * 1000
         result_trace = trace_module.build_trace(
             process=process,
             context=context,
             confidence=confidence,
-            execution_duration_ms=(time.monotonic() - start) * 1000,
+            execution_duration_ms=duration_ms,
             model_used=None,
             alternatives=alternatives,
             alternatives_rejected=rejected_reasons,
             final_decision_explanation=decision.explanation.chosen_reason,
             outcome=outcome,  # type: ignore[arg-type]
         )
-        await repository.finalize(process=process, decision=decision, trace=result_trace)
-        return decision, result_trace
+        await repository.finalize(
+            process=process,
+            decision=decision,
+            trace=result_trace,
+            outbox_event=_completed_outbox_event(
+                process, confidence.composite, outcome, duration_ms
+            ),
+        )
+        return decision, result_trace, alternatives[0] if alternatives else None
 
     await repository.transition_process(process.id, status="hypotheses_generating")
+    await _report_stage(on_stage, "hypotheses_generating")
 
     # Step: Generate hypotheses.
     try:
@@ -246,11 +279,13 @@ async def run(
             stage="hypotheses_generating",
             reason=str(exc),
             start=start,
+            on_stage=on_stage,
         )
 
     # Step: Evaluate alternatives (verification + generation).
     verified_hypotheses, evidence = evidence_collection.collect_evidence(hypotheses, context)
     await repository.transition_process(process.id, status="alternatives_evaluating")
+    await _report_stage(on_stage, "alternatives_evaluating")
 
     alternatives, all_hypotheses, all_evidence, below_minimum = (
         await alternative_generation.generate_alternatives(
@@ -279,6 +314,7 @@ async def run(
             stage="alternatives_evaluating",
             reason="no supported hypotheses survived evidence collection",
             start=start,
+            on_stage=on_stage,
         )
 
     # Step: Estimate risks / Constraint Evaluation -- hard gate before scoring.
@@ -295,6 +331,7 @@ async def run(
             stage="decision_scoring",
             reason="no feasible alternative: every alternative violated a hard constraint",
             start=start,
+            on_stage=on_stage,
         )
 
     # Step: Choose strategy -- Decision Matrix scoring (§15) + Goal Evaluation (§8).
@@ -313,6 +350,7 @@ async def run(
     unscored_rejected = [a for a in gated_alternatives if a.constraint_status != "eligible"]
     await repository.record_alternatives(scored + unscored_rejected)
     await repository.transition_process(process.id, status="decision_scoring")
+    await _report_stage(on_stage, "decision_scoring")
 
     # Step: Validate internally -- re-confirm the chosen alternative still has support.
     validated_internally = bool(chosen.supporting_evidence_ids)
@@ -369,20 +407,29 @@ async def run(
     )
 
     await repository.transition_process(process.id, status=status)  # type: ignore[arg-type]
+    await _report_stage(on_stage, status)
+    completed_at = datetime.now(UTC) if status != "awaiting_human_override" else None
+    process = process.model_copy(update={"status": status, "completed_at": completed_at})
 
+    duration_ms = (time.monotonic() - start) * 1000
     result_trace = trace_module.build_trace(
         process=process,
         context=context,
         confidence=confidence,
-        execution_duration_ms=(time.monotonic() - start) * 1000,
+        execution_duration_ms=duration_ms,
         model_used=model_used,
         alternatives=scored,
         alternatives_rejected=explanation.rejected_reasons,
         final_decision_explanation=explanation.chosen_reason,
         outcome=outcome,  # type: ignore[arg-type]
     )
-    await repository.finalize(process=process, decision=decision, trace=result_trace)
-    return decision, result_trace
+    await repository.finalize(
+        process=process,
+        decision=decision,
+        trace=result_trace,
+        outbox_event=_completed_outbox_event(process, confidence.composite, outcome, duration_ms),
+    )
+    return decision, result_trace, chosen
 
 
 async def _fail(
@@ -393,7 +440,8 @@ async def _fail(
     stage: str,
     reason: str,
     start: float,
-) -> tuple[Decision, ReasoningTrace]:
+    on_stage: Callable[[str], Awaitable[None]] | None = None,
+) -> tuple[Decision, ReasoningTrace, Alternative | None]:
     """Bible Part 8: "failure should improve future reasoning rather than
     terminate execution" -- every failure still produces a `Decision` (with
     no selected alternative) and a `ReasoningTrace` (§17, §19), never a
@@ -411,6 +459,8 @@ async def _fail(
         confidence_score=0.0,
     )
     await repository.transition_process(process.id, status="failed")
+    await _report_stage(on_stage, "failed")
+    process = process.model_copy(update={"status": "failed", "completed_at": datetime.now(UTC)})
     confidence = confidence_module.estimate_confidence(
         evidence=[], memories=context.memories, knowledge=context.knowledge, alternatives=[]
     )
@@ -425,5 +475,42 @@ async def _fail(
         final_decision_explanation=explanation.chosen_reason,
         outcome="failed",  # type: ignore[arg-type]
     )
-    await repository.finalize(process=process, decision=decision, trace=result_trace)
-    return decision, result_trace
+    outbox_event = OutboxEvent(
+        subject="reasoning.process.failed",
+        payload=ReasoningProcessFailedPayload(
+            reasoning_process_id=process.id,
+            correlation_id=process.correlation_id,
+            requesting_engine=process.requesting_engine,
+            stage=recovery.stage,
+            action=recovery.action,
+            reason=recovery.reason,
+            retry_count=recovery.retry_count,
+        ).model_dump(mode="json"),
+        correlation_id=process.correlation_id,
+    )
+    await repository.finalize(
+        process=process, decision=decision, trace=result_trace, outbox_event=outbox_event
+    )
+    return decision, result_trace, None
+
+
+def _completed_outbox_event(
+    process: ReasoningProcess, confidence_score: float, outcome: str, execution_duration_ms: float
+) -> OutboxEvent:
+    """§19, §23: published for every terminal outcome that produced a
+    decision -- `decided` or `degraded` alike."""
+    return OutboxEvent(
+        subject="reasoning.process.completed",
+        payload=ReasoningProcessCompletedPayload(
+            reasoning_process_id=process.id,
+            correlation_id=process.correlation_id,
+            requesting_engine=process.requesting_engine,
+            user_id=process.user_id,
+            reasoning_mode=process.reasoning_mode,
+            reasoning_level=process.reasoning_level,
+            confidence_score=confidence_score,
+            execution_duration_ms=execution_duration_ms,
+            outcome=outcome,
+        ).model_dump(mode="json"),
+        correlation_id=process.correlation_id,
+    )

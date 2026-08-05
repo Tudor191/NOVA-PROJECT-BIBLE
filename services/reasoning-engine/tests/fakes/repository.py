@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Literal
 from uuid import UUID, uuid4
 
@@ -74,9 +74,11 @@ class FakeReasoningRepository:
         trace: ReasoningTrace,
         outbox_event: OutboxEvent | None = None,
     ) -> Decision:
-        self.processes[process.id] = process.model_copy(
-            update={"completed_at": datetime.now(UTC)}
-        )
+        # Mirrors PostgresReasoningRepository.finalize(): persists exactly the
+        # `status`/`completed_at` the caller set on `process`, never its own
+        # derived timestamp -- a fake that clobbered these would mask a caller
+        # bug that forgets to set them before calling finalize().
+        self.processes[process.id] = process
         self.decisions[decision.id] = decision
         self.decisions_by_process[decision.reasoning_process_id] = decision.id
         self.traces[trace.id] = trace
@@ -120,7 +122,10 @@ class FakeReasoningRepository:
         outbox_event: OutboxEvent | None = None,
     ) -> Decision:
         decision = self.decisions[decision_id]
-        updated = decision.model_copy(update={"human_override": override})
+        updates: dict = {"human_override": override}
+        if override.action == "redirect" and override.redirect_alternative_id is not None:
+            updates["selected_alternative_id"] = override.redirect_alternative_id
+        updated = decision.model_copy(update=updates)
         self.decisions[decision_id] = updated
         if outbox_event is not None:
             self.outbox.append(outbox_event)

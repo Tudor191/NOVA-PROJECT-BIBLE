@@ -279,6 +279,14 @@ class PostgresReasoningRepository:
             if row is None:
                 raise LookupError(f"No decision found with id {decision_id!r}")
             row.human_override = override.model_dump(mode="json")
+            if override.action == "redirect" and override.redirect_alternative_id is not None:
+                # §18: "redirect re-scores with the user-selected alternative forced to
+                # the top" -- Phase 2B applies this narrowly, updating which alternative
+                # is selected without re-deriving matrix scores or explanation text this
+                # engine no longer has the original Alternative row's inputs to redo
+                # honestly; `human_override` on the row is what makes this a recorded
+                # correction, never presented as if the matrix itself had chosen it.
+                row.selected_alternative_id = override.redirect_alternative_id
             if outbox_event is not None:
                 session.add(_outbox_orm(outbox_event))
             await session.flush()

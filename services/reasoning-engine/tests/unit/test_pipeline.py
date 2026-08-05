@@ -50,12 +50,19 @@ async def test_reactive_mode_short_circuits_without_a_model_call() -> None:
         requesting_engine="test",
         reasoning_mode_hint=ReasoningMode.REACTIVE,
     )
-    decision, trace = await pipeline.run(request, **ports)
+    decision, trace, _chosen = await pipeline.run(request, **ports)
 
     assert decision.confidence_score == pytest.approx(0.9)
     assert trace.reasoning_mode is ReasoningMode.REACTIVE
     assert trace.outcome == "decided"
     assert model_port.requests == []  # no model call for Reactive mode
+
+    repository = ports["repository"]
+    stored_process = repository.processes[decision.reasoning_process_id]
+    assert stored_process.status == "decided"
+    assert stored_process.completed_at is not None
+    assert len(repository.outbox) == 1
+    assert repository.outbox[0].subject == "reasoning.process.completed"
 
 
 async def test_analytical_mode_produces_a_decided_decision() -> None:
@@ -77,7 +84,7 @@ async def test_analytical_mode_produces_a_decided_decision() -> None:
         requesting_engine="test",
         reasoning_mode_hint=ReasoningMode.ANALYTICAL,
     )
-    decision, trace = await pipeline.run(request, **ports)
+    decision, trace, _chosen = await pipeline.run(request, **ports)
 
     assert trace.reasoning_mode is ReasoningMode.ANALYTICAL
     assert trace.outcome in {"decided", "degraded"}
@@ -86,6 +93,12 @@ async def test_analytical_mode_produces_a_decided_decision() -> None:
     repository = ports["repository"]
     assert repository.hypotheses  # persisted via record_hypotheses
     assert repository.alternatives  # persisted via record_alternatives
+
+    stored_process = repository.processes[decision.reasoning_process_id]
+    assert stored_process.status == trace.outcome
+    assert stored_process.completed_at is not None
+    assert len(repository.outbox) == 1
+    assert repository.outbox[0].subject == "reasoning.process.completed"
 
 
 async def test_hypothesis_generation_failure_produces_a_failed_trace() -> None:
@@ -109,11 +122,18 @@ async def test_hypothesis_generation_failure_produces_a_failed_trace() -> None:
         requesting_engine="test",
         reasoning_mode_hint=ReasoningMode.ANALYTICAL,
     )
-    decision, trace = await pipeline.run(request, **ports)
+    decision, trace, _chosen = await pipeline.run(request, **ports)
 
     assert decision.selected_alternative_id is None
     assert decision.confidence_score == 0.0
     assert trace.outcome == "failed"
+
+    repository = ports["repository"]
+    stored_process = repository.processes[decision.reasoning_process_id]
+    assert stored_process.status == "failed"
+    assert stored_process.completed_at is not None
+    assert len(repository.outbox) == 1
+    assert repository.outbox[0].subject == "reasoning.process.failed"
 
 
 async def test_no_supporting_context_fails_after_evidence_collection() -> None:
@@ -128,7 +148,7 @@ async def test_no_supporting_context_fails_after_evidence_collection() -> None:
         requesting_engine="test",
         reasoning_mode_hint=ReasoningMode.ANALYTICAL,
     )
-    decision, trace = await pipeline.run(request, **ports)
+    decision, trace, _chosen = await pipeline.run(request, **ports)
 
     assert decision.selected_alternative_id is None
     assert trace.outcome == "failed"
@@ -156,7 +176,7 @@ async def test_constraint_based_mode_runs_the_hard_gate_without_crashing() -> No
         reasoning_mode_hint=ReasoningMode.CONSTRAINT_BASED,
         constraints=[Constraint(kind="budget", description="must cost nothing", hard=True)],
     )
-    decision, trace = await pipeline.run(request, **ports)
+    decision, trace, _chosen = await pipeline.run(request, **ports)
     assert trace.outcome in {"decided", "degraded"}
 
 
@@ -181,6 +201,37 @@ async def test_goal_driven_mode_requires_no_special_handling_when_goals_supplied
         reasoning_mode_hint=ReasoningMode.GOAL_DRIVEN,
         goals=[Goal(id=uuid4(), description="choose the best plan quickly", priority=0.9)],
     )
-    decision, trace = await pipeline.run(request, **ports)
+    decision, trace, _chosen = await pipeline.run(request, **ports)
     assert trace.reasoning_mode is ReasoningMode.GOAL_DRIVEN
     assert trace.goals_considered == [request.goals[0].id]
+
+
+async def test_on_stage_callback_reports_the_real_lifecycle_sequence() -> None:
+    """§21: `/reason/stream` relies on `on_stage` firing with each real
+    lifecycle transition, in order -- not a polling approximation."""
+    knowledge_port = FakeKnowledgePort(
+        [
+            KnowledgeReference(
+                node_id="n1", name="candidate explanation", layer="expert", confidence=0.9
+            )
+        ]
+    )
+    ports = _ports(knowledge_port=knowledge_port)
+    request = ReasoningRequest(
+        objective_text="candidate explanation for the bug",
+        user_id=uuid4(),
+        requesting_engine="test",
+        reasoning_mode_hint=ReasoningMode.ANALYTICAL,
+    )
+    stages: list[str] = []
+
+    async def on_stage(stage: str) -> None:
+        stages.append(stage)
+
+    decision, trace, _chosen = await pipeline.run(request, on_stage=on_stage, **ports)
+
+    assert stages[0] == "context_assembling"
+    assert stages[1] == "hypotheses_generating"
+    assert stages[2] == "alternatives_evaluating"
+    assert stages[3] == "decision_scoring"
+    assert stages[-1] == trace.outcome
