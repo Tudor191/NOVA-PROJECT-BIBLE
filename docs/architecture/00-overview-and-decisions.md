@@ -32,6 +32,8 @@ silently.
 | 17 | [CI/CD Pipeline](17-cicd-pipeline.md) | CI/CD pipeline |
 | 18 | [Local-First & Cloud Sync](18-local-first-and-cloud-sync.md) | Local-first with optional cloud sync |
 | 19 | [Scalability Strategy](19-scalability-strategy.md) | Enterprise scalability strategy |
+| 20 | [Engine Responsibility Boundaries](20-engine-responsibility-boundaries.md) | Cross-engine boundary reference (Memory/Knowledge/World Model, Phase 1) |
+| 21 | [AI Model Orchestration Philosophy](21-ai-model-orchestration-philosophy.md) | Canonical reference for the AI Model Orchestration Engine (Phase 2A) — why it exists, its boundary, routing/privacy/telemetry, and how future providers integrate |
 | — | [Engineering Roadmap](../roadmap/ENGINEERING_ROADMAP.md) | Phased implementation roadmap |
 
 ## Guiding constraints (non-negotiable, per the Bible)
