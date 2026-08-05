@@ -54,10 +54,13 @@ __all__ = [
 @runtime_checkable
 class MemoryPort(Protocol):
     """§7.3 -- the "Load memories" pipeline step (§4). Implemented by
-    `clients/memory_client.py`, calling `memory.retrieve.request`."""
+    `clients/memory_client.py`, calling `memory.retrieve.request`.
+    `correlation_id` ties the call back to the parent `ReasoningProcess`, the
+    same cross-service tracing convention `domain/relationship.py` already
+    established for Memory Engine's own outbound calls to Knowledge Engine."""
 
     async def retrieve(
-        self, *, user_id: UUID, query: str, limit: int = 10
+        self, *, user_id: UUID, query: str, limit: int = 10, correlation_id: UUID | None = None
     ) -> list[MemoryReference]: ...
 
 
@@ -67,10 +70,12 @@ class KnowledgePort(Protocol):
     Hypothesis Verification (§13). Implemented by `clients/knowledge_client.py`,
     calling `knowledge.retrieve.request` / `knowledge.traverse.request`."""
 
-    async def retrieve(self, *, query: str, limit: int = 10) -> list[KnowledgeReference]: ...
+    async def retrieve(
+        self, *, query: str, limit: int = 10, correlation_id: UUID | None = None
+    ) -> list[KnowledgeReference]: ...
 
     async def traverse(
-        self, *, seed_node_id: str, depth: int = 2
+        self, *, seed_node_id: str, depth: int = 2, correlation_id: UUID | None = None
     ) -> list[KnowledgeReference]: ...
 
 
@@ -82,7 +87,7 @@ class WorldModelPort(Protocol):
     confidence (§10) rather than failing."""
 
     async def get_context(
-        self, *, user_id: UUID, scope: str | None = None
+        self, *, user_id: UUID, scope: str | None = None, correlation_id: UUID | None = None
     ) -> WorldModelSnapshot | None: ...
 
 
@@ -92,7 +97,9 @@ class PersonalContextPort(Protocol):
     Twin Engine. Implemented by `clients/personal_context_client.py`, a thin
     wrapper around `WorldModelPort.get_context`."""
 
-    async def get_personal_context(self, *, user_id: UUID) -> PersonalContext | None: ...
+    async def get_personal_context(
+        self, *, user_id: UUID, correlation_id: UUID | None = None
+    ) -> PersonalContext | None: ...
 
 
 @runtime_checkable
@@ -102,7 +109,9 @@ class GoalsPort(Protocol):
     `ReasoningRequest.goals` rather than a real Planning Engine RPC, since
     Planning Engine (Phase 3) does not exist yet."""
 
-    async def current_goals(self, *, user_id: UUID, scope: str | None = None) -> list[Goal]: ...
+    async def current_goals(
+        self, *, user_id: UUID, scope: str | None = None, correlation_id: UUID | None = None
+    ) -> list[Goal]: ...
 
 
 @runtime_checkable

@@ -37,6 +37,7 @@ async def assemble_context(
     goals_port: GoalsPort,
     caller_goals: list[Goal],
     constraints: list[Constraint],
+    correlation_id: UUID,
     scope: str | None = None,
 ) -> ContextBundle:
     """§7's parallel fan-out. `caller_goals` (explicit, on `ReasoningRequest`)
@@ -44,13 +45,17 @@ async def assemble_context(
     `GoalsPort`'s Phase 2B placeholder implementation returns the same
     caller-supplied goals anyway (§7.1), so this is forward-compatible with a
     real Planning Engine adapter without changing this function's own logic.
+    `correlation_id` ties every upstream call back to the parent
+    `ReasoningProcess`.
     """
     memories, knowledge, world_model, personal_context, ported_goals = await asyncio.gather(
-        memory_port.retrieve(user_id=user_id, query=objective_text),
-        knowledge_port.retrieve(query=objective_text),
-        world_model_port.get_context(user_id=user_id, scope=scope),
-        personal_context_port.get_personal_context(user_id=user_id),
-        goals_port.current_goals(user_id=user_id, scope=scope),
+        memory_port.retrieve(
+            user_id=user_id, query=objective_text, correlation_id=correlation_id
+        ),
+        knowledge_port.retrieve(query=objective_text, correlation_id=correlation_id),
+        world_model_port.get_context(user_id=user_id, scope=scope, correlation_id=correlation_id),
+        personal_context_port.get_personal_context(user_id=user_id, correlation_id=correlation_id),
+        goals_port.current_goals(user_id=user_id, scope=scope, correlation_id=correlation_id),
     )
 
     return ContextBundle(

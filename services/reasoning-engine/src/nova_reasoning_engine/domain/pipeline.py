@@ -178,6 +178,7 @@ async def run(
             goals_port=goals_port,
             caller_goals=request.goals,
             constraints=request.constraints,
+            correlation_id=request.correlation_id,
         )
     except Exception:  # noqa: BLE001 -- any upstream port failure degrades, never crashes
         # §17: a context-assembly failure recommends "restart" (retried by a caller, not

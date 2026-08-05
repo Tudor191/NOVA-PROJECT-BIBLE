@@ -119,15 +119,22 @@ async def generate_hypotheses(
     components = build_prompt_context(request.objective, request.context)
     components.append(_component("instruction", prompt_instruction, priority=10))
 
-    reply = await model_port.generate(
-        GenerateRequestPayload(
-            context=components,
-            task_type=task_type,
-            privacy_hint=privacy_hint,
-            requesting_engine=requesting_engine,
-            correlation_id=correlation_id,
+    try:
+        reply = await model_port.generate(
+            GenerateRequestPayload(
+                context=components,
+                task_type=task_type,
+                privacy_hint=privacy_hint,
+                requesting_engine=requesting_engine,
+                correlation_id=correlation_id,
+            )
         )
-    )
+    except TimeoutError as exc:
+        # Unlike the read-only ports (Memory/Knowledge/World Model), there is no
+        # sensible empty fallback for a failed model call -- this engine cannot
+        # generate hypotheses without one, so a transport timeout becomes the
+        # same domain-level failure a `finish_reason="error"` reply already is.
+        raise HypothesisGenerationError(f"model orchestration call timed out: {exc}") from exc
 
     if reply.finish_reason == "error":
         raise HypothesisGenerationError(reply.error or "model call returned finish_reason=error")

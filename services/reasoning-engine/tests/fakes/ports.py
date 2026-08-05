@@ -22,7 +22,12 @@ class FakeMemoryPort:
         self.calls: list[tuple[UUID, str]] = []
 
     async def retrieve(
-        self, *, user_id: UUID, query: str, limit: int = 10
+        self,
+        *,
+        user_id: UUID,
+        query: str,
+        limit: int = 10,
+        correlation_id: UUID | None = None,
     ) -> list[MemoryReference]:
         self.calls.append((user_id, query))
         return self.results[:limit]
@@ -34,11 +39,15 @@ class FakeKnowledgePort:
         self.retrieve_calls: list[str] = []
         self.traverse_calls: list[str] = []
 
-    async def retrieve(self, *, query: str, limit: int = 10) -> list[KnowledgeReference]:
+    async def retrieve(
+        self, *, query: str, limit: int = 10, correlation_id: UUID | None = None
+    ) -> list[KnowledgeReference]:
         self.retrieve_calls.append(query)
         return self.results[:limit]
 
-    async def traverse(self, *, seed_node_id: str, depth: int = 2) -> list[KnowledgeReference]:
+    async def traverse(
+        self, *, seed_node_id: str, depth: int = 2, correlation_id: UUID | None = None
+    ) -> list[KnowledgeReference]:
         self.traverse_calls.append(seed_node_id)
         return self.results
 
@@ -49,7 +58,7 @@ class FakeWorldModelPort:
         self.calls: list[UUID] = []
 
     async def get_context(
-        self, *, user_id: UUID, scope: str | None = None
+        self, *, user_id: UUID, scope: str | None = None, correlation_id: UUID | None = None
     ) -> WorldModelSnapshot | None:
         self.calls.append(user_id)
         return self.snapshot
@@ -59,7 +68,9 @@ class FakePersonalContextPort:
     def __init__(self, context: PersonalContext | None = None) -> None:
         self.context = context
 
-    async def get_personal_context(self, *, user_id: UUID) -> PersonalContext | None:
+    async def get_personal_context(
+        self, *, user_id: UUID, correlation_id: UUID | None = None
+    ) -> PersonalContext | None:
         return self.context
 
 
@@ -67,7 +78,9 @@ class FakeGoalsPort:
     def __init__(self, goals: list[Goal] | None = None) -> None:
         self.goals = goals if goals is not None else []
 
-    async def current_goals(self, *, user_id: UUID, scope: str | None = None) -> list[Goal]:
+    async def current_goals(
+        self, *, user_id: UUID, scope: str | None = None, correlation_id: UUID | None = None
+    ) -> list[Goal]:
         return self.goals
 
 
