@@ -11,6 +11,7 @@ cross-engine sharing need to justify a separate package (design doc §1).
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any, Protocol, runtime_checkable
 from uuid import UUID
 
@@ -18,6 +19,7 @@ from nova_contracts import EventEnvelope
 from pydantic import BaseModel
 
 from nova_ai_model_orchestration_engine.domain.models import (
+    Budget,
     ConnectorHealth,
     GenerateRequest,
     GenerateResult,
@@ -31,6 +33,7 @@ __all__ = [
     "ModelRegistryRepository",
     "NotSupportedError",
     "OutboxEvent",
+    "OutboxRow",
     "UsageRepository",
 ]
 
@@ -85,6 +88,20 @@ class OutboxEvent(BaseModel):
     causation_id: UUID | None = None
 
 
+class OutboxRow(BaseModel):
+    """A persisted, not-yet-dispatched outbox row, as read back by
+    `list_dispatch_ready` -- carries its own `id` (reused as `EventEnvelope.
+    event_id` for exactly-once delivery, the same convention as every Phase 1
+    engine's outbox dispatcher) alongside `OutboxEvent`'s fields."""
+
+    id: UUID
+    subject: str
+    payload: dict[str, Any]
+    correlation_id: UUID
+    causation_id: UUID | None = None
+    created_at: datetime
+
+
 @runtime_checkable
 class ModelRegistryRepository(Protocol):
     """Persistence port for `model_registry` and `model_health_snapshot`
@@ -137,9 +154,15 @@ class UsageRepository(Protocol):
 
     async def spend_this_period(self, *, scope: str, scope_ref: str | None) -> float: ...
 
+    async def get_budget(self, *, scope: str, scope_ref: str | None) -> Budget | None: ...
+
+    async def list_budgets(self) -> list[Budget]: ...
+
+    async def upsert_budget(self, budget: Budget) -> Budget: ...
+
     async def enqueue_outbox(self, event: OutboxEvent) -> UUID: ...
 
-    async def list_dispatch_ready(self, *, limit: int = 100) -> list[Any]: ...
+    async def list_dispatch_ready(self, *, limit: int = 100) -> list[OutboxRow]: ...
 
     async def mark_dispatched(self, outbox_id: UUID) -> None: ...
 
