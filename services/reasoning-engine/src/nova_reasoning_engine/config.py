@@ -24,10 +24,6 @@ class Settings(BaseSettings):
     engine has no other domain use for Redis, the same "Arq needs it
     regardless" precedent as every prior engine's own `config.py`."""
 
-    outbox_poll_interval_seconds: int = 5
-    """`workers/outbox_worker.py`'s fixed poll interval -- Phase 2A's own
-    accepted fixed-interval tradeoff, reused here."""
-
     confidence_verify_threshold: float = 0.6
     """§10, §18: passed to `domain.pipeline.run`'s `verify_threshold`."""
 
