@@ -126,7 +126,12 @@ class ModelRegistryRepository(Protocol):
     ) -> None: ...
 
     async def update_health(
-        self, model_id: UUID, *, status: str, snapshot: ConnectorHealth
+        self,
+        model_id: UUID,
+        *,
+        status: str,
+        snapshot: ConnectorHealth,
+        outbox_event: OutboxEvent | None = None,
     ) -> None: ...
 
     async def update_benchmark(

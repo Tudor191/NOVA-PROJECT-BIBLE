@@ -8,7 +8,9 @@ Phase 1 worker accepts.
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
+from uuid import uuid4
 
+from nova_contracts import ModelHealthChangedPayload
 from nova_observability import get_logger
 
 from nova_ai_model_orchestration_engine.connectors.factory import (
@@ -17,7 +19,11 @@ from nova_ai_model_orchestration_engine.connectors.factory import (
 )
 from nova_ai_model_orchestration_engine.domain.health import compute_health_status
 from nova_ai_model_orchestration_engine.domain.models import ConnectorHealth
-from nova_ai_model_orchestration_engine.domain.ports import ModelConnector, ModelRegistryRepository
+from nova_ai_model_orchestration_engine.domain.ports import (
+    ModelConnector,
+    ModelRegistryRepository,
+    OutboxEvent,
+)
 
 if TYPE_CHECKING:
     from nova_ai_model_orchestration_engine.observability import AiModelOrchestrationEngineMetrics
@@ -38,7 +44,11 @@ async def run_health_checks(
     *,
     metrics: AiModelOrchestrationEngineMetrics | None = None,
 ) -> int:
-    """Returns the number of models probed."""
+    """Returns the number of models probed. Publishes `ai_model.model.health_changed`
+    only when a probe's resulting status actually differs from the model's
+    previously-recorded one -- a steady stream of `healthy` -> `healthy`
+    snapshots is not a transition (§13's event table: "Health monitor
+    transition")."""
     models = await repository.list_all()
     checked = 0
     for model in models:
@@ -48,7 +58,18 @@ async def run_health_checks(
             continue
         snapshot = await _probe(connector)
         status = compute_health_status(snapshot)
-        await repository.update_health(model.id, status=status, snapshot=snapshot)
+        outbox_event: OutboxEvent | None = None
+        if status != model.health_status:
+            outbox_event = OutboxEvent(
+                subject="ai_model.model.health_changed",
+                payload=ModelHealthChangedPayload(
+                    model_id=model.id, previous_status=model.health_status, new_status=status
+                ).model_dump(mode="json"),
+                correlation_id=uuid4(),
+            )
+        await repository.update_health(
+            model.id, status=status, snapshot=snapshot, outbox_event=outbox_event
+        )
         checked += 1
         if metrics is not None:
             metrics.health_checks_total.add(1, {"status": status})

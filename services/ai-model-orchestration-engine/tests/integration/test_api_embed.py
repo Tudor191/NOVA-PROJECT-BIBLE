@@ -10,6 +10,7 @@ from nova_ai_model_orchestration_engine.config import Settings
 from nova_ai_model_orchestration_engine.connectors.factory import ConnectorFactory
 from nova_ai_model_orchestration_engine.domain.models import CapabilityScores, ModelDescriptor
 from nova_ai_model_orchestration_engine.main import create_app
+
 from tests.fakes.registry_repository import FakeModelRegistryRepository
 from tests.fakes.usage_repository import FakeUsageRepository
 

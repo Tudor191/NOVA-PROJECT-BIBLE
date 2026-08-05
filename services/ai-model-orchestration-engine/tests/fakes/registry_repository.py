@@ -50,12 +50,19 @@ class FakeModelRegistryRepository:
             self.outbox.append(outbox_event)
 
     async def update_health(
-        self, model_id: UUID, *, status: str, snapshot: ConnectorHealth
+        self,
+        model_id: UUID,
+        *,
+        status: str,
+        snapshot: ConnectorHealth,
+        outbox_event: OutboxEvent | None = None,
     ) -> None:
         model = self.models.get(model_id)
         if model is not None:
             self.models[model_id] = model.model_copy(update={"health_status": status})
         self.health_snapshots.append((model_id, status, snapshot))
+        if outbox_event is not None:
+            self.outbox.append(outbox_event)
 
     async def update_benchmark(
         self, model_id: UUID, *, avg_latency_ms: float, avg_quality_score: float

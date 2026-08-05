@@ -14,6 +14,7 @@ from nova_ai_model_orchestration_engine.domain.models import (
     UsageRecord,
 )
 from nova_ai_model_orchestration_engine.main import create_app
+
 from tests.fakes.registry_repository import FakeModelRegistryRepository
 from tests.fakes.usage_repository import FakeUsageRepository
 

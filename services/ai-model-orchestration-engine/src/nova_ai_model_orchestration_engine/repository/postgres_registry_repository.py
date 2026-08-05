@@ -133,7 +133,12 @@ class PostgresModelRegistryRepository:
                 session.add(_outbox_orm(outbox_event))
 
     async def update_health(
-        self, model_id: UUID, *, status: str, snapshot: ConnectorHealth
+        self,
+        model_id: UUID,
+        *,
+        status: str,
+        snapshot: ConnectorHealth,
+        outbox_event: OutboxEvent | None = None,
     ) -> None:
         async with self._session_factory() as session, session.begin():
             await session.execute(
@@ -141,6 +146,8 @@ class PostgresModelRegistryRepository:
                 .where(ModelRegistryORM.id == model_id)
                 .values(health_status=status)
             )
+            if outbox_event is not None:
+                session.add(_outbox_orm(outbox_event))
             session.add(
                 ModelHealthSnapshotORM(
                     model_id=model_id,
