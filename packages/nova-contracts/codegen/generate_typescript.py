@@ -18,6 +18,7 @@ from pathlib import Path
 
 from nova_contracts import (
     AttentionShiftedPayload,
+    BudgetExceededPayload,
     ConsolidationCompletedPayload,
     ConsolidationStartedPayload,
     ContextChangedPayload,
@@ -26,7 +27,11 @@ from nova_contracts import (
     ContradictionPayload,
     DecisionRecordedPayload,
     EmbeddingCompletedPayload,
+    EmbedReplyPayload,
+    EmbedRequestPayload,
     EventEnvelope,
+    GenerateReplyPayload,
+    GenerateRequestPayload,
     HeartbeatPayload,
     KnowledgeEdgeCreatedPayload,
     KnowledgeLinkReplyPayload,
@@ -45,8 +50,12 @@ from nova_contracts import (
     MemoryRetrieveRequestPayload,
     MemorySearchResultPayload,
     ModeChangedPayload,
+    ModelHealthChangedPayload,
+    ModelRegistryChangedPayload,
     ModuleStatusChangedPayload,
     PredictionPayload,
+    RequestCompletedPayload,
+    RequestFailedPayload,
     ShortTermMemoryCreatedPayload,
     WorldObjectChangedPayload,
 )
@@ -85,6 +94,15 @@ MODELS: list[type[BaseModel]] = [
     PredictionPayload,
     ContextRequestPayload,
     ContextReplyPayload,
+    GenerateRequestPayload,
+    GenerateReplyPayload,
+    EmbedRequestPayload,
+    EmbedReplyPayload,
+    RequestCompletedPayload,
+    RequestFailedPayload,
+    ModelRegistryChangedPayload,
+    ModelHealthChangedPayload,
+    BudgetExceededPayload,
 ]
 
 PACKAGE_ROOT = Path(__file__).resolve().parent.parent
