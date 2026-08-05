@@ -13,3 +13,23 @@ class Settings(BaseSettings):
 
     http_port: int = 8000
     log_level: str = "INFO"
+
+    postgres_dsn: str = "postgresql+asyncpg://nova:nova_dev_password@localhost:5432/nova"
+    """SQLAlchemy-format DSN for the `reasoning` schema (ORM, Alembic) -- §20's
+    one narrow exception to "never owns data": records of this engine's own
+    reasoning processes only."""
+
+    redis_url: str = "redis://localhost:6379/0"
+    """Arq's own job queue backend only (`workers/outbox_worker.py`) -- this
+    engine has no other domain use for Redis, the same "Arq needs it
+    regardless" precedent as every prior engine's own `config.py`."""
+
+    outbox_poll_interval_seconds: int = 5
+    """`workers/outbox_worker.py`'s fixed poll interval -- Phase 2A's own
+    accepted fixed-interval tradeoff, reused here."""
+
+    confidence_verify_threshold: float = 0.6
+    """§10, §18: passed to `domain.pipeline.run`'s `verify_threshold`."""
+
+    confidence_override_threshold: float = 0.35
+    """§10, §18: passed to `domain.pipeline.run`'s `override_threshold`."""

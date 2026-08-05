@@ -85,6 +85,7 @@ async def _resolve_reactive(
         source, ref = "none", "no relevant information was found"
 
     alternative = Alternative(
+        reasoning_process_id=process.id,
         hypothesis_id=process.id,
         description=ref,
         constraint_status="eligible",

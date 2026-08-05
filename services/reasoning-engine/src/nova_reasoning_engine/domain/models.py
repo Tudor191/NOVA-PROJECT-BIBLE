@@ -223,9 +223,15 @@ class Evidence(BaseModel):
 
 class Alternative(BaseModel):
     """§14 -- a concrete candidate decision, converted from a supported
-    `Hypothesis`."""
+    `Hypothesis`. `reasoning_process_id` is not in the design doc's own §14
+    code block, but §20's DDL requires it as a direct NOT NULL foreign key
+    (every other persisted entity is scoped to its owning process the same
+    way) -- added here to make the domain model actually persistable against
+    its own schema, the same class of internal design-doc gap this project's
+    standing discipline resolves in the open rather than silently."""
 
     id: UUID = Field(default_factory=uuid4)
+    reasoning_process_id: UUID
     hypothesis_id: UUID
     description: str
     supporting_evidence_ids: list[UUID] = Field(default_factory=list)

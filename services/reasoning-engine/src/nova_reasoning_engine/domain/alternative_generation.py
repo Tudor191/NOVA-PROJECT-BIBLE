@@ -89,6 +89,7 @@ async def generate_alternatives(
 
     alternatives = [
         Alternative(
+            reasoning_process_id=reasoning_process_id,
             hypothesis_id=h.id,
             description=h.description,
             supporting_evidence_ids=[e.id for e in all_evidence if e.hypothesis_id == h.id],
