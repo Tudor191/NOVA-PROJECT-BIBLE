@@ -1,0 +1,177 @@
+"""Reasoning Engine event payloads (Bible Part 8), per
+docs/design/phase-2b/00-reasoning-engine.md §19 (the structured reasoning
+trace), §20 (data model), and §23 (APIs/events).
+
+`ReasoningMode` mirrors design doc §6's ten-mode taxonomy exactly -- the
+canonical, structural set this engine's domain layer dispatches on, distinct
+from Bible Part 8's own "Levels of Reasoning" (a cost/depth dial, carried here
+as a plain `int` field, not an enum) and "Thinking Modes" (a domain-flavor
+hint, carried as free-text `thinking_mode_hint`) -- see design doc §6 for the
+full reconciliation of all three.
+
+Every payload here carries `schema_version: int = 1` from its first commit
+(ADR-024), the same discipline every Phase 2A payload already follows.
+"""
+
+from __future__ import annotations
+
+from enum import StrEnum
+from uuid import UUID, uuid4
+
+from pydantic import BaseModel, Field
+
+from nova_contracts.registry import register_payload
+
+
+class ReasoningMode(StrEnum):
+    """Design doc §6's ten reasoning-mode taxonomy."""
+
+    REACTIVE = "reactive"
+    ANALYTICAL = "analytical"
+    STRATEGIC = "strategic"
+    LONG_TERM_PLANNING = "long_term_planning"
+    GOAL_DRIVEN = "goal_driven"
+    CONSTRAINT_BASED = "constraint_based"
+    MULTI_STEP = "multi_step"
+    REFLECTIVE = "reflective"
+    SELF_EVALUATION = "self_evaluation"
+    COLLABORATIVE = "collaborative"
+
+
+class ReasoningOutcome(StrEnum):
+    """Design doc §5's four terminal lifecycle states."""
+
+    DECIDED = "decided"
+    DEGRADED = "degraded"
+    FAILED = "failed"
+    ABANDONED = "abandoned"
+
+
+class FailureAction(StrEnum):
+    """Design doc §17's Bible Part 8 failure-recovery action set."""
+
+    RESTART = "restart"
+    REDUCE_COMPLEXITY = "reduce_complexity"
+    REQUEST_CLARIFICATION = "request_clarification"
+    DELEGATE = "delegate"
+    RETRIEVE_MORE_KNOWLEDGE = "retrieve_more_knowledge"
+    ESCALATE_DEEPER = "escalate_deeper"
+
+
+class OverrideAction(StrEnum):
+    """Design doc §18's human-override action set."""
+
+    CONFIRM = "confirm"
+    REDIRECT = "redirect"
+    REJECT = "reject"
+
+
+class ConstraintKind(StrEnum):
+    """Design doc §9's constraint sources."""
+
+    BUDGET = "budget"
+    PRIVACY = "privacy"
+    TIME = "time"
+    RESOURCE = "resource"
+    POLICY = "policy"
+
+
+class GoalPayload(BaseModel):
+    """Design doc §8 -- one Current Goal, as read from `GoalsPort`
+    (a caller-supplied placeholder until Planning Engine exists, §7.1)."""
+
+    id: UUID
+    description: str
+    priority: float = Field(ge=0.0, le=1.0)
+
+
+class ConstraintPayload(BaseModel):
+    """Design doc §9 -- a hard gate applied before scoring, never blended into
+    the Decision Matrix. `hard=False` constraints instead contribute a scoring
+    penalty (not implemented as a gate) -- see design doc §9."""
+
+    kind: ConstraintKind
+    description: str
+    hard: bool = True
+
+
+@register_payload("reasoning.reason.request")
+class ReasoningRequestPayload(BaseModel):
+    """Event Bus RPC counterpart to `POST /v1/reasoning/reason` (design doc
+    §23) -- for callers (e.g. a future Planning Engine, §7.1) that prefer
+    request/reply over HTTP."""
+
+    objective_text: str
+    user_id: UUID
+    requesting_engine: str
+    correlation_id: UUID = Field(default_factory=uuid4)
+    reasoning_mode_hint: ReasoningMode | None = None
+    reasoning_level_hint: int | None = Field(default=None, ge=1, le=4)
+    thinking_mode_hint: str | None = None
+    goals: list[GoalPayload] = Field(default_factory=list)
+    constraints: list[ConstraintPayload] = Field(default_factory=list)
+    parent_process_id: UUID | None = None
+    """Design doc §11 -- set when this request is one step of a Multi-step
+    reasoning chain."""
+    schema_version: int = 1
+
+
+@register_payload("reasoning.reason.reply")
+class ReasoningReplyPayload(BaseModel):
+    reasoning_process_id: UUID
+    decision_id: UUID | None = None
+    chosen_description: str | None = None
+    explanation: str | None = None
+    confidence_score: float | None = None
+    outcome: ReasoningOutcome
+    trace_id: UUID | None = None
+    error: str | None = None
+    """Set only when `outcome` is `failed`/`abandoned` -- an informative
+    reply, not a bus timeout with no diagnostic (the same additive pattern
+    ADR-024 established for `GenerateReplyPayload.error` in Phase 2A)."""
+    schema_version: int = 1
+
+
+@register_payload("reasoning.process.completed")
+class ReasoningProcessCompletedPayload(BaseModel):
+    """Published for every terminal outcome that produced a decision --
+    `decided` or `degraded` alike (design doc §5) -- the event-bus mirror of
+    the `reasoning_process`/`decision` rows `ReasoningRepository` persists."""
+
+    reasoning_process_id: UUID
+    correlation_id: UUID
+    requesting_engine: str
+    user_id: UUID
+    reasoning_mode: ReasoningMode
+    reasoning_level: int
+    confidence_score: float
+    execution_duration_ms: float
+    outcome: ReasoningOutcome
+    schema_version: int = 1
+
+
+@register_payload("reasoning.process.failed")
+class ReasoningProcessFailedPayload(BaseModel):
+    """Published when Failure Recovery (design doc §17) cannot produce any
+    decision -- `outcome in {"failed", "abandoned"}`."""
+
+    reasoning_process_id: UUID
+    correlation_id: UUID
+    requesting_engine: str
+    stage: str
+    action: FailureAction
+    reason: str
+    retry_count: int = 0
+    schema_version: int = 1
+
+
+@register_payload("reasoning.human_override.applied")
+class HumanOverrideAppliedPayload(BaseModel):
+    """Design doc §18 -- published whenever a human confirms, redirects, or
+    rejects a decision awaiting override."""
+
+    reasoning_process_id: UUID
+    action: OverrideAction
+    redirect_alternative_id: UUID | None = None
+    note: str | None = None
+    schema_version: int = 1

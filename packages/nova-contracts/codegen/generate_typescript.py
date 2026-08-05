@@ -33,6 +33,7 @@ from nova_contracts import (
     GenerateReplyPayload,
     GenerateRequestPayload,
     HeartbeatPayload,
+    HumanOverrideAppliedPayload,
     KnowledgeEdgeCreatedPayload,
     KnowledgeLinkReplyPayload,
     KnowledgeLinkRequestPayload,
@@ -54,6 +55,10 @@ from nova_contracts import (
     ModelRegistryChangedPayload,
     ModuleStatusChangedPayload,
     PredictionPayload,
+    ReasoningProcessCompletedPayload,
+    ReasoningProcessFailedPayload,
+    ReasoningReplyPayload,
+    ReasoningRequestPayload,
     RequestCompletedPayload,
     RequestFailedPayload,
     ShortTermMemoryCreatedPayload,
@@ -103,6 +108,11 @@ MODELS: list[type[BaseModel]] = [
     ModelRegistryChangedPayload,
     ModelHealthChangedPayload,
     BudgetExceededPayload,
+    ReasoningRequestPayload,
+    ReasoningReplyPayload,
+    ReasoningProcessCompletedPayload,
+    ReasoningProcessFailedPayload,
+    HumanOverrideAppliedPayload,
 ]
 
 PACKAGE_ROOT = Path(__file__).resolve().parent.parent

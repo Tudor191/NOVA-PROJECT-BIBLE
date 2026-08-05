@@ -39,3 +39,8 @@ export * from "./RequestFailedPayload";
 export * from "./ModelRegistryChangedPayload";
 export * from "./ModelHealthChangedPayload";
 export * from "./BudgetExceededPayload";
+export * from "./ReasoningRequestPayload";
+export * from "./ReasoningReplyPayload";
+export * from "./ReasoningProcessCompletedPayload";
+export * from "./ReasoningProcessFailedPayload";
+export * from "./HumanOverrideAppliedPayload";
