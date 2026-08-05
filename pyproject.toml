@@ -54,6 +54,7 @@ root_packages = [
     "nova_knowledge_engine",
     "nova_world_model_engine",
     "nova_ai_model_orchestration_engine",
+    "nova_reasoning_engine",
 ]
 include_external_packages = true
 
@@ -66,6 +67,7 @@ modules = [
     "nova_knowledge_engine",
     "nova_world_model_engine",
     "nova_ai_model_orchestration_engine",
+    "nova_reasoning_engine",
 ]
 
 [[tool.importlinter.contracts]]
@@ -77,6 +79,7 @@ source_modules = [
     "nova_knowledge_engine",
     "nova_world_model_engine",
     "nova_ai_model_orchestration_engine",
+    "nova_reasoning_engine",
 ]
 forbidden_modules = [
     "nats",
@@ -93,6 +96,7 @@ source_modules = [
     "nova_knowledge_engine",
     "nova_world_model_engine",
     "nova_ai_model_orchestration_engine",
+    "nova_reasoning_engine",
 ]
 forbidden_modules = [
     "neo4j",
@@ -110,6 +114,7 @@ source_modules = [
     "nova_memory_engine",
     "nova_knowledge_engine",
     "nova_world_model_engine",
+    "nova_reasoning_engine",
 ]
 forbidden_modules = [
     "anthropic",

@@ -1,0 +1,41 @@
+[project]
+name = "reasoning-engine"
+version = "0.1.0"
+description = "The Reasoning Engine (Bible Part 8) -- NOVA's cognitive bridge, transforming Memory, Knowledge, World Model, Personal Context, Goals, and Capabilities into decisions (ADR-026)."
+requires-python = ">=3.12"
+dependencies = [
+    "nova-contracts",
+    "nova-eventbus-sdk",
+    "nova-observability",
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "pydantic-settings>=2.6",
+    "sqlalchemy[asyncio]>=2.0",
+    "asyncpg>=0.29",
+    "alembic>=1.13",
+    "arq>=0.26",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/nova_reasoning_engine"]
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.uv.sources]
+nova-contracts = { workspace = true }
+nova-eventbus-sdk = { workspace = true }
+nova-observability = { workspace = true }
+nova-testkit = { workspace = true }
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "httpx>=0.27",
+    "nova-testkit",
+]
