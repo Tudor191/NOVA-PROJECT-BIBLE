@@ -56,6 +56,7 @@ jobs:
           - memory-engine
           - knowledge-engine
           - world-model-engine
+          - ai-model-orchestration-engine
     steps:
       - uses: actions/checkout@v4
 
