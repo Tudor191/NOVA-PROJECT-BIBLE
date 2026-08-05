@@ -1,6 +1,6 @@
 # NOVA Engineering Roadmap
 
-Status: **Draft v1.5 — companion document to the [Software Architecture Document](../architecture/00-overview-and-decisions.md). Technology stack, Event Bus (ADR-006), Graph Store (ADR-007), Agent Architecture (ADR-008), Embedding Provider (ADR-009), and the standardized embedding model (ADR-010) approved. Phase 0 is implemented. Phase 1 is implemented and Gate-Reviewed (Go)** — `memory-engine`, `knowledge-engine`, and `world-model-engine` all built at production-grade per the [Phase 1 design package](../design/phase-1/README.md), with the [Architecture Review Report](architecture-reviews/phase-1-data-memory-substrate.md), the [Memory/Knowledge/World Model boundary reference](../architecture/20-engine-responsibility-boundaries.md), structured [ADRs](../architecture/adr/README.md), and the formal [Phase 1 Gate Review](architecture-reviews/phase-1-gate-review.md) filed. **Phase 2 is split into four sub-phases (2A–2D, per explicit user directive) — [Phase 2A: AI Model Orchestration Layer](#phase-2a--ai-model-orchestration-layer) is now in progress.**
+Status: **Draft v1.6 — companion document to the [Software Architecture Document](../architecture/00-overview-and-decisions.md). Technology stack, Event Bus (ADR-006), Graph Store (ADR-007), Agent Architecture (ADR-008), Embedding Provider (ADR-009), and the standardized embedding model (ADR-010) approved. Phase 0 is implemented. Phase 1 is implemented and Gate-Reviewed (Go)** — `memory-engine`, `knowledge-engine`, and `world-model-engine` all built at production-grade per the [Phase 1 design package](../design/phase-1/README.md), with the [Architecture Review Report](architecture-reviews/phase-1-data-memory-substrate.md), the [Memory/Knowledge/World Model boundary reference](../architecture/20-engine-responsibility-boundaries.md), structured [ADRs](../architecture/adr/README.md), and the formal [Phase 1 Gate Review](architecture-reviews/phase-1-gate-review.md) filed. **Phase 2 is split into four sub-phases (2A–2D, per explicit user directive) — [Phase 2A: AI Model Orchestration Layer](#phase-2a--ai-model-orchestration-layer) is in progress, with its API/events/workers layer now built and verified.** **[ADR-025](../architecture/adr/ADR-025-personal-edition-is-the-flagship.md) establishes the Personal Edition as NOVA's permanent flagship and reference implementation, binding on every phase from here forward.**
 
 ## How this roadmap is organized
 
@@ -9,6 +9,15 @@ engine that a later phase introduces). Phases are scoped so that **every phase e
 with a runnable, demonstrable increase in NOVA's capability** — never a phase that only
 produces internal scaffolding with nothing observable at the end, per Part 9's
 "Milestone System": "each milestone represents measurable progress."
+
+**Standing requirement, established mid-Phase-2A (per [ADR-025](../architecture/adr/ADR-025-personal-edition-is-the-flagship.md)):**
+NOVA's Personal Edition — built for one trusted user — is the permanent flagship and
+reference implementation; Phases 7 and 8 below build a Commercial/Enterprise Edition
+as a strictly *additive* deployment mode of the same codebase, never a redesign and
+never at the Personal Edition's expense. Wherever a phase has latitude in what to
+build first, the resolution order is **Personal Intelligence > Long-Term Memory >
+Personal Automation > Natural Interaction** (ADR-025's permanent development-priority
+order), not breadth of generic configurability.
 
 **Standing requirement, established at the Phase 1 Gate Review:** every phase, on
 completion, gets a formal Architecture Gate Review (architecture assessment, risk/debt/
@@ -606,6 +615,7 @@ Planning; `communication-engine` from 2D to report progress/results).
 - Independent penetration test finds no critical/high findings unresolved at phase close.
 - A scripted multi-tenant scenario proves zero cross-tenant data leakage across every engine's query paths.
 - Revoking a user's enterprise IdP account immediately (within the JWT's short expiry window) removes their access — no lingering session risk.
+- Per [ADR-025](../architecture/adr/ADR-025-personal-edition-is-the-flagship.md): the full Personal Edition test suite (every phase's existing unit/integration/contract tests) passes unmodified with enterprise mode compiled in but disabled — proving OIDC/RBAC/multi-tenancy landed as additive layers, not changes to the single-user code path.
 
 ---
 
@@ -645,6 +655,7 @@ Planning; `communication-engine` from 2D to report progress/results).
 - A simulated single-AZ failure causes no data loss and recovers within the documented RTO.
 - A multi-device sync conflict resolves correctly and explainably in 100% of a scripted test matrix covering the documented conflict-resolution rules.
 - The platform sustains the Part 4 "Future Scalability" target of at least 1,000 concurrent agents in a load test without orchestration-layer redesign (10,000 remains a stretch target validated directionally, not a hard Phase 8 gate).
+- Per [ADR-025](../architecture/adr/ADR-025-personal-edition-is-the-flagship.md): a single-user, single-region Compose deployment (the Personal Edition's own default topology) is re-verified against the full test suite after this phase's scale-out work lands, confirming the Helm/Terraform/clustering additions changed nothing about running NOVA for one person on one machine.
 
 ---
 

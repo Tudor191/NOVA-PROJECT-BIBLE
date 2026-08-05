@@ -50,6 +50,25 @@ silently.
 5. **Architecture over speed, scalability over simplicity** (Part 1, "First Principle").
 6. **Everything is observable, explainable, and reversible** (Parts 8, 12, 14, 19).
 7. **Design for 10x** (user directive, added after initial SAD approval — see below).
+8. **Personal Edition first, always** (user directive, ADR-025 — see below). Personal
+   capability wins every tie against enterprise/commercial breadth; a future
+   commercial edition is strictly derived from the Personal Edition, never the
+   reverse, and never at the Personal Edition's expense.
+
+## Personal Edition First
+
+Per [ADR-025](adr/ADR-025-personal-edition-is-the-flagship.md), NOVA's Personal
+Edition — a deeply personalized system built for one trusted user — is the
+permanent flagship and reference implementation. Every future Commercial/Enterprise
+Edition (Phase 7, Phase 8) is an additive deployment mode of the same codebase, not
+a parallel product and not a redesign: multi-tenancy, admin/governance controls, and
+any enterprise-only surface are optional layers switched on by configuration or
+deployment topology, never changes to a shared code path Personal Edition mode also
+executes. Whenever a design decision trades personal depth against generic breadth,
+personal depth wins by default. See ADR-025 for the full decision record, including
+the permanent development-priority order (Personal Intelligence > Long-Term Memory
+> Personal Automation > Natural Interaction) that governs in-phase scope decisions
+from Phase 2A onward.
 
 ## The 10x Test
 

@@ -12,6 +12,17 @@ Internal Design Specification
 
 Version 1.0
 
+> **Amendment (mid-Phase-2A, engineering record only — original text below left
+> unchanged):** the subtitle above, "Enterprise Artificial Intelligence Operating
+> System," is superseded for all engineering purposes by
+> [ADR-025](../architecture/adr/ADR-025-personal-edition-is-the-flagship.md). NOVA
+> is first and foremost a personal AI Operating System, built for a single trusted
+> user; its Personal Edition is the permanent flagship and reference
+> implementation, and any future commercial/enterprise edition is strictly derived
+> from it, never the reverse, and never at its expense. See ADR-025 for the full
+> decision record, including the permanent development-priority order (Personal
+> Intelligence > Long-Term Memory > Personal Automation > Natural Interaction).
+
 INTRODUCTION
 
 This document defines the complete vision, philosophy, architecture and development rules for NOVA.

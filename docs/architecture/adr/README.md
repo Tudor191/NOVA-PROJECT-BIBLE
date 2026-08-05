@@ -54,9 +54,12 @@ next unused number, regardless of which subsystem they originate from.
 | [022](ADR-022-stateless-cognitive-gateway.md) | The AI Model Orchestration Engine is a stateless cognitive gateway | AI Model Orchestration Engine |
 | [023](ADR-023-uniform-connector-compliance-suite.md) | Every provider connector passes one identical compliance test suite | AI Model Orchestration Engine |
 | [024](ADR-024-interface-versioning-from-day-one.md) | Every public interface is versioned from the beginning | AI Model Orchestration Engine; binding on every subsystem's public interfaces from Phase 2A onward |
+| [025](ADR-025-personal-edition-is-the-flagship.md) | The Personal Edition is NOVA's flagship; every commercial/enterprise edition is strictly derived from it | NOVA-wide; binding on every engine, every phase, from this point forward |
 
 See also: [Phase 1 Architecture Review Report](../../roadmap/architecture-reviews/phase-1-data-memory-substrate.md)
 and [Doc 20 — Engine Responsibility Boundaries](../20-engine-responsibility-boundaries.md),
 both produced alongside this ADR set on Phase 1's completion. ADR-020 through
 ADR-024 were added during Phase 2A, before its first production connector was
-considered complete.
+considered complete. ADR-025 was added mid-Phase-2A, per explicit user directive
+establishing NOVA's Personal Edition as its permanent flagship and reference
+implementation.
