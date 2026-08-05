@@ -18,22 +18,40 @@ Engine's `summarization.py` and World Model's `prediction.py`.
 
 from __future__ import annotations
 
+import time
 from collections.abc import Callable
 from uuid import UUID
 
-from nova_ai_model_orchestration_engine.domain import capability_matrix
+from nova_contracts import RequestCompletedPayload, RequestFailedPayload, RequestOutcome
+
+from nova_ai_model_orchestration_engine.domain import capability_matrix, cost_tracker
 from nova_ai_model_orchestration_engine.domain.fallback import FallbackExhaustedError
 from nova_ai_model_orchestration_engine.domain.models import (
     GenerateRequest,
     GenerateResult,
     Modality,
     ModelDescriptor,
+    PrivacyLevel,
     RoutingDecision,
     ScoredCandidate,
+    UsageRecord,
 )
-from nova_ai_model_orchestration_engine.domain.ports import ModelConnector
+from nova_ai_model_orchestration_engine.domain.ports import (
+    ModelConnector,
+    OutboxEvent,
+    UsageRepository,
+)
 
-__all__ = ["ExecutionOutcome", "estimate_complexity", "plan_routing", "route_and_execute"]
+__all__ = [
+    "ExecutionOutcome",
+    "embed_and_record",
+    "estimate_complexity",
+    "execute_and_record",
+    "plan_embedding_routing",
+    "plan_routing",
+    "route_and_embed",
+    "route_and_execute",
+]
 
 _TASK_BASE_COMPLEXITY: dict[str, float] = {
     "general_conversation": 0.2,
@@ -58,6 +76,19 @@ threshold (evidence-driven optimization would revise this once real request-size
 distributions exist; nothing in Phase 2A does yet)."""
 
 _TOOLS_AT_MAX_COMPLEXITY = 5
+
+_APPROX_CHARS_PER_TOKEN = 4
+"""This engine owns no tokenizer of its own (§0: it formats/fits already-declared
+content, it doesn't source or measure it) -- `GenerateRequest.context` carries a
+caller-supplied `token_estimate` for exactly this reason. `embed_and_record` has
+no such caller-supplied estimate to work from (`EmbedRequestPayload.texts` is raw
+strings), so it falls back to this well-known, explicitly-approximate
+characters-per-token ratio rather than reporting character count as if it were a
+real token count."""
+
+
+def _approximate_token_count(text: str) -> int:
+    return max(1, len(text) // _APPROX_CHARS_PER_TOKEN)
 
 
 def estimate_complexity(request: GenerateRequest) -> float:
@@ -244,3 +275,271 @@ async def route_and_execute(
                 break
 
     raise FallbackExhaustedError(decision.candidates) from last_error
+
+
+async def execute_and_record(
+    request: GenerateRequest,
+    models: list[ModelDescriptor],
+    *,
+    get_connector: Callable[[ModelDescriptor], ModelConnector],
+    usage_repository: UsageRepository,
+    historical_success_rates: dict[UUID, float] | None = None,
+    max_attempts: int = 3,
+) -> ExecutionOutcome:
+    """Part 7 step 9, "Store Experience": wraps `route_and_execute`, always
+    persisting exactly one `UsageRecord` (ADR-021's mandated structured
+    telemetry) -- success, fallback-recovered success, or exhausted failure
+    alike -- riding along with a same-transaction outbox row so
+    `ai_model.request.completed`/`.failed` dispatch reliably (design doc §17).
+    Re-raises `FallbackExhaustedError` after recording, so a caller's error
+    handling is otherwise unchanged from calling `route_and_execute` directly."""
+    models_by_id = {m.id: m for m in models}
+    start = time.perf_counter()
+    try:
+        outcome = await route_and_execute(
+            request,
+            models,
+            get_connector=get_connector,
+            historical_success_rates=historical_success_rates,
+            max_attempts=max_attempts,
+        )
+    except FallbackExhaustedError as exc:
+        latency_ms = (time.perf_counter() - start) * 1000
+        attempted_ids = [c.model_id for c in exc.attempted]
+        fallback_decision = RoutingDecision(
+            candidates=exc.attempted,
+            selected_model_id=attempted_ids[0] if attempted_ids else UUID(int=0),
+            privacy_constraint_applied=False,
+            estimated_complexity=estimate_complexity(request),
+            explanation=str(exc),
+        )
+        record = UsageRecord(
+            correlation_id=request.correlation_id,
+            requesting_engine=request.requesting_engine,
+            provider="unknown",
+            model_id=attempted_ids[0] if attempted_ids else UUID(int=0),
+            routing_decision=fallback_decision,
+            estimated_complexity=fallback_decision.estimated_complexity,
+            latency_ms=latency_ms,
+            input_tokens=0,
+            output_tokens=0,
+            estimated_cost=0.0,
+            retry_count=max_attempts,
+            fallback_used=True,
+            privacy_classification=request.privacy_hint,
+            outcome="failed",
+        )
+        outbox = OutboxEvent(
+            subject="ai_model.request.failed",
+            payload=RequestFailedPayload(
+                correlation_id=request.correlation_id,
+                requesting_engine=request.requesting_engine,
+                attempted_model_ids=attempted_ids,
+                final_error=str(exc),
+            ).model_dump(mode="json"),
+            correlation_id=request.correlation_id,
+        )
+        await usage_repository.record_usage(record, outbox_event=outbox)
+        raise
+
+    model = models_by_id[outcome.decision.selected_model_id]
+    latency_ms = (time.perf_counter() - start) * 1000
+    cost = cost_tracker.estimate_cost(
+        model,
+        input_tokens=outcome.result.input_tokens,
+        output_tokens=outcome.result.output_tokens,
+    )
+    record = UsageRecord(
+        correlation_id=request.correlation_id,
+        requesting_engine=request.requesting_engine,
+        provider=model.provider,
+        model_id=model.id,
+        routing_decision=outcome.decision,
+        estimated_complexity=outcome.decision.estimated_complexity,
+        latency_ms=latency_ms,
+        input_tokens=outcome.result.input_tokens,
+        output_tokens=outcome.result.output_tokens,
+        estimated_cost=cost,
+        retry_count=outcome.retry_count,
+        fallback_used=outcome.fallback_used,
+        privacy_classification=request.privacy_hint,
+        outcome="fallback" if outcome.fallback_used else "success",
+    )
+    outbox = OutboxEvent(
+        subject="ai_model.request.completed",
+        payload=RequestCompletedPayload(
+            correlation_id=request.correlation_id,
+            requesting_engine=request.requesting_engine,
+            provider=model.provider,
+            model_id=model.id,
+            input_tokens=outcome.result.input_tokens,
+            output_tokens=outcome.result.output_tokens,
+            estimated_cost=cost,
+            latency_ms=latency_ms,
+            retry_count=outcome.retry_count,
+            fallback_used=outcome.fallback_used,
+            outcome=RequestOutcome.FALLBACK if outcome.fallback_used else RequestOutcome.SUCCESS,
+        ).model_dump(mode="json"),
+        correlation_id=request.correlation_id,
+    )
+    await usage_repository.record_usage(record, outbox_event=outbox)
+    return outcome
+
+
+def _embedding_score(model: ModelDescriptor) -> tuple[float, float]:
+    """Ranks embedding-eligible candidates by cost then latency only --
+    embedding has no Part 7 capability dimension to score against (§10: this
+    engine's embedding capability wraps a single connector's embedding
+    endpoint, not a modeled skill)."""
+    cost_per_token = (model.cost_per_input_token or 0.0) + (model.cost_per_output_token or 0.0)
+    latency_ms = model.avg_latency_ms if model.avg_latency_ms is not None else 2000.0
+    return (cost_per_token, latency_ms)
+
+
+def plan_embedding_routing(
+    models: list[ModelDescriptor],
+    *,
+    privacy_hint: PrivacyLevel,
+    exclude: list[UUID] | None = None,
+) -> ModelDescriptor:
+    """Pure. Cheapest, then lowest-latency eligible embedding candidate.
+    Raises `FallbackExhaustedError` if nothing is eligible (§10, §7 -- the same
+    routing/fallback machinery as generation, filtered to `embedding`-capable
+    candidates)."""
+    exclude = exclude or []
+    candidates = capability_matrix.eligible_candidates(
+        models, modality="embedding", privacy_hint=privacy_hint
+    )
+    candidates = [m for m in candidates if m.id not in exclude]
+    if not candidates:
+        raise FallbackExhaustedError([])
+    candidates.sort(key=lambda m: (*_embedding_score(m), str(m.id)))
+    return candidates[0]
+
+
+async def route_and_embed(
+    texts: list[str],
+    models: list[ModelDescriptor],
+    *,
+    privacy_hint: PrivacyLevel,
+    get_connector: Callable[[ModelDescriptor], ModelConnector],
+    max_attempts: int = 3,
+) -> tuple[ModelDescriptor, list[list[float]]]:
+    """Impure: the embedding counterpart to `route_and_execute` -- same
+    fallback-walk shape, calling `connector.embed()` instead of `.generate()`."""
+    tried: list[UUID] = []
+    last_error: Exception | None = None
+    for _ in range(max_attempts):
+        model = plan_embedding_routing(models, privacy_hint=privacy_hint, exclude=tried)
+        connector = get_connector(model)
+        try:
+            embeddings = await connector.embed(texts)
+            return model, embeddings
+        except Exception as exc:  # noqa: BLE001 -- any connector failure triggers fallback
+            last_error = exc
+            tried.append(model.id)
+    raise FallbackExhaustedError([]) from last_error
+
+
+async def embed_and_record(
+    texts: list[str],
+    models: list[ModelDescriptor],
+    *,
+    privacy_hint: PrivacyLevel,
+    requesting_engine: str,
+    correlation_id: UUID,
+    get_connector: Callable[[ModelDescriptor], ModelConnector],
+    usage_repository: UsageRepository,
+    max_attempts: int = 3,
+) -> tuple[ModelDescriptor, list[list[float]]]:
+    """The embedding counterpart to `execute_and_record` -- same
+    always-record-telemetry guarantee, adapted to embedding's simpler request
+    shape (no task type/tool count, so `estimated_complexity` is `0.0`: not a
+    real estimate, just "not applicable" for this request kind)."""
+    start = time.perf_counter()
+    try:
+        model, embeddings = await route_and_embed(
+            texts, models, privacy_hint=privacy_hint, get_connector=get_connector,
+            max_attempts=max_attempts,
+        )
+    except FallbackExhaustedError as exc:
+        latency_ms = (time.perf_counter() - start) * 1000
+        record = UsageRecord(
+            correlation_id=correlation_id,
+            requesting_engine=requesting_engine,
+            provider="unknown",
+            model_id=UUID(int=0),
+            routing_decision=RoutingDecision(
+                candidates=[],
+                selected_model_id=UUID(int=0),
+                privacy_constraint_applied=False,
+                estimated_complexity=0.0,
+                explanation=str(exc),
+            ),
+            estimated_complexity=0.0,
+            latency_ms=latency_ms,
+            input_tokens=0,
+            output_tokens=0,
+            estimated_cost=0.0,
+            retry_count=max_attempts,
+            fallback_used=True,
+            privacy_classification=privacy_hint,
+            outcome="failed",
+        )
+        outbox = OutboxEvent(
+            subject="ai_model.request.failed",
+            payload=RequestFailedPayload(
+                correlation_id=correlation_id,
+                requesting_engine=requesting_engine,
+                attempted_model_ids=[],
+                final_error=str(exc),
+            ).model_dump(mode="json"),
+            correlation_id=correlation_id,
+        )
+        await usage_repository.record_usage(record, outbox_event=outbox)
+        raise
+
+    latency_ms = (time.perf_counter() - start) * 1000
+    input_tokens = sum(_approximate_token_count(t) for t in texts)
+    cost = cost_tracker.estimate_cost(model, input_tokens=input_tokens, output_tokens=0)
+    record = UsageRecord(
+        correlation_id=correlation_id,
+        requesting_engine=requesting_engine,
+        provider=model.provider,
+        model_id=model.id,
+        routing_decision=RoutingDecision(
+            candidates=[],
+            selected_model_id=model.id,
+            privacy_constraint_applied=False,
+            estimated_complexity=0.0,
+            explanation=f"Selected {model.id} for embedding: cheapest eligible candidate.",
+        ),
+        estimated_complexity=0.0,
+        latency_ms=latency_ms,
+        input_tokens=input_tokens,
+        output_tokens=0,
+        estimated_cost=cost,
+        retry_count=0,
+        fallback_used=False,
+        privacy_classification=privacy_hint,
+        outcome="success",
+    )
+    outbox = OutboxEvent(
+        subject="ai_model.request.completed",
+        payload=RequestCompletedPayload(
+            correlation_id=correlation_id,
+            requesting_engine=requesting_engine,
+            provider=model.provider,
+            model_id=model.id,
+            input_tokens=input_tokens,
+            output_tokens=0,
+            estimated_cost=cost,
+            latency_ms=latency_ms,
+            retry_count=0,
+            fallback_used=False,
+            outcome=RequestOutcome.SUCCESS,
+        ).model_dump(mode="json"),
+        correlation_id=correlation_id,
+    )
+    await usage_repository.record_usage(record, outbox_event=outbox)
+    return model, embeddings
