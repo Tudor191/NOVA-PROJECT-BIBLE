@@ -208,6 +208,8 @@ class _FakeUsageRepository:
         model_id: Any = None,
         requesting_engine: str | None = None,
         correlation_id: Any = None,
+        since: Any = None,
+        until: Any = None,
         limit: int = 100,
     ) -> list[UsageRecord]:
         raise NotImplementedError

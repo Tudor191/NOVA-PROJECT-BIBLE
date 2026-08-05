@@ -44,6 +44,7 @@ from nova_ai_model_orchestration_engine.domain.ports import (
 
 __all__ = [
     "ExecutionOutcome",
+    "approximate_token_count",
     "embed_and_record",
     "estimate_complexity",
     "execute_and_record",
@@ -87,7 +88,10 @@ characters-per-token ratio rather than reporting character count as if it were a
 real token count."""
 
 
-def _approximate_token_count(text: str) -> int:
+def approximate_token_count(text: str) -> int:
+    """Public: also used by `api/generate.py`'s streaming path, which has no
+    `GenerateResult.output_tokens` to read (the connector protocol reports
+    usage on the non-streaming `generate()` return value only, per §5)."""
     return max(1, len(text) // _APPROX_CHARS_PER_TOKEN)
 
 
@@ -500,7 +504,7 @@ async def embed_and_record(
         raise
 
     latency_ms = (time.perf_counter() - start) * 1000
-    input_tokens = sum(_approximate_token_count(t) for t in texts)
+    input_tokens = sum(approximate_token_count(t) for t in texts)
     cost = cost_tracker.estimate_cost(model, input_tokens=input_tokens, output_tokens=0)
     record = UsageRecord(
         correlation_id=correlation_id,

@@ -114,6 +114,10 @@ class GenerateReplyPayload(BaseModel):
     structural_confidence: float
     model_id: UUID
     provider: str
+    error: str | None = None
+    """Set only when `finish_reason == "error"` (the fallback chain was
+    exhausted) -- an informative reply, not a bus timeout with no diagnostic
+    (added additively per ADR-024; `None` for every ordinary reply)."""
     schema_version: int = 1
 
 
@@ -134,6 +138,9 @@ class EmbedReplyPayload(BaseModel):
     embeddings: list[list[float]]
     model_id: UUID
     provider: str
+    error: str | None = None
+    """Set only when embedding failed (the fallback chain was exhausted) --
+    `embeddings` is empty in that case (added additively per ADR-024)."""
     schema_version: int = 1
 
 

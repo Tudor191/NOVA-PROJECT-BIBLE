@@ -11,6 +11,7 @@ the same transactional-outbox convention as `PostgresModelRegistryRepository`.
 
 from __future__ import annotations
 
+from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import func, select, update
@@ -113,6 +114,8 @@ class PostgresUsageRepository:
         model_id: UUID | None = None,
         requesting_engine: str | None = None,
         correlation_id: UUID | None = None,
+        since: datetime | None = None,
+        until: datetime | None = None,
         limit: int = 100,
     ) -> list[UsageRecord]:
         async with self._session_factory() as session:
@@ -123,6 +126,10 @@ class PostgresUsageRepository:
                 stmt = stmt.where(UsageRecordORM.requesting_engine == requesting_engine)
             if correlation_id is not None:
                 stmt = stmt.where(UsageRecordORM.correlation_id == correlation_id)
+            if since is not None:
+                stmt = stmt.where(UsageRecordORM.created_at >= since)
+            if until is not None:
+                stmt = stmt.where(UsageRecordORM.created_at <= until)
             rows = (await session.execute(stmt)).scalars().all()
             return [_to_domain(row) for row in rows]
 

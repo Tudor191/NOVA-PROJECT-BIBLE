@@ -149,6 +149,8 @@ class UsageRepository(Protocol):
         model_id: UUID | None = None,
         requesting_engine: str | None = None,
         correlation_id: UUID | None = None,
+        since: datetime | None = None,
+        until: datetime | None = None,
         limit: int = 100,
     ) -> list[UsageRecord]: ...
 
