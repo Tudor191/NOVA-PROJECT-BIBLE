@@ -1,9 +1,9 @@
 # Phase 2D Master Architectural Blueprint — Voice, Identity, Conversation & Companion
 
-**Status: Proposed — pending user review and approval. Do not begin any Technical
-Design Document or implementation work against this blueprint until it is explicitly
-approved.** This document is deliberately one level of abstraction above a Technical
-Design Document, per direct user instruction: it is the equivalent of designing an
+**Status: Approved.** Technical Design Document work for Phase 2D-A is authorized
+and underway. This document is deliberately one level of abstraction above a
+Technical Design Document, per direct user instruction: it is the equivalent of
+designing an
 operating system before building its individual services. It defines philosophy,
 subsystem boundaries, responsibilities, communication patterns, data ownership, and
 long-term direction for every subsystem this phase and its immediate successors

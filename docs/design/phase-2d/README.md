@@ -12,13 +12,13 @@ draws an explicit boundary against — see the blueprint's §9.4) and
 [ADR-025](../../architecture/adr/ADR-025-personal-edition-is-the-flagship.md)
 (Personal Edition priority order, directly governing this phase's scope choices).
 
-Status: **Blueprint proposed, pending user review and approval.** This directory
-currently contains the master blueprint only — no Technical Design Document and no
-implementation work has begun. Per direct user instruction, this phase was
-requested as a full architectural blueprint *before* any individual engine's TDD,
-the same "validate the architecture before designing a single engine" discipline
-Phase 2B and Phase 2C were held to, applied one level higher: here, to an entire
-phase's worth of engines at once, not just one.
+Status: **Blueprint approved. Doc 22 and Doc 23 approved. Technical Design
+Document work for Phase 2D-A authorized and underway.** Per direct user
+instruction, this phase was preceded by a full architectural blueprint and two
+permanent governing documents *before* any individual engine's TDD, the same
+"validate the architecture before designing a single engine" discipline Phase 2B
+and Phase 2C were held to, applied one level higher: here, to an entire phase's
+worth of engines at once, not just one.
 
 **A note on naming:** this work was originally requested under the working name
 "Phase 3" (sub-phases 3A–3D). It has been reconciled against the existing roadmap

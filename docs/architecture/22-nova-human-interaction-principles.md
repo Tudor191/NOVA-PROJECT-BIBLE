@@ -1,12 +1,13 @@
 # 22 — NOVA Human Interaction Principles
 
-**Status:** Proposed — pending user review and approval, filed alongside the
-[Phase 2D Master Architectural Blueprint](../design/phase-2d/00-master-blueprint.md)
-which it governs. Not yet binding on any implementation; becomes binding the moment
-it is approved, and from that point forward is **permanent** in the same sense as
-[ADR-025](adr/ADR-025-personal-edition-is-the-flagship.md) — every future
-communication-related design decision must be checked against it, the same way
-Doc 20 already governs Memory/Knowledge/World Model boundary decisions.
+**Status: Approved.** Filed alongside the [Phase 2D Master Architectural
+Blueprint](../design/phase-2d/00-master-blueprint.md), which it governs, and
+completed by [23 — NOVA Personality
+Specification](23-nova-personality-specification.md). Binding on every future
+communication-related design decision from this point forward, and **permanent**
+in the same sense as [ADR-025](adr/ADR-025-personal-edition-is-the-flagship.md) —
+the same way Doc 20 already governs Memory/Knowledge/World Model boundary
+decisions.
 
 **Nature of this document.** This is not a technical specification. It contains no
 API shapes, no data models, no event contracts — those belong to the
