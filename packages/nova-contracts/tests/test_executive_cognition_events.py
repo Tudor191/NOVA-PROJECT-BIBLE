@@ -14,6 +14,7 @@ from nova_contracts import (
     ExecutiveOutcomeReportPayload,
     ExecutiveOverrideAction,
     ExecutiveRequestPayload,
+    GoalTier,
     OutcomeReportResult,
     known_subjects,
     validate_payload,
@@ -49,7 +50,40 @@ def test_executive_request_defaults_and_schema_version() -> None:
     )
     assert request.deadline is None
     assert request.goal_id is None
+    assert request.goal_tier is None
     assert request.schema_version == 1
+
+
+def test_executive_request_accepts_caller_supplied_goal_tier() -> None:
+    tier: GoalTier = "established"
+    request = ExecutiveRequestPayload(
+        requesting_engine="reasoning-engine",
+        request_kind="reasoning_process",
+        urgency=0.5,
+        importance=0.5,
+        complexity=0.5,
+        risk=0.5,
+        learning_value=0.5,
+        resource_cost=0.5,
+        user_impact=0.5,
+        goal_id=uuid4(),
+        goal_tier=tier,
+    )
+    assert request.goal_tier == "established"
+
+    with pytest.raises(ValidationError):
+        ExecutiveRequestPayload(
+            requesting_engine="reasoning-engine",
+            request_kind="reasoning_process",
+            urgency=0.5,
+            importance=0.5,
+            complexity=0.5,
+            risk=0.5,
+            learning_value=0.5,
+            resource_cost=0.5,
+            user_impact=0.5,
+            goal_tier="not-a-real-tier",  # type: ignore[arg-type]
+        )
 
 
 def test_executive_request_priority_factors_are_bounded() -> None:

@@ -10,6 +10,7 @@ export type ResourceCost = number;
 export type UserImpact = number;
 export type Deadline = string | null;
 export type GoalId = string | null;
+export type GoalTier = ("ad_hoc" | "established") | null;
 export type SchemaVersion = number;
 
 /**
@@ -32,6 +33,7 @@ export interface ExecutiveRequestPayload {
   user_impact: UserImpact;
   deadline?: Deadline;
   goal_id?: GoalId;
+  goal_tier?: GoalTier;
   schema_version?: SchemaVersion;
   [k: string]: unknown;
 }

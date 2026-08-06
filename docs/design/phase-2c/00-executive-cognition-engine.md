@@ -444,7 +444,18 @@ class ExecutiveRequest(BaseModel):
     user_impact: float                # 0.0-1.0, caller-supplied
     deadline: datetime | None = None
     goal_id: UUID | None = None       # §8
+    goal_tier: Literal["ad_hoc", "established"] | None = None  # §8, ADR-029
 ```
+
+**Amendment (ADR-029 follow-up).** `goal_tier` is caller-supplied directly on the
+request, alongside `goal_id`, rather than sourced only through `GoalsPort` (§5.7).
+`GoalsPort` is itself a placeholder returning `[]` until Planning Engine exists
+(§5.7), so without a caller-supplied `goal_tier`, `long_term_alignment` (§6.1)
+would have no real signal to compute from anywhere in Phase 2C — silently making
+ADR-029's entire mechanism dead code until Phase 3. When present, `goal_tier`
+takes precedence over any `GoalsPort`-sourced tier for the same `goal_id`, the
+same precedence Reasoning Engine's own caller-supplied goals already have over
+its `GoalsPort` result (that design's §7.1).
 
 Phase 2C's real, testable scenario (the roadmap's own acceptance criterion): two
 simulated `ExecutiveRequest`s, one from each engine, submitted concurrently,
@@ -535,6 +546,16 @@ own existing use of `Goal` needs no change and continues to ignore it:
 class GoalsPort(Protocol):
     async def current_goals(self, *, user_id: UUID, scope: str | None = None) -> list[Goal]: ...
 ```
+
+**Amendment (ADR-029 follow-up).** Because `GoalsPort` is a placeholder that
+always returns `[]` until Planning Engine ships, `goal_tier` is *also* accepted
+directly on `ExecutiveRequest` (§5.1) — not only on `Goal` — so that
+`long_term_alignment` (§6.1) has a real signal to compute from in Phase 2C
+itself. When a caller supplies both a `goal_id` and a `goal_tier` for a goal
+`GoalsPort` doesn't (yet) know about, this engine treats the caller-supplied
+tier as authoritative for that `goal_id`, exactly as it already treats a
+caller-supplied `goal_id` as authoritative over any (currently nonexistent)
+`GoalsPort`-sourced goal.
 
 ### 5.8 Available Capabilities
 
@@ -756,7 +777,15 @@ upstream dependency:
    `long_term_alignment` than an untagged, first-appearance `goal_id` — the same
    correlation data feeding both this engine's existing priority-boost mechanism and
    its new tie-break criterion, one signal serving two purposes rather than two
-   overlapping ones.
+   overlapping ones. **Amendment (ADR-029 follow-up):** since `GoalsPort` (§5.7) is
+   itself a placeholder always returning `[]` until Planning Engine exists, `Goal`'s
+   `goal_tier` has no real backing source in Phase 2C unless it also travels as a
+   caller-supplied `goal_tier` field directly on `ExecutiveRequest` (§5.1, §5.7) —
+   without that field, `long_term_alignment` would compute to `0.0` for every request
+   in the real system, silently defeating ADR-029's entire mechanism. When present,
+   this engine synthesizes the equivalent of a minimal `Goal` (just `id` and
+   `goal_tier`, nothing invented beyond what the caller asserted) rather than
+   requiring a full `GoalsPort`-sourced `Goal` object to exist first.
 
 Phase 6's real Goal Hierarchy (Mission → ... → Immediate Actions, once Planning
 Engine exists) extends this same mechanism to multi-level goal correlation and a

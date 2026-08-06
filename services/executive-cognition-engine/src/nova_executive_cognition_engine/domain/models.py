@@ -133,6 +133,14 @@ class ExecutiveRequest(BaseModel):
     user_impact: float = Field(ge=0.0, le=1.0)
     deadline: datetime | None = None
     goal_id: UUID | None = None
+    goal_tier: Literal["ad_hoc", "established"] | None = None
+    """§5.7, §8, ADR-029 -- caller-supplied alongside `goal_id` since
+    `GoalsPort` is itself a placeholder returning `[]` until Planning Engine
+    exists (§5.7): without this field, `long_term_alignment` (§6.1) would
+    have no real signal to compute from in Phase 2C at all. Takes precedence
+    over any future `GoalsPort`-sourced tier the same way Reasoning Engine's
+    own caller-supplied goals already take precedence over its `GoalsPort`
+    result (that design's §7.1)."""
 
 
 class ArbitrationResult(BaseModel):

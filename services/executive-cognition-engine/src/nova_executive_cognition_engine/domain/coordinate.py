@@ -37,6 +37,20 @@ async def _score_all(
     scores: dict[UUID, priority.CognitivePriorityScore] = {}
     for contender in contenders:
         goal = goals_by_id.get(contender.goal_id) if contender.goal_id is not None else None
+        if goal is None and contender.goal_id is not None and contender.goal_tier is not None:
+            # §5.7, §8, ADR-029: GoalsPort is a placeholder returning `[]`
+            # until Planning Engine exists, so a caller-supplied `goal_tier`
+            # (ExecutiveRequest.goal_tier) takes precedence over the
+            # (currently always-empty) port lookup -- the same precedence
+            # Reasoning Engine's own caller-supplied goals already have over
+            # its GoalsPort result (that design's §7.1). This synthesizes no
+            # conclusion beyond what the caller itself asserted.
+            goal = Goal(
+                id=contender.goal_id,
+                description="",
+                priority=0.0,
+                goal_tier=contender.goal_tier,
+            )
         siblings = (
             await repository.requests_for_goal(
                 contender.goal_id, exclude_correlation_id=contender.correlation_id

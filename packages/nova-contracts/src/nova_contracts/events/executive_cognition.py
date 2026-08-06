@@ -15,11 +15,17 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import StrEnum
+from typing import Literal
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, Field
 
 from nova_contracts.registry import register_payload
+
+GoalTier = Literal["ad_hoc", "established"]
+"""Design doc Sec8, ADR-029 -- the same two-value tier `Goal.goal_tier`
+carries in every engine's own domain layer, redefined here as a wire-level
+type alias per ADR-004 (no cross-engine imports of domain types)."""
 
 
 class ArbitrationOutcome(StrEnum):
@@ -127,6 +133,14 @@ class ExecutiveRequestPayload(BaseModel):
     """Design doc Sec5.7, Sec8 -- a caller-supplied placeholder until
     Planning Engine exists, the identical pattern ADR-026 established for
     Reasoning Engine's own `GoalsPort`."""
+    goal_tier: GoalTier | None = None
+    """Design doc Sec8, ADR-029 -- caller-supplied alongside `goal_id` since
+    `GoalsPort` is itself a placeholder returning `[]` until Planning Engine
+    exists (Sec5.7): without this field, `long_term_alignment` (Sec6.1)
+    would have no real signal to compute from in Phase 2C at all. Takes
+    precedence over any future `GoalsPort`-sourced tier the same way
+    Reasoning Engine's own caller-supplied goals already take precedence
+    over its `GoalsPort` result (that design's Sec7.1)."""
     schema_version: int = 1
 
 

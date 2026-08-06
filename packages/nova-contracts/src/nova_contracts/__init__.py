@@ -38,6 +38,7 @@ from nova_contracts.events.executive_cognition import (
     ExecutiveOutcomeReportReplyPayload,
     ExecutiveOverrideAction,
     ExecutiveRequestPayload,
+    GoalTier,
     OutcomeReportResult,
 )
 from nova_contracts.events.knowledge import (
@@ -143,6 +144,7 @@ __all__ = [
     "GenerateReplyPayload",
     "GenerateRequestPayload",
     "GoalPayload",
+    "GoalTier",
     "HeartbeatPayload",
     "HumanOverrideAppliedPayload",
     "KnowledgeEdgeCreatedPayload",
