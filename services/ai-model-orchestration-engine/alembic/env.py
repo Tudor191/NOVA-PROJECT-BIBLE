@@ -36,6 +36,7 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        version_table="alembic_version_model_orchestration",
     )
     with context.begin_transaction():
         context.run_migrations()
@@ -47,7 +48,18 @@ def _do_run_migrations(connection: Connection) -> None:
     # database until migration 0001's own `CREATE SCHEMA` statement runs, so
     # pointing Alembic's own bookkeeping table at it would be a
     # chicken-and-egg problem.
-    context.configure(connection=connection, target_metadata=target_metadata)
+    # `version_table` is namespaced per engine (not the default
+    # "alembic_version") because every engine's DSN points at the same
+    # physical `nova` database (infra/docker/docker-compose.local.yml) --
+    # without this, whichever engine's migration runs first would silently
+    # claim the shared bookkeeping row and every other engine's migration
+    # would believe it was already at head and create nothing. Discovered
+    # and fixed during Phase 2C's own real-Postgres verification.
+    context.configure(
+        connection=connection,
+        target_metadata=target_metadata,
+        version_table="alembic_version_model_orchestration",
+    )
     with context.begin_transaction():
         context.run_migrations()
 
