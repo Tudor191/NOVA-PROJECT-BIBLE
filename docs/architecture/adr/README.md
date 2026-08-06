@@ -56,6 +56,7 @@ next unused number, regardless of which subsystem they originate from.
 | [024](ADR-024-interface-versioning-from-day-one.md) | Every public interface is versioned from the beginning | AI Model Orchestration Engine; binding on every subsystem's public interfaces from Phase 2A onward |
 | [025](ADR-025-personal-edition-is-the-flagship.md) | The Personal Edition is NOVA's flagship; every commercial/enterprise edition is strictly derived from it | NOVA-wide; binding on every engine, every phase, from this point forward |
 | [026](ADR-026-reasoning-engine-cognitive-bridge-not-isolated.md) | The Reasoning Engine is a cognitive bridge, never an isolated subsystem | Reasoning Engine (Phase 2B); binding on its design doc and every subsequent implementation decision |
+| [027](ADR-027-executive-cognition-coordinates-never-owns-intelligence.md) | Executive Cognition coordinates cognitive subsystems, never owns intelligence | Executive Cognition Engine (Phase 2C); binding on its design doc and every subsequent implementation decision |
 
 See also: [Phase 1 Architecture Review Report](../../roadmap/architecture-reviews/phase-1-data-memory-substrate.md)
 and [Doc 20 — Engine Responsibility Boundaries](../20-engine-responsibility-boundaries.md),
@@ -66,3 +67,6 @@ establishing NOVA's Personal Edition as its permanent flagship and reference
 implementation. ADR-026 was added at Phase 2A's close, ahead of Phase 2B design
 work, establishing the Reasoning Engine's boundary before its design doc is
 written — the same sequencing ADR-017 followed for World Model Engine in Phase 1.
+ADR-027 was added at Phase 2B's close, ahead of Phase 2C design work, establishing
+the Executive Cognition Engine's boundary before its design doc is written — the
+same sequencing again, one layer higher in the cognitive stack.
