@@ -294,7 +294,13 @@ state in §9 (no external calls, no model inference, §0.3) — sub-millisecond
 target, so this engine is never the dominant term in `communication-engine`'s
 latency budget (Master Blueprint Risk §11.1). The `/identity/snapshot` endpoint
 exists specifically to support that document's §13 fast-path, cached client-side
-by `communication-engine` rather than refetched per utterance.
+by `communication-engine` rather than refetched per utterance. This design —
+rule-based validation over a model call — is itself the concrete application of
+Master Blueprint §13.2 (low latency is part of NOVA's personality): between a
+validator design that calls a model for richer semantic judgment and one that
+stays deterministic and sub-millisecond, §0.3 already chose the latter
+specifically because it is the lower-latency option that still satisfies
+correctness, exactly the standing tie-break rule §13.2 states.
 
 ## 13. Scalability considerations
 
@@ -325,6 +331,9 @@ an entire class of "personality drift via API misuse" risk by construction.
 | §6 static default, never fabricated "learned" preference | Doc 23 §6 (inventing facts forbidden) |
 | §8 core-identity load failure has no fallback | Doc 23 §1 (identity is not expected to change, and must never silently default to "no identity") |
 | §14 no runtime API can mutate core identity | Doc 23 §1, Personality Consistency standing directive |
+| §0.3 rule-based validator, sub-millisecond, no model call | Master Blueprint §13.2 (low latency is part of NOVA's personality) |
+| §17's additive extension path (2D-C style logic, 2D-D real preferences) | Master Blueprint §13.6 (progressive capability) |
+| §5's deliberately minimal, correct-first rule table over a speculative ML-based selector | Master Blueprint §13.7 (quality over feature count) |
 
 ## 16. Testing strategy
 

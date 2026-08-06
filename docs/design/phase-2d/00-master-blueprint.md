@@ -629,7 +629,118 @@ against the Bible's feature lists:
   precisely because personalization is not this phase's side effect — for the
   user, it is close to the point of the entire phase.
 
-## 13. Roadmap update
+## 13. Phase 2D Engineering Principles
+
+Seven permanent engineering principles, given by the user at the same approval
+point that authorized Phase 2D-A implementation to begin. Per their own framing —
+"every subsystem introduced in Phase 2D should be designed so later phases can
+extend it naturally" (Principle 6 below) — these are scoped to Phase 2D and
+everything built on top of it, the same scope this entire blueprint document
+governs, rather than a NOVA-wide addition to Doc 22. Where a principle is really
+an *interaction-philosophy* concern Doc 22 already covers, that overlap is named
+explicitly rather than duplicated; where a principle is genuinely new engineering
+guidance, it is stated here as the authority every current and future Phase 2D TDD
+is checked against, alongside Doc 22/23.
+
+### 13.1 Human conversation must always feel continuous
+
+Regardless of how many engines compose a response — Reasoning generating content,
+Personality validating it, eventually Digital Twin shaping it and Perception
+gating it — the user experiences one continuous conversation with one companion.
+Subsystem boundaries must never become visible in the interaction itself (they
+may, and should, remain visible in observability/debugging surfaces — invisibility
+is a user-experience property, not a transparency violation). This is the
+architectural sibling of Doc 22 Principle 12 (technology should become invisible),
+applied specifically to multi-engine composition. **Already structurally enforced**
+by `01-communication-engine.md`'s design: the `communication.intent` gate (§7 of
+that document) is the *only* path any engine has to the user, so no matter how
+many engines contributed to a response, the user only ever sees one coherent
+delivery — there is no code path where two engines could independently address
+the user and reveal the seams between them.
+
+### 13.2 Low latency is part of NOVA's personality
+
+Responsiveness is not merely a non-functional requirement scored in a performance
+report — it directly shapes whether NOVA feels intelligent and natural, the same
+way a person who responds thoughtfully but instantly reads as more capable than
+one who is correct but slow. **Standing tie-break rule:** whenever multiple
+implementations satisfy a requirement's correctness bar, the one with the lowest
+perceived latency is preferred, never treated as an optional optimization to
+revisit later. `01-communication-engine.md` §13's streaming/fast-path
+requirements and `02-personality-engine.md` §12's sub-millisecond, no-model-call
+design (§0.3 of that document) are both already built to this standard; this
+principle makes explicit, permanent, and binding on every *future* Phase 2D
+decision what was previously implicit in those two documents' own reasoning.
+
+### 13.3 Streaming first
+
+Wherever technically possible, communication is designed around streaming rather
+than request/response: speech recognition, speech synthesis, model generation,
+long-running operations, and — not yet in scope, but a standing design constraint
+on anything built toward it — future visual interaction. **Already the default**
+in `01-communication-engine.md` §4 (bidirectional audio streaming) and §0.3 (the
+`synthesize` RPC streams by construction, mirroring 2A's `stream` method). This
+principle generalizes that choice beyond audio: any future Phase 2D-C/D capability
+that could be designed as either a single blocking call or an incremental stream
+must default to the streaming design, with a batch/request-response fallback only
+where a real technical constraint (not convenience) forces it.
+
+### 13.4 Interruptibility
+
+At any moment, the user can interrupt NOVA while it is speaking. NOVA stops
+immediately — not "eventually," not "after finishing the current sentence" — and
+continues naturally from the new conversational context. `01-communication-engine
+.md` §4's barge-in mechanic already implements the transport-level half of this
+(immediate stream cancellation on detected input during `Speaking`); this
+principle makes the requirement **unconditional at the transport level**, closing
+a hedge that document's original text left open (see the amendment in §4 of that
+document, applied alongside this principle). Whether the interruption was
+conversationally *appropriate* remains Phase 2D-C's policy judgment (Doc 22
+Principles 2–4) — but the *mechanical* stop is never negotiable, in any phase,
+under any policy.
+
+### 13.5 Conversation continuity through transient loss
+
+A brief network blip, a moment of audio dropout, a short pause — none of these
+should reset the conversation when recovery is possible. Interactions should
+resemble natural human conversation, where a person doesn't restart from scratch
+because you paused to think or the room got briefly noisy. `01-communication-
+engine.md` §3.5 (restart recovery) and §9 (channel disconnect → `Paused`, resumable)
+already cover *structural* interruptions (process crash, channel disconnect); this
+principle extends the same discipline to *transient* ones that never rise to a
+full disconnect — a short audio gap mid-utterance should be bridged by the audio
+pipeline's own buffering, not treated as turn failure. See the amendment to
+`01-communication-engine.md` §4 and §9, applied alongside this principle.
+
+### 13.6 Progressive capability
+
+Every subsystem introduced in Phase 2D must be designed so later phases can
+extend it naturally, without architectural redesign. This is not new guidance —
+it is the explicit naming of the discipline this entire blueprint has already
+applied throughout: `perception-engine`'s full Sensor Abstraction Layer contract
+shipped in 2D-B despite only two sensor modalities existing (§9.1); every deferred
+port to `digital-twin-engine` and `perception-engine` defined in both current
+TDDs before either dependency exists (`01-communication-engine.md` §0.6,
+`02-personality-engine.md` §0.2, §10); `device_id` present in the session schema
+from day one though only one device is ever populated (`01-communication-engine
+.md` §3.2, Risk §11.6). Stating it here as a named principle makes it an explicit
+review criterion for 2D-B/C/D's own TDDs, not merely an inherited habit.
+
+### 13.7 Communication quality over feature count
+
+Fewer capabilities built exceptionally well outweigh many built incompletely.
+Natural interaction — the thing a lifelong companion is actually judged on — is
+the priority over channel breadth, language breadth, or feature-list length. This
+is the principle behind every explicit scope cut already made in this blueprint
+and its TDDs: two channels, not eleven (§3.2); English-first responses, not
+simultaneous multilingual generation (§0.1 of Doc 22's Principles 10–11); an
+honest explicit-trigger interim instead of a half-built addressee detector
+(`01-communication-engine.md` §0.4). Stated here as a permanent standard: a future
+temptation to add a third channel, a second language, or a new notification type
+before the existing two channels' voice/text experience is genuinely excellent
+should be resisted by default, not treated as free additive progress.
+
+## 14. Roadmap update
 
 `ENGINEERING_ROADMAP.md` is updated alongside this blueprint to restructure the
 Phase 2D section into 2D-A/B/C/D per this document, and to update Phase 4 and Phase
@@ -638,20 +749,19 @@ Phase 2D section into 2D-A/B/C/D per this document, and to update Phase 4 and Ph
 polish (Phase 5) — see the roadmap file itself for the applied diff. No other
 phase's content changes.
 
-## 14. What happens next
+## 15. What happens next
 
-This blueprint and [Doc 22](../../architecture/22-nova-human-interaction-principles.md)
-are the complete deliverable requested. **No Technical Design Document and no
-implementation work begins until both are explicitly approved.** Once approved, the
-expected sequence — mirroring every prior phase's own precedent — is:
-
-1. File the Personality/Digital-Twin boundary ADR named in Risk §11.5 (mirrors
-   ADR-017's timing in Phase 1).
-2. Four TDDs, one per engine, in dependency order: `communication-engine` +
-   `personality-engine` (2D-A foundations) → `perception-engine` (2D-B) →
-   `communication-engine` conversation-intelligence extension (2D-C) →
-   `digital-twin-engine` (2D-D) — each reviewed and approved individually, the
-   same discipline Phase 2B and 2C were held to before their own implementation
-   began.
-3. Implementation, in the same order, each engine gated by its own Architecture
-   Review Report, Gate Review, and Project Metrics before the next begins.
+**Approved.** This blueprint, [Doc 22](../../architecture/22-nova-human-interaction-principles.md),
+[Doc 23](../../architecture/23-nova-personality-specification.md), and the first
+two Phase 2D-A Technical Design Documents
+([01](01-communication-engine.md), [02](02-personality-engine.md)) are all
+approved. Implementation of Phase 2D-A is authorized and underway, following the
+same discipline as every prior phase: Design → Implementation → Testing →
+Architecture Review → Gate Review → Engineering Metrics → Approval, one layer at a
+time, with honest reporting of every tradeoff and limitation along the way.
+[ADR-030](../../architecture/adr/ADR-030-personality-stores-digital-twin-learns.md)
+(the Personality/Digital-Twin boundary named in Risk §11.5) has been filed. The
+remaining sub-phases — `perception-engine` (2D-B), `communication-engine`'s
+conversation-intelligence extension (2D-C), `digital-twin-engine` (2D-D) — follow
+in the same order, each with its own TDD, reviewed and approved before that
+sub-phase's implementation begins.

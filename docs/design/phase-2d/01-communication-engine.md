@@ -305,13 +305,28 @@ immediately. Waiting for complete generation should be avoided whenever
 possible."* This directly serves Master Blueprint Risk §11.1's latency-budget
 mitigation.
 
-**Barge-in.** While NOVA is in the `Speaking` state, incoming audio above the
-Transport VAD threshold immediately: (1) pauses/cancels the in-flight `synthesize`
-stream, (2) transitions the session out of `Speaking`, (3) begins buffering the
-new input. This is a transport-level mechanic only — 2D-A does not decide whether
-the interruption was *appropriate* (that policy judgment is 2D-C's, per Doc 22
-Principles 2–4); 2D-A only guarantees no audio is lost and NOVA doesn't talk over
-the user indefinitely.
+**Barge-in (unconditional, per Master Blueprint §13.4 — Interruptibility).** While
+NOVA is in the `Speaking` state, incoming audio above the Transport VAD threshold
+**immediately and unconditionally**: (1) cancels the in-flight `synthesize` stream
+— not pauses, cancels, and not after the current sentence/chunk finishes, within
+one Transport VAD detection interval — (2) transitions the session out of
+`Speaking`, (3) begins buffering the new input as the start of a new turn. This is
+a transport-level mechanic only — 2D-A does not decide whether the interruption
+was *appropriate* (that policy judgment is 2D-C's, per Doc 22 Principles 2–4) —
+but the mechanical stop itself is never negotiable, never rate-limited, and never
+deferred to finish a thought: the user must always be able to make NOVA stop
+talking, without exception, in every future phase that touches this pipeline.
+
+**Transient audio loss (per Master Blueprint §13.5 — Conversation continuity).**
+A short gap in the incoming audio stream during an in-progress utterance — a
+brief network hiccup, a moment of dropped frames — is not treated as an
+end-of-utterance or a failed turn. The audio buffer tolerates a configured short
+gap (bridging silence rather than immediately finalizing the transcript on any
+detected pause) before Transport VAD concludes the utterance actually ended. This
+is distinct from §9's channel-disconnect handling (a full connection loss, which
+does transition the session to `Paused`) — a transient gap inside an otherwise-
+live connection should never surface to the user as a dropped turn or a reset
+conversation when the underlying connection never actually went down.
 
 **Provider failure.** If the selected STT/TTS connector fails (per §0.3's
 `ai_model.transcribe`/`synthesize` RPC), the Model Router's existing fallback
@@ -546,6 +561,13 @@ optimizations:
    §8's `Identity Snapshot`), refreshed periodically rather than fetched
    synchronously per utterance. Substantive content always takes the full path.
 
+Per Master Blueprint §13.2 (Low latency is part of NOVA's personality): wherever
+an implementation choice in this pipeline has more than one option that satisfies
+correctness, the lower-perceived-latency option is the required choice, not an
+optional tuning pass revisited later — this governs, for example, choosing
+streaming-capable local connectors (§0.3) over otherwise-equivalent
+higher-latency alternatives during implementation.
+
 ## 14. Scalability considerations
 
 Session state is keyed by `session_id`, horizontally partitionable by user
@@ -585,6 +607,12 @@ Required by both documents' "How this document is used" sections.
 | §7 every response passes personality validation before delivery | Doc 23 §2 (constant traits enforced structurally, not by convention) |
 | §3.3 raw audio not retained; §0.4 no overclaimed capability | Doc 23 §6 (forbidden: claiming a capability NOVA lacks) |
 | §3.2 `device_id` present from day one | Doc 22 Principle 13 (the room should eventually become part of the interface — this document does not foreclose it) |
+| §1's single intent-gate output path regardless of internal composition | Master Blueprint §13.1 (conversation must always feel continuous) |
+| §13's streaming/fast-path requirements and the lowest-latency tie-break rule | Master Blueprint §13.2, §13.3 (latency is part of personality; streaming first) |
+| §4's unconditional barge-in stop | Master Blueprint §13.4 (interruptibility) |
+| §4's transient audio-gap tolerance | Master Blueprint §13.5 (conversation continuity through transient loss) |
+| §0.6's deferred ports, §3.2's forward-populated `device_id`, §5's channel-adapter protocol | Master Blueprint §13.6 (progressive capability) |
+| §3.2 exactly two channels, §0.4's honest interim over a half-built addressee detector | Master Blueprint §13.7 (quality over feature count) |
 
 ## 17. Testing strategy
 
@@ -592,7 +620,13 @@ Required by both documents' "How this document is used" sections.
   restart recovery (§3.5) — kill the process mid-session, restart, assert correct
   resumption.
 - Barge-in tests: inject audio during `Speaking`, assert stream cancellation and
-  no audio loss on the new input.
+  no audio loss on the new input, and assert cancellation latency stays within
+  one Transport VAD detection interval (Master Blueprint §13.4's "unconditional,
+  not eventually" requirement, measured, not just asserted qualitatively).
+- Transient audio-gap tests (Master Blueprint §13.5): inject a short mid-utterance
+  audio gap below the configured tolerance, assert the turn completes normally
+  with no premature finalization; inject a gap above tolerance, assert normal
+  end-of-utterance handling — the boundary itself, not just the two extremes.
 - Degraded-mode tests (§9): `personality-engine` RPC forced to time out, assert
   delivery still occurs with the documented fallback, never silence — the
   specific test the Master Blueprint's Risk §11.7 names as required.

@@ -59,6 +59,7 @@ next unused number, regardless of which subsystem they originate from.
 | [027](ADR-027-executive-cognition-coordinates-never-owns-intelligence.md) | Executive Cognition coordinates cognitive subsystems, never owns intelligence | Executive Cognition Engine (Phase 2C); binding on its design doc and every subsequent implementation decision |
 | [028](ADR-028-executive-cognition-defers-to-specialized-engine-authority.md) | Executive Cognition is policy-driven, not intelligence-driven: specialized engines are epistemically authoritative in their own domain | Executive Cognition Engine (Phase 2C); binding on its design doc and every subsequent implementation decision |
 | [029](ADR-029-executive-cognition-optimizes-long-term-user-objectives.md) | Executive Cognition arbitration optimizes for the user's long-term objectives, not only the current request | Executive Cognition Engine (Phase 2C); operationalizes ADR-025's Priority 1 (Personal Intelligence) |
+| [030](ADR-030-personality-stores-digital-twin-learns.md) | Personality Engine stores and applies resolved preferences; Digital Twin Engine is the sole epistemic learner | `personality-engine` (Phase 2D-A), `digital-twin-engine` (Phase 2D-D); binding on both engines' TDDs and every subsequent implementation decision |
 
 See also: [Phase 1 Architecture Review Report](../../roadmap/architecture-reviews/phase-1-data-memory-substrate.md)
 and [Doc 20 — Engine Responsibility Boundaries](../20-engine-responsibility-boundaries.md),
@@ -76,4 +77,8 @@ were added after the Phase 2C design doc's own approval but before implementatio
 began, per explicit user directive establishing two further permanent principles —
 epistemic deference to specialized engines, and long-term-objective optimization as
 a Personal Edition default — ahead of any Executive Cognition Engine code being
-written.
+written. ADR-030 was filed after both Phase 2D-A TDDs (`communication-engine`,
+`personality-engine`) were drafted and approved, rather than before as the Master
+Blueprint originally committed to — a sequencing deviation the ADR itself records
+honestly (its own "Process note") rather than silently correcting; the boundary it
+formalizes was never actually violated in either TDD, only the filing order.
