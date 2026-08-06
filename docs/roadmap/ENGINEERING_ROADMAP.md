@@ -1,6 +1,6 @@
 # NOVA Engineering Roadmap
 
-Status: **Draft v2.0 — companion document to the [Software Architecture Document](../architecture/00-overview-and-decisions.md). Technology stack, Event Bus (ADR-006), Graph Store (ADR-007), Agent Architecture (ADR-008), Embedding Provider (ADR-009), and the standardized embedding model (ADR-010) approved. Phase 0 is implemented. Phase 1 is implemented and Gate-Reviewed (Go). Phase 2A — AI Model Orchestration Layer — is implemented and Gate-Reviewed (Go), approved by the user. Phase 2B — Reasoning Engine — is implemented and Gate-Reviewed (Go), approved by the user. Phase 2C — Executive Cognition (minimal) — is implemented and Gate-Reviewed (Go), approved by the user.** `ai-model-orchestration-engine` built at production-grade per the [Phase 2A design package](../design/phase-2a/README.md), with the [Architecture Review Report](architecture-reviews/phase-2a-ai-model-orchestration.md), the canonical [AI Model Orchestration Philosophy](../architecture/21-ai-model-orchestration-philosophy.md), structured ADRs (ADR-020 through ADR-026, [index](../architecture/adr/README.md)), and the formal [Phase 2A Gate Review](architecture-reviews/phase-2a-gate-review.md) filed. `reasoning-engine` built at production-grade per the [Phase 2B design package](../design/phase-2b/README.md), with the [Architecture Review Report](architecture-reviews/phase-2b-reasoning-engine.md) and the formal [Phase 2B Gate Review](architecture-reviews/phase-2b-gate-review.md) filed. `executive-cognition-engine` built at production-grade per the [Phase 2C design package](../design/phase-2c/README.md), with the [Architecture Review Report](architecture-reviews/phase-2c-executive-cognition-engine.md) and the formal [Phase 2C Gate Review](architecture-reviews/phase-2c-gate-review.md) filed — including the discovery and fix of a cross-engine Alembic version-table collision affecting all six engines built to date, found during this phase's own real-Postgres verification. **[ADR-025](../architecture/adr/ADR-025-personal-edition-is-the-flagship.md) establishes the Personal Edition as NOVA's permanent flagship and reference implementation, binding on every phase from here forward. [ADR-026](../architecture/adr/ADR-026-reasoning-engine-cognitive-bridge-not-isolated.md) establishes the Reasoning Engine's boundary ahead of its own design work. [ADR-027](../architecture/adr/ADR-027-executive-cognition-coordinates-never-owns-intelligence.md) establishes the Executive Cognition Engine's boundary ahead of its own design work; [ADR-028](../architecture/adr/ADR-028-executive-cognition-defers-to-specialized-engine-authority.md) and [ADR-029](../architecture/adr/ADR-029-executive-cognition-optimizes-long-term-user-objectives.md) add two further permanent principles (epistemic deference to specialized engines; long-term-objective optimization as a Personal Edition default), both implemented and verified this phase.**
+Status: **Draft v2.0 — companion document to the [Software Architecture Document](../architecture/00-overview-and-decisions.md). Technology stack, Event Bus (ADR-006), Graph Store (ADR-007), Agent Architecture (ADR-008), Embedding Provider (ADR-009), and the standardized embedding model (ADR-010) approved. Phase 0 is implemented. Phase 1 is implemented and Gate-Reviewed (Go). Phase 2A — AI Model Orchestration Layer — is implemented and Gate-Reviewed (Go), approved by the user. Phase 2B — Reasoning Engine — is implemented and Gate-Reviewed (Go), approved by the user. Phase 2C — Executive Cognition (minimal) — is implemented and Gate-Reviewed (Go), approved by the user.** `ai-model-orchestration-engine` built at production-grade per the [Phase 2A design package](../design/phase-2a/README.md), with the [Architecture Review Report](architecture-reviews/phase-2a-ai-model-orchestration.md), the canonical [AI Model Orchestration Philosophy](../architecture/21-ai-model-orchestration-philosophy.md), structured ADRs (ADR-020 through ADR-026, [index](../architecture/adr/README.md)), and the formal [Phase 2A Gate Review](architecture-reviews/phase-2a-gate-review.md) filed. `reasoning-engine` built at production-grade per the [Phase 2B design package](../design/phase-2b/README.md), with the [Architecture Review Report](architecture-reviews/phase-2b-reasoning-engine.md) and the formal [Phase 2B Gate Review](architecture-reviews/phase-2b-gate-review.md) filed. `executive-cognition-engine` built at production-grade per the [Phase 2C design package](../design/phase-2c/README.md), with the [Architecture Review Report](architecture-reviews/phase-2c-executive-cognition-engine.md) and the formal [Phase 2C Gate Review](architecture-reviews/phase-2c-gate-review.md) filed — including the discovery and fix of a cross-engine Alembic version-table collision affecting all six engines built to date, found during this phase's own real-Postgres verification. **[ADR-025](../architecture/adr/ADR-025-personal-edition-is-the-flagship.md) establishes the Personal Edition as NOVA's permanent flagship and reference implementation, binding on every phase from here forward. [ADR-026](../architecture/adr/ADR-026-reasoning-engine-cognitive-bridge-not-isolated.md) establishes the Reasoning Engine's boundary ahead of its own design work. [ADR-027](../architecture/adr/ADR-027-executive-cognition-coordinates-never-owns-intelligence.md) establishes the Executive Cognition Engine's boundary ahead of its own design work; [ADR-028](../architecture/adr/ADR-028-executive-cognition-defers-to-specialized-engine-authority.md) and [ADR-029](../architecture/adr/ADR-029-executive-cognition-optimizes-long-term-user-objectives.md) add two further permanent principles (epistemic deference to specialized engines; long-term-objective optimization as a Personal Edition default), both implemented and verified this phase. Phase 2D — originally scoped as a single, undifferentiated "Give NOVA a Voice" milestone — has been expanded into a full pre-implementation architectural blueprint at the user's direction and restructured into four sub-phases (2D-A Voice & Communication Foundation, 2D-B Identity & Presence, 2D-C Conversation Intelligence, 2D-D Personal Companion): see the [Phase 2D Master Architectural Blueprint](../design/phase-2d/00-master-blueprint.md) and its companion [NOVA Human Interaction Principles](../architecture/22-nova-human-interaction-principles.md). Status: blueprint proposed, pending user review and approval — no Technical Design Document or implementation work has begun.**
 
 ## How this roadmap is organized
 
@@ -40,7 +40,7 @@ which is not yet decided).
 | 2A | AI Model Orchestration Layer | High | A single, provider-agnostic gateway can route a request to any local or cloud model, stream the response, call tools, and track cost — with zero UI, proven at the API level |
 | 2B | Reasoning Engine | High | Given an objective, NOVA runs a real 13-step reasoning pipeline (Levels 1–2) and produces a confidence-scored result, calling models only through 2A |
 | 2C | Executive Cognition (minimal) | Medium | Competing requests between the Orchestration and Reasoning engines are arbitrated by a real priority mechanism, not first-come-first-served |
-| 2D | Give NOVA a Voice | High | You can talk to NOVA; it remembers you, reasons before answering, stays personality-consistent across models, and responds through a real (if minimal) web UI |
+| 2D | Give NOVA a Voice — 2D-A Voice & Communication Foundation, 2D-B Identity & Presence, 2D-C Conversation Intelligence, 2D-D Personal Companion | Very High | You can talk to NOVA by voice or text; it recognizes who's speaking, distinguishes being addressed from being mentioned, reasons before answering, stays personality-consistent across models, adapts to how you specifically like to communicate, and responds through a real (if minimal) web UI |
 | 3 | Planning & the NOVA Agent Operating System | Very High | NOVA can take a real objective, plan it, delegate it through NAOS to agents, and execute real actions |
 | 4 | Perception, Autonomy & Digital Twin | High | NOVA notices what you're doing on your machine and proactively assists, within trust boundaries you control |
 | 5 | Desktop App & Living Interface | High | The actual JARVIS-like command center exists, on your desktop, visually alive |
@@ -369,44 +369,112 @@ the service up correctly, not building its full feature set yet.
 
 ### Phase 2D — Give NOVA a Voice
 
+Status: **Master architectural blueprint proposed, pending user review and
+approval — see [`docs/design/phase-2d/`](../design/phase-2d/README.md) and its
+companion [NOVA Human Interaction
+Principles](../architecture/22-nova-human-interaction-principles.md).** Per direct
+user instruction, this phase's original single-milestone scope ("make NOVA's
+intelligence actually reachable by a person") has been expanded and restructured
+into four sub-phases before any Technical Design Document or implementation work
+begins — the same validate-the-architecture-first discipline Phase 2B and 2C were
+held to, applied here to an entire phase's worth of engines at once. **No
+implementation work on any Phase 2D engine may begin until the blueprint is
+explicitly approved.**
+
 **Objectives**
 - What remains of the original "first conversation" milestone once the cognitively-
   pure engines above are built and proven independently: make NOVA's intelligence
-  actually reachable by a person.
+  actually reachable by a person — and, per the expanded scope, make that first
+  reachability already personal: NOVA recognizes who it's talking to, knows the
+  difference between being addressed and being mentioned, and begins adapting to
+  how this specific user likes to communicate from the very first sessions.
+
+**Sub-phases** (full detail in the
+[Master Blueprint](../design/phase-2d/00-master-blueprint.md)):
+
+- **Phase 2D-A — Voice & Communication Foundation.** Builds `communication-engine`
+  (conversation session model, text *and* voice channels, streaming, transport-level
+  interruption handling, multilingual input capture) and `personality-engine`
+  (core identity/values as a behavioral constraint layer, not a system prompt
+  string, with consistency validation).
+- **Phase 2D-B — Identity & Presence.** Builds `perception-engine` in deliberately
+  minimal form — voice and camera-based presence/identity sensing only (speaker
+  recognition, face recognition, presence/attention/gaze detection, wake logic,
+  identity confidence) — implementing Bible Part 11's full Sensor Abstraction
+  Layer lifecycle contract so Phase 4 can extend it with desktop sensors without a
+  redesign.
+- **Phase 2D-C — Conversation Intelligence.** Extends `communication-engine` with
+  the behavioral/policy layer: silence and interruption policy, response-length
+  adaptation, the Clarification Engine, emotional tone selection, session-scoped
+  conversation memory, multilingual understanding with English-first response
+  policy, and the addressee-detection decision (talking TO NOVA vs. talking ABOUT
+  NOVA) that fuses 2D-B's raw signals into an actual judgment.
+- **Phase 2D-D — Personal Companion.** Builds `digital-twin-engine` in deliberately
+  minimal form — the Communication Profile domain and a conversation-scoped slice
+  of Preference Evolution/Habit Detection only (of Bible Part 16's eleven eventual
+  domains) — plus trust-development tracking and a user-configurable
+  proactive-**communication** boundary (never proactive action, which stays
+  Autonomy Engine's, Phase 4).
 
 **Deliverables**
 - `personality-engine`: core identity/values as a behavioral constraint layer (not a
   system prompt string), with consistency validation.
-- `communication-engine`: conversation session model, text channel, response
-  streaming.
+- `communication-engine`: conversation session model, text **and voice** channels,
+  response streaming, silence/interruption/clarification policy, addressee
+  detection.
+- `perception-engine` (minimal — voice + face/presence modalities): Sensor
+  Abstraction Layer, Identity Registry, wake/presence/attention signal publishing.
+- `digital-twin-engine` (minimal — Communication Profile + conversation-scoped
+  Preferences): preference learning from real session evidence, trust-development
+  metric, proactive-communication boundary policy.
 - `api-gateway` + `ws-gateway` minimal implementation ([11](../architecture/11-api-architecture.md)).
-- `apps/web-client`: conversation panel only (other panels are stubs) — the first
-  real UI.
+- `apps/web-client`: conversation panel (voice + text) plus a presence/identity
+  indicator — other panels remain stubs — the first real UI.
 - Prompt Orchestration assembly ([06 §4](../architecture/06-ai-layer-architecture.md#4-prompt-orchestration))
-  pulling from Memory/Knowledge/World Model/Personality, formatted for the chosen
-  model via 2A's Context Builder.
+  pulling from Memory/Knowledge/World Model/Personality/Digital Twin, formatted for
+  the chosen model via 2A's Context Builder.
 
 **Dependencies:** Phases 2A + 2B + 2C complete.
 
-**Estimated complexity:** High — this is where the "many independent engines must
-feel like one mind" requirement first gets tested for real, at the user-facing
-surface.
+**Estimated complexity:** Very High — revised up from the original High rating now
+that this phase stands up two additional stateful engines (`perception-engine`,
+`digital-twin-engine`) ahead of their originally-planned Phase 4 slot, on top of the
+original "many independent engines must feel like one mind" challenge at the
+user-facing surface.
 
 **Testing strategy**
-- Contract + integration tests as in Phase 1, extended to the new engines.
+- Contract + integration tests as in Phase 1, extended to the four new/expanded
+  engines.
+- Addressee-detection accuracy tests: scripted scenarios distinguishing genuine
+  address from mention-in-passing, tracking both false-positive and
+  false-negative rates separately (per the Master Blueprint §11's asymmetric-cost
+  risk).
+- Preference-evolution discipline tests: a single contradicting data point must
+  never flip a stored Communication Profile preference (Bible Part 16, enforced
+  per the Master Blueprint §4.4).
+- Degraded-mode failure tests: `personality-engine` or `digital-twin-engine`
+  unavailable mid-response must fall back to safe defaults, never silence (Master
+  Blueprint §11.7).
 - E2E: "first-run onboarding → first successful conversation with memory recall"
   (the first golden path from
-  [16 §6](../architecture/16-testing-strategy.md#6-end-to-end-testing)).
+  [16 §6](../architecture/16-testing-strategy.md#6-end-to-end-testing)), now
+  exercised over both text and voice.
 
 **Acceptance criteria**
-- A fresh install, zero API keys, can hold a coherent multi-turn conversation using
-  only local models.
+- A fresh install, zero API keys, can hold a coherent multi-turn conversation by
+  voice or text using only local models.
 - Asking about something mentioned three turns ago (or in a previous session) is
   answered correctly via memory retrieval (Part 3's "memory first principle"
   demonstrated, not just claimed).
 - Personality stays recognizably consistent across at least two different underlying
   models (Ollama vs. Anthropic) for the same query style — the concrete test of Part
   17's core promise.
+- Saying NOVA's name in a sentence not directed at it does not trigger a response;
+  a genuine address, even without a wake word, is correctly recognized with
+  reasonable confidence — the concrete test of the talking-TO-vs-ABOUT-NOVA
+  principle.
+- A returning user is recognized (voice or face) with an explicit confidence value,
+  never a silent binary assumption.
 - Every response is traceable via `correlation_id` through the full event chain in
   the observability stack.
 
@@ -461,18 +529,31 @@ Planning; `communication-engine` from 2D to report progress/results).
 
 ## Phase 4 — Perception, Autonomy & Digital Twin
 
+Status note: **`perception-engine` and `digital-twin-engine` are no longer created
+in this phase.** Per the [Phase 2D Master
+Blueprint](../design/phase-2d/00-master-blueprint.md) (§9.1, §9.3), both are stood
+up earlier, in Phase 2D, in deliberately minimal form (voice + face/presence
+sensing only; Communication Profile + conversation-scoped preferences only). This
+phase **extends** both — additive, not a rewrite, the same pattern already used for
+`executive-cognition-engine` between Phase 2C and Phase 6 — rather than building
+either from scratch.
+
 **Objectives**
-- Give NOVA senses (`perception-engine` + `nova-companion`) and disciplined initiative (`autonomy-engine`), and begin modeling the user (`digital-twin-engine`) and NOVA's own internal attention (`cognitive-state-engine`).
+- Extend NOVA's senses beyond voice and presence to the desktop itself
+  (`perception-engine` + `nova-companion`) and give it disciplined initiative
+  (`autonomy-engine`), extend the user model beyond conversation into the full
+  Digital Twin (`digital-twin-engine`), and begin NOVA's own internal attention
+  independent of any single conversation (`cognitive-state-engine`).
 
 **Deliverables**
-- `nova-companion` (Rust): desktop/window-focus, clipboard, filesystem, and process/system-health sensors; terminal and window-control actuators — per [05](../architecture/05-desktop-architecture.md).
-- `perception-engine`: Sensor Abstraction Layer, event normalization, context enrichment, multi-modal fusion (the "meeting begins" scenario from [10 §2 row 9](../architecture/10-inter-engine-communication.md#2-canonical-event-flow-table) becomes real).
-- `autonomy-engine`: Autonomy Levels 0–2 (Observation Only → Suggestive → Assisted), Trust Engine, Policy Engine, Permission Matrix wired into `nova-auth` ([13](../architecture/13-auth-and-security.md)).
-- `digital-twin-engine`: user profile, goal model, project model, skill model, preference evolution — populated from real Perception + Memory data for the first time.
-- `cognitive-state-engine`: Active Thoughts, Focus System, Attention Layers.
+- `nova-companion` (Rust): desktop/window-focus, clipboard, filesystem, and process/system-health sensors; terminal and window-control actuators — per [05](../architecture/05-desktop-architecture.md). Registers as new sensors behind Phase 2D-B's already-built Sensor Abstraction Layer, per that layer's full lifecycle contract.
+- `perception-engine` **extension**: event normalization, context enrichment, multi-modal fusion across the now-larger sensor set (the "meeting begins" scenario from [10 §2 row 9](../architecture/10-inter-engine-communication.md#2-canonical-event-flow-table) becomes real) — additive to the voice/face sensing already shipped in Phase 2D-B.
+- `autonomy-engine`: Autonomy Levels 0–2 (Observation Only → Suggestive → Assisted), Trust Engine, Policy Engine, Permission Matrix wired into `nova-auth` ([13](../architecture/13-auth-and-security.md)). The Trust Engine consumes Phase 2D-D's conversational trust-development signal as one input to its own execution-trust model (Master Blueprint §3.2, §10) rather than re-deriving an unrelated one.
+- `digital-twin-engine` **extension**: the remaining nine of Bible Part 16's eleven domains (goal model, project model, software/hardware environment, skill model, knowledge profile, productivity patterns, learning progress) — populated from real Perception + Memory data for the first time — added to the Communication Profile domain already shipped in Phase 2D-D.
+- `cognitive-state-engine`: Active Thoughts, Focus System, Attention Layers — NOVA's continuous internal thinking, independent of any active conversation session, explicitly distinct from Phase 2D-C's session-scoped conversation memory (Master Blueprint §9.4).
 - `apps/web-client`: Autonomy + Digital Twin panels.
 
-**Dependencies:** Phase 3 (Autonomy gates Action Engine executions; Digital Twin consumes Memory/World Model data already flowing).
+**Dependencies:** Phase 3 (Autonomy gates Action Engine executions; Digital Twin consumes Memory/World Model data already flowing); Phase 2D (`perception-engine` and `digital-twin-engine` already exist and are being extended, not created).
 
 **Estimated complexity:** High — OS-level sensor engineering (Rust, per-platform) is a genuinely different discipline from the rest of the stack and carries real platform-compatibility risk (Windows/macOS/Linux each need their own sensor implementations behind the shared trait).
 
@@ -504,27 +585,35 @@ Planning; `communication-engine` from 2D to report progress/results).
 **Objectives**
 - Build the actual product experience the Bible's Part 1 describes: the Tauri desktop shell, the full Command Center UI across all panels, voice I/O, and the "living interface" visual language.
 
+Status note: **the voice channel itself (Whisper/Piper integration, streaming,
+wake-word activation) is no longer built in this phase.** Per the [Phase 2D Master
+Blueprint](../design/phase-2d/00-master-blueprint.md) (§10), the core audio
+pipeline and wake logic already exist from Phase 2D-A/2D-B. This phase's remaining
+voice-related scope narrows to the *visual* presentation of an already-working
+channel — waveform/listening indicators, wake-word UX polish in the desktop shell —
+not the channel's first implementation.
+
 **Deliverables**
 - `apps/desktop-client` (Tauri): system tray, window management, `nova-companion` supervision, signed installers for Windows/macOS/Linux.
 - Full `apps/web-client` panel set: Reasoning, Planning, Memory Timeline, Knowledge Graph, World Model, Agents, Autonomy, Digital Twin, Personality, Executive (stubbed until Phase 6), System — per [04](../architecture/04-frontend-architecture.md).
-- Voice channel in `communication-engine`: Whisper (STT) + Piper (TTS) integration, wake-word activation.
+- Voice UI polish for the `communication-engine` channel already shipped in Phase 2D-A/2D-B: waveform/listening/speaking indicators, wake-word UX, presence/identity indicator promoted from the Phase 2D web-client stub to a full panel.
 - `@nova/ui` design system finalized: idle-state animations driven by real telemetry, System Pulse component.
 - Native OS-level packaging for zero-Docker installs (Windows Service / launchd / systemd user unit wrapping `nova-host`), per [14 §2](../architecture/14-deployment-architecture.md#2-local-first-topology).
 
-**Dependencies:** Phases 1–4 (every panel visualizes an engine built in a prior phase; nothing new is invented here except presentation and voice).
+**Dependencies:** Phases 1–4 (every panel visualizes an engine built in a prior phase; nothing new is invented here except presentation) plus Phase 2D (voice channel already exists; this phase only visualizes it).
 
-**Estimated complexity:** High — less architectural risk than Phases 3/4, but very high polish and integration surface (D3 visualizations, animation performance, cross-platform packaging, voice latency).
+**Estimated complexity:** High — less architectural risk than Phases 3/4, but very high polish and integration surface (D3 visualizations, animation performance, cross-platform packaging). Voice *latency* risk, previously carried here, moved to Phase 2D where the channel is actually built.
 
 **Implementation order**
 1. Desktop shell wrapping the existing web-client (functional parity first, polish after).
 2. Remaining panels, in Bible part order (Memory Timeline, Knowledge Graph, World Model first — they have the richest existing data from Phases 1 & 4).
-3. Voice channel (Whisper/Piper) — highest latency-sensitivity, benefits from being built once other panels reveal real usage patterns.
+3. Voice UI polish (waveform/listening indicators, wake-word UX) on top of the already-working Phase 2D channel.
 4. Living-interface animation pass across all panels.
 5. Native packaging / signed installers.
 
 **Testing strategy**
 - Playwright E2E across the full panel set (not just conversation) — extending [16 §6](../architecture/16-testing-strategy.md#6-end-to-end-testing).
-- Voice round-trip latency benchmarks against the Part 13 "Performance Targets" (minimal latency).
+- Voice UI responsiveness checks (indicator state matches actual `ConversationSession` state with no perceptible lag) — the underlying round-trip latency itself is verified in Phase 2D's own acceptance criteria, not re-verified here.
 - `axe-core` accessibility pass on every panel.
 - Cross-platform installer smoke tests (install → launch → boot to "System Ready") on Windows, macOS, Linux CI runners.
 

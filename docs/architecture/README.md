@@ -31,6 +31,8 @@ decisions (and the reasoning behind them) that every other document builds on.
 | 18 | [Local-First & Cloud Sync](18-local-first-and-cloud-sync.md) |
 | 19 | [Scalability Strategy](19-scalability-strategy.md) |
 | 20 | [Engine Responsibility Boundaries — Memory, Knowledge, World Model](20-engine-responsibility-boundaries.md) |
+| 21 | [AI Model Orchestration Philosophy](21-ai-model-orchestration-philosophy.md) |
+| 22 | [NOVA Human Interaction Principles](22-nova-human-interaction-principles.md) |
 
 See also: [Engineering Roadmap](../roadmap/ENGINEERING_ROADMAP.md) — the phased
 implementation plan built on top of this SAD, and
@@ -41,6 +43,11 @@ complementing ADR-001 through ADR-010 below.
 
 ## Revision history
 
+- **v1.3** — Doc 21 (AI Model Orchestration Philosophy, filed at Phase 2A's
+  completion) and Doc 22 (NOVA Human Interaction Principles, filed alongside the
+  [Phase 2D Master Architectural Blueprint](../design/phase-2d/00-master-blueprint.md)
+  as its permanent philosophical companion) added to this index — both existed
+  before this entry but were missing from the Contents table.
 - **v1.2** — Doc 20 added: the canonical Memory/Knowledge/World Model responsibility
   boundary reference, written on Phase 1 completion per explicit user directive, and
   declared the reference every future engine's design must be checked against. The

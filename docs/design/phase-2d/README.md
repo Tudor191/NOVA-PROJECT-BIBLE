@@ -1,0 +1,65 @@
+# Phase 2D Design — Voice, Identity, Conversation & Companion
+
+Implements [Bible Part 13](../../bible/part-13-communication-engine.md)
+(Communication Engine) in full, [Part 17](../../bible/part-17-personality-engine.md)
+(Personality Engine) in full, and the first, deliberately minimal slices of
+[Part 11](../../bible/part-11-perception-engine.md) (Perception Engine — voice and
+face/presence modalities only) and
+[Part 16](../../bible/part-16-digital-twin-engine.md) (Digital Twin Engine —
+Communication Profile and conversation-scoped Preferences only), cross-referencing
+Part 6 ("NOVA Cognitive State Engine," a *separate* future service this design
+draws an explicit boundary against — see the blueprint's §9.4) and
+[ADR-025](../../architecture/adr/ADR-025-personal-edition-is-the-flagship.md)
+(Personal Edition priority order, directly governing this phase's scope choices).
+
+Status: **Blueprint proposed, pending user review and approval.** This directory
+currently contains the master blueprint only — no Technical Design Document and no
+implementation work has begun. Per direct user instruction, this phase was
+requested as a full architectural blueprint *before* any individual engine's TDD,
+the same "validate the architecture before designing a single engine" discipline
+Phase 2B and Phase 2C were held to, applied one level higher: here, to an entire
+phase's worth of engines at once, not just one.
+
+**A note on naming:** this work was originally requested under the working name
+"Phase 3" (sub-phases 3A–3D). It has been reconciled against the existing roadmap
+as **Phase 2D**, split into sub-phases 2D-A through 2D-D — the roadmap's existing
+Phase 3 (Planning & the NOVA Agent Operating System) is unrelated and unchanged.
+See the blueprint's §0 for the full reconciliation and the exact 3A→2D-A / 3B→2D-B
+/ 3C→2D-C / 3D→2D-D mapping.
+
+## Contents
+
+| Doc | Covers |
+|---|---|
+| [00 — Master Architectural Blueprint](00-master-blueprint.md) | Why Phase 2D exists, what separates it from Phases 2A–2C, explicit in/out-of-scope boundaries, the four sub-phases (2D-A Voice & Communication Foundation, 2D-B Identity & Presence, 2D-C Conversation Intelligence, 2D-D Personal Companion) and their responsibilities, the talking-TO-vs-ABOUT-NOVA addressee-detection boundary, cross-engine communication model, data ownership matrix, API/RPC/statelessness matrix, reconciliation with already-canonical Bible engines (Perception, Digital Twin, Cognitive State), dependency graph, architectural risks, and alignment with NOVA's long-term-companion vision |
+
+**Companion document (not phase-scoped — permanent):**
+[Doc 22 — NOVA Human Interaction Principles](../../architecture/22-nova-human-interaction-principles.md)
+is the philosophical constitution this blueprint, and every future
+communication-related engine after it, is checked against. It lives in
+`docs/architecture/` rather than here because it is not specific to Phase 2D — it
+governs Perception's later Phase 4 extension, Digital Twin's later Phase 4
+extension, and Executive Cognition's Phase 6 coordination of Communication exactly
+as much as it governs this phase.
+
+## The one constraint every section of this blueprint defends
+
+**Phase 2D is where a human first becomes a first-class architectural concern, not
+just an API caller** — every design choice in `00-master-blueprint.md` that looks
+unusual (why `perception-engine` and `digital-twin-engine` are stood up now, in
+deliberately narrow form, instead of waiting for their "official" Phase 4 slot; why
+Perception is forbidden from containing any "should I respond" logic even though it
+sits right next to the decision that needs its signals; why Personality and Digital
+Twin split what the Bible describes as almost the same fact) is this constraint, and
+the discipline established across Phases 2A–2C (minimal-now/full-later, explicit
+boundary ADRs at phase transitions, honest scope with no fabricated capability)
+being applied to an entire phase's worth of engines at once — and the document says
+so explicitly at each such point rather than leaving the reader to guess.
+
+The two constraints inherited unchanged from every prior phase:
+[ADR-004](../../architecture/00-overview-and-decisions.md#adr-004--event-bus-is-the-only-legal-cross-engine-channel)
+(Event Bus is the only legal cross-engine channel — no exceptions for the new
+Perception/Digital-Twin RPCs) and
+[ADR-005](../../architecture/00-overview-and-decisions.md#adr-005--nova-never-speaks-except-through-the-communication-engine)
+(no engine, including the three new ones this phase introduces, ever renders
+user-facing output except through `communication-engine`).
