@@ -30,6 +30,13 @@ from nova_contracts import (
     EmbedReplyPayload,
     EmbedRequestPayload,
     EventEnvelope,
+    ExecutiveArbitrateReplyPayload,
+    ExecutiveDecisionCompletedPayload,
+    ExecutiveDecisionFailedPayload,
+    ExecutiveHumanOverrideAppliedPayload,
+    ExecutiveOutcomeReportPayload,
+    ExecutiveOutcomeReportReplyPayload,
+    ExecutiveRequestPayload,
     GenerateReplyPayload,
     GenerateRequestPayload,
     HeartbeatPayload,
@@ -113,6 +120,13 @@ MODELS: list[type[BaseModel]] = [
     ReasoningProcessCompletedPayload,
     ReasoningProcessFailedPayload,
     HumanOverrideAppliedPayload,
+    ExecutiveRequestPayload,
+    ExecutiveArbitrateReplyPayload,
+    ExecutiveOutcomeReportPayload,
+    ExecutiveOutcomeReportReplyPayload,
+    ExecutiveDecisionCompletedPayload,
+    ExecutiveDecisionFailedPayload,
+    ExecutiveHumanOverrideAppliedPayload,
 ]
 
 PACKAGE_ROOT = Path(__file__).resolve().parent.parent
