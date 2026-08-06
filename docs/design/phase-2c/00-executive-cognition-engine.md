@@ -397,6 +397,21 @@ consequence of ADR-027:
    evidence, confidence, policy, and historical outcomes (§10) — never substituting
    its own judgment for either engine's domain conclusion.
 
+**Amendment (implementation follow-up): how "other in-flight requests" are actually
+gathered.** §3's Executive Cycle table says "rank against any other currently-
+contending requests" without specifying a mechanism. Phase 2C has no durable,
+cross-process admission queue (that is Phase 6's Cognitive Load Management, §24) --
+`domain.contender_registry.ContenderRegistry` is a bounded, single-process,
+in-memory structure: each served `executive.arbitrate.request` call registers
+itself and returns whatever other requests are still presumed in flight (within a
+`Settings`-tunable TTL, default 30s, or a max-entry cap, default 200, whichever is
+reached first). A request leaves the registry when its optional outcome report
+(§7.3) arrives, or once its TTL lapses regardless -- so a caller that never reports
+an outcome cannot pin a stale contender forever. This is deliberately the simplest
+mechanism that makes §3's own "rank against other in-flight requests" real without
+inventing a durable queue this phase has no other use for; Phase 6 replaces it
+wholesale, it does not extend it.
+
 **What "coordination" concretely returns.** Every arbitration produces one of four
 outcomes, never a silent default:
 
@@ -434,6 +449,7 @@ characteristics before committing GPU/inference capacity to it.
 class ExecutiveRequest(BaseModel):
     requesting_engine: str            # "ai-model-orchestration-engine" | "reasoning-engine" | ...
     request_kind: str                 # e.g. "model_generate", "reasoning_process"
+    user_id: UUID                     # §5.3, §5.5-§5.7 -- every port this engine calls is user-scoped
     correlation_id: UUID
     urgency: float                    # 0.0-1.0, caller-supplied
     importance: float                 # 0.0-1.0, caller-supplied
@@ -456,6 +472,15 @@ ADR-029's entire mechanism dead code until Phase 3. When present, `goal_tier`
 takes precedence over any `GoalsPort`-sourced tier for the same `goal_id`, the
 same precedence Reasoning Engine's own caller-supplied goals already have over
 its `GoalsPort` result (that design's §7.1).
+
+**Amendment (implementation follow-up).** `user_id` was missing from this
+model's first draft despite every port this engine calls (`GoalsPort` §5.7,
+`WorldModelPort` §5.5, `MemoryPort` §5.3, `PersonalContextPort` §5.6) already
+requiring one — the identical required field Reasoning Engine's own
+`ReasoningRequestPayload.user_id` already carries. Added as a required field,
+read directly off the request by `domain.coordinate.arbitrate_request` rather
+than threaded as a separate parameter, mirroring how Reasoning Engine's own
+`pipeline.run` reads `request.user_id`.
 
 Phase 2C's real, testable scenario (the roadmap's own acceptance criterion): two
 simulated `ExecutiveRequest`s, one from each engine, submitted concurrently,

@@ -47,6 +47,7 @@ def _request_to_domain(row: ExecutiveRequestORM) -> ExecutiveRequest:
     return ExecutiveRequest(
         requesting_engine=row.requesting_engine,
         request_kind=row.request_kind,
+        user_id=row.user_id,
         correlation_id=row.correlation_id,
         urgency=row.urgency,
         importance=row.importance,
@@ -83,6 +84,7 @@ class PostgresExecutiveRepository:
                     correlation_id=request.correlation_id,
                     requesting_engine=request.requesting_engine,
                     request_kind=request.request_kind,
+                    user_id=request.user_id,
                     urgency=request.urgency,
                     importance=request.importance,
                     complexity=request.complexity,

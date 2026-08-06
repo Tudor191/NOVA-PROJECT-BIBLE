@@ -31,6 +31,7 @@ def upgrade() -> None:
             correlation_id UUID PRIMARY KEY,
             requesting_engine TEXT NOT NULL,
             request_kind TEXT NOT NULL,
+            user_id UUID NOT NULL,
             urgency DOUBLE PRECISION NOT NULL,
             importance DOUBLE PRECISION NOT NULL,
             complexity DOUBLE PRECISION NOT NULL,
@@ -47,6 +48,9 @@ def upgrade() -> None:
     )
     op.execute(
         "CREATE INDEX executive_request_goal_idx ON executive.executive_request (goal_id)"
+    )
+    op.execute(
+        "CREATE INDEX executive_request_user_idx ON executive.executive_request (user_id)"
     )
     op.execute(
         "CREATE INDEX executive_request_created_idx ON executive.executive_request (created_at)"

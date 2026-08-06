@@ -40,6 +40,7 @@ def test_executive_request_defaults_and_schema_version() -> None:
     request = ExecutiveRequestPayload(
         requesting_engine="reasoning-engine",
         request_kind="reasoning_process",
+        user_id=uuid4(),
         urgency=0.5,
         importance=0.5,
         complexity=0.5,
@@ -54,11 +55,27 @@ def test_executive_request_defaults_and_schema_version() -> None:
     assert request.schema_version == 1
 
 
+def test_executive_request_requires_user_id() -> None:
+    with pytest.raises(ValidationError):
+        ExecutiveRequestPayload(
+            requesting_engine="reasoning-engine",
+            request_kind="reasoning_process",
+            urgency=0.5,
+            importance=0.5,
+            complexity=0.5,
+            risk=0.5,
+            learning_value=0.5,
+            resource_cost=0.5,
+            user_impact=0.5,
+        )
+
+
 def test_executive_request_accepts_caller_supplied_goal_tier() -> None:
     tier: GoalTier = "established"
     request = ExecutiveRequestPayload(
         requesting_engine="reasoning-engine",
         request_kind="reasoning_process",
+        user_id=uuid4(),
         urgency=0.5,
         importance=0.5,
         complexity=0.5,
@@ -75,6 +92,7 @@ def test_executive_request_accepts_caller_supplied_goal_tier() -> None:
         ExecutiveRequestPayload(
             requesting_engine="reasoning-engine",
             request_kind="reasoning_process",
+            user_id=uuid4(),
             urgency=0.5,
             importance=0.5,
             complexity=0.5,
@@ -91,6 +109,7 @@ def test_executive_request_priority_factors_are_bounded() -> None:
         ExecutiveRequestPayload(
             requesting_engine="reasoning-engine",
             request_kind="reasoning_process",
+            user_id=uuid4(),
             urgency=1.5,
             importance=0.5,
             complexity=0.5,

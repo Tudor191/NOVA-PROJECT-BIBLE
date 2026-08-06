@@ -45,6 +45,7 @@ class ExecutiveRequestORM(Base):
     second, redundant one."""
     requesting_engine: Mapped[str] = mapped_column(Text, nullable=False)
     request_kind: Mapped[str] = mapped_column(Text, nullable=False)
+    user_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
     urgency: Mapped[float] = mapped_column(nullable=False)
     importance: Mapped[float] = mapped_column(nullable=False)
     complexity: Mapped[float] = mapped_column(nullable=False)

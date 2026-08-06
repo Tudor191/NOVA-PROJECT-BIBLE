@@ -28,3 +28,12 @@ class Settings(BaseSettings):
     """Design doc §7 step 5, §20 -- a `Settings`-tunable ceiling on
     cumulative `resource_cost` per arbitration round, passed to
     `domain.arbitration.arbitrate`."""
+
+    executive_engine_contender_registry_ttl_seconds: float = 30.0
+    """Design doc §4's implementation amendment -- how long a submitted
+    request is presumed still in flight (and so still counted as a
+    contender for later arbitrations) absent an outcome report."""
+
+    executive_engine_contender_registry_max_entries: int = 200
+    """Design doc §4's implementation amendment -- a hard cap on
+    `domain.contender_registry.ContenderRegistry` size, independent of TTL."""

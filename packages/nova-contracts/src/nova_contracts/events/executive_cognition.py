@@ -120,6 +120,11 @@ class ExecutiveRequestPayload(BaseModel):
     requesting_engine: str
     request_kind: str
     """e.g. `"model_generate"`, `"reasoning_process"` -- design doc Sec5.1."""
+    user_id: UUID
+    """Design doc Sec5.3, Sec5.5-Sec5.7 -- every port this engine calls
+    (`GoalsPort`, `WorldModelPort`, `MemoryPort`, `PersonalContextPort`) is
+    scoped per-user; the identical required field Reasoning Engine's own
+    `ReasoningRequestPayload.user_id` already carries."""
     correlation_id: UUID = Field(default_factory=uuid4)
     urgency: float = Field(ge=0.0, le=1.0)
     importance: float = Field(ge=0.0, le=1.0)

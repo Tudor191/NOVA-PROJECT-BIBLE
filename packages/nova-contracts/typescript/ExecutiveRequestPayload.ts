@@ -1,5 +1,6 @@
 export type RequestingEngine = string;
 export type RequestKind = string;
+export type UserId = string;
 export type CorrelationId = string;
 export type Urgency = number;
 export type Importance = number;
@@ -23,6 +24,7 @@ export type SchemaVersion = number;
 export interface ExecutiveRequestPayload {
   requesting_engine: RequestingEngine;
   request_kind: RequestKind;
+  user_id: UserId;
   correlation_id?: CorrelationId;
   urgency: Urgency;
   importance: Importance;

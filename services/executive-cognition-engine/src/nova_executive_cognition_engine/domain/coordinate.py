@@ -99,7 +99,6 @@ async def arbitrate_request(
     other_contenders: list[ExecutiveRequest],
     goals_port: GoalsPort,
     repository: ExecutiveRepository,
-    user_id: UUID,
     resource_budget_ceiling: float = arbitration.DEFAULT_RESOURCE_BUDGET_CEILING,
 ) -> tuple[ArbitrationResult, ExecutiveDecisionTrace]:
     """§3's Executive Cycle, honestly scoped to what one served RPC call can
@@ -107,12 +106,15 @@ async def arbitrate_request(
     goal, §8), Determine Priorities (§6), Allocate Cognitive Resources (§7),
     persist the decision (§18), return it. "Coordinate Specialized Systems"
     is deliberately absent from this function -- this engine returns a
-    decision to the caller, it never itself invokes the winner (§4)."""
+    decision to the caller, it never itself invokes the winner (§4).
+    `user_id` is read off `request` itself (§5.1) -- every port this engine
+    calls is scoped per-user, the same "read it off the domain request"
+    convention Reasoning Engine's own `pipeline.run` already follows."""
     start = time.monotonic()
     await repository.record_request(request)
 
     all_contenders = [request, *other_contenders]
-    goals = await goals_port.current_goals(user_id=user_id)
+    goals = await goals_port.current_goals(user_id=request.user_id)
     goals_by_id = {goal.id: goal for goal in goals}
 
     scores = await _score_all(all_contenders, goals_by_id=goals_by_id, repository=repository)

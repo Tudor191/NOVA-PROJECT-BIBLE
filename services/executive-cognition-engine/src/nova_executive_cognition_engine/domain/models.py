@@ -123,6 +123,8 @@ class ExecutiveRequest(BaseModel):
 
     requesting_engine: str
     request_kind: str
+    user_id: UUID
+    """§5.3, §5.5-§5.7 -- every port this engine calls is scoped per-user."""
     correlation_id: UUID = Field(default_factory=uuid4)
     urgency: float = Field(ge=0.0, le=1.0)
     importance: float = Field(ge=0.0, le=1.0)
