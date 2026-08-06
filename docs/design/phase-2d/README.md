@@ -33,14 +33,18 @@ See the blueprint's §0 for the full reconciliation and the exact 3A→2D-A / 3B
 |---|---|
 | [00 — Master Architectural Blueprint](00-master-blueprint.md) | Why Phase 2D exists, what separates it from Phases 2A–2C, explicit in/out-of-scope boundaries, the four sub-phases (2D-A Voice & Communication Foundation, 2D-B Identity & Presence, 2D-C Conversation Intelligence, 2D-D Personal Companion) and their responsibilities, the talking-TO-vs-ABOUT-NOVA addressee-detection boundary, cross-engine communication model, data ownership matrix, API/RPC/statelessness matrix, reconciliation with already-canonical Bible engines (Perception, Digital Twin, Cognitive State), dependency graph, architectural risks, and alignment with NOVA's long-term-companion vision |
 
-**Companion document (not phase-scoped — permanent):**
+**Companion documents (not phase-scoped — permanent):**
 [Doc 22 — NOVA Human Interaction Principles](../../architecture/22-nova-human-interaction-principles.md)
-is the philosophical constitution this blueprint, and every future
-communication-related engine after it, is checked against. It lives in
-`docs/architecture/` rather than here because it is not specific to Phase 2D — it
-governs Perception's later Phase 4 extension, Digital Twin's later Phase 4
-extension, and Executive Cognition's Phase 6 coordination of Communication exactly
-as much as it governs this phase.
+and [Doc 23 — NOVA Personality Specification](../../architecture/23-nova-personality-specification.md)
+are the philosophical and character constitutions this blueprint, and every future
+communication-related engine after it, are checked against. Doc 22 governs *when
+and how NOVA interacts* (silence, interruption cost, addressee detection, privacy
+architecture); Doc 23 governs *who NOVA is while interacting* (identity, traits,
+values, ethics, voice — directly binding on `personality-engine`'s eventual TDD).
+Both live in `docs/architecture/` rather than here because neither is specific to
+Phase 2D — they govern Perception's later Phase 4 extension, Digital Twin's later
+Phase 4 extension, and Executive Cognition's Phase 6 coordination of Communication
+exactly as much as they govern this phase.
 
 ## The one constraint every section of this blueprint defends
 

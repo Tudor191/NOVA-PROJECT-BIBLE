@@ -33,6 +33,7 @@ decisions (and the reasoning behind them) that every other document builds on.
 | 20 | [Engine Responsibility Boundaries — Memory, Knowledge, World Model](20-engine-responsibility-boundaries.md) |
 | 21 | [AI Model Orchestration Philosophy](21-ai-model-orchestration-philosophy.md) |
 | 22 | [NOVA Human Interaction Principles](22-nova-human-interaction-principles.md) |
+| 23 | [NOVA Personality Specification](23-nova-personality-specification.md) |
 
 See also: [Engineering Roadmap](../roadmap/ENGINEERING_ROADMAP.md) — the phased
 implementation plan built on top of this SAD, and
@@ -43,6 +44,11 @@ complementing ADR-001 through ADR-010 below.
 
 ## Revision history
 
+- **v1.4** — Doc 23 (NOVA Personality Specification) added: the permanent,
+  non-technical character/identity specification for NOVA, filed alongside Doc 22
+  as its companion — Doc 22 governs interaction mechanics (when NOVA speaks), Doc
+  23 governs who NOVA is while speaking. Requested and approved as a third
+  foundational document ahead of any Phase 2D Technical Design Document.
 - **v1.3** — Doc 21 (AI Model Orchestration Philosophy, filed at Phase 2A's
   completion) and Doc 22 (NOVA Human Interaction Principles, filed alongside the
   [Phase 2D Master Architectural Blueprint](../design/phase-2d/00-master-blueprint.md)

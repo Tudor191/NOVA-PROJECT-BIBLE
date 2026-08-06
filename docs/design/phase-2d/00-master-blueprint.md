@@ -10,10 +10,14 @@ long-term direction for every subsystem this phase and its immediate successors
 touch — no code, no per-engine API/data-model detail. Those come after this document
 is approved, one TDD per engine, exactly as every prior phase has done.
 
-**Companion document:** [22 — NOVA Human Interaction
+**Companion documents:** [22 — NOVA Human Interaction
 Principles](../../architecture/22-nova-human-interaction-principles.md) is the
 philosophical constitution this blueprint's every technical decision is checked
-against. Read that document first; this one exists to make it buildable.
+against, and [23 — NOVA Personality
+Specification](../../architecture/23-nova-personality-specification.md) is the
+permanent character/identity specification `personality-engine` (built starting
+in 2D-A, §4.1) exists to implement. Read both first; this document exists to make
+them buildable.
 
 ## 0. A note on naming — reconciling "Phase 3" with the existing roadmap
 
@@ -205,7 +209,12 @@ most minimal 2D-A response (a text acknowledgment) must already be
 personality-consistent — Phase 2D's own inherited acceptance criterion ("Personality
 stays recognizably consistent across at least two different underlying models") was
 already part of the original Phase 2D scope and does not wait for conversation
-intelligence to exist.
+intelligence to exist. Its TDD is written directly from [Doc 23 — NOVA Personality
+Specification](../../architecture/23-nova-personality-specification.md), the
+permanent, non-technical specification of NOVA's constant traits, values, and
+ethical constraints (Doc 23 §2, §6) versus what is allowed to adapt (Doc 23 §7) —
+this blueprint defines `personality-engine`'s boundaries and interfaces; Doc 23
+defines what the engine must be faithful to.
 
 **Concretely ships:** Model Registry-style STT/TTS provider abstraction (mirroring
 2A's `ModelConnector` pattern — Whisper-class local model default, one cloud
