@@ -57,6 +57,18 @@ Sections not directly requested but required by this project's standing design-d
 template (data model, ports, event flow) appear as §19, in its usual place relative
 to the rest.
 
+**Amendment, approved before implementation began.** On approving this document,
+the user established two further permanent principles, each now filed as its own
+ADR and incorporated below rather than left as unincorporated prose:
+[ADR-028](../../architecture/adr/ADR-028-executive-cognition-defers-to-specialized-engine-authority.md)
+(this engine is policy-driven, not intelligence-driven — it must always assume
+specialized engines know their own domain better than it does, sharpening §0 and
+§10) and
+[ADR-029](../../architecture/adr/ADR-029-executive-cognition-optimizes-long-term-user-objectives.md)
+(arbitration optimizes for the user's long-term objectives, not only the current
+request, extending §6, §7, and §8). Both are binding on every section below exactly
+as ADR-027 already is.
+
 ## 0. The boundary this document defends
 
 Bible Part 19 states this engine's purpose in one line worth repeating before
@@ -202,6 +214,37 @@ caller-supplied-until-the-real-port-exists pattern ADR-026 established for
 `GoalsPort`. Once Cognitive State Engine ships (§5.11), this engine consumes its
 state as a read-only input signal to arbitration; it never duplicates Cognitive
 State Engine's own Active-Thoughts/Attention-Layers store.
+
+### 0.5 Policy-driven, not intelligence-driven — and optimized for the user's long-term success
+
+Two further permanent principles, established by the user on approving this
+document, filed as
+[ADR-028](../../architecture/adr/ADR-028-executive-cognition-defers-to-specialized-engine-authority.md)
+and
+[ADR-029](../../architecture/adr/ADR-029-executive-cognition-optimizes-long-term-user-objectives.md)
+respectively, bind every mechanism specified below exactly as ADR-027 already does:
+
+- **Epistemic deference (ADR-028).** This engine must always assume specialized
+  engines know their own domain better than it does. It should not attempt to
+  outperform Reasoning Engine, should not reinterpret Knowledge Engine's facts, and
+  should not invent conclusions of its own. Conflict resolution (§10) may only weigh
+  signals a specialized engine has already published — never Executive Cognition's
+  own independent judgment of which side is substantively correct — and defers
+  (`ESCALATED`, §7, §13) rather than guessing when those signals are inconclusive.
+  This is a hard, non-overridable structural invariant, deliberately distinct from
+  the four soft, user-configurable Executive Policies (§12): it governs *what this
+  engine is*, not a preference about how it operates.
+- **Long-term optimization (ADR-029).** Arbitration should prefer, among multiple
+  otherwise-valid options, the one that best serves the user's long-term goals,
+  established preferences, and current priorities — not only whichever request looks
+  best in isolation. This is the first place
+  [ADR-025](../../architecture/adr/ADR-025-personal-edition-is-the-flagship.md)'s
+  Priority 1 (Personal Intelligence) becomes a concrete scoring mechanism inside an
+  engine's own arbitration logic (§6, §7, §8) rather than a standing intention. The
+  Personal Edition always optimizes for its primary user's long-term success; a
+  future enterprise edition may make the weighting configurable, but never at the
+  Personal Edition's expense (ADR-025's own binding constraint, restated here for
+  this specific mechanism).
 
 ## 1. Overall architecture
 
@@ -483,7 +526,10 @@ does not exist yet), goals are accepted as an explicit, caller-supplied field on
 RPC. This engine does not itself decompose, validate, or store goals — it reads
 whatever a caller declares and uses it only to group/prioritize contending requests
 that share a goal (§8). The identical `GoalsPort` shape Reasoning Engine already
-defined is reused here verbatim, not redefined:
+defined is reused here, with one additive, backward-compatible extension to the
+shared `nova_contracts.Goal` type per ADR-029 (§8): a `goal_tier:
+Literal["ad_hoc", "established"] = "ad_hoc"` field, defaulted so Reasoning Engine's
+own existing use of `Goal` needs no change and continues to ignore it:
 
 ```python
 class GoalsPort(Protocol):
@@ -560,11 +606,13 @@ Bible Part 6's own "COGNITIVE PRIORITY MATRIX" section is the authoritative sour
 (reconciled here against `06 §5`'s five-factor shorthand, which this document treats
 as an earlier summary this design supersedes with the full seven-factor formula,
 the same relationship this document's §1 already states for `06 §5`'s prose
-generally): every `ExecutiveRequest` (§5.1) is scored on **seven factors**, each
-`0.0`-`1.0`, caller-supplied and never invented by this engine (this engine has no
-independent way to know how urgent a request "really" is beyond what the requester
-declares — inventing a second-guessing heuristic here would violate §0's "never
-re-reasons" boundary):
+generally), **extended by one further factor per ADR-029 (§0.5)**: every
+`ExecutiveRequest` (§5.1) is scored on **eight factors**, each `0.0`-`1.0`. Seven are
+caller-supplied and never invented by this engine (this engine has no independent
+way to know how urgent a request "really" is beyond what the requester declares —
+inventing a second-guessing heuristic here would violate ADR-028's epistemic-
+deference boundary, §0.5); the eighth, `long_term_alignment`, is this engine's own
+computation over data it already has (§6.1 below), not a caller-supplied opinion:
 
 ```python
 class CognitivePriorityScore(BaseModel):
@@ -575,6 +623,7 @@ class CognitivePriorityScore(BaseModel):
     learning_value: float
     resource_cost: float
     user_impact: float
+    long_term_alignment: float   # ADR-029 -- computed by this engine, not caller-supplied
     composite: float
 ```
 
@@ -589,11 +638,23 @@ composite = (w_urgency * urgency)
           + (w_risk * risk)
           + (w_learning_value * learning_value)
           + (w_user_impact * user_impact)
+          + (w_long_term_alignment * long_term_alignment)  # ADR-029
           + (w_complexity * (1 - complexity))     # higher complexity, all else equal,
                                                     # is a *cost* to pay, not a reason to go first
           + (w_resource_cost * (1 - resource_cost)) # cheaper requests are preferred when
                                                     # every other factor ties
 ```
+
+**§6.1 — `long_term_alignment`, per ADR-029.** Reflects how strongly a request's
+associated goal (`goal_id`, §5.7, §8), if any, ties to a durable, ongoing objective
+rather than an isolated one-off — sourced from §8's own goal-tier signal, not a new
+upstream dependency. A request with no `goal_id` scores `0.0` (no signal to align
+with, never guessed at); a request grouped under a goal already carrying other
+in-flight, established requests scores higher than a first-time, ungrouped one. This
+factor's weight is deliberately kept modest by default (`Settings`-tunable, like
+every other weight here) — per ADR-029 Decision §2, its primary designed effect in
+Phase 2C is breaking ties among otherwise-comparable requests (§7), not overriding a
+genuinely more urgent or important request that happens to lack long-term framing.
 
 **Why `complexity` and `resource_cost` are inverted.** Bible Part 6 lists both as
 factors "the matrix determines execution order" from, without specifying direction.
@@ -633,9 +694,16 @@ an `ArbitrationOutcome` (§4) for each. The algorithm, in order:
    after, so a policy-driven outcome is never silently overridden by score.
 3. **Rank by composite score**, descending, among whatever survives policy
    application.
-4. **Resolve ties** by `deadline` (nearer deadline wins), then by `correlation_id`
+4. **Resolve ties**, in order: `deadline` (nearer deadline wins); then
+   `long_term_alignment` (§6.1, ADR-029 — the request better aligned with a durable,
+   ongoing objective wins among otherwise-comparable options, per the user's own
+   "when multiple valid options exist, arbitration should prefer the option that
+   best aligns with the user's long-term goals" instruction); then `correlation_id`
    (deterministic, arbitrary but stable — the identical tiebreak-by-id precedent the
    Decision Matrix already established in Reasoning Engine, §15 of that design).
+   `long_term_alignment` is a tie-break, never a primary ranking factor with enough
+   weight to promote a request over a genuinely more urgent or important one (§6.1) —
+   ADR-029 Decision §2 states this scope precisely.
 5. **Assign outcomes**: the top-ranked contender receives `PROCEED`. Contenders
    whose combined `resource_cost` would exceed this engine's per-arbitration budget
    assumption (a fixed, `Settings`-tunable ceiling, §20 — Phase 2C has no real
@@ -670,16 +738,30 @@ loop.
 
 Consistent with §5.7/§5.9 and ADR-027 §4: this engine does not decompose, create,
 validate, or store goals. Its goal-management responsibility, honestly scoped for
-Phase 2C, is exactly one thing: **grouping and prioritizing contending requests that
-share a `goal_id`.** When two `ExecutiveRequest`s reference the same `goal_id`, this
-engine treats their priority as correlated (a request serving a goal that already
-has an in-flight, high-priority sibling request inherits a small priority boost,
-`Settings`-tunable, reflecting "this goal is already receiving cognitive attention,
-momentum favors continuing it over starting a new, unrelated one") — never as
-independent draws from the Cognitive Priority Matrix in isolation. Phase 6's real
-Goal Hierarchy (Mission → ... → Immediate Actions, once Planning Engine exists)
-extends this same mechanism to multi-level goal correlation; Phase 2C's flat,
-single-level `goal_id` grouping is the honest, buildable slice of it today.
+Phase 2C, is exactly two things, both over data it already holds, never a new
+upstream dependency:
+
+1. **Grouping and prioritizing contending requests that share a `goal_id`.** When
+   two `ExecutiveRequest`s reference the same `goal_id`, this engine treats their
+   priority as correlated (a request serving a goal that already has an in-flight,
+   high-priority sibling request inherits a small priority boost, `Settings`-tunable,
+   reflecting "this goal is already receiving cognitive attention, momentum favors
+   continuing it over starting a new, unrelated one") — never as independent draws
+   from the Cognitive Priority Matrix in isolation.
+2. **Sourcing `long_term_alignment` (§6.1, ADR-029).** A goal seen across multiple
+   requests over time, or explicitly flagged by its caller as durable/ongoing (a
+   `goal_tier: Literal["ad_hoc", "established"]` field on `Goal`, the minimal,
+   honest slice of Bible Part 19's own Mission → ... → Immediate Actions hierarchy
+   this engine can support without a real Planning Engine), scores higher
+   `long_term_alignment` than an untagged, first-appearance `goal_id` — the same
+   correlation data feeding both this engine's existing priority-boost mechanism and
+   its new tie-break criterion, one signal serving two purposes rather than two
+   overlapping ones.
+
+Phase 6's real Goal Hierarchy (Mission → ... → Immediate Actions, once Planning
+Engine exists) extends this same mechanism to multi-level goal correlation and a
+richer `long_term_alignment` signal; Phase 2C's flat, single-level `goal_id`
+grouping plus a coarse `goal_tier` flag is the honest, buildable slice of both today.
 
 ## 9. Task orchestration
 
@@ -713,30 +795,41 @@ deliberately separates them, since they need different resolutions:
 
 **The conflict-resolution procedure**, applied in order, mirroring Part 19's own
 listed inputs ("Evidence. Confidence. Policies. User objectives. Historical
-outcomes."):
+outcomes.") — **every step below compares a magnitude a specialized engine has
+already published; none of them ever has this engine read, interpret, or judge the
+substantive content of either side's conclusion, per ADR-028 (§0.5)**:
 
-1. **Evidence**: if one side's conclusion cites materially more/stronger supporting
-   evidence (available for Reasoning Engine's own decisions via its already-published
-   `DecisionExplanation.strongest_evidence`, §16 of that design), that side is
-   provisionally preferred.
-2. **Confidence**: if evidence is comparable, the higher-`confidence_score` side
-   (again, directly available from Reasoning Engine's own `Decision.confidence_score`)
-   is provisionally preferred.
+1. **Evidence**: compares *counts/weights already published*, never their content —
+   if one side's conclusion cites a materially larger or higher-weighted set of
+   supporting evidence (available for Reasoning Engine's own decisions via its
+   already-published `DecisionExplanation.strongest_evidence`, §16 of that design),
+   that side is provisionally preferred. This engine never reads what the evidence
+   *says*, only how much of it the source engine itself already counted as strong.
+2. **Confidence**: compares *scores already computed*, never re-derives one — if
+   evidence is comparable, the higher-`confidence_score` side (directly available
+   from Reasoning Engine's own `Decision.confidence_score`, itself already a
+   structural formula per that engine's own §10) is provisionally preferred.
 3. **Policy**: an applicable Executive Policy (§12) can override either signal — e.g.,
    "safety overrides speed" would prefer the lower-risk conclusion regardless of
-   evidence/confidence.
+   evidence/confidence. Policies are named, structural, user-configurable rules
+   (§12) — applying one is not this engine forming a judgment, it is this engine
+   executing a rule the user already set.
 4. **User objectives**: if the request's declared goal (§8) explicitly favors one
    side (e.g., an explicit user preference recorded against the goal), that wins over
-   the structural signals above.
+   the structural signals above — again, a fact this engine reads, never infers.
 5. **Historical outcomes**: as a last, weakest tiebreaker, Memory's historical-outcome
    signal (§5.3) — which side's *kind* of conclusion has succeeded more often for
-   similar past requests.
+   similar past requests, per §7.3's outcome reports. A frequency count, not an
+   assessment of which past outcome was "right."
 6. **If still unresolved after all five**, the conflict is `ESCALATED` (§7) —
    forwarded to Human Override (§13) rather than this engine guessing. **No
-   subsystem overrides another directly** (Part 19's own words) is the hard floor:
-   this procedure never lets this engine's own judgment substitute for either
-   conflicting side's domain conclusion; it only ever picks *between* their existing
-   conclusions using the five signals above, or defers to the user.
+   subsystem overrides another directly** (Part 19's own words), sharpened by
+   ADR-028 into a hard floor with no exception: this procedure never lets this
+   engine's own judgment substitute for either conflicting side's domain conclusion,
+   at this step or any step above; it only ever compares *already-published*
+   magnitudes between their existing conclusions, or defers to the user. A tie
+   after all five signals is not evidence either side is wrong — it is the point at
+   which this engine's own competence to arbitrate ends.
 
 Phase 2C's honest scope: steps 1-2 and 5 depend on data only Reasoning Engine
 currently publishes richly enough to use (§10 above); with only two AI-layer engines
@@ -810,6 +903,14 @@ fixed policy set doesn't yet need the CRUD surface a database table would imply)
 Part 19's own "Explainability" requirement applied concretely: "why was this
 prioritized" must be answerable even when the answer is "a policy overrode the raw
 score," not just when the score alone decided it.
+
+**Epistemic deference (ADR-028, §0.5) is deliberately not a fifth entry on this
+list.** These four policies are legitimately user-configurable — Part 19's own
+"absolute unless changed by the user" framing, and `absolute: bool` above exists
+precisely because a policy *could*, in principle, be non-absolute. "Assume
+specialized engines know their own domain better than this engine does" is never
+exposed as a policy a configuration could disable, because it is not a preference
+about how this engine operates — it is what this engine is (ADR-028 Decision §4).
 
 ## 13. Human override model
 
@@ -1079,7 +1180,17 @@ roadmap's own explicit "additive to 2C's existing service" framing:
 - **Meta Reasoning** — Part 19's own "Is enough evidence available? Should more
   research be performed? Is the current strategy effective?" — genuinely deferred
   until a real strategy concept exists (Planning Engine, §5.9); §7.3's outcome-report
-  RPC is the narrow seed this will eventually build on.
+  RPC is the narrow seed this will eventually build on. **Bound by ADR-028**: any
+  future Meta Reasoning capability must still only compare signals specialized
+  engines have already published — the moment it would require Executive Cognition
+  to evaluate domain content on the merits, it is no longer a legitimate extension
+  of this engine and must be built as its own specialized engine instead (ADR-028
+  Future Implications).
+- **Enterprise-edition configurability of long-term-alignment weighting** (§6.1,
+  ADR-029 Decision §3) — a future commercial/enterprise edition may expose
+  `w_long_term_alignment` as a tunable deployment surface; the Personal Edition's own
+  default (always optimizing for its primary user's long-term success) never
+  regresses to accommodate that future edition, per ADR-025's binding constraint.
 - **Cognitive State Engine integration** (§5.11, §0.4) — a real, continuously-updated
   attention/focus feed as an arbitration input, replacing today's
   caller-supplied-only signal.

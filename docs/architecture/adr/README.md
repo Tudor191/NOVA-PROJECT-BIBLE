@@ -57,6 +57,8 @@ next unused number, regardless of which subsystem they originate from.
 | [025](ADR-025-personal-edition-is-the-flagship.md) | The Personal Edition is NOVA's flagship; every commercial/enterprise edition is strictly derived from it | NOVA-wide; binding on every engine, every phase, from this point forward |
 | [026](ADR-026-reasoning-engine-cognitive-bridge-not-isolated.md) | The Reasoning Engine is a cognitive bridge, never an isolated subsystem | Reasoning Engine (Phase 2B); binding on its design doc and every subsequent implementation decision |
 | [027](ADR-027-executive-cognition-coordinates-never-owns-intelligence.md) | Executive Cognition coordinates cognitive subsystems, never owns intelligence | Executive Cognition Engine (Phase 2C); binding on its design doc and every subsequent implementation decision |
+| [028](ADR-028-executive-cognition-defers-to-specialized-engine-authority.md) | Executive Cognition is policy-driven, not intelligence-driven: specialized engines are epistemically authoritative in their own domain | Executive Cognition Engine (Phase 2C); binding on its design doc and every subsequent implementation decision |
+| [029](ADR-029-executive-cognition-optimizes-long-term-user-objectives.md) | Executive Cognition arbitration optimizes for the user's long-term objectives, not only the current request | Executive Cognition Engine (Phase 2C); operationalizes ADR-025's Priority 1 (Personal Intelligence) |
 
 See also: [Phase 1 Architecture Review Report](../../roadmap/architecture-reviews/phase-1-data-memory-substrate.md)
 and [Doc 20 — Engine Responsibility Boundaries](../20-engine-responsibility-boundaries.md),
@@ -69,4 +71,9 @@ work, establishing the Reasoning Engine's boundary before its design doc is
 written — the same sequencing ADR-017 followed for World Model Engine in Phase 1.
 ADR-027 was added at Phase 2B's close, ahead of Phase 2C design work, establishing
 the Executive Cognition Engine's boundary before its design doc is written — the
-same sequencing again, one layer higher in the cognitive stack.
+same sequencing again, one layer higher in the cognitive stack. ADR-028 and ADR-029
+were added after the Phase 2C design doc's own approval but before implementation
+began, per explicit user directive establishing two further permanent principles —
+epistemic deference to specialized engines, and long-term-objective optimization as
+a Personal Edition default — ahead of any Executive Cognition Engine code being
+written.

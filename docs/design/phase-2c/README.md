@@ -7,15 +7,20 @@ design draws an explicit boundary against, §0.4 of the design doc), Part 2 ("AI
 four concrete services), and `06 §5` ("Executive Cognition Engine — coordination
 layer," the summary this document supersedes with full detail).
 
-Status: **Pending review and approval — implementation must not begin until this
-document is explicitly approved**, per direct user instruction, the same
-validate-before-build discipline every prior phase has been held to. This phase
-follows Phase 2B's exact precedent: the user has designated Executive Cognition one
-of the most architecturally consequential engines in NOVA — the one every other
-AI-layer engine's own design has already assumed will eventually exist above it
-(`06 §5`'s Cognitive Priority Matrix reference, `12 §7`'s Kernel Scheduler
-resource-allocation signal, `12 §14`'s Chief Executive boundary) — and wants the
-architecture validated before any implementation code is written.
+Status: **Approved. Implementation authorized.** The user approved this document,
+then established two further permanent principles before authorizing
+implementation to begin — [ADR-028](../../architecture/adr/ADR-028-executive-cognition-defers-to-specialized-engine-authority.md)
+(epistemic deference to specialized engines) and
+[ADR-029](../../architecture/adr/ADR-029-executive-cognition-optimizes-long-term-user-objectives.md)
+(long-term-objective optimization as a Personal Edition default) — both now
+incorporated into `00-executive-cognition-engine.md` (§0.5, §6.1, §7, §8, §10, §12,
+§24) rather than left as unincorporated prose. This phase followed Phase 2B's exact
+precedent through design review: the user designated Executive Cognition one of the
+most architecturally consequential engines in NOVA — the one every other AI-layer
+engine's own design has already assumed will eventually exist above it (`06 §5`'s
+Cognitive Priority Matrix reference, `12 §7`'s Kernel Scheduler resource-allocation
+signal, `12 §14`'s Chief Executive boundary) — and validated the architecture in
+full, including these two amendments, before any implementation code was written.
 
 ## Contents
 
@@ -46,3 +51,14 @@ The second constraint, inherited unchanged from Phase 2A/2B: per
 engine never imports an LLM/AI provider SDK and never calls one directly — unlike
 Reasoning Engine, it has no occasion to generate content at all, so this boundary
 holds by construction, not just by discipline.
+
+The two amendments, both permanent and both binding on implementation from the
+start: per ADR-028, this engine must always assume specialized engines know their
+own domain better than it does — it is policy-driven, not intelligence-driven, and
+conflict resolution may only compare signals a specialized engine has already
+published, never form its own judgment about which conclusion is correct. Per
+ADR-029, arbitration optimizes for the user's long-term objectives, not only the
+current request — the Personal Edition's arbitration always prefers, among
+otherwise-valid options, whichever best serves the user's long-term goals and
+established preferences, operationalizing ADR-025's Priority 1 (Personal
+Intelligence) as a concrete scoring mechanism for the first time in this project.
