@@ -35,6 +35,16 @@ class Settings(BaseSettings):
     credential is simply absent from the live connector set, not a runtime
     surprise at first request (§18's API key handling)."""
 
+    whisper_base_url: str = "http://localhost:8082"
+    """The default, zero-budget speech-to-text connector's endpoint
+    (docs/design/phase-2d/01-communication-engine.md §0.3), the same
+    zero-budget-local-first default `ollama_base_url` already establishes for
+    text."""
+
+    piper_base_url: str = "http://localhost:8083"
+    """The default, zero-budget text-to-speech connector's endpoint (same
+    provenance as `whisper_base_url` above)."""
+
     connector_timeout_s: float = 60.0
 
     health_check_interval_seconds: int = 30

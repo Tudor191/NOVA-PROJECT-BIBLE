@@ -24,6 +24,10 @@ from nova_ai_model_orchestration_engine.domain.models import (
     GenerateRequest,
     GenerateResult,
     ModelDescriptor,
+    SynthesizeRequest,
+    SynthesizeResult,
+    TranscribeRequest,
+    TranscribeResult,
     UsageRecord,
 )
 
@@ -72,6 +76,33 @@ class ModelConnector(Protocol):
         ...
 
     async def embed(self, texts: list[str]) -> list[list[float]]: ...
+
+    async def transcribe(self, request: TranscribeRequest) -> TranscribeResult:
+        """Speech-to-text (docs/design/phase-2d/01-communication-engine.md §0.3).
+        Raises `NotSupportedError` for every connector that isn't a dedicated
+        STT provider -- the same explicit-not-silent pattern `embed()` already
+        follows for Anthropic."""
+        ...
+
+    async def synthesize(self, request: SynthesizeRequest) -> SynthesizeResult:
+        """Text-to-speech, non-streaming (§0.3) -- the counterpart to
+        `generate()`, and what Event-Bus callers (`communication-engine`, per
+        ADR-004) actually use, since NATS request/reply returns a single
+        `EventEnvelope`, never a stream. Raises `NotSupportedError` for every
+        connector that isn't a dedicated TTS provider."""
+        ...
+
+    def synthesize_stream(self, request: SynthesizeRequest) -> Any:
+        """Returns an `AsyncIterator[AudioChunk]`, HTTP/SSE-streaming callers
+        only -- the counterpart to `stream()`, typed `Any` for the identical
+        mypy/Protocol reason documented there. Never an Event-Bus contract
+        (mirrors `stream()`'s own boundary, `api/generate.py`'s module
+        docstring): `communication-engine` achieves perceived streaming by
+        calling the non-streaming `synthesize` RPC once per response chunk
+        (sentence/phrase) as content becomes available, not by streaming a
+        single call's transport, which the current `EventBus.request()`
+        primitive (a single `EventEnvelope` reply) cannot carry."""
+        ...
 
     async def health(self) -> ConnectorHealth: ...
 

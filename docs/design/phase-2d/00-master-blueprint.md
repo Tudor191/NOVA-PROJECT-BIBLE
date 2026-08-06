@@ -678,12 +678,19 @@ Wherever technically possible, communication is designed around streaming rather
 than request/response: speech recognition, speech synthesis, model generation,
 long-running operations, and — not yet in scope, but a standing design constraint
 on anything built toward it — future visual interaction. **Already the default**
-in `01-communication-engine.md` §4 (bidirectional audio streaming) and §0.3 (the
-`synthesize` RPC streams by construction, mirroring 2A's `stream` method). This
-principle generalizes that choice beyond audio: any future Phase 2D-C/D capability
-that could be designed as either a single blocking call or an incremental stream
-must default to the streaming design, with a batch/request-response fallback only
-where a real technical constraint (not convenience) forces it.
+in `01-communication-engine.md` §4: input is a genuine transport-level stream
+(`transcribe` called incrementally on partial audio); output achieves the same
+perceived immediacy through chunked calls to the non-streaming `synthesize` RPC
+rather than a transport-level stream, since `EventBus.request()` (ADR-004) can
+carry only a single reply, never a stream — `synthesize_stream`'s real
+transport-level streaming exists (§0.3) but is HTTP/SSE-only, for a direct
+external caller, mirroring 2A's `generate`/`stream` split exactly, not an
+Event-Bus contract any engine-to-engine caller can use. This principle
+generalizes the *chunk-for-perceived-immediacy* discipline beyond audio: any
+future Phase 2D-C/D capability that could be designed as either a single
+blocking call or an incremental sequence of calls must default to the
+incremental design, with a single-call fallback only where a real technical
+constraint (not convenience) forces it.
 
 ### 13.4 Interruptibility
 

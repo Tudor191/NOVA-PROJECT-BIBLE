@@ -355,3 +355,175 @@ async def test_embed_and_record_persists_success_telemetry() -> None:
     assert len(usage_repo.recorded) == 1
     assert usage_repo.recorded[0].outcome == "success"
     assert usage_repo.outbox_events[0].subject == "ai_model.request.completed"
+
+
+def _speech_model(
+    name: str,
+    *,
+    modality: str,
+    dimension: str,
+    capability: float = 0.5,
+    cost: float | None = None,
+    **overrides: object,
+) -> ModelDescriptor:
+    defaults: dict[str, object] = {
+        "name": name,
+        "version": "1.0",
+        "provider": "whisper" if modality == "speech_to_text" else "piper",
+        "connector_type": "whisper" if modality == "speech_to_text" else "piper",
+        "is_local": cost is None,
+        "modalities": [modality],
+        "capability_scores": CapabilityScores(scores={dimension: capability}),
+        "context_window": 0,
+        "max_output_tokens": 0,
+        "cost_per_input_token": cost,
+        "cost_per_output_token": cost,
+        "max_privacy_tier": PrivacyLevel.HIGHLY_SENSITIVE,
+        "health_status": "healthy",
+    }
+    defaults.update(overrides)
+    return ModelDescriptor(**defaults)
+
+
+class _FakeSpeechConnector:
+    connector_type = "fake"
+
+    def __init__(self, *, should_fail: bool = False) -> None:
+        self.should_fail = should_fail
+
+    async def generate(self, request: GenerateRequest) -> GenerateResult:
+        raise NotImplementedError
+
+    def stream(self, request: GenerateRequest) -> Any:
+        raise NotImplementedError
+
+    async def embed(self, texts: list[str]) -> list[list[float]]:
+        raise NotImplementedError
+
+    async def transcribe(self, request: Any) -> Any:
+        from nova_ai_model_orchestration_engine.domain.models import TranscribeResult
+
+        if self.should_fail:
+            raise RuntimeError("simulated transcription failure")
+        return TranscribeResult(
+            text="hello world", detected_language="en", structural_confidence=1.0
+        )
+
+    async def synthesize(self, request: Any) -> Any:
+        from nova_ai_model_orchestration_engine.domain.models import SynthesizeResult
+
+        if self.should_fail:
+            raise RuntimeError("simulated synthesis failure")
+        return SynthesizeResult(
+            audio_bytes=b"fake-audio", audio_format="wav", structural_confidence=1.0
+        )
+
+    async def health(self) -> ConnectorHealth:
+        return ConnectorHealth(available=True)
+
+
+_STT_DIM = "speech_recognition_accuracy"
+_TTS_DIM = "speech_synthesis_quality"
+
+
+def test_plan_transcribe_routing_selects_highest_accuracy() -> None:
+    strong = _speech_model("strong", modality="speech_to_text", dimension=_STT_DIM, capability=0.95)
+    weak = _speech_model("weak", modality="speech_to_text", dimension=_STT_DIM, capability=0.1)
+    decision = router.plan_transcribe_routing([weak, strong], privacy_hint=PrivacyLevel.INTERNAL)
+    assert decision.selected_model_id == strong.id
+
+
+def test_plan_transcribe_routing_raises_when_no_eligible_candidates() -> None:
+    with pytest.raises(FallbackExhaustedError):
+        router.plan_transcribe_routing([], privacy_hint=PrivacyLevel.INTERNAL)
+
+
+def test_plan_synthesize_routing_selects_highest_quality() -> None:
+    strong = _speech_model("strong", modality="text_to_speech", dimension=_TTS_DIM, capability=0.9)
+    weak = _speech_model("weak", modality="text_to_speech", dimension=_TTS_DIM, capability=0.2)
+    decision = router.plan_synthesize_routing([weak, strong], privacy_hint=PrivacyLevel.INTERNAL)
+    assert decision.selected_model_id == strong.id
+
+
+async def test_route_and_transcribe_falls_back_on_failure() -> None:
+    from nova_ai_model_orchestration_engine.domain.models import TranscribeRequest
+
+    failing = _speech_model(
+        "failing", modality="speech_to_text", dimension=_STT_DIM, capability=0.9
+    )
+    working = _speech_model(
+        "working", modality="speech_to_text", dimension=_STT_DIM, capability=0.1
+    )
+    connectors = {
+        failing.id: _FakeSpeechConnector(should_fail=True),
+        working.id: _FakeSpeechConnector(),
+    }
+    request = TranscribeRequest(
+        audio_bytes=b"fake-audio", requesting_engine="test", correlation_id=uuid4()
+    )
+    model, result = await router.route_and_transcribe(
+        request, [failing, working], get_connector=lambda m: connectors[m.id]
+    )
+    assert model.id == working.id
+    assert result.text == "hello world"
+
+
+async def test_transcribe_and_record_persists_success_telemetry() -> None:
+    from nova_ai_model_orchestration_engine.domain.models import TranscribeRequest
+
+    model = _speech_model("only-one", modality="speech_to_text", dimension=_STT_DIM)
+    connector = _FakeSpeechConnector()
+    usage_repo = _FakeUsageRepository()
+    request = TranscribeRequest(
+        audio_bytes=b"fake-audio", requesting_engine="test", correlation_id=uuid4()
+    )
+    selected, result = await router.transcribe_and_record(
+        request, [model], get_connector=lambda m: connector, usage_repository=usage_repo
+    )
+    assert selected.id == model.id
+    assert result.text == "hello world"
+    assert len(usage_repo.recorded) == 1
+    assert usage_repo.recorded[0].outcome == "success"
+    assert usage_repo.outbox_events[0].subject == "ai_model.request.completed"
+
+
+async def test_transcribe_and_record_persists_failure_telemetry_and_reraises() -> None:
+    from nova_ai_model_orchestration_engine.domain.models import TranscribeRequest
+
+    a = _speech_model("a", modality="speech_to_text", dimension=_STT_DIM)
+    b = _speech_model("b", modality="speech_to_text", dimension=_STT_DIM)
+    connectors = {
+        a.id: _FakeSpeechConnector(should_fail=True),
+        b.id: _FakeSpeechConnector(should_fail=True),
+    }
+    usage_repo = _FakeUsageRepository()
+    request = TranscribeRequest(
+        audio_bytes=b"fake-audio", requesting_engine="test", correlation_id=uuid4()
+    )
+    with pytest.raises(FallbackExhaustedError):
+        await router.transcribe_and_record(
+            request, [a, b], get_connector=lambda m: connectors[m.id],
+            usage_repository=usage_repo, max_attempts=2,
+        )
+    assert len(usage_repo.recorded) == 1
+    assert usage_repo.recorded[0].outcome == "failed"
+    assert usage_repo.outbox_events[0].subject == "ai_model.request.failed"
+
+
+async def test_synthesize_and_record_persists_success_telemetry() -> None:
+    from nova_ai_model_orchestration_engine.domain.models import SynthesizeRequest
+
+    model = _speech_model(
+        "only-one", modality="text_to_speech", dimension="speech_synthesis_quality"
+    )
+    connector = _FakeSpeechConnector()
+    usage_repo = _FakeUsageRepository()
+    request = SynthesizeRequest(text="hello", requesting_engine="test", correlation_id=uuid4())
+    selected, result = await router.synthesize_and_record(
+        request, [model], get_connector=lambda m: connector, usage_repository=usage_repo
+    )
+    assert selected.id == model.id
+    assert result.audio_bytes == b"fake-audio"
+    assert len(usage_repo.recorded) == 1
+    assert usage_repo.recorded[0].outcome == "success"
+    assert usage_repo.outbox_events[0].subject == "ai_model.request.completed"

@@ -22,6 +22,13 @@ from opentelemetry.metrics import Counter, Histogram
 class AiModelOrchestrationEngineMetrics:
     generate_request_duration_seconds: Histogram
     embed_request_duration_seconds: Histogram
+    transcribe_request_duration_seconds: Histogram
+    synthesize_request_duration_seconds: Histogram
+    """Explicitly measured, not folded into a generic histogram, per
+    docs/design/phase-2d/00-master-blueprint.md §13.2 (low latency is part of
+    NOVA's personality) -- the speech path's latency is exactly the number that
+    principle is checked against, so it gets its own dashboard-visible metric
+    from day one, the same standard `generate`/`embed` are already held to."""
 
     requests_total: Counter
     """Labeled by `outcome` (`success` | `fallback` | `failed`)."""
@@ -59,6 +66,16 @@ def create_metrics() -> AiModelOrchestrationEngineMetrics:
         embed_request_duration_seconds=meter.create_histogram(
             "ai_model_orchestration_engine_embed_request_duration_seconds",
             description="End-to-end latency of a routed embed request.",
+            unit="s",
+        ),
+        transcribe_request_duration_seconds=meter.create_histogram(
+            "ai_model_orchestration_engine_transcribe_request_duration_seconds",
+            description="End-to-end latency of a routed speech-to-text request.",
+            unit="s",
+        ),
+        synthesize_request_duration_seconds=meter.create_histogram(
+            "ai_model_orchestration_engine_synthesize_request_duration_seconds",
+            description="End-to-end latency of a routed text-to-speech request.",
             unit="s",
         ),
         requests_total=meter.create_counter(

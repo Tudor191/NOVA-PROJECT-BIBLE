@@ -20,11 +20,15 @@ import pytest
 from nova_ai_model_orchestration_engine.connectors.anthropic_connector import AnthropicConnector
 from nova_ai_model_orchestration_engine.connectors.fake_connector import FakeConnector
 from nova_ai_model_orchestration_engine.connectors.ollama_connector import OllamaConnector
+from nova_ai_model_orchestration_engine.connectors.piper_connector import PiperConnector
+from nova_ai_model_orchestration_engine.connectors.whisper_connector import WhisperConnector
 from nova_ai_model_orchestration_engine.domain.models import (
     ContextComponent,
     GenerateRequest,
     PrivacyLevel,
+    SynthesizeRequest,
     ToolSchema,
+    TranscribeRequest,
 )
 from nova_ai_model_orchestration_engine.domain.ports import ModelConnector, NotSupportedError
 
@@ -283,3 +287,165 @@ async def test_tool_call_round_trip(factory: ConnectorFactory) -> None:
     # per-fixture detail (FakeConnector always echoes a tool call; the mocked
     # Ollama/Anthropic responses above don't), not a compliance requirement.
     assert isinstance(result.tool_calls, list)
+
+
+# --- Speech (Whisper/Piper): docs/design/phase-2d/01-communication-engine.md
+# §0.3 -- the same "no live provider dependency ever in this suite" discipline,
+# mocked transports only. --------------------------------------------------
+
+
+def _transcribe_request() -> TranscribeRequest:
+    return TranscribeRequest(
+        audio_bytes=b"fake-wav-bytes", requesting_engine="test", correlation_id=uuid4()
+    )
+
+
+def _synthesize_request() -> SynthesizeRequest:
+    return SynthesizeRequest(text="Hello there.", requesting_engine="test", correlation_id=uuid4())
+
+
+def _whisper_success_handler(request: httpx.Request) -> httpx.Response:
+    if request.url.path == "/v1/audio/transcriptions":
+        return httpx.Response(200, json={"text": "hello there", "language": "en"})
+    if request.url.path == "/health":
+        return httpx.Response(200, json={"status": "ok"})
+    return httpx.Response(404)
+
+
+def _whisper_failure_handler(request: httpx.Request) -> httpx.Response:
+    return httpx.Response(500, json={"error": "simulated failure"})
+
+
+def _make_whisper(handler: Callable[[httpx.Request], httpx.Response]) -> WhisperConnector:
+    transport = httpx.MockTransport(handler)
+    client = httpx.AsyncClient(transport=transport, base_url="http://fake-whisper")
+    return WhisperConnector(model="test-model", client=client)
+
+
+def _piper_success_handler(request: httpx.Request) -> httpx.Response:
+    if request.url.path == "/v1/audio/speech":
+        return httpx.Response(200, content=b"fake-audio-bytes")
+    if request.url.path == "/health":
+        return httpx.Response(200, json={"status": "ok"})
+    return httpx.Response(404)
+
+
+def _piper_failure_handler(request: httpx.Request) -> httpx.Response:
+    return httpx.Response(500, json={"error": "simulated failure"})
+
+
+def _make_piper(handler: Callable[[httpx.Request], httpx.Response]) -> PiperConnector:
+    transport = httpx.MockTransport(handler)
+    client = httpx.AsyncClient(transport=transport, base_url="http://fake-piper")
+    return PiperConnector(client=client)
+
+
+async def test_whisper_transcribe_returns_well_formed_result() -> None:
+    connector = _make_whisper(_whisper_success_handler)
+    result = await connector.transcribe(_transcribe_request())
+    assert result.text == "hello there"
+    assert result.detected_language == "en"
+    assert result.structural_confidence == 1.0
+
+
+async def test_whisper_transcribe_raises_catchable_error_on_failure() -> None:
+    connector = _make_whisper(_whisper_failure_handler)
+    with pytest.raises(Exception, match=".*"):
+        await connector.transcribe(_transcribe_request())
+
+
+async def test_whisper_health_reports_unavailable_on_transport_failure() -> None:
+    connector = _make_whisper(_whisper_failure_handler)
+    health = await connector.health()
+    assert health.available is False
+
+
+async def test_whisper_generate_raises_not_supported_cleanly() -> None:
+    connector = _make_whisper(_whisper_success_handler)
+    with pytest.raises(NotSupportedError):
+        await connector.generate(_request())
+
+
+async def test_whisper_synthesize_raises_not_supported_cleanly() -> None:
+    connector = _make_whisper(_whisper_success_handler)
+    with pytest.raises(NotSupportedError):
+        await connector.synthesize(_synthesize_request())
+
+
+async def test_piper_synthesize_returns_well_formed_result() -> None:
+    connector = _make_piper(_piper_success_handler)
+    result = await connector.synthesize(_synthesize_request())
+    assert result.audio_bytes == b"fake-audio-bytes"
+    assert result.structural_confidence == 1.0
+
+
+async def test_piper_synthesize_stream_yields_incrementally() -> None:
+    connector = _make_piper(_piper_success_handler)
+    chunks = [chunk async for chunk in connector.synthesize_stream(_synthesize_request())]
+    assert len(chunks) >= 1
+    assert any(c.delta_audio_bytes for c in chunks) or any(c.finished for c in chunks)
+
+
+async def test_piper_synthesize_raises_catchable_error_on_failure() -> None:
+    connector = _make_piper(_piper_failure_handler)
+    with pytest.raises(Exception, match=".*"):
+        await connector.synthesize(_synthesize_request())
+
+
+async def test_piper_health_reports_unavailable_on_transport_failure() -> None:
+    connector = _make_piper(_piper_failure_handler)
+    health = await connector.health()
+    assert health.available is False
+
+
+async def test_piper_transcribe_raises_not_supported_cleanly() -> None:
+    connector = _make_piper(_piper_success_handler)
+    with pytest.raises(NotSupportedError):
+        await connector.transcribe(_transcribe_request())
+
+
+_NON_SPEECH_CONNECTORS: list[tuple[str, ConnectorFactory]] = [
+    ("ollama", lambda: _make_ollama(_ollama_success_handler)),
+    ("anthropic", lambda: _make_anthropic(should_fail=False)),
+]
+"""`FakeConnector` deliberately excluded here -- unlike Ollama/Anthropic, it
+*does* support speech by default (`supports_speech=True`), the same asymmetry
+`test_fake_embed_returns_well_formed_vectors` already carries for embedding."""
+
+
+@_params(_NON_SPEECH_CONNECTORS)
+async def test_non_speech_connectors_raise_not_supported_for_transcribe(
+    factory: ConnectorFactory,
+) -> None:
+    connector = factory()
+    with pytest.raises(NotSupportedError):
+        await connector.transcribe(_transcribe_request())
+
+
+@_params(_NON_SPEECH_CONNECTORS)
+async def test_non_speech_connectors_raise_not_supported_for_synthesize(
+    factory: ConnectorFactory,
+) -> None:
+    connector = factory()
+    with pytest.raises(NotSupportedError):
+        await connector.synthesize(_synthesize_request())
+
+
+async def test_fake_transcribe_returns_well_formed_result() -> None:
+    connector = FakeConnector()
+    result = await connector.transcribe(_transcribe_request())
+    assert result.text
+    assert result.structural_confidence == 1.0
+
+
+async def test_fake_synthesize_returns_well_formed_result() -> None:
+    connector = FakeConnector()
+    result = await connector.synthesize(_synthesize_request())
+    assert result.audio_bytes
+    assert result.structural_confidence == 1.0
+
+
+async def test_fake_synthesize_stream_yields_incrementally() -> None:
+    connector = FakeConnector()
+    chunks = [chunk async for chunk in connector.synthesize_stream(_synthesize_request())]
+    assert len(chunks) >= 1

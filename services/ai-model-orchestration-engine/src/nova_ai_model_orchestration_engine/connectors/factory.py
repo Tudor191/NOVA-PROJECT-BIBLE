@@ -16,6 +16,8 @@ from uuid import UUID
 from nova_ai_model_orchestration_engine.connectors.anthropic_connector import AnthropicConnector
 from nova_ai_model_orchestration_engine.connectors.fake_connector import FakeConnector
 from nova_ai_model_orchestration_engine.connectors.ollama_connector import OllamaConnector
+from nova_ai_model_orchestration_engine.connectors.piper_connector import PiperConnector
+from nova_ai_model_orchestration_engine.connectors.whisper_connector import WhisperConnector
 from nova_ai_model_orchestration_engine.domain.models import ModelDescriptor
 from nova_ai_model_orchestration_engine.domain.ports import ModelConnector
 
@@ -40,10 +42,14 @@ class ConnectorFactory:
         *,
         ollama_base_url: str,
         anthropic_api_key: str | None,
+        whisper_base_url: str = "http://localhost:8082",
+        piper_base_url: str = "http://localhost:8083",
         timeout_s: float = 60.0,
     ) -> None:
         self._ollama_base_url = ollama_base_url
         self._anthropic_api_key = anthropic_api_key
+        self._whisper_base_url = whisper_base_url
+        self._piper_base_url = piper_base_url
         self._timeout_s = timeout_s
         self._cache: dict[UUID, ModelConnector] = {}
 
@@ -68,6 +74,12 @@ class ConnectorFactory:
             return AnthropicConnector(
                 api_key=self._anthropic_api_key, model=model.name, timeout_s=self._timeout_s
             )
+        if model.connector_type == "whisper":
+            return WhisperConnector(
+                base_url=self._whisper_base_url, model=model.name, timeout_s=self._timeout_s
+            )
+        if model.connector_type == "piper":
+            return PiperConnector(base_url=self._piper_base_url, timeout_s=self._timeout_s)
         if model.connector_type == "fake":
             return FakeConnector()
         raise ConnectorUnavailableError(model.connector_type, "no implementation registered")

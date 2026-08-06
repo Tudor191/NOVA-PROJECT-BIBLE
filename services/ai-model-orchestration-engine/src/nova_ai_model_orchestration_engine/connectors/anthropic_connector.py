@@ -9,14 +9,18 @@ official SDK) is imported only here, per ADR-020.
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from nova_ai_model_orchestration_engine.domain.models import (
     ConnectorHealth,
     GenerateChunk,
     GenerateRequest,
     GenerateResult,
+    SynthesizeRequest,
+    SynthesizeResult,
     ToolCall,
+    TranscribeRequest,
+    TranscribeResult,
 )
 from nova_ai_model_orchestration_engine.domain.ports import NotSupportedError
 
@@ -133,6 +137,17 @@ class AnthropicConnector:
         # what the ADR-023 compliance suite verifies every connector does for an
         # unsupported modality.
         raise NotSupportedError(self.connector_type, "embedding")
+
+    async def transcribe(self, request: TranscribeRequest) -> TranscribeResult:
+        # Anthropic has no public speech-to-text endpoint (design doc §0.3) --
+        # same explicit-not-silent pattern as `embed()`.
+        raise NotSupportedError(self.connector_type, "speech_to_text")
+
+    async def synthesize(self, request: SynthesizeRequest) -> SynthesizeResult:
+        raise NotSupportedError(self.connector_type, "text_to_speech")
+
+    def synthesize_stream(self, request: SynthesizeRequest) -> Any:
+        raise NotSupportedError(self.connector_type, "text_to_speech")
 
     async def health(self) -> ConnectorHealth:
         client = self._ensure_client()

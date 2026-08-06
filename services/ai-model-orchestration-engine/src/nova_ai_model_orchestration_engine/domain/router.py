@@ -34,6 +34,10 @@ from nova_ai_model_orchestration_engine.domain.models import (
     PrivacyLevel,
     RoutingDecision,
     ScoredCandidate,
+    SynthesizeRequest,
+    SynthesizeResult,
+    TranscribeRequest,
+    TranscribeResult,
     UsageRecord,
 )
 from nova_ai_model_orchestration_engine.domain.ports import (
@@ -50,8 +54,14 @@ __all__ = [
     "execute_and_record",
     "plan_embedding_routing",
     "plan_routing",
+    "plan_synthesize_routing",
+    "plan_transcribe_routing",
     "route_and_embed",
     "route_and_execute",
+    "route_and_synthesize",
+    "route_and_transcribe",
+    "synthesize_and_record",
+    "transcribe_and_record",
 ]
 
 _TASK_BASE_COMPLEXITY: dict[str, float] = {
@@ -547,3 +557,409 @@ async def embed_and_record(
     )
     await usage_repository.record_usage(record, outbox_event=outbox)
     return model, embeddings
+    return model, embeddings
+
+
+# --- Speech: transcribe (speech-to-text) ------------------------------------
+# Mirrors generate's capability-weighted `_score` (unlike embedding's simpler
+# cost/latency-only ranking) because, per docs/design/phase-2d/
+# 01-communication-engine.md §0.3, speech now has real capability dimensions
+# to route on (`speech_recognition_accuracy`, `speech_synthesis_quality`).
+
+
+def plan_transcribe_routing(
+    models: list[ModelDescriptor],
+    *,
+    privacy_hint: PrivacyLevel,
+    historical_success_rates: dict[UUID, float] | None = None,
+    exclude: list[UUID] | None = None,
+    fallback_from: UUID | None = None,
+) -> RoutingDecision:
+    """Pure. Same shape as `plan_routing`, filtered to `speech_to_text`-capable
+    candidates and scored against `speech_recognition_accuracy` rather than a
+    task-type-derived dimension -- transcription has no task type of its own."""
+    historical_success_rates = historical_success_rates or {}
+    exclude = exclude or []
+    modality: Modality = "speech_to_text"
+
+    candidates_pool = capability_matrix.eligible_candidates(
+        models, modality=modality, privacy_hint=privacy_hint
+    )
+    candidates_pool = [m for m in candidates_pool if m.id not in exclude]
+    modality_and_health_eligible = [
+        m for m in models if modality in m.modalities and m.health_status != "unhealthy"
+    ]
+    privacy_constraint_applied = (
+        len(candidates_pool) + len(exclude) < len(modality_and_health_eligible)
+    )
+
+    if not candidates_pool:
+        raise FallbackExhaustedError([])
+
+    scored = [
+        _score(
+            m,
+            dimension="speech_recognition_accuracy",
+            historical_success_rate=historical_success_rates.get(m.id),
+        )
+        for m in candidates_pool
+    ]
+    scored.sort(key=lambda c: (-c.composite_score, str(c.model_id)))
+
+    explanation = _explain(
+        {
+            "top_candidate": scored[0],
+            "candidate_count": len(scored),
+            "privacy_constraint_applied": privacy_constraint_applied,
+            "fallback_from": fallback_from,
+        }
+    )
+    return RoutingDecision(
+        candidates=scored,
+        selected_model_id=scored[0].model_id,
+        fallback_from=fallback_from,
+        privacy_constraint_applied=privacy_constraint_applied,
+        estimated_complexity=0.0,  # not applicable -- mirrors embedding's convention
+        explanation=explanation,
+    )
+
+
+async def route_and_transcribe(
+    request: TranscribeRequest,
+    models: list[ModelDescriptor],
+    *,
+    get_connector: Callable[[ModelDescriptor], ModelConnector],
+    historical_success_rates: dict[UUID, float] | None = None,
+    max_attempts: int = 3,
+) -> tuple[ModelDescriptor, TranscribeResult]:
+    """Impure: the transcription counterpart to `route_and_execute` -- same
+    fallback-walk shape, calling `connector.transcribe()`."""
+    models_by_id = {m.id: m for m in models}
+    tried: list[UUID] = []
+    decision = plan_transcribe_routing(
+        models, privacy_hint=request.privacy_hint, historical_success_rates=historical_success_rates
+    )
+    last_error: Exception | None = None
+
+    for _ in range(max_attempts):
+        candidate_model = models_by_id[decision.selected_model_id]
+        connector = get_connector(candidate_model)
+        try:
+            result = await connector.transcribe(request)
+            return candidate_model, result
+        except Exception as exc:  # noqa: BLE001 -- any connector failure triggers fallback
+            last_error = exc
+            tried.append(decision.selected_model_id)
+            try:
+                decision = plan_transcribe_routing(
+                    models,
+                    privacy_hint=request.privacy_hint,
+                    historical_success_rates=historical_success_rates,
+                    exclude=tried,
+                    fallback_from=tried[-1],
+                )
+            except FallbackExhaustedError:
+                break
+
+    raise FallbackExhaustedError(decision.candidates) from last_error
+
+
+async def transcribe_and_record(
+    request: TranscribeRequest,
+    models: list[ModelDescriptor],
+    *,
+    get_connector: Callable[[ModelDescriptor], ModelConnector],
+    usage_repository: UsageRepository,
+    max_attempts: int = 3,
+) -> tuple[ModelDescriptor, TranscribeResult]:
+    """The transcription counterpart to `execute_and_record` -- always records
+    exactly one `UsageRecord`, success or exhausted failure alike."""
+    start = time.perf_counter()
+    try:
+        model, result = await route_and_transcribe(
+            request, models, get_connector=get_connector,
+            max_attempts=max_attempts,
+        )
+    except FallbackExhaustedError as exc:
+        latency_ms = (time.perf_counter() - start) * 1000
+        attempted_ids = [c.model_id for c in exc.attempted]
+        record = UsageRecord(
+            correlation_id=request.correlation_id,
+            requesting_engine=request.requesting_engine,
+            provider="unknown",
+            model_id=attempted_ids[0] if attempted_ids else UUID(int=0),
+            routing_decision=RoutingDecision(
+                candidates=exc.attempted,
+                selected_model_id=attempted_ids[0] if attempted_ids else UUID(int=0),
+                privacy_constraint_applied=False,
+                estimated_complexity=0.0,
+                explanation=str(exc),
+            ),
+            estimated_complexity=0.0,
+            latency_ms=latency_ms,
+            input_tokens=0,
+            output_tokens=0,
+            estimated_cost=0.0,
+            retry_count=max_attempts,
+            fallback_used=True,
+            privacy_classification=request.privacy_hint,
+            outcome="failed",
+        )
+        outbox = OutboxEvent(
+            subject="ai_model.request.failed",
+            payload=RequestFailedPayload(
+                correlation_id=request.correlation_id,
+                requesting_engine=request.requesting_engine,
+                attempted_model_ids=attempted_ids,
+                final_error=str(exc),
+            ).model_dump(mode="json"),
+            correlation_id=request.correlation_id,
+        )
+        await usage_repository.record_usage(record, outbox_event=outbox)
+        raise
+
+    latency_ms = (time.perf_counter() - start) * 1000
+    output_tokens = approximate_token_count(result.text)
+    cost = cost_tracker.estimate_cost(model, input_tokens=0, output_tokens=output_tokens)
+    record = UsageRecord(
+        correlation_id=request.correlation_id,
+        requesting_engine=request.requesting_engine,
+        provider=model.provider,
+        model_id=model.id,
+        routing_decision=RoutingDecision(
+            candidates=[],
+            selected_model_id=model.id,
+            privacy_constraint_applied=False,
+            estimated_complexity=0.0,
+            explanation=f"Selected {model.id} for transcription.",
+        ),
+        estimated_complexity=0.0,
+        latency_ms=latency_ms,
+        input_tokens=0,
+        output_tokens=output_tokens,
+        estimated_cost=cost,
+        retry_count=0,
+        fallback_used=False,
+        privacy_classification=request.privacy_hint,
+        outcome="success",
+    )
+    outbox = OutboxEvent(
+        subject="ai_model.request.completed",
+        payload=RequestCompletedPayload(
+            correlation_id=request.correlation_id,
+            requesting_engine=request.requesting_engine,
+            provider=model.provider,
+            model_id=model.id,
+            input_tokens=0,
+            output_tokens=output_tokens,
+            estimated_cost=cost,
+            latency_ms=latency_ms,
+            retry_count=0,
+            fallback_used=False,
+            outcome=RequestOutcome.SUCCESS,
+        ).model_dump(mode="json"),
+        correlation_id=request.correlation_id,
+    )
+    await usage_repository.record_usage(record, outbox_event=outbox)
+    return model, result
+
+
+# --- Speech: synthesize (text-to-speech) ------------------------------------
+
+
+def plan_synthesize_routing(
+    models: list[ModelDescriptor],
+    *,
+    privacy_hint: PrivacyLevel,
+    historical_success_rates: dict[UUID, float] | None = None,
+    exclude: list[UUID] | None = None,
+    fallback_from: UUID | None = None,
+) -> RoutingDecision:
+    """Pure. Same shape as `plan_transcribe_routing`, scored against
+    `speech_synthesis_quality`."""
+    historical_success_rates = historical_success_rates or {}
+    exclude = exclude or []
+    modality: Modality = "text_to_speech"
+
+    candidates_pool = capability_matrix.eligible_candidates(
+        models, modality=modality, privacy_hint=privacy_hint
+    )
+    candidates_pool = [m for m in candidates_pool if m.id not in exclude]
+    modality_and_health_eligible = [
+        m for m in models if modality in m.modalities and m.health_status != "unhealthy"
+    ]
+    privacy_constraint_applied = (
+        len(candidates_pool) + len(exclude) < len(modality_and_health_eligible)
+    )
+
+    if not candidates_pool:
+        raise FallbackExhaustedError([])
+
+    scored = [
+        _score(
+            m,
+            dimension="speech_synthesis_quality",
+            historical_success_rate=historical_success_rates.get(m.id),
+        )
+        for m in candidates_pool
+    ]
+    scored.sort(key=lambda c: (-c.composite_score, str(c.model_id)))
+
+    explanation = _explain(
+        {
+            "top_candidate": scored[0],
+            "candidate_count": len(scored),
+            "privacy_constraint_applied": privacy_constraint_applied,
+            "fallback_from": fallback_from,
+        }
+    )
+    return RoutingDecision(
+        candidates=scored,
+        selected_model_id=scored[0].model_id,
+        fallback_from=fallback_from,
+        privacy_constraint_applied=privacy_constraint_applied,
+        estimated_complexity=0.0,
+        explanation=explanation,
+    )
+
+
+async def route_and_synthesize(
+    request: SynthesizeRequest,
+    models: list[ModelDescriptor],
+    *,
+    get_connector: Callable[[ModelDescriptor], ModelConnector],
+    historical_success_rates: dict[UUID, float] | None = None,
+    max_attempts: int = 3,
+) -> tuple[ModelDescriptor, SynthesizeResult]:
+    """Impure: the synthesis counterpart to `route_and_execute`. Always the
+    non-streaming `connector.synthesize()` -- streaming is HTTP/SSE-only
+    (`domain/ports.py`'s `synthesize_stream` docstring), never routed through
+    this Event-Bus-facing path."""
+    models_by_id = {m.id: m for m in models}
+    tried: list[UUID] = []
+    decision = plan_synthesize_routing(
+        models, privacy_hint=request.privacy_hint, historical_success_rates=historical_success_rates
+    )
+    last_error: Exception | None = None
+
+    for _ in range(max_attempts):
+        candidate_model = models_by_id[decision.selected_model_id]
+        connector = get_connector(candidate_model)
+        try:
+            result = await connector.synthesize(request)
+            return candidate_model, result
+        except Exception as exc:  # noqa: BLE001 -- any connector failure triggers fallback
+            last_error = exc
+            tried.append(decision.selected_model_id)
+            try:
+                decision = plan_synthesize_routing(
+                    models,
+                    privacy_hint=request.privacy_hint,
+                    historical_success_rates=historical_success_rates,
+                    exclude=tried,
+                    fallback_from=tried[-1],
+                )
+            except FallbackExhaustedError:
+                break
+
+    raise FallbackExhaustedError(decision.candidates) from last_error
+
+
+async def synthesize_and_record(
+    request: SynthesizeRequest,
+    models: list[ModelDescriptor],
+    *,
+    get_connector: Callable[[ModelDescriptor], ModelConnector],
+    usage_repository: UsageRepository,
+    max_attempts: int = 3,
+) -> tuple[ModelDescriptor, SynthesizeResult]:
+    """The synthesis counterpart to `execute_and_record` -- always records
+    exactly one `UsageRecord`, success or exhausted failure alike."""
+    start = time.perf_counter()
+    input_tokens = approximate_token_count(request.text)
+    try:
+        model, result = await route_and_synthesize(
+            request, models, get_connector=get_connector,
+            max_attempts=max_attempts,
+        )
+    except FallbackExhaustedError as exc:
+        latency_ms = (time.perf_counter() - start) * 1000
+        attempted_ids = [c.model_id for c in exc.attempted]
+        record = UsageRecord(
+            correlation_id=request.correlation_id,
+            requesting_engine=request.requesting_engine,
+            provider="unknown",
+            model_id=attempted_ids[0] if attempted_ids else UUID(int=0),
+            routing_decision=RoutingDecision(
+                candidates=exc.attempted,
+                selected_model_id=attempted_ids[0] if attempted_ids else UUID(int=0),
+                privacy_constraint_applied=False,
+                estimated_complexity=0.0,
+                explanation=str(exc),
+            ),
+            estimated_complexity=0.0,
+            latency_ms=latency_ms,
+            input_tokens=input_tokens,
+            output_tokens=0,
+            estimated_cost=0.0,
+            retry_count=max_attempts,
+            fallback_used=True,
+            privacy_classification=request.privacy_hint,
+            outcome="failed",
+        )
+        outbox = OutboxEvent(
+            subject="ai_model.request.failed",
+            payload=RequestFailedPayload(
+                correlation_id=request.correlation_id,
+                requesting_engine=request.requesting_engine,
+                attempted_model_ids=attempted_ids,
+                final_error=str(exc),
+            ).model_dump(mode="json"),
+            correlation_id=request.correlation_id,
+        )
+        await usage_repository.record_usage(record, outbox_event=outbox)
+        raise
+
+    latency_ms = (time.perf_counter() - start) * 1000
+    cost = cost_tracker.estimate_cost(model, input_tokens=input_tokens, output_tokens=0)
+    record = UsageRecord(
+        correlation_id=request.correlation_id,
+        requesting_engine=request.requesting_engine,
+        provider=model.provider,
+        model_id=model.id,
+        routing_decision=RoutingDecision(
+            candidates=[],
+            selected_model_id=model.id,
+            privacy_constraint_applied=False,
+            estimated_complexity=0.0,
+            explanation=f"Selected {model.id} for synthesis.",
+        ),
+        estimated_complexity=0.0,
+        latency_ms=latency_ms,
+        input_tokens=input_tokens,
+        output_tokens=0,
+        estimated_cost=cost,
+        retry_count=0,
+        fallback_used=False,
+        privacy_classification=request.privacy_hint,
+        outcome="success",
+    )
+    outbox = OutboxEvent(
+        subject="ai_model.request.completed",
+        payload=RequestCompletedPayload(
+            correlation_id=request.correlation_id,
+            requesting_engine=request.requesting_engine,
+            provider=model.provider,
+            model_id=model.id,
+            input_tokens=input_tokens,
+            output_tokens=0,
+            estimated_cost=cost,
+            latency_ms=latency_ms,
+            retry_count=0,
+            fallback_used=False,
+            outcome=RequestOutcome.SUCCESS,
+        ).model_dump(mode="json"),
+        correlation_id=request.correlation_id,
+    )
+    await usage_repository.record_usage(record, outbox_event=outbox)
+    return model, result

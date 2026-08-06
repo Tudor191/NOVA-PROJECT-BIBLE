@@ -10,7 +10,7 @@ Ollama HTTP client for the same server (design doc §5, §10).
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from nova_embeddings_sdk.backends.ollama import OllamaEmbeddingProvider
 
@@ -19,8 +19,13 @@ from nova_ai_model_orchestration_engine.domain.models import (
     GenerateChunk,
     GenerateRequest,
     GenerateResult,
+    SynthesizeRequest,
+    SynthesizeResult,
     ToolCall,
+    TranscribeRequest,
+    TranscribeResult,
 )
+from nova_ai_model_orchestration_engine.domain.ports import NotSupportedError
 from nova_ai_model_orchestration_engine.domain.tool_schema import parse_tool_arguments
 
 if TYPE_CHECKING:
@@ -140,6 +145,21 @@ class OllamaConnector:
     async def embed(self, texts: list[str]) -> list[list[float]]:
         embeddings = await self._embedding_provider.embed_batch(texts)
         return [e.vector for e in embeddings]
+
+    async def transcribe(self, request: TranscribeRequest) -> TranscribeResult:
+        # Ollama serves text-generation models, not speech (design doc §0.3) --
+        # raising cleanly here, the same explicit-not-silent pattern `embed()`
+        # follows for Anthropic.
+        raise NotSupportedError(self.connector_type, "speech_to_text")
+
+    async def synthesize(self, request: SynthesizeRequest) -> SynthesizeResult:
+        raise NotSupportedError(self.connector_type, "text_to_speech")
+
+    def synthesize_stream(self, request: SynthesizeRequest) -> Any:
+        # Not a generator (never yields) -- raises immediately on call, the
+        # simplest honest shape for "this connector cannot do this at all,"
+        # distinct from a real streaming connector that could fail mid-stream.
+        raise NotSupportedError(self.connector_type, "text_to_speech")
 
     async def health(self) -> ConnectorHealth:
         client = self._ensure_client()

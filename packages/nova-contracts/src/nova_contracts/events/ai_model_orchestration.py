@@ -24,10 +24,17 @@ from enum import StrEnum
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from nova_contracts.events.memory import PrivacyLevel
 from nova_contracts.registry import register_payload
+
+_AUDIO_BYTES_CONFIG = ConfigDict(ser_json_bytes="base64", val_json_bytes="base64")
+"""Pydantic v2's default JSON handling for `bytes` fields requires valid UTF-8
+and raises on arbitrary binary content -- audio is never valid UTF-8 in
+general, so every payload carrying raw audio must set this explicitly (mirrors
+`nova_ai_model_orchestration_engine.domain.models._AUDIO_BYTES_CONFIG`, defined
+independently here per this module's own one-way-dependency convention)."""
 
 
 class RequestOutcome(StrEnum):
@@ -141,6 +148,72 @@ class EmbedReplyPayload(BaseModel):
     error: str | None = None
     """Set only when embedding failed (the fallback chain was exhausted) --
     `embeddings` is empty in that case (added additively per ADR-024)."""
+    schema_version: int = 1
+
+
+@register_payload("ai_model.transcribe.request")
+class TranscribeRequestPayload(BaseModel):
+    """Event Bus RPC for speech-to-text (docs/design/phase-2d/
+    01-communication-engine.md §0.3) -- `communication-engine`'s only legal path
+    to a speech provider, per ADR-020. Non-streaming: transcription operates on
+    one bounded utterance per call (the caller decides utterance boundaries via
+    its own Transport VAD), never a transport-level stream."""
+
+    model_config = _AUDIO_BYTES_CONFIG
+
+    audio_bytes: bytes
+    audio_format: Literal["wav", "opus", "pcm16"] = "wav"
+    language_hint: str | None = None
+    privacy_hint: PrivacyLevel = PrivacyLevel.INTERNAL
+    requesting_engine: str
+    correlation_id: UUID
+    schema_version: int = 1
+
+
+@register_payload("ai_model.transcribe.reply")
+class TranscribeReplyPayload(BaseModel):
+    text: str
+    detected_language: str | None = None
+    structural_confidence: float
+    model_id: UUID
+    provider: str
+    error: str | None = None
+    """Set only when transcription failed (the fallback chain was exhausted) --
+    `text` is empty in that case (added additively per ADR-024)."""
+    schema_version: int = 1
+
+
+@register_payload("ai_model.synthesize.request")
+class SynthesizeRequestPayload(BaseModel):
+    """Event Bus RPC for text-to-speech (docs/design/phase-2d/
+    01-communication-engine.md §0.3). Non-streaming, the same reason as
+    `TranscribeRequestPayload` -- `EventBus.request()` returns a single
+    `EventEnvelope`, never a stream (per `nova_ai_model_orchestration_engine.
+    domain.ports.ModelConnector.synthesize_stream`'s own docstring).
+    `communication-engine` achieves perceived streaming by calling this RPC
+    once per response chunk (sentence/phrase), not by streaming one call."""
+
+    text: str
+    voice_profile: str | None = None
+    audio_format: Literal["wav", "opus", "pcm16"] = "wav"
+    privacy_hint: PrivacyLevel = PrivacyLevel.INTERNAL
+    requesting_engine: str
+    correlation_id: UUID
+    schema_version: int = 1
+
+
+@register_payload("ai_model.synthesize.reply")
+class SynthesizeReplyPayload(BaseModel):
+    model_config = _AUDIO_BYTES_CONFIG
+
+    audio_bytes: bytes
+    audio_format: Literal["wav", "opus", "pcm16"]
+    structural_confidence: float
+    model_id: UUID
+    provider: str
+    error: str | None = None
+    """Set only when synthesis failed (the fallback chain was exhausted) --
+    `audio_bytes` is empty in that case (added additively per ADR-024)."""
     schema_version: int = 1
 
 

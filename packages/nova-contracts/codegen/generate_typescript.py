@@ -69,6 +69,10 @@ from nova_contracts import (
     RequestCompletedPayload,
     RequestFailedPayload,
     ShortTermMemoryCreatedPayload,
+    SynthesizeReplyPayload,
+    SynthesizeRequestPayload,
+    TranscribeReplyPayload,
+    TranscribeRequestPayload,
     WorldObjectChangedPayload,
 )
 from pydantic import BaseModel
@@ -110,6 +114,10 @@ MODELS: list[type[BaseModel]] = [
     GenerateReplyPayload,
     EmbedRequestPayload,
     EmbedReplyPayload,
+    TranscribeRequestPayload,
+    TranscribeReplyPayload,
+    SynthesizeRequestPayload,
+    SynthesizeReplyPayload,
     RequestCompletedPayload,
     RequestFailedPayload,
     ModelRegistryChangedPayload,

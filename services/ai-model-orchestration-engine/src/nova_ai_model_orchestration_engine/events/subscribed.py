@@ -7,10 +7,14 @@ matching `subscribe()`'s convention (same as World Model Engine's own
 `events/subscribed.py`, where `world_model.context.request` lives here for the
 identical reason).
 
+`ai_model.transcribe.request` / `ai_model.synthesize.request` added per
+docs/design/phase-2d/01-communication-engine.md §0.3 -- `communication-engine`'s
+first real event-driven caller of the speech modalities, served the same way
+generate/embed already are.
+
 Per §13, this engine has no *subscribed* subject (in the "reacts to another
-engine's event" sense) in Phase 2A -- Reasoning Engine (2B) will be its first
-real event-driven caller. The two entries below are served RPCs, not reactions
-to an upstream producer.
+engine's event" sense) -- every entry below is a served RPC, not a reaction to
+an upstream producer.
 """
 
 from __future__ import annotations
@@ -19,5 +23,7 @@ SUBSCRIBABLE_SUBJECTS: frozenset[str] = frozenset(
     {
         "ai_model.generate.request",
         "ai_model.embed.request",
+        "ai_model.transcribe.request",
+        "ai_model.synthesize.request",
     }
 )

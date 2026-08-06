@@ -10,11 +10,16 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 
 from nova_ai_model_orchestration_engine.domain.models import (
+    AudioChunk,
     ConnectorHealth,
     GenerateChunk,
     GenerateRequest,
     GenerateResult,
+    SynthesizeRequest,
+    SynthesizeResult,
     ToolCall,
+    TranscribeRequest,
+    TranscribeResult,
 )
 from nova_ai_model_orchestration_engine.domain.ports import NotSupportedError
 
@@ -30,11 +35,15 @@ class FakeConnector:
         response_text: str = "This is a fake response.",
         should_fail: bool = False,
         supports_embedding: bool = True,
+        supports_speech: bool = True,
+        transcript_text: str = "this is a fake transcript",
         available: bool = True,
     ) -> None:
         self.response_text = response_text
         self.should_fail = should_fail
         self.supports_embedding = supports_embedding
+        self.supports_speech = supports_speech
+        self.transcript_text = transcript_text
         self.available = available
         self.calls = 0
 
@@ -70,6 +79,38 @@ class FakeConnector:
         # meaningful, but stable across calls for the same input, which is all
         # a fake needs to be for testing.
         return [[float(len(t)), float(sum(ord(c) for c in t) % 997)] for t in texts]
+
+    async def transcribe(self, request: TranscribeRequest) -> TranscribeResult:
+        if not self.supports_speech:
+            raise NotSupportedError(self.connector_type, "speech_to_text")
+        if self.should_fail:
+            raise RuntimeError("FakeConnector configured to fail")
+        return TranscribeResult(
+            text=self.transcript_text, detected_language="en", structural_confidence=1.0
+        )
+
+    async def synthesize(self, request: SynthesizeRequest) -> SynthesizeResult:
+        if not self.supports_speech:
+            raise NotSupportedError(self.connector_type, "text_to_speech")
+        if self.should_fail:
+            raise RuntimeError("FakeConnector configured to fail")
+        # Deterministic, content-derived "audio" -- not real audio, but stable
+        # across calls for the same input, the same fidelity standard as the
+        # fake embedding vectors above.
+        return SynthesizeResult(
+            audio_bytes=request.text.encode("utf-8"),
+            audio_format=request.audio_format,
+            structural_confidence=1.0,
+        )
+
+    async def synthesize_stream(self, request: SynthesizeRequest) -> AsyncIterator[AudioChunk]:
+        if not self.supports_speech:
+            raise NotSupportedError(self.connector_type, "text_to_speech")
+        if self.should_fail:
+            raise RuntimeError("FakeConnector configured to fail")
+        for word in request.text.split():
+            yield AudioChunk(delta_audio_bytes=word.encode("utf-8"))
+        yield AudioChunk(finished=True)
 
     async def health(self) -> ConnectorHealth:
         return ConnectorHealth(available=self.available, latency_ms=1.0, error_rate=0.0)

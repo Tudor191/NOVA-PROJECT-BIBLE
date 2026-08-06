@@ -26,9 +26,19 @@ from typing import Literal
 from uuid import UUID, uuid4
 
 from nova_contracts.events.memory import PrivacyLevel
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
+
+_AUDIO_BYTES_CONFIG = ConfigDict(ser_json_bytes="base64", val_json_bytes="base64")
+"""Pydantic v2's default JSON handling for `bytes` fields requires valid UTF-8
+and raises `PydanticSerializationError` on arbitrary binary content (confirmed
+empirically while building this module: `b'\\x00\\x01\\xff...'.model_dump_json()`
+fails without this). Every model carrying raw audio must set this explicitly --
+audio is never valid UTF-8 in general, unlike every other `bytes`-free model in
+this codebase, which is why this is a new, audio-specific concern, not a change
+to any existing model."""
 
 __all__ = [
+    "AudioChunk",
     "Budget",
     "CapabilityDimension",
     "CapabilityScores",
@@ -42,12 +52,23 @@ __all__ = [
     "PrivacyLevel",
     "RoutingDecision",
     "ScoredCandidate",
+    "SynthesizeRequest",
+    "SynthesizeResult",
     "ToolCall",
     "ToolSchema",
+    "TranscribeRequest",
+    "TranscribeResult",
     "UsageRecord",
 ]
 
-# Bible Part 7 "Model Capability Matrix" -- the twelve scored dimensions.
+# Bible Part 7 "Model Capability Matrix" -- the twelve scored dimensions, plus
+# two added per docs/design/phase-2d/01-communication-engine.md §0.3: the
+# existing generic "speech" dimension scores a text-generation model's general
+# aptitude with speech-related conversation topics (Part 7's original twelve);
+# it is not a substitute for scoring a *dedicated* STT/TTS connector's actual
+# transcription accuracy or synthesis quality, which is what routing a
+# `speech_to_text`/`text_to_speech` request actually needs to compare
+# Whisper-class/Piper-class candidates against each other.
 CapabilityDimension = Literal[
     "general_conversation",
     "programming",
@@ -61,9 +82,13 @@ CapabilityDimension = Literal[
     "research",
     "tool_usage",
     "long_context",
+    "speech_recognition_accuracy",
+    "speech_synthesis_quality",
 ]
 
-Modality = Literal["text_generation", "streaming", "embedding", "tool_calling"]
+Modality = Literal[
+    "text_generation", "streaming", "embedding", "tool_calling", "speech_to_text", "text_to_speech"
+]
 HealthStatus = Literal["healthy", "degraded", "unhealthy", "unknown"]
 
 
@@ -177,6 +202,80 @@ class GenerateChunk(BaseModel):
     tool_call_delta: ToolCall | None = None
     finished: bool = False
     finish_reason: Literal["stop", "length", "tool_calls", "error"] | None = None
+
+
+class TranscribeRequest(BaseModel):
+    """Speech-to-text (design doc §0.3). `audio_bytes` carries the raw audio for
+    one bounded utterance -- this engine transcribes what it's given in one
+    call; deciding how to chunk a longer stream into utterance-sized calls is
+    `communication-engine`'s job (Transport VAD), never this engine's, the same
+    "formats/fits what it's given, never sources it" boundary `ContextComponent`
+    already enforces for text."""
+
+    model_config = _AUDIO_BYTES_CONFIG
+
+    audio_bytes: bytes
+    audio_format: Literal["wav", "opus", "pcm16"] = "wav"
+    language_hint: str | None = None
+    """ISO 639-1 code, optional (design doc §0.1's multilingual-input scope) --
+    a hint the connector may use to skip language auto-detection, never a
+    requirement; an unrecognized or omitted hint falls back to
+    auto-detection."""
+    privacy_hint: PrivacyLevel = PrivacyLevel.INTERNAL
+    requesting_engine: str
+    correlation_id: UUID = Field(default_factory=uuid4)
+    schema_version: int = 1  # ADR-024
+
+
+class TranscribeResult(BaseModel):
+    text: str
+    detected_language: str | None = None
+    structural_confidence: float
+    """Mechanical confidence only (mirrors `GenerateResult`'s field) -- did the
+    connector return a well-formed transcript, never a semantic judgment about
+    whether the transcript is what the user meant."""
+
+
+class SynthesizeRequest(BaseModel):
+    """Text-to-speech (design doc §0.3). One already-personality-validated
+    response string in -- this engine never decides *what* to say, only
+    renders it to audio, the same content/rendering boundary `generate` already
+    keeps against Reasoning Engine's content."""
+
+    text: str
+    voice_profile: str | None = None
+    """Connector-specific voice identifier, optional -- `None` selects the
+    connector's own default voice; this engine attaches no meaning to the
+    value beyond passing it through (mirrors `ContextComponent.source`'s
+    opaque-label convention)."""
+    audio_format: Literal["wav", "opus", "pcm16"] = "wav"
+    privacy_hint: PrivacyLevel = PrivacyLevel.INTERNAL
+    requesting_engine: str
+    correlation_id: UUID = Field(default_factory=uuid4)
+    schema_version: int = 1  # ADR-024
+
+
+class SynthesizeResult(BaseModel):
+    model_config = _AUDIO_BYTES_CONFIG
+
+    audio_bytes: bytes
+    audio_format: Literal["wav", "opus", "pcm16"]
+    structural_confidence: float
+
+
+class AudioChunk(BaseModel):
+    """One incremental piece of synthesized audio, HTTP/SSE-streaming only --
+    never an Event Bus contract, the same boundary `GenerateChunk`'s streaming
+    already keeps (design doc §0.3, mirroring `api/generate.py`'s existing
+    `POST /generate/stream`). Engine-to-engine callers (`communication-engine`,
+    per ADR-004) use the non-streaming `synthesize` RPC and achieve perceived
+    streaming by calling it per response-chunk (sentence/phrase) rather than by
+    streaming a single call's transport."""
+
+    model_config = _AUDIO_BYTES_CONFIG
+
+    delta_audio_bytes: bytes = b""
+    finished: bool = False
 
 
 class ScoredCandidate(BaseModel):

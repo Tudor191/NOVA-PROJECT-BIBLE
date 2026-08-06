@@ -67,18 +67,32 @@ synthesis" scope would be a first-day ADR-020 violation.
 pipeline is implemented against it:
 
 - `Modality` gains two new literals: `"speech_to_text"`, `"text_to_speech"`.
-- `ModelConnector` gains two new methods, following the existing protocol's own
-  documented convention (raise `NotSupportedError` — never a provider-SDK
-  exception — for connectors that don't implement a modality; verified by the
-  ADR-023 uniform connector compliance suite, extended to cover these two new
-  methods exactly as it covers `generate`/`embed` today):
+- `ModelConnector` gains three new methods, following the existing protocol's
+  own `generate`/`stream` split (raise `NotSupportedError` — never a
+  provider-SDK exception — for connectors that don't implement a modality;
+  verified by the ADR-023 uniform connector compliance suite, extended to
+  cover these three new methods exactly as it covers `generate`/`embed`
+  today):
   ```python
   async def transcribe(self, request: TranscribeRequest) -> TranscribeResult: ...
-  def synthesize(self, request: SynthesizeRequest) -> Any:  # AsyncIterator[AudioChunk]
+  async def synthesize(self, request: SynthesizeRequest) -> SynthesizeResult: ...
+  def synthesize_stream(self, request: SynthesizeRequest) -> Any:  # AsyncIterator[AudioChunk]
       ...
   ```
-  `synthesize` streams, mirroring `stream`'s existing typed-`Any` convention for
-  the same mypy/Protocol reason already documented on that method.
+  **Correction found during implementation, applied here rather than left
+  inconsistent with the built code:** the non-streaming `synthesize` is what
+  `communication-engine` actually calls (§8.1 below) — `synthesize_stream`
+  mirrors `stream()`'s existing HTTP/SSE-only boundary (`api/generate.py`'s own
+  module docstring: *"streaming is the one path that never becomes an Event
+  Bus contract... HTTP/SSE only"*) and is for a direct external caller, not an
+  engine-to-engine one. This document's earlier draft described `synthesize`
+  itself as streaming over the Event-Bus RPC; that was inaccurate against
+  ADR-004 and the already-built `generate`/`stream` precedent —
+  `EventBus.request()` returns a single `EventEnvelope`, never a stream, so no
+  Event-Bus RPC can carry one. §4 and §13 below reflect the corrected design:
+  `communication-engine` achieves perceived streaming by calling the
+  non-streaming `synthesize` RPC once per response chunk (sentence/phrase) as
+  content becomes available, not by streaming a single call's transport.
 - One new connector, `WhisperConnector` (local, zero-budget default, mirroring
   `OllamaConnector`'s role for text), and one new connector,
   `PiperConnector` (local, zero-budget default, TTS), both registered exactly like
@@ -292,24 +306,31 @@ resumes without data loss).
 ```
 Microphone (client) → Voice Channel Adapter → Transport VAD → audio buffer
   → ai_model.transcribe RPC (§0.3) → transcript → Session Manager (as inbound turn)
-  → ... (lifecycle pipeline, personality validation) → response text
-  → ai_model.synthesize RPC (§0.3, streaming) → audio chunks
+  → ... (lifecycle pipeline, personality validation) → response text, chunked
+  → ai_model.synthesize RPC (§0.3, non-streaming, one call per chunk) → audio
   → Voice Channel Adapter → speaker (client)
 ```
 
-**Streaming, not batch, in both directions.** `transcribe` may be called
-incrementally on partial audio (final transcript on VAD-detected end-of-utterance)
-and `synthesize` streams audio chunks as they're generated — Bible Part 13's
-"Streaming Communication": *"The user should receive useful information
-immediately. Waiting for complete generation should be avoided whenever
-possible."* This directly serves Master Blueprint Risk §11.1's latency-budget
-mitigation.
+**Streaming input; chunked-call output, not a single streaming call.**
+`transcribe` may be called incrementally on partial audio (final transcript on
+VAD-detected end-of-utterance) — a genuine transport-level stream in the input
+direction. In the output direction, per §0.3's correction, `synthesize` is a
+non-streaming RPC (`EventBus.request()` cannot carry a stream — ADR-004);
+`communication-engine` achieves the same perceived immediacy Bible Part 13's
+"Streaming Communication" calls for (*"the user should receive useful
+information immediately"*) by calling `synthesize` once per response chunk
+(sentence/phrase) as the response text becomes available, delivering each
+chunk's audio to the Channel Adapter as soon as its own RPC returns, rather
+than waiting for the complete response to synthesize as one call. This
+directly serves Master Blueprint Risk §11.1's latency-budget mitigation
+exactly as a transport-level stream would, without requiring one.
 
 **Barge-in (unconditional, per Master Blueprint §13.4 — Interruptibility).** While
 NOVA is in the `Speaking` state, incoming audio above the Transport VAD threshold
-**immediately and unconditionally**: (1) cancels the in-flight `synthesize` stream
-— not pauses, cancels, and not after the current sentence/chunk finishes, within
-one Transport VAD detection interval — (2) transitions the session out of
+**immediately and unconditionally**: (1) stops issuing further per-chunk
+`synthesize` calls and discards any audio already returned but not yet played
+— not after the current chunk finishes playing, within one Transport VAD
+detection interval — (2) transitions the session out of
 `Speaking`, (3) begins buffering the new input as the start of a new turn. This is
 a transport-level mechanic only — 2D-A does not decide whether the interruption
 was *appropriate* (that policy judgment is 2D-C's, per Doc 22 Principles 2–4) —
@@ -448,7 +469,7 @@ new integration pattern, just a new caller of an existing, proven RPC.
 | `personality.validate_response` RPC timeout/unavailable | Deliver the unvalidated content with `personality_validated=false` recorded, using a hardcoded minimal-safe default style (plain, unstyled text) — never silence (Doc 22 Principle 3; Master Blueprint Risk §11.7). Logged as a degraded-mode event for observability. |
 | `ai_model.transcribe`/`synthesize` failure after fallback chain exhausted | Voice channel: deliver a short, honest text-channel-style notice ("voice temporarily unavailable") through the same session if a text-capable adapter is available, else mark the turn failed and surface it in the session state; never a silent drop. |
 | Session write (Postgres) failure | Reject the triggering action with an explicit error — never proceed with an unpersisted state transition (violates §3.5's restart-recovery guarantee). |
-| Channel Adapter disconnects mid-`Speaking` | Session transitions to `Paused` (§3.1), in-flight `synthesize` stream cancelled, resumable via `Resume Conversation`. |
+| Channel Adapter disconnects mid-`Speaking` | Session transitions to `Paused` (§3.1), further per-chunk `synthesize` calls stopped, resumable via `Resume Conversation`. |
 | Process crash mid-session | §3.5 — synchronous writes mean recovery reconstructs the session up to its last completed transition; the in-flight turn at crash time is the only possible loss, and it is the *inbound* side only if the crash occurred before that turn was persisted (write-before-process ordering, per §3.5). |
 
 ## 10. Data model — `communication` Postgres schema
@@ -520,7 +541,8 @@ contracts module (`executive.*`, `reasoning.*`, `ai_model.*`).
 
 New `ai-model-orchestration-engine` contracts (§0.3, additive to the existing
 `ai_model.*` set): `ai_model.transcribe.request` / `.reply`,
-`ai_model.synthesize.request` / `.reply` (streaming reply).
+`ai_model.synthesize.request` / `.reply` — both non-streaming, called once per
+response chunk to achieve perceived streaming (§0.3, §4).
 
 ## 12. APIs exposed
 
@@ -548,13 +570,15 @@ later doesn't require a schema change.
 Per Master Blueprint Risk §11.1: the full path from inbound audio to first
 audible response byte stacks Transport VAD → `ai_model.transcribe` →
 lifecycle pipeline → `communication.intent` gate (including the
-`personality.validate_response` RPC) → `ai_model.synthesize` (first chunk). Two
-required mitigations, both acceptance criteria for this phase, not future
-optimizations:
+`personality.validate_response` RPC) → `ai_model.synthesize` (first chunk's
+call). Two required mitigations, both acceptance criteria for this phase, not
+future optimizations:
 
-1. **Streaming throughout** (§4) — `synthesize`'s first audio chunk is returned
-   before the full response text exists to synthesize, and delivery to the
-   Channel Adapter streams that chunk immediately.
+1. **Chunked calls, not one call for the whole response** (§4) — the first
+   response chunk (sentence/phrase) is sent to `ai_model.synthesize` and its
+   audio delivered to the Channel Adapter as soon as it's available, before
+   later chunks of the response even exist yet, achieving the same perceived
+   immediacy a transport-level stream would.
 2. **Fast-path acknowledgments** — short, low-stakes acknowledgment content (e.g.
    backchannel responses) may skip the full `personality.validate_response` round
    trip using a pre-validated, cached minimal style profile (`personality-engine`
