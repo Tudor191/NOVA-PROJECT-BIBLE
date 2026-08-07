@@ -77,16 +77,132 @@ to stay current as part of Definition of Done — "responsibility, owned events,
 APIs" — and is linted in CI for staleness (a script flags READMEs whose event lists
 don't match `events/published.py`/`subscribed.py`).
 
-## 8. Design review process for new engines/major changes
+## 8. The permanent subsystem lifecycle
+
+Per explicit user directive, established at the Phase 2D-A checkpoint immediately
+following the AI Model Orchestration speech extension's approval, and stated by the
+user as binding on **every future engine, subsystem, or major architectural
+component of NOVA, permanently**: no implementation ever begins immediately after a
+roadmap milestone. Every subsystem follows the same fixed sequence, with no step
+skipped and no step reordered:
+
+1. **Roadmap** — the phase/sub-phase entry in
+   [`ENGINEERING_ROADMAP.md`](../roadmap/ENGINEERING_ROADMAP.md).
+2. **Blueprint** (if required) — a master architectural blueprint one level above any
+   individual engine's TDD, for work spanning multiple engines or a new phase family
+   (the [Phase 2D Master Architectural Blueprint](../design/phase-2d/00-master-blueprint.md)
+   is the precedent).
+3. **Human/philosophical documents** (if required) — permanent, non-technical
+   governing documents a subsystem must be faithful to (the precedent:
+   [Doc 22](22-nova-human-interaction-principles.md),
+   [Doc 23](23-nova-personality-specification.md)).
+4. **Technical Design Document (TDD)** — one per engine/subsystem, structured per
+   [§9's required contents](#9-per-subsystem-deliverable-checklist) below.
+5. **User's explicit approval** of the TDD — implementation may not begin before this.
+6. **Implementation**, built layer by layer.
+7. **Continuous testing** — each layer tested before the next layer begins, not
+   deferred to the end.
+8. **Architecture Review** (the subsystem's Architecture Review Report).
+9. **Gate Review** (Go/No-Go, per the standing requirement established at the Phase 1
+   Gate Review).
+10. **Engineering Metrics** (per [§10 below](#10-project-metrics--the-sloc-milestone-gate),
+    reported in every completion checkpoint, not only at phase boundaries).
+11. **User's final approval.**
+12. **Only then** does work proceed to the next subsystem.
+
+This is the same discipline every phase from Phase 1 onward has already been held
+to in practice (Phase 1's four-document design package approved before
+implementation; Phase 2B and 2C's TDDs pending explicit approval before code;
+Phase 2D's blueprint-then-Doc-22-then-Doc-23-then-TDD sequence) — recorded here as
+an explicit, permanent rule rather than an inferred pattern, so it applies uniformly
+to every future subsystem without needing to be re-derived from precedent each time.
+"Blueprint" and "human/philosophical documents" are the only optional steps, and
+only when the user's own directive establishing the phase says they're not
+required (e.g., a small, single-engine extension within an already-blueprinted
+phase, like the AI Model Orchestration speech extension inside Phase 2D-A, does not
+need its own new blueprint) — every other step is mandatory for every subsystem.
 
 For anything at the scale of a new engine or a change to an ADR in
-[00](00-overview-and-decisions.md), a short design doc (problem, options considered,
-decision, Bible traceability) is required before implementation starts, reviewed
-async via PR against `docs/architecture/proposals/` — keeping the SAD a living document
-rather than a one-time artifact, per Part 1's expectation that the architecture "evolve
-continuously for many years" without requiring fundamental redesigns.
+[00](00-overview-and-decisions.md), the TDD step above **is** the short design doc
+(problem, options considered, decision, Bible traceability) — reviewed async via PR
+against `docs/architecture/proposals/` if the change is smaller than a full engine —
+keeping the SAD a living document rather than a one-time artifact, per Part 1's
+expectation that the architecture "evolve continuously for many years" without
+requiring fundamental redesigns.
 
 ## 9. Per-Subsystem Deliverable Checklist
+
+### 9.0 Required Technical Design Document contents
+
+Per explicit user directive, established at the same Phase 2D-A checkpoint as
+[§8](#8-the-permanent-subsystem-lifecycle) above: every future TDD must define, at
+minimum, each of the following. This is the canonical checklist every future TDD is
+reviewed against before it may be approved — earlier phases' TDDs (Phase 1 through
+Phase 2D-A) satisfy nearly all of it already by precedent (see, e.g.,
+[`00-executive-cognition-engine.md`](../design/phase-2c/00-executive-cognition-engine.md)'s
+numbered-section shape); this makes that shape an explicit, permanent requirement
+rather than an inferred convention, and adds the items below that earlier TDDs
+covered unevenly:
+
+1. Overall architecture
+2. Core responsibilities
+3. Responsibilities that explicitly do **not** belong to the subsystem
+4. Internal execution flow
+5. Complete data flow
+6. Domain model
+7. State transitions
+8. APIs
+9. Event Bus RPCs
+10. Published events
+11. Consumed events
+12. Database schema
+13. Repository layer
+14. Dependency boundaries
+15. ADR compliance
+16. Bible compliance
+17. [Human Interaction Principles](22-nova-human-interaction-principles.md)
+    compliance (where applicable)
+18. [Personality Specification](23-nova-personality-specification.md) compliance
+    (where applicable)
+19. Failure handling
+20. Recovery mechanisms
+21. Observability
+22. Logging strategy
+23. Metrics
+24. Performance goals
+25. Security considerations
+26. Scalability considerations
+27. Testing strategy
+28. Future extension points
+29. Known limitations
+30. Technical debt
+31. Architectural risks
+32. Tradeoffs
+33. Explicit implementation order
+
+Standing rules that apply throughout implementation, not only at the TDD-writing
+stage:
+
+- **Layer by layer, tested before the next layer begins** — per
+  [§8](#8-the-permanent-subsystem-lifecycle), this is not a suggestion; a layer
+  without passing tests is not a complete layer.
+- **Stop and explain before deviating from the approved design.** If a better
+  architectural solution is discovered during implementation, implementation pauses
+  and the alternative is explained to the user before any change is made — the
+  existing rule this project has followed since Phase 2A, restated here as
+  permanent and universal.
+- **Never hide technical debt, architectural limitations, or implementation
+  compromises.** Every completion report names them explicitly, the same honesty
+  standard this project's Architecture Review Reports have already applied since
+  Phase 1.
+- **Subjective experience quality is a first-class requirement.** Per
+  [ADR-031](adr/ADR-031-subjective-experience-quality-is-a-first-class-requirement.md):
+  whenever multiple implementations satisfy the requirements, prefer the one that
+  produces the most natural, responsive, and consistent user experience, while
+  remaining faithful to the approved architecture — never a license to deviate from
+  it.
+
+### 9.1 The ten-item build-time deliverable checklist
 
 Per explicit user directive starting with Phase 1: **documentation, tests, and
 observability are part of the implementation, not something added afterward.** No
@@ -152,6 +268,23 @@ Breakdown, Architecture Metrics, Quality Metrics, Growth Metrics, Complexity Met
 and for how "Production SLOC" is precisely scoped (`src/` application code + Alembic
 schema migrations; tooling scripts, tests, generated clients, and documentation are
 each reported separately, never folded into this number).
+
+**The 30,000 SLOC reminder.** Per explicit user directive, established at the same
+Phase 2D-A checkpoint as [§8](#8-the-permanent-subsystem-lifecycle) and
+[§9.0](#90-required-technical-design-document-contents): when cumulative Production
+SLOC first reaches approximately 30,000, the phase's completion report must
+explicitly remind the user that it is time to consider a full **Project Health
+Review** before continuing significant feature development — covering
+architecture, maintainability, duplication, complexity, performance, dependency
+health, and long-term scalability. Unlike the 50,000 SLOC gate below, this is a
+**reminder, not an automatic pause** — the user decides whether to act on it
+immediately or continue; the obligation is to surface the reminder clearly and
+say so plainly in that phase's own Project Metrics section, not to block work
+pending a response. If the Project Health Review is conducted at this point, it
+satisfies (and need not be repeated for) the 50,000 SLOC gate's Engineering
+Review Milestone below, provided its scope already covers that milestone's
+twelve items; if it does not, the 50,000 SLOC gate still applies independently
+when reached.
 
 **The 50,000 SLOC gate.** When cumulative Production SLOC reaches approximately
 50,000, feature development pauses automatically — no phase may begin new feature

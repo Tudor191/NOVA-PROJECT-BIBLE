@@ -60,6 +60,7 @@ next unused number, regardless of which subsystem they originate from.
 | [028](ADR-028-executive-cognition-defers-to-specialized-engine-authority.md) | Executive Cognition is policy-driven, not intelligence-driven: specialized engines are epistemically authoritative in their own domain | Executive Cognition Engine (Phase 2C); binding on its design doc and every subsequent implementation decision |
 | [029](ADR-029-executive-cognition-optimizes-long-term-user-objectives.md) | Executive Cognition arbitration optimizes for the user's long-term objectives, not only the current request | Executive Cognition Engine (Phase 2C); operationalizes ADR-025's Priority 1 (Personal Intelligence) |
 | [030](ADR-030-personality-stores-digital-twin-learns.md) | Personality Engine stores and applies resolved preferences; Digital Twin Engine is the sole epistemic learner | `personality-engine` (Phase 2D-A), `digital-twin-engine` (Phase 2D-D); binding on both engines' TDDs and every subsequent implementation decision |
+| [031](ADR-031-subjective-experience-quality-is-a-first-class-requirement.md) | Subjective experience quality (natural, responsive, consistent) is a first-class requirement and standing tiebreaker among architecture-compliant implementation options | NOVA-wide; binding on every engine, every phase, from this point forward — generalizes Master Blueprint §13.2's latency-specific instance |
 
 See also: [Phase 1 Architecture Review Report](../../roadmap/architecture-reviews/phase-1-data-memory-substrate.md)
 and [Doc 20 — Engine Responsibility Boundaries](../20-engine-responsibility-boundaries.md),
@@ -82,3 +83,7 @@ written. ADR-030 was filed after both Phase 2D-A TDDs (`communication-engine`,
 Blueprint originally committed to — a sequencing deviation the ADR itself records
 honestly (its own "Process note") rather than silently correcting; the boundary it
 formalizes was never actually violated in either TDD, only the filing order.
+ADR-031 was added after approving the AI Model Orchestration speech extension and
+authorizing continued Phase 2D-A implementation, per explicit user directive
+generalizing Master Blueprint §13.2's latency-specific principle into a permanent,
+NOVA-wide standing rule.

@@ -79,6 +79,10 @@ embedded-line count rather than silently reporting zero.
 ## Architecture Metrics
 
 - Number of modules (report both: first-party packages, and source files within them)
+- Number of engines (cognitive/domain services under `services/` specifically —
+  e.g. `memory-engine`, `reasoning-engine`, `ai-model-orchestration-engine` —
+  distinct from the broader "Number of services" below, which also counts
+  gateways/infra services that aren't engines in the Bible's sense)
 - Number of services (deployable services vs. shared packages, reported separately)
 - Number of APIs (HTTP REST endpoints and event-bus-facing contracts, reported
   separately — they are different kinds of "API")
@@ -118,7 +122,11 @@ embedded-line count rather than silently reporting zero.
 
 **Report cumulative Production SLOC against the 50,000 milestone explicitly** (current
 value, percentage of threshold) every phase, even when nowhere close — this is what
-makes the milestone a checked gate rather than something watched for informally.
+makes the milestone a checked gate rather than something watched for informally. Per
+[SAD 15 §10](../../architecture/15-development-workflow.md#10-project-metrics--the-sloc-milestone-gate),
+also report progress against the earlier **30,000 SLOC Project Health Review
+reminder** the same way — and the first phase report to cross that threshold must
+include the explicit reminder text SAD 15 §10 requires, not just the number.
 
 ## Complexity Metrics
 

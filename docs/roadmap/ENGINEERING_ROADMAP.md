@@ -23,11 +23,28 @@ order), not breadth of generic configurability.
 completion, gets a formal Architecture Gate Review (architecture assessment, risk/debt/
 scalability/security/reliability analysis, consistency reviews, dependency and SOLID/
 DDD/Bible compliance verification, and a final Go/No-Go) before the next phase begins,
-plus the thirteen [engineering metrics](architecture-reviews/METRICS_TEMPLATE.md)
-(SLOC, module/API/test counts, coverage, ADR count, static analysis, dependency graph,
-performance/memory/startup — measured, never estimated). Filed in
+plus the full [engineering metrics](architecture-reviews/METRICS_TEMPLATE.md) set
+(Production/total SLOC and percentage toward the 30,000/50,000 SLOC milestones,
+module/service/engine/API/Event-Bus-subject/database-table counts, test counts and
+coverage, ADR count, complexity and dependency metrics, ruff/mypy/import-linter
+status — measured, never estimated). Filed in
 `docs/roadmap/architecture-reviews/phase-N-gate-review.md`, alongside that phase's own
 Architecture Review Report.
+
+**Standing requirement, established at the Phase 2D-A checkpoint (per
+[SAD 15 §8](../architecture/15-development-workflow.md#8-the-permanent-subsystem-lifecycle)):**
+no subsystem's implementation ever begins immediately after a roadmap milestone.
+Every engine, subsystem, or major architectural component follows the same fixed
+sequence — Roadmap → Blueprint (if required) → Human/philosophical documents (if
+required) → Technical Design Document → the user's explicit approval →
+Implementation, layer by layer, each layer tested before the next begins →
+Architecture Review → Gate Review → Engineering Metrics → the user's final approval
+→ only then the next subsystem. Every TDD is structured per
+[SAD 15 §9.0](../architecture/15-development-workflow.md#90-required-technical-design-document-contents)'s
+required contents. Whenever multiple implementations satisfy a requirement equally,
+[ADR-031](../architecture/adr/ADR-031-subjective-experience-quality-is-a-first-class-requirement.md)
+requires preferring the one that produces the most natural, responsive, and
+consistent user experience, without deviating from the approved architecture.
 
 Complexity is rated Low / Medium / High / Very High, reflecting engineering effort and
 architectural risk combined, not calendar time (calendar time depends on team size,
