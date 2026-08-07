@@ -217,6 +217,129 @@ class SynthesizeReplyPayload(BaseModel):
     schema_version: int = 1
 
 
+@register_payload("ai_model.detect_wake_phrase.request")
+class WakePhraseDetectRequestPayload(BaseModel):
+    """Event Bus RPC for wake-phrase detection (docs/design/phase-2d/
+    03-perception-engine.md §0.2) -- `perception-engine`'s only legal path to a
+    wake-word-spotting model, per ADR-020. Non-streaming: one bounded audio
+    window per call, the same "caller owns chunking" boundary
+    `TranscribeRequestPayload` already keeps."""
+
+    model_config = _AUDIO_BYTES_CONFIG
+
+    audio_bytes: bytes
+    audio_format: Literal["wav", "opus", "pcm16"] = "wav"
+    wake_phrase: str | None = None
+    """Connector-specific phrase identifier, optional -- `None` selects the
+    connector's own configured default phrase (mirrors `SynthesizeRequestPayload.
+    voice_profile`'s opaque-label convention)."""
+    privacy_hint: PrivacyLevel = PrivacyLevel.INTERNAL
+    requesting_engine: str
+    correlation_id: UUID
+    schema_version: int = 1
+
+
+@register_payload("ai_model.detect_wake_phrase.reply")
+class WakePhraseDetectReplyPayload(BaseModel):
+    matched: bool
+    structural_confidence: float
+    model_id: UUID
+    provider: str
+    error: str | None = None
+    """Set only when detection failed (the fallback chain was exhausted) --
+    `matched` is `False` in that case (added additively per ADR-024)."""
+    schema_version: int = 1
+
+
+@register_payload("ai_model.embed_voice.request")
+class VoiceEmbedRequestPayload(BaseModel):
+    """Event Bus RPC for voiceprint extraction (docs/design/phase-2d/
+    03-perception-engine.md §0.2) -- `perception-engine`'s only legal path to a
+    speaker-embedding model, per ADR-020. Distinct from `ai_model.embed` (text
+    embedding, §10 of the Phase 2A design doc): a voice embedding takes raw
+    audio, never text, and the two are never interchangeable."""
+
+    model_config = _AUDIO_BYTES_CONFIG
+
+    audio_bytes: bytes
+    audio_format: Literal["wav", "opus", "pcm16"] = "wav"
+    privacy_hint: PrivacyLevel = PrivacyLevel.INTERNAL
+    requesting_engine: str
+    correlation_id: UUID
+    schema_version: int = 1
+
+
+@register_payload("ai_model.embed_voice.reply")
+class VoiceEmbedReplyPayload(BaseModel):
+    embedding: list[float]
+    model_id: UUID
+    provider: str
+    error: str | None = None
+    """Set only when embedding failed (the fallback chain was exhausted) --
+    `embedding` is empty in that case (added additively per ADR-024)."""
+    schema_version: int = 1
+
+
+@register_payload("ai_model.embed_face.request")
+class FaceEmbedRequestPayload(BaseModel):
+    """Event Bus RPC for faceprint extraction (docs/design/phase-2d/
+    03-perception-engine.md §0.2) -- `perception-engine`'s only legal path to a
+    face-embedding model, per ADR-020. `image_bytes` carries one already-detected
+    face crop, never a full frame -- face detection itself is this connector's
+    own concern (mirrors `TranscribeRequestPayload`'s "caller decides utterance
+    boundaries" boundary, applied here to face-region boundaries instead)."""
+
+    model_config = _AUDIO_BYTES_CONFIG
+
+    image_bytes: bytes
+    image_format: Literal["jpeg", "png"] = "jpeg"
+    privacy_hint: PrivacyLevel = PrivacyLevel.INTERNAL
+    requesting_engine: str
+    correlation_id: UUID
+    schema_version: int = 1
+
+
+@register_payload("ai_model.embed_face.reply")
+class FaceEmbedReplyPayload(BaseModel):
+    embedding: list[float]
+    model_id: UUID
+    provider: str
+    error: str | None = None
+    """Set only when embedding failed (the fallback chain was exhausted) --
+    `embedding` is empty in that case (added additively per ADR-024)."""
+    schema_version: int = 1
+
+
+@register_payload("ai_model.estimate_gaze.request")
+class GazeEstimateRequestPayload(BaseModel):
+    """Event Bus RPC for gaze/attention estimation (docs/design/phase-2d/
+    03-perception-engine.md §0.2) -- `perception-engine`'s only legal path to a
+    gaze-estimation model, per ADR-020. `image_bytes` carries one already-detected
+    face crop, the same boundary as `FaceEmbedRequestPayload`."""
+
+    model_config = _AUDIO_BYTES_CONFIG
+
+    image_bytes: bytes
+    image_format: Literal["jpeg", "png"] = "jpeg"
+    privacy_hint: PrivacyLevel = PrivacyLevel.INTERNAL
+    requesting_engine: str
+    correlation_id: UUID
+    schema_version: int = 1
+
+
+@register_payload("ai_model.estimate_gaze.reply")
+class GazeEstimateReplyPayload(BaseModel):
+    gaze_direction: Literal["toward_device", "away", "unknown"]
+    structural_confidence: float
+    model_id: UUID
+    provider: str
+    error: str | None = None
+    """Set only when estimation failed (the fallback chain was exhausted) --
+    `gaze_direction` is `"unknown"` in that case (added additively per
+    ADR-024)."""
+    schema_version: int = 1
+
+
 @register_payload("ai_model.request.completed")
 class RequestCompletedPayload(BaseModel):
     """Published after every successful (including fallback-recovered) request

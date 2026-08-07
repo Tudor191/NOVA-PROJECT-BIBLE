@@ -21,6 +21,10 @@ from pydantic import BaseModel
 from nova_ai_model_orchestration_engine.domain.models import (
     Budget,
     ConnectorHealth,
+    FaceEmbedRequest,
+    FaceEmbedResult,
+    GazeEstimateRequest,
+    GazeEstimateResult,
     GenerateRequest,
     GenerateResult,
     ModelDescriptor,
@@ -29,6 +33,10 @@ from nova_ai_model_orchestration_engine.domain.models import (
     TranscribeRequest,
     TranscribeResult,
     UsageRecord,
+    VoiceEmbedRequest,
+    VoiceEmbedResult,
+    WakePhraseRequest,
+    WakePhraseResult,
 )
 
 __all__ = [
@@ -102,6 +110,29 @@ class ModelConnector(Protocol):
         (sentence/phrase) as content becomes available, not by streaming a
         single call's transport, which the current `EventBus.request()`
         primitive (a single `EventEnvelope` reply) cannot carry."""
+        ...
+
+    async def detect_wake_phrase(self, request: WakePhraseRequest) -> WakePhraseResult:
+        """Wake-phrase detection (docs/design/phase-2d/03-perception-engine.md
+        §0.2). Raises `NotSupportedError` for every connector that isn't a
+        dedicated wake-word-spotting provider -- the same explicit-not-silent
+        pattern `transcribe()` follows for a non-STT connector."""
+        ...
+
+    async def embed_voice(self, request: VoiceEmbedRequest) -> VoiceEmbedResult:
+        """Voiceprint extraction (§0.2). Raises `NotSupportedError` for every
+        connector that isn't a dedicated speaker-embedding provider. Distinct
+        from `embed()` (text embedding) -- never interchangeable."""
+        ...
+
+    async def embed_face(self, request: FaceEmbedRequest) -> FaceEmbedResult:
+        """Faceprint extraction (§0.2). Raises `NotSupportedError` for every
+        connector that isn't a dedicated face-embedding provider."""
+        ...
+
+    async def estimate_gaze(self, request: GazeEstimateRequest) -> GazeEstimateResult:
+        """Gaze/attention estimation (§0.2). Raises `NotSupportedError` for
+        every connector that isn't a dedicated gaze-estimation provider."""
         ...
 
     async def health(self) -> ConnectorHealth: ...

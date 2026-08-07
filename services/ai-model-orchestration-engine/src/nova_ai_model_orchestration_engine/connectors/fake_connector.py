@@ -8,10 +8,15 @@ connector is in use (SAD 06 §6's `test_connector_swap.py` requirement).
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
+from typing import Literal
 
 from nova_ai_model_orchestration_engine.domain.models import (
     AudioChunk,
     ConnectorHealth,
+    FaceEmbedRequest,
+    FaceEmbedResult,
+    GazeEstimateRequest,
+    GazeEstimateResult,
     GenerateChunk,
     GenerateRequest,
     GenerateResult,
@@ -20,6 +25,10 @@ from nova_ai_model_orchestration_engine.domain.models import (
     ToolCall,
     TranscribeRequest,
     TranscribeResult,
+    VoiceEmbedRequest,
+    VoiceEmbedResult,
+    WakePhraseRequest,
+    WakePhraseResult,
 )
 from nova_ai_model_orchestration_engine.domain.ports import NotSupportedError
 
@@ -36,14 +45,20 @@ class FakeConnector:
         should_fail: bool = False,
         supports_embedding: bool = True,
         supports_speech: bool = True,
+        supports_biometrics: bool = True,
         transcript_text: str = "this is a fake transcript",
+        wake_phrase_matches: bool = True,
+        gaze_direction: Literal["toward_device", "away", "unknown"] = "toward_device",
         available: bool = True,
     ) -> None:
         self.response_text = response_text
         self.should_fail = should_fail
         self.supports_embedding = supports_embedding
         self.supports_speech = supports_speech
+        self.supports_biometrics = supports_biometrics
         self.transcript_text = transcript_text
+        self.wake_phrase_matches = wake_phrase_matches
+        self.gaze_direction = gaze_direction
         self.available = available
         self.calls = 0
 
@@ -111,6 +126,42 @@ class FakeConnector:
         for word in request.text.split():
             yield AudioChunk(delta_audio_bytes=word.encode("utf-8"))
         yield AudioChunk(finished=True)
+
+    async def detect_wake_phrase(self, request: WakePhraseRequest) -> WakePhraseResult:
+        if not self.supports_biometrics:
+            raise NotSupportedError(self.connector_type, "wake_phrase_detection")
+        if self.should_fail:
+            raise RuntimeError("FakeConnector configured to fail")
+        return WakePhraseResult(matched=self.wake_phrase_matches, structural_confidence=1.0)
+
+    async def embed_voice(self, request: VoiceEmbedRequest) -> VoiceEmbedResult:
+        if not self.supports_biometrics:
+            raise NotSupportedError(self.connector_type, "voice_embedding")
+        if self.should_fail:
+            raise RuntimeError("FakeConnector configured to fail")
+        # Deterministic, content-derived "embedding" -- the same fidelity
+        # standard as the fake text-embedding vectors above.
+        return VoiceEmbedResult(
+            embedding=[float(len(request.audio_bytes)), float(sum(request.audio_bytes) % 997)],
+            structural_confidence=1.0,
+        )
+
+    async def embed_face(self, request: FaceEmbedRequest) -> FaceEmbedResult:
+        if not self.supports_biometrics:
+            raise NotSupportedError(self.connector_type, "face_embedding")
+        if self.should_fail:
+            raise RuntimeError("FakeConnector configured to fail")
+        return FaceEmbedResult(
+            embedding=[float(len(request.image_bytes)), float(sum(request.image_bytes) % 997)],
+            structural_confidence=1.0,
+        )
+
+    async def estimate_gaze(self, request: GazeEstimateRequest) -> GazeEstimateResult:
+        if not self.supports_biometrics:
+            raise NotSupportedError(self.connector_type, "gaze_estimation")
+        if self.should_fail:
+            raise RuntimeError("FakeConnector configured to fail")
+        return GazeEstimateResult(gaze_direction=self.gaze_direction, structural_confidence=1.0)
 
     async def health(self) -> ConnectorHealth:
         return ConnectorHealth(available=self.available, latency_ms=1.0, error_rate=0.0)

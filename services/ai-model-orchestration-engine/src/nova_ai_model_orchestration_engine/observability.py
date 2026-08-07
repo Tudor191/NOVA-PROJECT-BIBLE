@@ -30,6 +30,15 @@ class AiModelOrchestrationEngineMetrics:
     principle is checked against, so it gets its own dashboard-visible metric
     from day one, the same standard `generate`/`embed` are already held to."""
 
+    wake_phrase_request_duration_seconds: Histogram
+    voice_embed_request_duration_seconds: Histogram
+    face_embed_request_duration_seconds: Histogram
+    gaze_estimate_request_duration_seconds: Histogram
+    """Same explicit-measurement standard as speech, per docs/design/phase-2d/
+    03-perception-engine.md §17 -- this engine's own contribution to that
+    document's continuous-reassessment cadence and wake-phrase-detection
+    latency budgets is directly this histogram, not a derived estimate."""
+
     requests_total: Counter
     """Labeled by `outcome` (`success` | `fallback` | `failed`)."""
 
@@ -76,6 +85,26 @@ def create_metrics() -> AiModelOrchestrationEngineMetrics:
         synthesize_request_duration_seconds=meter.create_histogram(
             "ai_model_orchestration_engine_synthesize_request_duration_seconds",
             description="End-to-end latency of a routed text-to-speech request.",
+            unit="s",
+        ),
+        wake_phrase_request_duration_seconds=meter.create_histogram(
+            "ai_model_orchestration_engine_wake_phrase_request_duration_seconds",
+            description="End-to-end latency of a routed wake-phrase-detection request.",
+            unit="s",
+        ),
+        voice_embed_request_duration_seconds=meter.create_histogram(
+            "ai_model_orchestration_engine_voice_embed_request_duration_seconds",
+            description="End-to-end latency of a routed voice-embedding request.",
+            unit="s",
+        ),
+        face_embed_request_duration_seconds=meter.create_histogram(
+            "ai_model_orchestration_engine_face_embed_request_duration_seconds",
+            description="End-to-end latency of a routed face-embedding request.",
+            unit="s",
+        ),
+        gaze_estimate_request_duration_seconds=meter.create_histogram(
+            "ai_model_orchestration_engine_gaze_estimate_request_duration_seconds",
+            description="End-to-end latency of a routed gaze-estimation request.",
             unit="s",
         ),
         requests_total=meter.create_counter(

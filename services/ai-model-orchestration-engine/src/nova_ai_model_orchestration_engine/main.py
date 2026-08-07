@@ -23,6 +23,10 @@ from nova_contracts import (
     EmbedReplyPayload,
     EmbedRequestPayload,
     EventEnvelope,
+    FaceEmbedReplyPayload,
+    FaceEmbedRequestPayload,
+    GazeEstimateReplyPayload,
+    GazeEstimateRequestPayload,
     GenerateReplyPayload,
     GenerateRequestPayload,
     SynthesizeReplyPayload,
@@ -30,27 +34,39 @@ from nova_contracts import (
     ToolCallPayload,
     TranscribeReplyPayload,
     TranscribeRequestPayload,
+    VoiceEmbedReplyPayload,
+    VoiceEmbedRequestPayload,
+    WakePhraseDetectReplyPayload,
+    WakePhraseDetectRequestPayload,
 )
 from nova_eventbus_sdk import BoundEventBus, get_event_bus
 from nova_observability import configure_observability, get_logger, prometheus_asgi_app
 
 from nova_ai_model_orchestration_engine.api.embed import router as embed_router
+from nova_ai_model_orchestration_engine.api.face_embed import router as face_embed_router
+from nova_ai_model_orchestration_engine.api.gaze_estimate import router as gaze_estimate_router
 from nova_ai_model_orchestration_engine.api.generate import router as generate_router
 from nova_ai_model_orchestration_engine.api.health import router as health_router
 from nova_ai_model_orchestration_engine.api.models import router as models_router
 from nova_ai_model_orchestration_engine.api.synthesize import router as synthesize_router
 from nova_ai_model_orchestration_engine.api.transcribe import router as transcribe_router
 from nova_ai_model_orchestration_engine.api.usage import router as usage_router
+from nova_ai_model_orchestration_engine.api.voice_embed import router as voice_embed_router
+from nova_ai_model_orchestration_engine.api.wake_phrase import router as wake_phrase_router
 from nova_ai_model_orchestration_engine.config import Settings
 from nova_ai_model_orchestration_engine.connectors.factory import ConnectorFactory
 from nova_ai_model_orchestration_engine.domain import router as routing
 from nova_ai_model_orchestration_engine.domain.fallback import FallbackExhaustedError
 from nova_ai_model_orchestration_engine.domain.models import (
     ContextComponent,
+    FaceEmbedRequest,
+    GazeEstimateRequest,
     GenerateRequest,
     SynthesizeRequest,
     ToolSchema,
     TranscribeRequest,
+    VoiceEmbedRequest,
+    WakePhraseRequest,
 )
 from nova_ai_model_orchestration_engine.domain.ports import (
     ModelRegistryRepository,
@@ -247,6 +263,149 @@ def _make_synthesize_request_handler(app: FastAPI):  # type: ignore[no-untyped-d
     return handle
 
 
+def _make_detect_wake_phrase_request_handler(app: FastAPI):  # type: ignore[no-untyped-def]
+    async def handle(envelope: EventEnvelope) -> WakePhraseDetectReplyPayload:
+        state = app.state
+        payload = WakePhraseDetectRequestPayload.model_validate(envelope.payload)
+        domain_request = WakePhraseRequest(
+            audio_bytes=payload.audio_bytes,
+            audio_format=payload.audio_format,
+            wake_phrase=payload.wake_phrase,
+            privacy_hint=payload.privacy_hint,
+            requesting_engine=payload.requesting_engine,
+            correlation_id=payload.correlation_id,
+        )
+        models = await state.registry_repository.list_all()
+        try:
+            model, result = await routing.detect_wake_phrase_and_record(
+                domain_request,
+                models,
+                get_connector=state.connector_factory.get_connector,
+                usage_repository=state.usage_repository,
+            )
+        except FallbackExhaustedError as exc:
+            state.metrics.requests_total.add(1, {"outcome": "failed"})
+            return WakePhraseDetectReplyPayload(
+                matched=False,
+                structural_confidence=0.0,
+                model_id=UUID(int=0),
+                provider="unknown",
+                error=str(exc),
+            )
+        state.metrics.requests_total.add(1, {"outcome": "success"})
+        return WakePhraseDetectReplyPayload(
+            matched=result.matched,
+            structural_confidence=result.structural_confidence,
+            model_id=model.id,
+            provider=model.provider,
+        )
+
+    return handle
+
+
+def _make_embed_voice_request_handler(app: FastAPI):  # type: ignore[no-untyped-def]
+    async def handle(envelope: EventEnvelope) -> VoiceEmbedReplyPayload:
+        state = app.state
+        payload = VoiceEmbedRequestPayload.model_validate(envelope.payload)
+        domain_request = VoiceEmbedRequest(
+            audio_bytes=payload.audio_bytes,
+            audio_format=payload.audio_format,
+            privacy_hint=payload.privacy_hint,
+            requesting_engine=payload.requesting_engine,
+            correlation_id=payload.correlation_id,
+        )
+        models = await state.registry_repository.list_all()
+        try:
+            model, result = await routing.embed_voice_and_record(
+                domain_request,
+                models,
+                get_connector=state.connector_factory.get_connector,
+                usage_repository=state.usage_repository,
+            )
+        except FallbackExhaustedError as exc:
+            state.metrics.requests_total.add(1, {"outcome": "failed"})
+            return VoiceEmbedReplyPayload(
+                embedding=[], model_id=UUID(int=0), provider="unknown", error=str(exc)
+            )
+        state.metrics.requests_total.add(1, {"outcome": "success"})
+        return VoiceEmbedReplyPayload(
+            embedding=result.embedding, model_id=model.id, provider=model.provider
+        )
+
+    return handle
+
+
+def _make_embed_face_request_handler(app: FastAPI):  # type: ignore[no-untyped-def]
+    async def handle(envelope: EventEnvelope) -> FaceEmbedReplyPayload:
+        state = app.state
+        payload = FaceEmbedRequestPayload.model_validate(envelope.payload)
+        domain_request = FaceEmbedRequest(
+            image_bytes=payload.image_bytes,
+            image_format=payload.image_format,
+            privacy_hint=payload.privacy_hint,
+            requesting_engine=payload.requesting_engine,
+            correlation_id=payload.correlation_id,
+        )
+        models = await state.registry_repository.list_all()
+        try:
+            model, result = await routing.embed_face_and_record(
+                domain_request,
+                models,
+                get_connector=state.connector_factory.get_connector,
+                usage_repository=state.usage_repository,
+            )
+        except FallbackExhaustedError as exc:
+            state.metrics.requests_total.add(1, {"outcome": "failed"})
+            return FaceEmbedReplyPayload(
+                embedding=[], model_id=UUID(int=0), provider="unknown", error=str(exc)
+            )
+        state.metrics.requests_total.add(1, {"outcome": "success"})
+        return FaceEmbedReplyPayload(
+            embedding=result.embedding, model_id=model.id, provider=model.provider
+        )
+
+    return handle
+
+
+def _make_estimate_gaze_request_handler(app: FastAPI):  # type: ignore[no-untyped-def]
+    async def handle(envelope: EventEnvelope) -> GazeEstimateReplyPayload:
+        state = app.state
+        payload = GazeEstimateRequestPayload.model_validate(envelope.payload)
+        domain_request = GazeEstimateRequest(
+            image_bytes=payload.image_bytes,
+            image_format=payload.image_format,
+            privacy_hint=payload.privacy_hint,
+            requesting_engine=payload.requesting_engine,
+            correlation_id=payload.correlation_id,
+        )
+        models = await state.registry_repository.list_all()
+        try:
+            model, result = await routing.estimate_gaze_and_record(
+                domain_request,
+                models,
+                get_connector=state.connector_factory.get_connector,
+                usage_repository=state.usage_repository,
+            )
+        except FallbackExhaustedError as exc:
+            state.metrics.requests_total.add(1, {"outcome": "failed"})
+            return GazeEstimateReplyPayload(
+                gaze_direction="unknown",
+                structural_confidence=0.0,
+                model_id=UUID(int=0),
+                provider="unknown",
+                error=str(exc),
+            )
+        state.metrics.requests_total.add(1, {"outcome": "success"})
+        return GazeEstimateReplyPayload(
+            gaze_direction=result.gaze_direction,
+            structural_confidence=result.structural_confidence,
+            model_id=model.id,
+            provider=model.provider,
+        )
+
+    return handle
+
+
 def create_app(
     settings: Settings | None = None,
     *,
@@ -294,6 +453,10 @@ def create_app(
             anthropic_api_key=settings.anthropic_api_key or None,
             whisper_base_url=settings.whisper_base_url,
             piper_base_url=settings.piper_base_url,
+            wake_word_base_url=settings.wake_word_base_url,
+            voice_embedding_base_url=settings.voice_embedding_base_url,
+            face_embedding_base_url=settings.face_embedding_base_url,
+            gaze_estimation_base_url=settings.gaze_estimation_base_url,
             timeout_s=settings.connector_timeout_s,
         )
 
@@ -316,6 +479,26 @@ def create_app(
         await bus.serve(
             "ai_model.synthesize.request",
             _make_synthesize_request_handler(app),
+            source_engine="ai-model-orchestration-engine",
+        )
+        await bus.serve(
+            "ai_model.detect_wake_phrase.request",
+            _make_detect_wake_phrase_request_handler(app),
+            source_engine="ai-model-orchestration-engine",
+        )
+        await bus.serve(
+            "ai_model.embed_voice.request",
+            _make_embed_voice_request_handler(app),
+            source_engine="ai-model-orchestration-engine",
+        )
+        await bus.serve(
+            "ai_model.embed_face.request",
+            _make_embed_face_request_handler(app),
+            source_engine="ai-model-orchestration-engine",
+        )
+        await bus.serve(
+            "ai_model.estimate_gaze.request",
+            _make_estimate_gaze_request_handler(app),
             source_engine="ai-model-orchestration-engine",
         )
 
@@ -342,6 +525,10 @@ def create_app(
     fastapi_app.include_router(embed_router)
     fastapi_app.include_router(transcribe_router)
     fastapi_app.include_router(synthesize_router)
+    fastapi_app.include_router(wake_phrase_router)
+    fastapi_app.include_router(voice_embed_router)
+    fastapi_app.include_router(face_embed_router)
+    fastapi_app.include_router(gaze_estimate_router)
     fastapi_app.include_router(usage_router)
     fastapi_app.mount("/internal/metrics", prometheus_asgi_app())
     return fastapi_app

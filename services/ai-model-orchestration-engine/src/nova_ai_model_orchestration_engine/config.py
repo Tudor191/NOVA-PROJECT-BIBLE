@@ -45,6 +45,24 @@ class Settings(BaseSettings):
     """The default, zero-budget text-to-speech connector's endpoint (same
     provenance as `whisper_base_url` above)."""
 
+    wake_word_base_url: str = "http://localhost:8084"
+    """The default, zero-budget wake-phrase-detection connector's endpoint
+    (docs/design/phase-2d/03-perception-engine.md §0.2), the same
+    zero-budget-local-first default `whisper_base_url` already establishes for
+    speech."""
+
+    voice_embedding_base_url: str = "http://localhost:8085"
+    """The default, zero-budget speaker-embedding connector's endpoint (§0.2,
+    same provenance as `wake_word_base_url` above)."""
+
+    face_embedding_base_url: str = "http://localhost:8086"
+    """The default, zero-budget face-embedding connector's endpoint (§0.2,
+    same provenance)."""
+
+    gaze_estimation_base_url: str = "http://localhost:8087"
+    """The default, zero-budget gaze-estimation connector's endpoint (§0.2,
+    same provenance)."""
+
     connector_timeout_s: float = 60.0
 
     health_check_interval_seconds: int = 30

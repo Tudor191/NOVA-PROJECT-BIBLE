@@ -44,6 +44,10 @@ __all__ = [
     "CapabilityScores",
     "ConnectorHealth",
     "ContextComponent",
+    "FaceEmbedRequest",
+    "FaceEmbedResult",
+    "GazeEstimateRequest",
+    "GazeEstimateResult",
     "GenerateChunk",
     "GenerateRequest",
     "GenerateResult",
@@ -59,16 +63,22 @@ __all__ = [
     "TranscribeRequest",
     "TranscribeResult",
     "UsageRecord",
+    "VoiceEmbedRequest",
+    "VoiceEmbedResult",
+    "WakePhraseRequest",
+    "WakePhraseResult",
 ]
 
 # Bible Part 7 "Model Capability Matrix" -- the twelve scored dimensions, plus
-# two added per docs/design/phase-2d/01-communication-engine.md §0.3: the
-# existing generic "speech" dimension scores a text-generation model's general
-# aptitude with speech-related conversation topics (Part 7's original twelve);
-# it is not a substitute for scoring a *dedicated* STT/TTS connector's actual
-# transcription accuracy or synthesis quality, which is what routing a
-# `speech_to_text`/`text_to_speech` request actually needs to compare
-# Whisper-class/Piper-class candidates against each other.
+# two added per docs/design/phase-2d/01-communication-engine.md §0.3 (speech),
+# plus four added per docs/design/phase-2d/03-perception-engine.md §0.2
+# (biometric/wake): the existing generic "speech"/"vision" dimensions score a
+# text-generation model's general aptitude with speech/vision-related
+# conversation topics (Part 7's original twelve); they are not a substitute for
+# scoring a *dedicated* connector's actual capability at one narrow task, which
+# is what routing a `speech_to_text`/`wake_phrase_detection`/`voice_embedding`/
+# `face_embedding`/`gaze_estimation` request actually needs to compare
+# purpose-built candidates against each other.
 CapabilityDimension = Literal[
     "general_conversation",
     "programming",
@@ -84,10 +94,23 @@ CapabilityDimension = Literal[
     "long_context",
     "speech_recognition_accuracy",
     "speech_synthesis_quality",
+    "wake_phrase_detection_accuracy",
+    "voice_embedding_quality",
+    "face_embedding_quality",
+    "gaze_estimation_accuracy",
 ]
 
 Modality = Literal[
-    "text_generation", "streaming", "embedding", "tool_calling", "speech_to_text", "text_to_speech"
+    "text_generation",
+    "streaming",
+    "embedding",
+    "tool_calling",
+    "speech_to_text",
+    "text_to_speech",
+    "wake_phrase_detection",
+    "voice_embedding",
+    "face_embedding",
+    "gaze_estimation",
 ]
 HealthStatus = Literal["healthy", "degraded", "unhealthy", "unknown"]
 
@@ -276,6 +299,100 @@ class AudioChunk(BaseModel):
 
     delta_audio_bytes: bytes = b""
     finished: bool = False
+
+
+class WakePhraseRequest(BaseModel):
+    """Wake-phrase detection (docs/design/phase-2d/03-perception-engine.md
+    §0.2). `audio_bytes` carries one bounded audio window -- `perception-engine`
+    decides windowing (its own presence/motion-gated cadence, §7.2 of that
+    document), this engine detects what's given, the same "formats/fits what
+    it's given, never sources it" boundary `TranscribeRequest` already keeps."""
+
+    model_config = _AUDIO_BYTES_CONFIG
+
+    audio_bytes: bytes
+    audio_format: Literal["wav", "opus", "pcm16"] = "wav"
+    wake_phrase: str | None = None
+    """Connector-specific phrase identifier, optional -- `None` selects the
+    connector's own configured default phrase."""
+    privacy_hint: PrivacyLevel = PrivacyLevel.INTERNAL
+    requesting_engine: str
+    correlation_id: UUID = Field(default_factory=uuid4)
+    schema_version: int = 1  # ADR-024
+
+
+class WakePhraseResult(BaseModel):
+    matched: bool
+    structural_confidence: float
+    """Mechanical confidence only (mirrors `TranscribeResult`'s field) -- did
+    the connector return a well-formed detection, never a semantic judgment
+    about whether the phrase was genuinely directed at NOVA (that fusion is
+    perception-engine's own job, never this engine's, per ADR-020's "this
+    engine renders no judgment about content" boundary)."""
+
+
+class VoiceEmbedRequest(BaseModel):
+    """Voiceprint extraction (docs/design/phase-2d/03-perception-engine.md
+    §0.2). One bounded audio sample in, one fixed-length embedding out --
+    matching against enrolled templates is `perception-engine`'s own job
+    (its `domain/identity_fusion.py`), never this engine's, mirroring how this
+    engine renders audio to speech but never decides *what* to say."""
+
+    model_config = _AUDIO_BYTES_CONFIG
+
+    audio_bytes: bytes
+    audio_format: Literal["wav", "opus", "pcm16"] = "wav"
+    privacy_hint: PrivacyLevel = PrivacyLevel.INTERNAL
+    requesting_engine: str
+    correlation_id: UUID = Field(default_factory=uuid4)
+    schema_version: int = 1  # ADR-024
+
+
+class VoiceEmbedResult(BaseModel):
+    embedding: list[float]
+    structural_confidence: float
+
+
+class FaceEmbedRequest(BaseModel):
+    """Faceprint extraction (docs/design/phase-2d/03-perception-engine.md
+    §0.2). `image_bytes` carries one already-detected face crop, never a full
+    frame -- face detection itself is this connector's own concern (mirrors
+    `TranscribeRequest`'s "caller decides utterance boundaries" boundary,
+    applied here to face-region boundaries instead)."""
+
+    model_config = _AUDIO_BYTES_CONFIG
+
+    image_bytes: bytes
+    image_format: Literal["jpeg", "png"] = "jpeg"
+    privacy_hint: PrivacyLevel = PrivacyLevel.INTERNAL
+    requesting_engine: str
+    correlation_id: UUID = Field(default_factory=uuid4)
+    schema_version: int = 1  # ADR-024
+
+
+class FaceEmbedResult(BaseModel):
+    embedding: list[float]
+    structural_confidence: float
+
+
+class GazeEstimateRequest(BaseModel):
+    """Gaze/attention estimation (docs/design/phase-2d/03-perception-engine.md
+    §0.2). `image_bytes` carries one already-detected face crop, the same
+    boundary as `FaceEmbedRequest`."""
+
+    model_config = _AUDIO_BYTES_CONFIG
+
+    image_bytes: bytes
+    image_format: Literal["jpeg", "png"] = "jpeg"
+    privacy_hint: PrivacyLevel = PrivacyLevel.INTERNAL
+    requesting_engine: str
+    correlation_id: UUID = Field(default_factory=uuid4)
+    schema_version: int = 1  # ADR-024
+
+
+class GazeEstimateResult(BaseModel):
+    gaze_direction: Literal["toward_device", "away", "unknown"]
+    structural_confidence: float
 
 
 class ScoredCandidate(BaseModel):

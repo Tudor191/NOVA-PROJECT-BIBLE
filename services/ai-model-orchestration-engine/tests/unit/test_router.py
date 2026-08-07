@@ -80,6 +80,27 @@ class _FakeConnector:
     async def embed(self, texts: list[str]) -> list[list[float]]:
         raise NotImplementedError
 
+    async def transcribe(self, request: Any) -> Any:
+        raise NotImplementedError
+
+    async def synthesize(self, request: Any) -> Any:
+        raise NotImplementedError
+
+    def synthesize_stream(self, request: Any) -> Any:
+        raise NotImplementedError
+
+    async def detect_wake_phrase(self, request: Any) -> Any:
+        raise NotImplementedError
+
+    async def embed_voice(self, request: Any) -> Any:
+        raise NotImplementedError
+
+    async def embed_face(self, request: Any) -> Any:
+        raise NotImplementedError
+
+    async def estimate_gaze(self, request: Any) -> Any:
+        raise NotImplementedError
+
     async def health(self) -> ConnectorHealth:
         return ConnectorHealth(available=True)
 
@@ -275,6 +296,27 @@ class _FakeEmbeddingConnector:
             raise RuntimeError("simulated embedding failure")
         return [[0.1, 0.2] for _ in texts]
 
+    async def transcribe(self, request: Any) -> Any:
+        raise NotImplementedError
+
+    async def synthesize(self, request: Any) -> Any:
+        raise NotImplementedError
+
+    def synthesize_stream(self, request: Any) -> Any:
+        raise NotImplementedError
+
+    async def detect_wake_phrase(self, request: Any) -> Any:
+        raise NotImplementedError
+
+    async def embed_voice(self, request: Any) -> Any:
+        raise NotImplementedError
+
+    async def embed_face(self, request: Any) -> Any:
+        raise NotImplementedError
+
+    async def estimate_gaze(self, request: Any) -> Any:
+        raise NotImplementedError
+
     async def health(self) -> ConnectorHealth:
         return ConnectorHealth(available=True)
 
@@ -418,6 +460,21 @@ class _FakeSpeechConnector:
             audio_bytes=b"fake-audio", audio_format="wav", structural_confidence=1.0
         )
 
+    def synthesize_stream(self, request: Any) -> Any:
+        raise NotImplementedError
+
+    async def detect_wake_phrase(self, request: Any) -> Any:
+        raise NotImplementedError
+
+    async def embed_voice(self, request: Any) -> Any:
+        raise NotImplementedError
+
+    async def embed_face(self, request: Any) -> Any:
+        raise NotImplementedError
+
+    async def estimate_gaze(self, request: Any) -> Any:
+        raise NotImplementedError
+
     async def health(self) -> ConnectorHealth:
         return ConnectorHealth(available=True)
 
@@ -527,3 +584,269 @@ async def test_synthesize_and_record_persists_success_telemetry() -> None:
     assert len(usage_repo.recorded) == 1
     assert usage_repo.recorded[0].outcome == "success"
     assert usage_repo.outbox_events[0].subject == "ai_model.request.completed"
+
+
+
+# --- Perception: wake-phrase detection, voice/face embedding, gaze estimation
+# (docs/design/phase-2d/03-perception-engine.md §0.2) ------------------------
+
+
+def _perception_model(
+    name: str,
+    *,
+    modality: str,
+    dimension: str,
+    capability: float = 0.5,
+    cost: float | None = None,
+    **overrides: object,
+) -> ModelDescriptor:
+    defaults: dict[str, object] = {
+        "name": name,
+        "version": "1.0",
+        "provider": "perception-fixture",
+        "connector_type": modality,
+        "is_local": cost is None,
+        "modalities": [modality],
+        "capability_scores": CapabilityScores(scores={dimension: capability}),
+        "context_window": 0,
+        "max_output_tokens": 0,
+        "cost_per_input_token": cost,
+        "cost_per_output_token": cost,
+        "max_privacy_tier": PrivacyLevel.HIGHLY_SENSITIVE,
+        "health_status": "healthy",
+    }
+    defaults.update(overrides)
+    return ModelDescriptor(**defaults)
+
+
+class _FakePerceptionConnector:
+    connector_type = "fake"
+
+    def __init__(self, *, should_fail: bool = False) -> None:
+        self.should_fail = should_fail
+
+    async def generate(self, request: GenerateRequest) -> GenerateResult:
+        raise NotImplementedError
+
+    def stream(self, request: GenerateRequest) -> Any:
+        raise NotImplementedError
+
+    async def embed(self, texts: list[str]) -> list[list[float]]:
+        raise NotImplementedError
+
+    async def transcribe(self, request: Any) -> Any:
+        raise NotImplementedError
+
+    async def synthesize(self, request: Any) -> Any:
+        raise NotImplementedError
+
+    def synthesize_stream(self, request: Any) -> Any:
+        raise NotImplementedError
+
+    async def detect_wake_phrase(self, request: Any) -> Any:
+        from nova_ai_model_orchestration_engine.domain.models import WakePhraseResult
+
+        if self.should_fail:
+            raise RuntimeError("simulated wake-phrase failure")
+        return WakePhraseResult(matched=True, structural_confidence=1.0)
+
+    async def embed_voice(self, request: Any) -> Any:
+        from nova_ai_model_orchestration_engine.domain.models import VoiceEmbedResult
+
+        if self.should_fail:
+            raise RuntimeError("simulated voice-embed failure")
+        return VoiceEmbedResult(embedding=[0.1, 0.2], structural_confidence=1.0)
+
+    async def embed_face(self, request: Any) -> Any:
+        from nova_ai_model_orchestration_engine.domain.models import FaceEmbedResult
+
+        if self.should_fail:
+            raise RuntimeError("simulated face-embed failure")
+        return FaceEmbedResult(embedding=[0.3, 0.4], structural_confidence=1.0)
+
+    async def estimate_gaze(self, request: Any) -> Any:
+        from nova_ai_model_orchestration_engine.domain.models import GazeEstimateResult
+
+        if self.should_fail:
+            raise RuntimeError("simulated gaze-estimate failure")
+        return GazeEstimateResult(gaze_direction="toward_device", structural_confidence=1.0)
+
+    async def health(self) -> ConnectorHealth:
+        return ConnectorHealth(available=True)
+
+
+_WAKE_DIM = "wake_phrase_detection_accuracy"
+_VOICE_EMBED_DIM = "voice_embedding_quality"
+_FACE_EMBED_DIM = "face_embedding_quality"
+_GAZE_DIM = "gaze_estimation_accuracy"
+
+
+def test_plan_wake_phrase_routing_selects_highest_accuracy() -> None:
+    strong = _perception_model(
+        "strong", modality="wake_phrase_detection", dimension=_WAKE_DIM, capability=0.95
+    )
+    weak = _perception_model(
+        "weak", modality="wake_phrase_detection", dimension=_WAKE_DIM, capability=0.1
+    )
+    decision = router.plan_wake_phrase_routing([weak, strong], privacy_hint=PrivacyLevel.INTERNAL)
+    assert decision.selected_model_id == strong.id
+
+
+def test_plan_wake_phrase_routing_raises_when_no_eligible_candidates() -> None:
+    with pytest.raises(FallbackExhaustedError):
+        router.plan_wake_phrase_routing([], privacy_hint=PrivacyLevel.INTERNAL)
+
+
+async def test_route_and_detect_wake_phrase_falls_back_on_failure() -> None:
+    from nova_ai_model_orchestration_engine.domain.models import WakePhraseRequest
+
+    failing = _perception_model(
+        "failing", modality="wake_phrase_detection", dimension=_WAKE_DIM, capability=0.9
+    )
+    working = _perception_model(
+        "working", modality="wake_phrase_detection", dimension=_WAKE_DIM, capability=0.1
+    )
+    connectors = {
+        failing.id: _FakePerceptionConnector(should_fail=True),
+        working.id: _FakePerceptionConnector(),
+    }
+    request = WakePhraseRequest(
+        audio_bytes=b"fake-audio", requesting_engine="test", correlation_id=uuid4()
+    )
+    model, result = await router.route_and_detect_wake_phrase(
+        request, [failing, working], get_connector=lambda m: connectors[m.id]
+    )
+    assert model.id == working.id
+    assert result.matched is True
+
+
+async def test_detect_wake_phrase_and_record_persists_success_telemetry() -> None:
+    from nova_ai_model_orchestration_engine.domain.models import WakePhraseRequest
+
+    model = _perception_model("only-one", modality="wake_phrase_detection", dimension=_WAKE_DIM)
+    connector = _FakePerceptionConnector()
+    usage_repo = _FakeUsageRepository()
+    request = WakePhraseRequest(
+        audio_bytes=b"fake-audio", requesting_engine="test", correlation_id=uuid4()
+    )
+    selected, result = await router.detect_wake_phrase_and_record(
+        request, [model], get_connector=lambda m: connector, usage_repository=usage_repo
+    )
+    assert selected.id == model.id
+    assert result.matched is True
+    assert len(usage_repo.recorded) == 1
+    assert usage_repo.recorded[0].outcome == "success"
+    assert usage_repo.outbox_events[0].subject == "ai_model.request.completed"
+
+
+async def test_detect_wake_phrase_and_record_persists_failure_telemetry_and_reraises() -> None:
+    from nova_ai_model_orchestration_engine.domain.models import WakePhraseRequest
+
+    a = _perception_model("a", modality="wake_phrase_detection", dimension=_WAKE_DIM)
+    b = _perception_model("b", modality="wake_phrase_detection", dimension=_WAKE_DIM)
+    connectors = {
+        a.id: _FakePerceptionConnector(should_fail=True),
+        b.id: _FakePerceptionConnector(should_fail=True),
+    }
+    usage_repo = _FakeUsageRepository()
+    request = WakePhraseRequest(
+        audio_bytes=b"fake-audio", requesting_engine="test", correlation_id=uuid4()
+    )
+    with pytest.raises(FallbackExhaustedError):
+        await router.detect_wake_phrase_and_record(
+            request,
+            [a, b],
+            get_connector=lambda m: connectors[m.id],
+            usage_repository=usage_repo,
+            max_attempts=2,
+        )
+    assert len(usage_repo.recorded) == 1
+    assert usage_repo.recorded[0].outcome == "failed"
+    assert usage_repo.outbox_events[0].subject == "ai_model.request.failed"
+
+
+def test_plan_voice_embed_routing_selects_highest_quality() -> None:
+    strong = _perception_model(
+        "strong", modality="voice_embedding", dimension=_VOICE_EMBED_DIM, capability=0.9
+    )
+    weak = _perception_model(
+        "weak", modality="voice_embedding", dimension=_VOICE_EMBED_DIM, capability=0.2
+    )
+    decision = router.plan_voice_embed_routing([weak, strong], privacy_hint=PrivacyLevel.INTERNAL)
+    assert decision.selected_model_id == strong.id
+
+
+async def test_embed_voice_and_record_persists_success_telemetry() -> None:
+    from nova_ai_model_orchestration_engine.domain.models import VoiceEmbedRequest
+
+    model = _perception_model("only-one", modality="voice_embedding", dimension=_VOICE_EMBED_DIM)
+    connector = _FakePerceptionConnector()
+    usage_repo = _FakeUsageRepository()
+    request = VoiceEmbedRequest(
+        audio_bytes=b"fake-audio", requesting_engine="test", correlation_id=uuid4()
+    )
+    selected, result = await router.embed_voice_and_record(
+        request, [model], get_connector=lambda m: connector, usage_repository=usage_repo
+    )
+    assert selected.id == model.id
+    assert result.embedding == [0.1, 0.2]
+    assert len(usage_repo.recorded) == 1
+    assert usage_repo.recorded[0].outcome == "success"
+
+
+def test_plan_face_embed_routing_selects_highest_quality() -> None:
+    strong = _perception_model(
+        "strong", modality="face_embedding", dimension=_FACE_EMBED_DIM, capability=0.9
+    )
+    weak = _perception_model(
+        "weak", modality="face_embedding", dimension=_FACE_EMBED_DIM, capability=0.2
+    )
+    decision = router.plan_face_embed_routing([weak, strong], privacy_hint=PrivacyLevel.INTERNAL)
+    assert decision.selected_model_id == strong.id
+
+
+async def test_embed_face_and_record_persists_success_telemetry() -> None:
+    from nova_ai_model_orchestration_engine.domain.models import FaceEmbedRequest
+
+    model = _perception_model("only-one", modality="face_embedding", dimension=_FACE_EMBED_DIM)
+    connector = _FakePerceptionConnector()
+    usage_repo = _FakeUsageRepository()
+    request = FaceEmbedRequest(
+        image_bytes=b"fake-image", requesting_engine="test", correlation_id=uuid4()
+    )
+    selected, result = await router.embed_face_and_record(
+        request, [model], get_connector=lambda m: connector, usage_repository=usage_repo
+    )
+    assert selected.id == model.id
+    assert result.embedding == [0.3, 0.4]
+    assert len(usage_repo.recorded) == 1
+    assert usage_repo.recorded[0].outcome == "success"
+
+
+def test_plan_gaze_estimate_routing_selects_highest_accuracy() -> None:
+    strong = _perception_model(
+        "strong", modality="gaze_estimation", dimension=_GAZE_DIM, capability=0.9
+    )
+    weak = _perception_model(
+        "weak", modality="gaze_estimation", dimension=_GAZE_DIM, capability=0.2
+    )
+    decision = router.plan_gaze_estimate_routing([weak, strong], privacy_hint=PrivacyLevel.INTERNAL)
+    assert decision.selected_model_id == strong.id
+
+
+async def test_estimate_gaze_and_record_persists_success_telemetry() -> None:
+    from nova_ai_model_orchestration_engine.domain.models import GazeEstimateRequest
+
+    model = _perception_model("only-one", modality="gaze_estimation", dimension=_GAZE_DIM)
+    connector = _FakePerceptionConnector()
+    usage_repo = _FakeUsageRepository()
+    request = GazeEstimateRequest(
+        image_bytes=b"fake-image", requesting_engine="test", correlation_id=uuid4()
+    )
+    selected, result = await router.estimate_gaze_and_record(
+        request, [model], get_connector=lambda m: connector, usage_repository=usage_repo
+    )
+    assert selected.id == model.id
+    assert result.gaze_direction == "toward_device"
+    assert len(usage_repo.recorded) == 1
+    assert usage_repo.recorded[0].outcome == "success"

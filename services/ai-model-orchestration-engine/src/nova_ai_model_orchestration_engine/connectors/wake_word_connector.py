@@ -1,19 +1,21 @@
-"""The default, zero-budget text-to-speech connector (docs/design/phase-2d/
-01-communication-engine.md §0.3). Talks to a local Piper-class server over its
-OpenAI-audio-API-compatible `POST /v1/audio/speech` endpoint -- the same
-lazily-imported-`httpx` convention as `OllamaConnector`/`WhisperConnector`.
+"""The default, zero-budget wake-phrase-detection connector (docs/design/
+phase-2d/03-perception-engine.md §0.2; Bible Part 7 "Initial Zero Budget
+Strategy", applied to the wake-signal modality the same way `WhisperConnector`
+already applies it to speech-to-text). Talks to a local openWakeWord-class
+server over a small custom `POST /v1/audio/wake-phrase` endpoint -- the same
+"lazily imported `httpx`, never required just to import this module"
+convention as every other connector.
 
-Speech-to-text is `WhisperConnector`'s job, not this connector's -- `synthesize`/
-`synthesize_stream` only.
+Every other modality raises `NotSupportedError` -- wake-phrase detection only,
+mirroring how `WhisperConnector` implements `transcribe` but never
+`generate`/`embed`/`synthesize`.
 """
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
 from typing import TYPE_CHECKING, Any
 
 from nova_ai_model_orchestration_engine.domain.models import (
-    AudioChunk,
     ConnectorHealth,
     FaceEmbedRequest,
     FaceEmbedResult,
@@ -35,27 +37,25 @@ from nova_ai_model_orchestration_engine.domain.ports import NotSupportedError
 if TYPE_CHECKING:
     import httpx
 
-__all__ = ["PiperConnector"]
-
-_STREAM_CHUNK_BYTES = 4096
-"""Read granularity for `synthesize_stream`'s HTTP response body -- an
-arbitrary but reasonable buffer size, not derived from any audio-format
-property (the server, not this connector, owns audio framing)."""
+__all__ = ["WakeWordConnector"]
 
 
-class PiperConnector:
-    connector_type = "piper"
+class WakeWordConnector:
+    connector_type = "wake_word"
 
     def __init__(
         self,
         *,
-        base_url: str = "http://localhost:8083",
-        default_voice: str = "en_US-default",
-        timeout_s: float = 30.0,
+        base_url: str = "http://localhost:8084",
+        default_phrase: str = "hey_nova",
+        timeout_s: float = 10.0,
         client: httpx.AsyncClient | None = None,
     ) -> None:
+        """`client` is an injection point for tests, same as every other
+        connector -- production code always leaves it `None` and lets
+        `_ensure_client` build a real one lazily."""
         self._base_url = base_url.rstrip("/")
-        self._default_voice = default_voice
+        self._default_phrase = default_phrase
         self._timeout_s = timeout_s
         self._client = client
 
@@ -65,13 +65,6 @@ class PiperConnector:
 
             self._client = httpx.AsyncClient(base_url=self._base_url, timeout=self._timeout_s)
         return self._client
-
-    def _payload(self, request: SynthesizeRequest) -> dict[str, str]:
-        return {
-            "input": request.text,
-            "voice": request.voice_profile or self._default_voice,
-            "response_format": request.audio_format,
-        }
 
     async def generate(self, request: GenerateRequest) -> GenerateResult:
         raise NotSupportedError(self.connector_type, "text_generation")
@@ -86,28 +79,22 @@ class PiperConnector:
         raise NotSupportedError(self.connector_type, "speech_to_text")
 
     async def synthesize(self, request: SynthesizeRequest) -> SynthesizeResult:
-        client = self._ensure_client()
-        response = await client.post("/v1/audio/speech", json=self._payload(request))
-        response.raise_for_status()
-        return SynthesizeResult(
-            audio_bytes=response.content,
-            audio_format=request.audio_format,
-            structural_confidence=1.0 if response.content else 0.0,
-        )
+        raise NotSupportedError(self.connector_type, "text_to_speech")
 
-    async def synthesize_stream(self, request: SynthesizeRequest) -> AsyncIterator[AudioChunk]:
-        client = self._ensure_client()
-        async with client.stream(
-            "POST", "/v1/audio/speech", json=self._payload(request)
-        ) as response:
-            response.raise_for_status()
-            async for raw_chunk in response.aiter_bytes(_STREAM_CHUNK_BYTES):
-                if raw_chunk:
-                    yield AudioChunk(delta_audio_bytes=raw_chunk)
-            yield AudioChunk(finished=True)
+    def synthesize_stream(self, request: SynthesizeRequest) -> Any:
+        raise NotSupportedError(self.connector_type, "text_to_speech")
 
     async def detect_wake_phrase(self, request: WakePhraseRequest) -> WakePhraseResult:
-        raise NotSupportedError(self.connector_type, "wake_phrase_detection")
+        client = self._ensure_client()
+        files = {"file": ("audio." + request.audio_format, request.audio_bytes)}
+        data: dict[str, str] = {"phrase": request.wake_phrase or self._default_phrase}
+        response = await client.post("/v1/audio/wake-phrase", files=files, data=data)
+        response.raise_for_status()
+        body = response.json()
+        return WakePhraseResult(
+            matched=bool(body.get("matched", False)),
+            structural_confidence=float(body.get("confidence", 0.0)),
+        )
 
     async def embed_voice(self, request: VoiceEmbedRequest) -> VoiceEmbedResult:
         raise NotSupportedError(self.connector_type, "voice_embedding")

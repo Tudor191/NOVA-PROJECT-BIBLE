@@ -16,6 +16,10 @@ from nova_embeddings_sdk.backends.ollama import OllamaEmbeddingProvider
 
 from nova_ai_model_orchestration_engine.domain.models import (
     ConnectorHealth,
+    FaceEmbedRequest,
+    FaceEmbedResult,
+    GazeEstimateRequest,
+    GazeEstimateResult,
     GenerateChunk,
     GenerateRequest,
     GenerateResult,
@@ -24,6 +28,10 @@ from nova_ai_model_orchestration_engine.domain.models import (
     ToolCall,
     TranscribeRequest,
     TranscribeResult,
+    VoiceEmbedRequest,
+    VoiceEmbedResult,
+    WakePhraseRequest,
+    WakePhraseResult,
 )
 from nova_ai_model_orchestration_engine.domain.ports import NotSupportedError
 from nova_ai_model_orchestration_engine.domain.tool_schema import parse_tool_arguments
@@ -160,6 +168,18 @@ class OllamaConnector:
         # simplest honest shape for "this connector cannot do this at all,"
         # distinct from a real streaming connector that could fail mid-stream.
         raise NotSupportedError(self.connector_type, "text_to_speech")
+
+    async def detect_wake_phrase(self, request: WakePhraseRequest) -> WakePhraseResult:
+        raise NotSupportedError(self.connector_type, "wake_phrase_detection")
+
+    async def embed_voice(self, request: VoiceEmbedRequest) -> VoiceEmbedResult:
+        raise NotSupportedError(self.connector_type, "voice_embedding")
+
+    async def embed_face(self, request: FaceEmbedRequest) -> FaceEmbedResult:
+        raise NotSupportedError(self.connector_type, "face_embedding")
+
+    async def estimate_gaze(self, request: GazeEstimateRequest) -> GazeEstimateResult:
+        raise NotSupportedError(self.connector_type, "gaze_estimation")
 
     async def health(self) -> ConnectorHealth:
         client = self._ensure_client()

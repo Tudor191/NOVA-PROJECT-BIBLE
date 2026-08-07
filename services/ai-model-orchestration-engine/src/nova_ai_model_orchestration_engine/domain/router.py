@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import time
 from collections.abc import Callable
+from typing import Any
 from uuid import UUID
 
 from nova_contracts import RequestCompletedPayload, RequestFailedPayload, RequestOutcome
@@ -27,6 +28,10 @@ from nova_contracts import RequestCompletedPayload, RequestFailedPayload, Reques
 from nova_ai_model_orchestration_engine.domain import capability_matrix, cost_tracker
 from nova_ai_model_orchestration_engine.domain.fallback import FallbackExhaustedError
 from nova_ai_model_orchestration_engine.domain.models import (
+    FaceEmbedRequest,
+    FaceEmbedResult,
+    GazeEstimateRequest,
+    GazeEstimateResult,
     GenerateRequest,
     GenerateResult,
     Modality,
@@ -39,6 +44,10 @@ from nova_ai_model_orchestration_engine.domain.models import (
     TranscribeRequest,
     TranscribeResult,
     UsageRecord,
+    VoiceEmbedRequest,
+    VoiceEmbedResult,
+    WakePhraseRequest,
+    WakePhraseResult,
 )
 from nova_ai_model_orchestration_engine.domain.ports import (
     ModelConnector,
@@ -49,14 +58,26 @@ from nova_ai_model_orchestration_engine.domain.ports import (
 __all__ = [
     "ExecutionOutcome",
     "approximate_token_count",
+    "detect_wake_phrase_and_record",
     "embed_and_record",
+    "embed_face_and_record",
+    "embed_voice_and_record",
     "estimate_complexity",
+    "estimate_gaze_and_record",
     "execute_and_record",
     "plan_embedding_routing",
+    "plan_face_embed_routing",
+    "plan_gaze_estimate_routing",
     "plan_routing",
     "plan_synthesize_routing",
     "plan_transcribe_routing",
+    "plan_voice_embed_routing",
+    "plan_wake_phrase_routing",
+    "route_and_detect_wake_phrase",
     "route_and_embed",
+    "route_and_embed_face",
+    "route_and_embed_voice",
+    "route_and_estimate_gaze",
     "route_and_execute",
     "route_and_synthesize",
     "route_and_transcribe",
@@ -963,3 +984,515 @@ async def synthesize_and_record(
     )
     await usage_repository.record_usage(record, outbox_event=outbox)
     return model, result
+
+
+# --- Perception: wake-phrase detection, voice/face embedding, gaze estimation
+# (docs/design/phase-2d/03-perception-engine.md §0.2) ------------------------
+# Same capability-weighted `_score` shape as transcribe/synthesize -- each of
+# the four new modalities has its own dedicated CapabilityDimension
+# (`wake_phrase_detection_accuracy`, `voice_embedding_quality`,
+# `face_embedding_quality`, `gaze_estimation_accuracy`) rather than the
+# cost/latency-only ranking `plan_embedding_routing` uses for generic text
+# embedding, since -- like speech -- these are modeled skills a purpose-built
+# connector is scored on, not an undifferentiated utility. `input_tokens`/
+# `output_tokens` are always `0` in these four telemetry records: none of these
+# requests carry token-countable text, the same "not applicable" convention
+# `plan_embedding_routing`'s own telemetry already uses for its request shape.
+
+
+def _plan_perception_routing(
+    models: list[ModelDescriptor],
+    *,
+    modality: Modality,
+    dimension: capability_matrix.CapabilityDimension,
+    privacy_hint: PrivacyLevel,
+    historical_success_rates: dict[UUID, float] | None = None,
+    exclude: list[UUID] | None = None,
+    fallback_from: UUID | None = None,
+) -> RoutingDecision:
+    """Pure. Shared shape behind `plan_wake_phrase_routing`/
+    `plan_voice_embed_routing`/`plan_face_embed_routing`/
+    `plan_gaze_estimate_routing` -- each of those four remains its own named,
+    public function (mirroring `plan_transcribe_routing`/
+    `plan_synthesize_routing` staying separate despite being nearly identical)
+    so a caller never has to pass a modality/dimension pair by hand; this
+    private helper only removes the four-way duplication of the body itself."""
+    historical_success_rates = historical_success_rates or {}
+    exclude = exclude or []
+
+    candidates_pool = capability_matrix.eligible_candidates(
+        models, modality=modality, privacy_hint=privacy_hint
+    )
+    candidates_pool = [m for m in candidates_pool if m.id not in exclude]
+    modality_and_health_eligible = [
+        m for m in models if modality in m.modalities and m.health_status != "unhealthy"
+    ]
+    privacy_constraint_applied = (
+        len(candidates_pool) + len(exclude) < len(modality_and_health_eligible)
+    )
+
+    if not candidates_pool:
+        raise FallbackExhaustedError([])
+
+    scored = [
+        _score(m, dimension=dimension, historical_success_rate=historical_success_rates.get(m.id))
+        for m in candidates_pool
+    ]
+    scored.sort(key=lambda c: (-c.composite_score, str(c.model_id)))
+
+    explanation = _explain(
+        {
+            "top_candidate": scored[0],
+            "candidate_count": len(scored),
+            "privacy_constraint_applied": privacy_constraint_applied,
+            "fallback_from": fallback_from,
+        }
+    )
+    return RoutingDecision(
+        candidates=scored,
+        selected_model_id=scored[0].model_id,
+        fallback_from=fallback_from,
+        privacy_constraint_applied=privacy_constraint_applied,
+        estimated_complexity=0.0,
+        explanation=explanation,
+    )
+
+
+async def _route_and_record_perception(
+    request: WakePhraseRequest | VoiceEmbedRequest | FaceEmbedRequest | GazeEstimateRequest,
+    models: list[ModelDescriptor],
+    *,
+    modality: Modality,
+    dimension: capability_matrix.CapabilityDimension,
+    call_connector: Callable[[ModelConnector, Any], Any],
+    get_connector: Callable[[ModelDescriptor], ModelConnector],
+    usage_repository: UsageRepository,
+    max_attempts: int = 3,
+) -> tuple[ModelDescriptor, Any]:
+    """Shared impure fallback-walk-and-record body behind all four
+    `*_and_record` functions below -- same shape as `transcribe_and_record`/
+    `synthesize_and_record`, generalized over which connector method to call,
+    since the four public functions differ only in that and their own
+    request/result types (kept as separate public functions for the same
+    "no caller passes a connector-method reference" ergonomics
+    `_plan_perception_routing` already preserves for routing)."""
+    models_by_id = {m.id: m for m in models}
+    tried: list[UUID] = []
+    start = time.perf_counter()
+    decision = _plan_perception_routing(
+        models, modality=modality, dimension=dimension, privacy_hint=request.privacy_hint
+    )
+    last_error: Exception | None = None
+
+    for _ in range(max_attempts):
+        candidate_model = models_by_id[decision.selected_model_id]
+        connector = get_connector(candidate_model)
+        try:
+            result = await call_connector(connector, request)
+            latency_ms = (time.perf_counter() - start) * 1000
+            cost = cost_tracker.estimate_cost(candidate_model, input_tokens=0, output_tokens=0)
+            record = UsageRecord(
+                correlation_id=request.correlation_id,
+                requesting_engine=request.requesting_engine,
+                provider=candidate_model.provider,
+                model_id=candidate_model.id,
+                routing_decision=RoutingDecision(
+                    candidates=[],
+                    selected_model_id=candidate_model.id,
+                    privacy_constraint_applied=False,
+                    estimated_complexity=0.0,
+                    explanation=f"Selected {candidate_model.id} for {modality}.",
+                ),
+                estimated_complexity=0.0,
+                latency_ms=latency_ms,
+                input_tokens=0,
+                output_tokens=0,
+                estimated_cost=cost,
+                retry_count=0,
+                fallback_used=False,
+                privacy_classification=request.privacy_hint,
+                outcome="success",
+            )
+            outbox = OutboxEvent(
+                subject="ai_model.request.completed",
+                payload=RequestCompletedPayload(
+                    correlation_id=request.correlation_id,
+                    requesting_engine=request.requesting_engine,
+                    provider=candidate_model.provider,
+                    model_id=candidate_model.id,
+                    input_tokens=0,
+                    output_tokens=0,
+                    estimated_cost=cost,
+                    latency_ms=latency_ms,
+                    retry_count=0,
+                    fallback_used=False,
+                    outcome=RequestOutcome.SUCCESS,
+                ).model_dump(mode="json"),
+                correlation_id=request.correlation_id,
+            )
+            await usage_repository.record_usage(record, outbox_event=outbox)
+            return candidate_model, result
+        except Exception as exc:  # noqa: BLE001 -- any connector failure triggers fallback
+            last_error = exc
+            tried.append(decision.selected_model_id)
+            try:
+                decision = _plan_perception_routing(
+                    models,
+                    modality=modality,
+                    dimension=dimension,
+                    privacy_hint=request.privacy_hint,
+                    exclude=tried,
+                    fallback_from=tried[-1],
+                )
+            except FallbackExhaustedError:
+                break
+
+    latency_ms = (time.perf_counter() - start) * 1000
+    attempted_ids = tried
+    record = UsageRecord(
+        correlation_id=request.correlation_id,
+        requesting_engine=request.requesting_engine,
+        provider="unknown",
+        model_id=attempted_ids[0] if attempted_ids else UUID(int=0),
+        routing_decision=RoutingDecision(
+            candidates=[],
+            selected_model_id=attempted_ids[0] if attempted_ids else UUID(int=0),
+            privacy_constraint_applied=False,
+            estimated_complexity=0.0,
+            explanation=str(last_error),
+        ),
+        estimated_complexity=0.0,
+        latency_ms=latency_ms,
+        input_tokens=0,
+        output_tokens=0,
+        estimated_cost=0.0,
+        retry_count=max_attempts,
+        fallback_used=True,
+        privacy_classification=request.privacy_hint,
+        outcome="failed",
+    )
+    outbox = OutboxEvent(
+        subject="ai_model.request.failed",
+        payload=RequestFailedPayload(
+            correlation_id=request.correlation_id,
+            requesting_engine=request.requesting_engine,
+            attempted_model_ids=attempted_ids,
+            final_error=str(last_error),
+        ).model_dump(mode="json"),
+        correlation_id=request.correlation_id,
+    )
+    await usage_repository.record_usage(record, outbox_event=outbox)
+    raise FallbackExhaustedError(decision.candidates) from last_error
+
+
+def plan_wake_phrase_routing(
+    models: list[ModelDescriptor],
+    *,
+    privacy_hint: PrivacyLevel,
+    historical_success_rates: dict[UUID, float] | None = None,
+    exclude: list[UUID] | None = None,
+    fallback_from: UUID | None = None,
+) -> RoutingDecision:
+    """Pure. Same shape as `plan_transcribe_routing`, scored against
+    `wake_phrase_detection_accuracy`."""
+    return _plan_perception_routing(
+        models,
+        modality="wake_phrase_detection",
+        dimension="wake_phrase_detection_accuracy",
+        privacy_hint=privacy_hint,
+        historical_success_rates=historical_success_rates,
+        exclude=exclude,
+        fallback_from=fallback_from,
+    )
+
+
+async def route_and_detect_wake_phrase(
+    request: WakePhraseRequest,
+    models: list[ModelDescriptor],
+    *,
+    get_connector: Callable[[ModelDescriptor], ModelConnector],
+    max_attempts: int = 3,
+) -> tuple[ModelDescriptor, WakePhraseResult]:
+    """Impure: the wake-phrase counterpart to `route_and_transcribe`."""
+    models_by_id = {m.id: m for m in models}
+    tried: list[UUID] = []
+    decision = plan_wake_phrase_routing(models, privacy_hint=request.privacy_hint)
+    last_error: Exception | None = None
+    for _ in range(max_attempts):
+        candidate_model = models_by_id[decision.selected_model_id]
+        connector = get_connector(candidate_model)
+        try:
+            return candidate_model, await connector.detect_wake_phrase(request)
+        except Exception as exc:  # noqa: BLE001 -- any connector failure triggers fallback
+            last_error = exc
+            tried.append(decision.selected_model_id)
+            try:
+                decision = plan_wake_phrase_routing(
+                    models,
+                    privacy_hint=request.privacy_hint,
+                    exclude=tried,
+                    fallback_from=tried[-1],
+                )
+            except FallbackExhaustedError:
+                break
+    raise FallbackExhaustedError(decision.candidates) from last_error
+
+
+async def detect_wake_phrase_and_record(
+    request: WakePhraseRequest,
+    models: list[ModelDescriptor],
+    *,
+    get_connector: Callable[[ModelDescriptor], ModelConnector],
+    usage_repository: UsageRepository,
+    max_attempts: int = 3,
+) -> tuple[ModelDescriptor, WakePhraseResult]:
+    """The wake-phrase counterpart to `transcribe_and_record` -- always
+    records exactly one `UsageRecord`, success or exhausted failure alike."""
+
+    async def _call(connector: ModelConnector, req: Any) -> Any:
+        return await connector.detect_wake_phrase(req)
+
+    return await _route_and_record_perception(
+        request,
+        models,
+        modality="wake_phrase_detection",
+        dimension="wake_phrase_detection_accuracy",
+        call_connector=_call,
+        get_connector=get_connector,
+        usage_repository=usage_repository,
+        max_attempts=max_attempts,
+    )
+
+
+def plan_voice_embed_routing(
+    models: list[ModelDescriptor],
+    *,
+    privacy_hint: PrivacyLevel,
+    historical_success_rates: dict[UUID, float] | None = None,
+    exclude: list[UUID] | None = None,
+    fallback_from: UUID | None = None,
+) -> RoutingDecision:
+    """Pure. Same shape as `plan_transcribe_routing`, scored against
+    `voice_embedding_quality`."""
+    return _plan_perception_routing(
+        models,
+        modality="voice_embedding",
+        dimension="voice_embedding_quality",
+        privacy_hint=privacy_hint,
+        historical_success_rates=historical_success_rates,
+        exclude=exclude,
+        fallback_from=fallback_from,
+    )
+
+
+async def route_and_embed_voice(
+    request: VoiceEmbedRequest,
+    models: list[ModelDescriptor],
+    *,
+    get_connector: Callable[[ModelDescriptor], ModelConnector],
+    max_attempts: int = 3,
+) -> tuple[ModelDescriptor, VoiceEmbedResult]:
+    """Impure: the voice-embedding counterpart to `route_and_transcribe`."""
+    models_by_id = {m.id: m for m in models}
+    tried: list[UUID] = []
+    decision = plan_voice_embed_routing(models, privacy_hint=request.privacy_hint)
+    last_error: Exception | None = None
+    for _ in range(max_attempts):
+        candidate_model = models_by_id[decision.selected_model_id]
+        connector = get_connector(candidate_model)
+        try:
+            return candidate_model, await connector.embed_voice(request)
+        except Exception as exc:  # noqa: BLE001 -- any connector failure triggers fallback
+            last_error = exc
+            tried.append(decision.selected_model_id)
+            try:
+                decision = plan_voice_embed_routing(
+                    models,
+                    privacy_hint=request.privacy_hint,
+                    exclude=tried,
+                    fallback_from=tried[-1],
+                )
+            except FallbackExhaustedError:
+                break
+    raise FallbackExhaustedError(decision.candidates) from last_error
+
+
+async def embed_voice_and_record(
+    request: VoiceEmbedRequest,
+    models: list[ModelDescriptor],
+    *,
+    get_connector: Callable[[ModelDescriptor], ModelConnector],
+    usage_repository: UsageRepository,
+    max_attempts: int = 3,
+) -> tuple[ModelDescriptor, VoiceEmbedResult]:
+    """The voice-embedding counterpart to `transcribe_and_record`."""
+
+    async def _call(connector: ModelConnector, req: Any) -> Any:
+        return await connector.embed_voice(req)
+
+    return await _route_and_record_perception(
+        request,
+        models,
+        modality="voice_embedding",
+        dimension="voice_embedding_quality",
+        call_connector=_call,
+        get_connector=get_connector,
+        usage_repository=usage_repository,
+        max_attempts=max_attempts,
+    )
+
+
+def plan_face_embed_routing(
+    models: list[ModelDescriptor],
+    *,
+    privacy_hint: PrivacyLevel,
+    historical_success_rates: dict[UUID, float] | None = None,
+    exclude: list[UUID] | None = None,
+    fallback_from: UUID | None = None,
+) -> RoutingDecision:
+    """Pure. Same shape as `plan_transcribe_routing`, scored against
+    `face_embedding_quality`."""
+    return _plan_perception_routing(
+        models,
+        modality="face_embedding",
+        dimension="face_embedding_quality",
+        privacy_hint=privacy_hint,
+        historical_success_rates=historical_success_rates,
+        exclude=exclude,
+        fallback_from=fallback_from,
+    )
+
+
+async def route_and_embed_face(
+    request: FaceEmbedRequest,
+    models: list[ModelDescriptor],
+    *,
+    get_connector: Callable[[ModelDescriptor], ModelConnector],
+    max_attempts: int = 3,
+) -> tuple[ModelDescriptor, FaceEmbedResult]:
+    """Impure: the face-embedding counterpart to `route_and_transcribe`."""
+    models_by_id = {m.id: m for m in models}
+    tried: list[UUID] = []
+    decision = plan_face_embed_routing(models, privacy_hint=request.privacy_hint)
+    last_error: Exception | None = None
+    for _ in range(max_attempts):
+        candidate_model = models_by_id[decision.selected_model_id]
+        connector = get_connector(candidate_model)
+        try:
+            return candidate_model, await connector.embed_face(request)
+        except Exception as exc:  # noqa: BLE001 -- any connector failure triggers fallback
+            last_error = exc
+            tried.append(decision.selected_model_id)
+            try:
+                decision = plan_face_embed_routing(
+                    models,
+                    privacy_hint=request.privacy_hint,
+                    exclude=tried,
+                    fallback_from=tried[-1],
+                )
+            except FallbackExhaustedError:
+                break
+    raise FallbackExhaustedError(decision.candidates) from last_error
+
+
+async def embed_face_and_record(
+    request: FaceEmbedRequest,
+    models: list[ModelDescriptor],
+    *,
+    get_connector: Callable[[ModelDescriptor], ModelConnector],
+    usage_repository: UsageRepository,
+    max_attempts: int = 3,
+) -> tuple[ModelDescriptor, FaceEmbedResult]:
+    """The face-embedding counterpart to `transcribe_and_record`."""
+
+    async def _call(connector: ModelConnector, req: Any) -> Any:
+        return await connector.embed_face(req)
+
+    return await _route_and_record_perception(
+        request,
+        models,
+        modality="face_embedding",
+        dimension="face_embedding_quality",
+        call_connector=_call,
+        get_connector=get_connector,
+        usage_repository=usage_repository,
+        max_attempts=max_attempts,
+    )
+
+
+def plan_gaze_estimate_routing(
+    models: list[ModelDescriptor],
+    *,
+    privacy_hint: PrivacyLevel,
+    historical_success_rates: dict[UUID, float] | None = None,
+    exclude: list[UUID] | None = None,
+    fallback_from: UUID | None = None,
+) -> RoutingDecision:
+    """Pure. Same shape as `plan_transcribe_routing`, scored against
+    `gaze_estimation_accuracy`."""
+    return _plan_perception_routing(
+        models,
+        modality="gaze_estimation",
+        dimension="gaze_estimation_accuracy",
+        privacy_hint=privacy_hint,
+        historical_success_rates=historical_success_rates,
+        exclude=exclude,
+        fallback_from=fallback_from,
+    )
+
+
+async def route_and_estimate_gaze(
+    request: GazeEstimateRequest,
+    models: list[ModelDescriptor],
+    *,
+    get_connector: Callable[[ModelDescriptor], ModelConnector],
+    max_attempts: int = 3,
+) -> tuple[ModelDescriptor, GazeEstimateResult]:
+    """Impure: the gaze-estimation counterpart to `route_and_transcribe`."""
+    models_by_id = {m.id: m for m in models}
+    tried: list[UUID] = []
+    decision = plan_gaze_estimate_routing(models, privacy_hint=request.privacy_hint)
+    last_error: Exception | None = None
+    for _ in range(max_attempts):
+        candidate_model = models_by_id[decision.selected_model_id]
+        connector = get_connector(candidate_model)
+        try:
+            return candidate_model, await connector.estimate_gaze(request)
+        except Exception as exc:  # noqa: BLE001 -- any connector failure triggers fallback
+            last_error = exc
+            tried.append(decision.selected_model_id)
+            try:
+                decision = plan_gaze_estimate_routing(
+                    models,
+                    privacy_hint=request.privacy_hint,
+                    exclude=tried,
+                    fallback_from=tried[-1],
+                )
+            except FallbackExhaustedError:
+                break
+    raise FallbackExhaustedError(decision.candidates) from last_error
+
+
+async def estimate_gaze_and_record(
+    request: GazeEstimateRequest,
+    models: list[ModelDescriptor],
+    *,
+    get_connector: Callable[[ModelDescriptor], ModelConnector],
+    usage_repository: UsageRepository,
+    max_attempts: int = 3,
+) -> tuple[ModelDescriptor, GazeEstimateResult]:
+    """The gaze-estimation counterpart to `transcribe_and_record`."""
+
+    async def _call(connector: ModelConnector, req: Any) -> Any:
+        return await connector.estimate_gaze(req)
+
+    return await _route_and_record_perception(
+        request,
+        models,
+        modality="gaze_estimation",
+        dimension="gaze_estimation_accuracy",
+        call_connector=_call,
+        get_connector=get_connector,
+        usage_repository=usage_repository,
+        max_attempts=max_attempts,
+    )

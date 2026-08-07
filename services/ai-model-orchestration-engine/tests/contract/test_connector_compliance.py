@@ -18,17 +18,31 @@ from uuid import uuid4
 import httpx
 import pytest
 from nova_ai_model_orchestration_engine.connectors.anthropic_connector import AnthropicConnector
+from nova_ai_model_orchestration_engine.connectors.face_embedding_connector import (
+    FaceEmbeddingConnector,
+)
 from nova_ai_model_orchestration_engine.connectors.fake_connector import FakeConnector
+from nova_ai_model_orchestration_engine.connectors.gaze_estimation_connector import (
+    GazeEstimationConnector,
+)
 from nova_ai_model_orchestration_engine.connectors.ollama_connector import OllamaConnector
 from nova_ai_model_orchestration_engine.connectors.piper_connector import PiperConnector
+from nova_ai_model_orchestration_engine.connectors.voice_embedding_connector import (
+    VoiceEmbeddingConnector,
+)
+from nova_ai_model_orchestration_engine.connectors.wake_word_connector import WakeWordConnector
 from nova_ai_model_orchestration_engine.connectors.whisper_connector import WhisperConnector
 from nova_ai_model_orchestration_engine.domain.models import (
     ContextComponent,
+    FaceEmbedRequest,
+    GazeEstimateRequest,
     GenerateRequest,
     PrivacyLevel,
     SynthesizeRequest,
     ToolSchema,
     TranscribeRequest,
+    VoiceEmbedRequest,
+    WakePhraseRequest,
 )
 from nova_ai_model_orchestration_engine.domain.ports import ModelConnector, NotSupportedError
 
@@ -449,3 +463,290 @@ async def test_fake_synthesize_stream_yields_incrementally() -> None:
     connector = FakeConnector()
     chunks = [chunk async for chunk in connector.synthesize_stream(_synthesize_request())]
     assert len(chunks) >= 1
+
+
+# --- Perception biometric/wake connectors (docs/design/phase-2d/
+# 03-perception-engine.md §0.2) -- the same "no live provider dependency ever
+# in this suite" discipline, mocked transports only. -------------------------
+
+
+def _wake_phrase_request() -> WakePhraseRequest:
+    return WakePhraseRequest(
+        audio_bytes=b"fake-wav-bytes", requesting_engine="test", correlation_id=uuid4()
+    )
+
+
+def _voice_embed_request() -> VoiceEmbedRequest:
+    return VoiceEmbedRequest(
+        audio_bytes=b"fake-wav-bytes", requesting_engine="test", correlation_id=uuid4()
+    )
+
+
+def _face_embed_request() -> FaceEmbedRequest:
+    return FaceEmbedRequest(
+        image_bytes=b"fake-jpeg-bytes", requesting_engine="test", correlation_id=uuid4()
+    )
+
+
+def _gaze_estimate_request() -> GazeEstimateRequest:
+    return GazeEstimateRequest(
+        image_bytes=b"fake-jpeg-bytes", requesting_engine="test", correlation_id=uuid4()
+    )
+
+
+def _wake_word_success_handler(request: httpx.Request) -> httpx.Response:
+    if request.url.path == "/v1/audio/wake-phrase":
+        return httpx.Response(200, json={"matched": True, "confidence": 0.9})
+    if request.url.path == "/health":
+        return httpx.Response(200, json={"status": "ok"})
+    return httpx.Response(404)
+
+
+def _wake_word_failure_handler(request: httpx.Request) -> httpx.Response:
+    return httpx.Response(500, json={"error": "simulated failure"})
+
+
+def _make_wake_word(handler: Callable[[httpx.Request], httpx.Response]) -> WakeWordConnector:
+    transport = httpx.MockTransport(handler)
+    client = httpx.AsyncClient(transport=transport, base_url="http://fake-wake-word")
+    return WakeWordConnector(client=client)
+
+
+def _voice_embedding_success_handler(request: httpx.Request) -> httpx.Response:
+    if request.url.path == "/v1/audio/embed":
+        return httpx.Response(200, json={"embedding": [0.1, 0.2, 0.3]})
+    if request.url.path == "/health":
+        return httpx.Response(200, json={"status": "ok"})
+    return httpx.Response(404)
+
+
+def _voice_embedding_failure_handler(request: httpx.Request) -> httpx.Response:
+    return httpx.Response(500, json={"error": "simulated failure"})
+
+
+def _make_voice_embedding(
+    handler: Callable[[httpx.Request], httpx.Response],
+) -> VoiceEmbeddingConnector:
+    transport = httpx.MockTransport(handler)
+    client = httpx.AsyncClient(transport=transport, base_url="http://fake-voice-embedding")
+    return VoiceEmbeddingConnector(client=client)
+
+
+def _face_embedding_success_handler(request: httpx.Request) -> httpx.Response:
+    if request.url.path == "/v1/image/embed":
+        return httpx.Response(200, json={"embedding": [0.4, 0.5, 0.6]})
+    if request.url.path == "/health":
+        return httpx.Response(200, json={"status": "ok"})
+    return httpx.Response(404)
+
+
+def _face_embedding_failure_handler(request: httpx.Request) -> httpx.Response:
+    return httpx.Response(500, json={"error": "simulated failure"})
+
+
+def _make_face_embedding(
+    handler: Callable[[httpx.Request], httpx.Response],
+) -> FaceEmbeddingConnector:
+    transport = httpx.MockTransport(handler)
+    client = httpx.AsyncClient(transport=transport, base_url="http://fake-face-embedding")
+    return FaceEmbeddingConnector(client=client)
+
+
+def _gaze_estimation_success_handler(request: httpx.Request) -> httpx.Response:
+    if request.url.path == "/v1/image/gaze":
+        return httpx.Response(200, json={"gaze_direction": "toward_device", "confidence": 0.8})
+    if request.url.path == "/health":
+        return httpx.Response(200, json={"status": "ok"})
+    return httpx.Response(404)
+
+
+def _gaze_estimation_failure_handler(request: httpx.Request) -> httpx.Response:
+    return httpx.Response(500, json={"error": "simulated failure"})
+
+
+def _make_gaze_estimation(
+    handler: Callable[[httpx.Request], httpx.Response],
+) -> GazeEstimationConnector:
+    transport = httpx.MockTransport(handler)
+    client = httpx.AsyncClient(transport=transport, base_url="http://fake-gaze-estimation")
+    return GazeEstimationConnector(client=client)
+
+
+async def test_wake_word_detect_returns_well_formed_result() -> None:
+    connector = _make_wake_word(_wake_word_success_handler)
+    result = await connector.detect_wake_phrase(_wake_phrase_request())
+    assert result.matched is True
+    assert result.structural_confidence == 0.9
+
+
+async def test_wake_word_detect_raises_catchable_error_on_failure() -> None:
+    connector = _make_wake_word(_wake_word_failure_handler)
+    with pytest.raises(Exception, match=".*"):
+        await connector.detect_wake_phrase(_wake_phrase_request())
+
+
+async def test_wake_word_health_reports_unavailable_on_transport_failure() -> None:
+    connector = _make_wake_word(_wake_word_failure_handler)
+    health = await connector.health()
+    assert health.available is False
+
+
+async def test_wake_word_generate_raises_not_supported_cleanly() -> None:
+    connector = _make_wake_word(_wake_word_success_handler)
+    with pytest.raises(NotSupportedError):
+        await connector.generate(_request())
+
+
+async def test_wake_word_embed_voice_raises_not_supported_cleanly() -> None:
+    connector = _make_wake_word(_wake_word_success_handler)
+    with pytest.raises(NotSupportedError):
+        await connector.embed_voice(_voice_embed_request())
+
+
+async def test_voice_embedding_embed_returns_well_formed_result() -> None:
+    connector = _make_voice_embedding(_voice_embedding_success_handler)
+    result = await connector.embed_voice(_voice_embed_request())
+    assert result.embedding == [0.1, 0.2, 0.3]
+    assert result.structural_confidence == 1.0
+
+
+async def test_voice_embedding_embed_raises_catchable_error_on_failure() -> None:
+    connector = _make_voice_embedding(_voice_embedding_failure_handler)
+    with pytest.raises(Exception, match=".*"):
+        await connector.embed_voice(_voice_embed_request())
+
+
+async def test_voice_embedding_health_reports_unavailable_on_transport_failure() -> None:
+    connector = _make_voice_embedding(_voice_embedding_failure_handler)
+    health = await connector.health()
+    assert health.available is False
+
+
+async def test_voice_embedding_detect_wake_phrase_raises_not_supported_cleanly() -> None:
+    connector = _make_voice_embedding(_voice_embedding_success_handler)
+    with pytest.raises(NotSupportedError):
+        await connector.detect_wake_phrase(_wake_phrase_request())
+
+
+async def test_face_embedding_embed_returns_well_formed_result() -> None:
+    connector = _make_face_embedding(_face_embedding_success_handler)
+    result = await connector.embed_face(_face_embed_request())
+    assert result.embedding == [0.4, 0.5, 0.6]
+    assert result.structural_confidence == 1.0
+
+
+async def test_face_embedding_embed_raises_catchable_error_on_failure() -> None:
+    connector = _make_face_embedding(_face_embedding_failure_handler)
+    with pytest.raises(Exception, match=".*"):
+        await connector.embed_face(_face_embed_request())
+
+
+async def test_face_embedding_health_reports_unavailable_on_transport_failure() -> None:
+    connector = _make_face_embedding(_face_embedding_failure_handler)
+    health = await connector.health()
+    assert health.available is False
+
+
+async def test_face_embedding_estimate_gaze_raises_not_supported_cleanly() -> None:
+    connector = _make_face_embedding(_face_embedding_success_handler)
+    with pytest.raises(NotSupportedError):
+        await connector.estimate_gaze(_gaze_estimate_request())
+
+
+async def test_gaze_estimation_estimate_returns_well_formed_result() -> None:
+    connector = _make_gaze_estimation(_gaze_estimation_success_handler)
+    result = await connector.estimate_gaze(_gaze_estimate_request())
+    assert result.gaze_direction == "toward_device"
+    assert result.structural_confidence == 0.8
+
+
+async def test_gaze_estimation_estimate_raises_catchable_error_on_failure() -> None:
+    connector = _make_gaze_estimation(_gaze_estimation_failure_handler)
+    with pytest.raises(Exception, match=".*"):
+        await connector.estimate_gaze(_gaze_estimate_request())
+
+
+async def test_gaze_estimation_health_reports_unavailable_on_transport_failure() -> None:
+    connector = _make_gaze_estimation(_gaze_estimation_failure_handler)
+    health = await connector.health()
+    assert health.available is False
+
+
+async def test_gaze_estimation_embed_face_raises_not_supported_cleanly() -> None:
+    connector = _make_gaze_estimation(_gaze_estimation_success_handler)
+    with pytest.raises(NotSupportedError):
+        await connector.embed_face(_face_embed_request())
+
+
+_NON_BIOMETRIC_CONNECTORS: list[tuple[str, ConnectorFactory]] = [
+    ("ollama", lambda: _make_ollama(_ollama_success_handler)),
+    ("anthropic", lambda: _make_anthropic(should_fail=False)),
+    ("whisper", lambda: _make_whisper(_whisper_success_handler)),
+    ("piper", lambda: _make_piper(_piper_success_handler)),
+]
+"""`FakeConnector` deliberately excluded here -- unlike every real connector
+above, it *does* support biometrics by default (`supports_biometrics=True`),
+the same asymmetry `_NON_SPEECH_CONNECTORS` already carries for speech."""
+
+
+@_params(_NON_BIOMETRIC_CONNECTORS)
+async def test_non_biometric_connectors_raise_not_supported_for_wake_phrase(
+    factory: ConnectorFactory,
+) -> None:
+    connector = factory()
+    with pytest.raises(NotSupportedError):
+        await connector.detect_wake_phrase(_wake_phrase_request())
+
+
+@_params(_NON_BIOMETRIC_CONNECTORS)
+async def test_non_biometric_connectors_raise_not_supported_for_voice_embed(
+    factory: ConnectorFactory,
+) -> None:
+    connector = factory()
+    with pytest.raises(NotSupportedError):
+        await connector.embed_voice(_voice_embed_request())
+
+
+@_params(_NON_BIOMETRIC_CONNECTORS)
+async def test_non_biometric_connectors_raise_not_supported_for_face_embed(
+    factory: ConnectorFactory,
+) -> None:
+    connector = factory()
+    with pytest.raises(NotSupportedError):
+        await connector.embed_face(_face_embed_request())
+
+
+@_params(_NON_BIOMETRIC_CONNECTORS)
+async def test_non_biometric_connectors_raise_not_supported_for_gaze_estimate(
+    factory: ConnectorFactory,
+) -> None:
+    connector = factory()
+    with pytest.raises(NotSupportedError):
+        await connector.estimate_gaze(_gaze_estimate_request())
+
+
+async def test_fake_detect_wake_phrase_returns_well_formed_result() -> None:
+    connector = FakeConnector()
+    result = await connector.detect_wake_phrase(_wake_phrase_request())
+    assert result.structural_confidence == 1.0
+
+
+async def test_fake_embed_voice_returns_well_formed_result() -> None:
+    connector = FakeConnector()
+    result = await connector.embed_voice(_voice_embed_request())
+    assert result.embedding
+    assert result.structural_confidence == 1.0
+
+
+async def test_fake_embed_face_returns_well_formed_result() -> None:
+    connector = FakeConnector()
+    result = await connector.embed_face(_face_embed_request())
+    assert result.embedding
+    assert result.structural_confidence == 1.0
+
+
+async def test_fake_estimate_gaze_returns_well_formed_result() -> None:
+    connector = FakeConnector()
+    result = await connector.estimate_gaze(_gaze_estimate_request())
+    assert result.gaze_direction == "toward_device"
+    assert result.structural_confidence == 1.0
