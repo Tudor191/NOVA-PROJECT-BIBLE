@@ -201,6 +201,18 @@ stage:
   produces the most natural, responsive, and consistent user experience, while
   remaining faithful to the approved architecture — never a license to deviate from
   it.
+- **Always verify the implementation before trusting the documentation.**
+  Documentation is authoritative only after it has been validated against the
+  actual code — a design document's claim about another engine's already-shipped
+  behavior (a schema, an event contract, an interface) must be checked against
+  that engine's real source before being relied on, never assumed correct because
+  it was written down. Established after the Phase 2D-B TDD's own discovery that
+  the Phase 2D Master Blueprint's claim about World Model Engine's `ActiveContext`
+  schema (that it already cached "who's present") did not match the schema
+  actually shipped in Phase 1 — found by reading `domain/models.py` directly, not
+  by trusting the blueprint's prose. Binding on every future design document from
+  this point forward: any claim about an existing subsystem's behavior must cite
+  verified code, not merely a prior document's description of it.
 
 ### 9.1 The ten-item build-time deliverable checklist
 

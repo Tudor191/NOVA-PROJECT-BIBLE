@@ -18,17 +18,25 @@ by omission), [ADR-012](../../architecture/adr/ADR-012-redis-as-primary-store-no
 finding against it, structurally identical in kind to
 [01-communication-engine.md §0.3](01-communication-engine.md)'s speech-modality
 finding), [ADR-023](../../architecture/adr/ADR-023-uniform-connector-compliance-suite.md)
-(uniform connector compliance, extended to the new modalities §0.2 requires), and
+(uniform connector compliance, extended to the new modalities §0.2 requires),
 [ADR-024](../../architecture/adr/ADR-024-interface-versioning-from-day-one.md)
-(every payload versioned from first commit).
+(every payload versioned from first commit), and
+[ADR-032](../../architecture/adr/ADR-032-identity-confidence-is-also-an-authorization-signal.md)
+(identity confidence is also an authorization signal for future privileged
+capabilities, filed alongside this document's approval — §0.9).
 
-Status: **Pending review and approval — implementation must not begin until this
-document is explicitly approved**, the same discipline every prior phase's TDD has
-been held to. Per the user's explicit standing instruction at Phase 2D-B's
-authorization: **identity must never depend on a single signal.** This is the
-single foundational principle every design decision below is checked against — see
-§0.4 for its full statement and §8 for its concrete, mechanically-enforced
-implementation.
+Status: **Approved.** Implementation is authorized to begin, following the same
+lifecycle every prior subsystem has been held to: Implementation → Continuous
+testing → Architecture Review → Gate Review → Engineering Metrics → Approval,
+built one layer at a time, each layer verified before the next begins. Per the
+user's explicit standing instruction at Phase 2D-B's authorization: **identity
+must never depend on a single signal.** This is the single foundational principle
+every design decision below is checked against — see §0.4 for its full statement
+and §8 for its concrete, mechanically-enforced implementation. Two further
+standing principles were added at approval, alongside two required cross-engine
+extensions (§0.2, §0.6): identity confidence is also an authorization signal for
+future privileged capabilities (§0.9, ADR-032), and identity is continuously
+reassessed throughout an interaction, never decided once (§0.10).
 
 ## 0. The boundary this document defends
 
@@ -293,6 +301,46 @@ nothing in this document defines a port toward it — a future "identity-informe
 personalization" capability, if one is ever needed, is a Phase 2D-D or later
 design decision, not assumed here.
 
+### 0.9 Identity confidence is also an authorization signal — not built here, but the signal this engine produces must be fit for that purpose
+
+Per [ADR-032](../../architecture/adr/ADR-032-identity-confidence-is-also-an-authorization-signal.md),
+filed alongside this document's approval: identity confidence does not only answer
+"who is this" — it is also a required input to "what is this system allowed to
+do." Future privileged capabilities (automation, smart-home control, financial
+operations, security-sensitive actions, or any privileged workflow, none of which
+exist yet — Action Engine is Phase 3, Autonomy Engine is Phase 4) must gate on a
+*configurable* identity-confidence threshold, never a binary identity check.
+
+**This document does not build any authorization or gating logic** — that would
+violate §0.3/§0.5's independence boundary exactly as building addressee-fusion
+logic here would. What this document *is* responsible for, and is checked against
+in the Gate Review: every identity signal this engine ever produces or exposes —
+`IdentityObservation` (§4.1), `perception.identity.observed` (§13.2), and every
+future API surface — carries the full confidence float and tier together, never
+collapses to a bare boolean anywhere on its way out of this engine. A future
+capability-owning engine that wants to gate a privileged action on identity reads
+this engine's confidence signal directly; nothing here narrows, rounds, or
+discards precision on the way. §8 designed the confidence output this precisely
+before ADR-032 existed — this section records that ADR-032 now makes that
+precision a binding requirement, not a coincidence of the original design.
+
+### 0.10 Identity is continuously reassessed, not a single event
+
+Per the user's explicit standing instruction, given alongside ADR-032's approval:
+**recognition is not a single event. It is an ongoing process.** As new evidence
+arrives during an active interaction, identity confidence must be able to
+increase, decrease, or remain stable — continuously, not only at a single
+enrollment-matching moment — without disrupting the conversation unnecessarily
+each time it updates. §8 restates this as the fusion algorithm's operating mode
+(a continuously-updated running state, not a one-shot classification) and adds the
+temporal-smoothing mechanism that keeps confidence updates from becoming visible
+jitter. This document's own scope reassesses identity from the two modalities it
+has (voice, face) plus session continuity; future evidence sources the user named
+explicitly — behavioral biometrics, device proximity, environmental context,
+movement patterns, gaze dynamics, and additional modalities not yet identified —
+are structurally supported extension points (§23), not built this phase, per this
+document's standing "minimal now, honest about what's deferred" discipline (§0.1).
+
 ## 1. Overall architecture
 
 ```mermaid
@@ -368,7 +416,8 @@ document).
 - **Speaker recognition** (§6.2) and **face recognition** (§7.1): matching a live
   biometric sample against enrolled templates.
 - **Multi-factor identity confidence** (§8): fusing per-modality match signals
-  into one identity verdict, per §0.4's foundational principle.
+  into one continuously-updated identity verdict, per §0.4's foundational
+  principle and §0.10's continuous-reassessment principle.
 - **Attention and gaze awareness** (§7.3).
 - **Wake-phrase detection** (§9.1) as one activation signal among several.
 - **Addressee-candidate signal publishing** (§10) — raw signals only, never a
@@ -392,6 +441,10 @@ document).
   (Phase 2D-D), which this document has no relationship to (§0.8).
 - **Does not call any AI/biometric model directly** — every model call is routed
   through `ai-model-orchestration-engine` per §0.2.
+- **Does not gate or authorize any privileged capability** — produces
+  confidence-scored, tiered identity signals a future capability-owning engine
+  consumes as an authorization input; the gating/threshold logic itself belongs
+  to that future engine, never here (§0.9, ADR-032).
 
 ## 3. Internal execution flow & complete data flow
 
@@ -467,11 +520,26 @@ sequenceDiagram
 - `EnrolledIdentity` — `identity_id`, `user_id`, `modality` (`voice` | `face`),
   `template_ciphertext` (encrypted embedding, never plaintext at rest, §11),
   `enrolled_at`, `revoked_at | None`.
-- `IdentityObservation` — one fused identity verdict: `observation_id`,
-  `identity_id | None` (`None` = confidently-present-but-unmatched), `fused_confidence`,
-  `confidence_tier` (`high` | `medium` | `low` | `unknown` — Doc 23 §5.2's four
-  tiers, reused per Doc 22 Principle 7), `per_modality_signals` (JSON, audit trail
-  — §11's "trust through inspectability"), `observed_at`, `correlation_id`.
+- `IdentityObservation` — one fused identity verdict for a single correlation
+  window: `observation_id`, `identity_id | None` (`None` =
+  confidently-present-but-unmatched), `fused_confidence`, `confidence_tier`
+  (`high` | `medium` | `low` | `unknown` — Doc 23 §5.2's four tiers, reused per
+  Doc 22 Principle 7), `per_modality_signals` (JSON, audit trail — §11's "trust
+  through inspectability"), `observed_at`, `correlation_id`. Append-only —
+  immutable once written, the permanent audit trail §0.10's continuous
+  reassessment is built on top of, never itself mutated in place.
+- `IdentityConfidenceState` — the **current, continuously-updated** running
+  state per active presence session (§0.10, §8): `presence_session_id`,
+  `identity_id | None`, `smoothed_confidence`, `smoothed_tier`,
+  `observation_count`, `last_updated_at`. This is in-process, live state, not a
+  Postgres row — mirroring `communication-engine`'s own `session_registry.py`
+  precedent ("the one piece of genuinely live, in-memory state... which is why
+  it lives outside the framework-free layer"). It is derived entirely from the
+  `IdentityObservation` stream (never the reverse) and is safe to lose on
+  restart — a fresh fusion sequence simply rebuilds it from the next few
+  correlation windows, the same "no safe default needed because nothing
+  irreversible depends on it surviving a crash" reasoning
+  `communication-engine`'s Transport VAD state already relies on.
 
 ### 4.2 Presence model
 
@@ -575,14 +643,18 @@ face. Combined with presence, this produces `AttentionObservation` (§4.2),
 published as `perception.attention.observed` (§13.2) — a candidate signal for
 addressee detection (§10), never a verdict.
 
-## 8. Multi-factor identity confidence — evidence fusion
+## 8. Multi-factor identity confidence — continuous evidence fusion
 
-The mechanical implementation of §0.4's foundational principle.
-`domain/identity_fusion.py` combines every available per-modality signal for a
-correlation window (mirroring World Model's own `fuse_window` correlation-window
-pattern in `domain/fusion.py` — an intentional architectural consistency, not a
-coincidence, since both solve "combine several imperfect signals into one
-confidence-scored verdict without letting agreement fabricate false certainty"):
+The mechanical implementation of §0.4's foundational principle (no single signal
+is ever sufficient) and §0.10's foundational principle (recognition is an ongoing
+process, not a single event). `domain/identity_fusion.py` combines every
+available per-modality signal for a correlation window (mirroring World Model's
+own `fuse_window` correlation-window pattern in `domain/fusion.py` — an
+intentional architectural consistency, not a coincidence, since both solve
+"combine several imperfect signals into one confidence-scored verdict without
+letting agreement fabricate false certainty"), then feeds that window's verdict
+into a continuously-updated running state (step 6) rather than treating it as a
+final answer:
 
 1. **Group signals by candidate identity.** Each modality (voice match, face
    match, session-continuity — "the same identity as the immediately preceding
@@ -608,19 +680,49 @@ confidence-scored verdict without letting agreement fabricate false certainty"):
 5. **Confidence tiers** (Doc 23 §5.2, reused per Doc 22 Principle 7): `high ≥
    0.85`, `medium ≥ 0.6`, `low ≥ 0.35`, else `unknown`. Every downstream consumer
    (World Model's Active Context, §0.6; `communication-engine`'s future 2D-C
-   addressee fusion) receives the tier alongside the raw float, never the float
-   alone — matching Doc 23's own confidence-expression discipline of never hiding
-   uncertainty inside a confident-sounding single number.
+   addressee fusion; any future authorization consumer, §0.9) receives the tier
+   alongside the raw float, never the float alone — matching Doc 23's own
+   confidence-expression discipline of never hiding uncertainty inside a
+   confident-sounding single number.
+6. **Continuous reassessment via exponential smoothing — the mechanical
+   enforcement of §0.10.** Each window's `fused_confidence` (steps 1-5) is not
+   delivered as a standalone verdict; it updates `IdentityConfidenceState.
+   smoothed_confidence` (§4.1) for the active presence session:
+   `smoothed = ALPHA * fused + (1 - ALPHA) * previous_smoothed` (a standard
+   exponential moving average, `ALPHA` tuned low enough that one anomalous
+   window — a mistimed frame, a noisy audio window — cannot swing the visible
+   state, but high enough that a real, sustained change in evidence is reflected
+   within a handful of windows, not dozens). This is what lets confidence
+   *increase, decrease, or hold steady* as new evidence arrives, per the user's
+   own framing, without the jitter that would come from surfacing each raw
+   window's verdict directly. **A sustained decrease is treated with the same
+   seriousness as a sustained increase** — several consecutive low-agreement
+   windows lower `smoothed_confidence` through the same formula, never held
+   artificially high by "benefit of the doubt"; identity confidence degrades
+   honestly when the evidence degrades, the same trust-through-consistency
+   discipline Doc 22 Principle 9 already demands of preference adaptation
+   ("never overwrite immediately... require consistent evidence"), applied here
+   to confidence *decay* rather than only to confidence gain. `smoothed_tier` is
+   recomputed from `smoothed_confidence` using the same boundaries as step 5 —
+   a tier change is itself a meaningful event (published as a fresh
+   `perception.identity.observed` only when the *tier* changes, not on every
+   window, so downstream consumers see stable state rather than continuous
+   noise, per ADR-031's subjective-experience-quality standard applied to a
+   machine consumer instead of a human one).
 
-Context and long-term conversation-history signals (the user's own explicitly
-named future fusion inputs) are **structurally supported but not populated this
-phase** — `per_modality_signals` is an open, extensible mapping, not a fixed
-tuple, so a future signal (a behavioral pattern, a richer history correlation)
-plugs into the same `group by candidate identity` step without a fusion-function
-redesign (§23). This is the honest, minimal-now scope: this phase concretely fuses
-voice, face, and session-continuity — exactly the signals this phase's sensors and
-dependencies can honestly produce — while the fusion *architecture* is built for
-every signal §0.4 names, present or future.
+Context and long-term conversation-history signals, and the user's other
+explicitly named future evidence sources — behavioral biometrics, device
+proximity, environmental context, movement patterns, gaze dynamics, and
+additional modalities not yet identified — are **structurally supported but not
+populated this phase**: `per_modality_signals` is an open, extensible mapping,
+not a fixed tuple, so a future signal plugs into step 1's "group by candidate
+identity" without a fusion-function redesign, and step 6's smoothing operates
+identically regardless of how many or which signal types feed step 1-5 (§23).
+This is the honest, minimal-now scope: this phase concretely fuses voice, face,
+and session-continuity — exactly the signals this phase's sensors and
+dependencies can honestly produce — while the fusion *architecture*, including
+its continuous-reassessment mechanism, is built for every signal §0.4 and §0.10
+name, present or future.
 
 ## 9. Activation logic — wake phrase, manual activation, push-to-talk, future always-listening
 
@@ -744,9 +846,13 @@ phase, not assumed here.
 - `perception.presence.observed` — matches World Model's existing
   `perception.*.observed` wildcard subscription (§0.6); feeds `ActiveContext` via
   the now-wired `fuse_and_update` path.
-- `perception.identity.observed` — matches the same wildcard; carries §4.1's
-  `IdentityObservation` (identity_id, confidence, tier); feeds `ActiveContext.
-  present_identities` (§0.6).
+- `perception.identity.observed` — matches the same wildcard; carries §8's
+  smoothed `IdentityConfidenceState` (identity_id, smoothed confidence, tier);
+  feeds `ActiveContext.present_identities` (§0.6). Published on every correlation
+  window that changes `smoothed_tier`, not on every window — §8's own
+  noise-reduction rationale, so World Model's Active Context (and any future
+  authorization consumer, §0.9) observes stable state transitions, not
+  continuous per-window churn.
 - `perception.attention.observed` — matches the same wildcard; carries §4.2's
   `AttentionObservation`.
 - `perception.wake.detected` — **deliberately does not match** the `.observed`
@@ -895,6 +1001,14 @@ part of NOVA's personality," ADR-031's general form):
   already-scored signals — never the bottleneck in the identity pipeline; the
   model calls that produce the per-modality scores dominate the budget, not the
   fusion arithmetic.
+- Continuous reassessment cadence (§0.10, §8): a new correlation window every
+  2-3 seconds while a presence session is active — frequent enough that a real
+  change in who's present is reflected within single-digit seconds (§0.10's
+  "ongoing process" requirement), infrequent enough that it never approaches
+  the wake-phrase/VAD path's real-time budget above. This is a starting
+  parameter, not a fixed constant — §20's calibration tests are the mechanism
+  for tuning it against real responsiveness-vs-noise data, the same posture
+  §8's confidence-tier boundaries already take.
 - Sensor health checks: continuous, non-blocking, never competing with live
   sensing for CPU (Bible: "minimal CPU usage").
 
@@ -928,7 +1042,18 @@ project's standing "layer by layer, tested before the next layer begins" rule:
 - **Unit tests**: `identity_fusion.py` against synthetic signal sets — critically,
   a direct test that a single strong signal (e.g. `confidence=0.99`) never
   produces a `high` tier verdict (§8's ceiling, mechanically verified, not just
-  asserted in prose); disagreement-suppression tests; tier-boundary tests.
+  asserted in prose); disagreement-suppression tests; tier-boundary tests;
+  continuous-reassessment tests (§0.10, §8 step 6) — a single anomalous window
+  must not swing `smoothed_confidence` across a tier boundary, a sustained run
+  of consistent windows must; a sustained run of *weak* windows must lower
+  `smoothed_confidence` through the same formula, verified directly rather than
+  only asserted (§0.10's "decrease... without disrupting the conversation
+  unnecessarily" is a testable property, not only a design description).
+- **Authorization-signal precision tests** (§0.9, ADR-032): every code path an
+  `IdentityObservation`/`IdentityConfidenceState` can leave this engine through
+  (event payload, any future API surface) is asserted to carry the full
+  confidence float alongside its tier, never the tier alone — a regression test
+  guarding the property a future privileged-capability engine will depend on.
 - **Sensor Abstraction Layer compliance suite**: every `Sensor` implementation
   (voice, camera, and any future Phase 4 sensor) runs against one shared
   lifecycle-contract test suite — mirroring ADR-023's uniform connector
@@ -968,6 +1093,8 @@ project's standing "layer by layer, tested before the next layer begins" rule:
 | No visible mechanism (wake phrase) is treated as permanent — explicit trajectory away from it (§9.4) | Doc 22 Principle 12 |
 | Continuous, ambient (not single-device-locked) presence/attention sensing designed from day one (§7.2, §7.3) | Doc 22 Principle 13 |
 | Four confidence tiers (high/medium/low/unknown) directly reused from Doc 23's Confidence Expression model, applied to identity | Doc 23 §5.2 |
+| Continuous reassessment (§0.10, §8 step 6) treats a sustained confidence *decrease* with the same seriousness as an increase — never held artificially high by "benefit of the doubt" | Doc 22 Principle 9 |
+| Identity confidence exposed with full precision (float + tier) everywhere it leaves this engine, so a future authorization consumer never inherits rounded-down uncertainty (§0.9) | Doc 22 Principle 7; ADR-032 |
 
 ## 22. ADR / Bible compliance
 
@@ -994,6 +1121,10 @@ project's standing "layer by layer, tested before the next layer begins" rule:
   cost discipline (§7.2) are both latency/responsiveness choices made for
   subjective-experience reasons among otherwise-equivalent options, named here
   explicitly per that ADR's own transparency requirement.
+- **ADR-032**: this engine never gates or authorizes anything itself (§0.9,
+  §2.2); every identity signal it exposes carries full confidence precision so a
+  future privileged-capability engine can build configurable-threshold gating on
+  top of it without this engine needing to change.
 - **Bible Part 11**: every named responsibility this phase claims (Sensor
   Abstraction Layer, Identity Registry, presence, speaker/face recognition,
   attention/gaze, wake logic, multi-modal fusion, failure recovery, security,
@@ -1011,10 +1142,25 @@ project's standing "layer by layer, tested before the next layer begins" rule:
   sensing this phase already runs is the foundation; widening it to a richer,
   wake-word-optional addressee-confidence stream is additive to §8's fusion
   function and §10's candidate-signal event, not a rewrite.
-- **Additional identity-fusion signals** (§8): `per_modality_signals`'s open
-  mapping accepts a new signal type (a behavioral pattern, deeper conversation-
-  history correlation once `digital-twin-engine` exists) without a fusion-function
-  redesign.
+- **Additional identity-fusion signals** (§0.10, §8): `per_modality_signals`'s
+  open mapping accepts a new signal type without a fusion-function redesign —
+  the user's own named future evidence sources are the concrete candidates:
+  **behavioral biometrics** (typing/interaction cadence, once a text-input
+  signal source exists), **device proximity** (Bluetooth/UWB presence of a
+  known device, Phase 4 `nova-companion`-adjacent), **environmental context**
+  (correlating with World Model's own Active Context fields, §0.6), **movement
+  patterns** (gait or motion signature, a camera-derived signal this phase's
+  `camera_sensor.py` does not yet extract), and **additional modalities** not
+  yet identified. Each plugs into step 1's "group by candidate identity" and
+  step 6's smoothing (§8) identically to voice/face/session-continuity today —
+  the fusion architecture does not distinguish "this phase's signals" from
+  "a future signal" structurally, only in which connectors are actually wired.
+- **Authorization-threshold consumers** (§0.9, ADR-032): Action Engine (Phase
+  3/NAOS) and Autonomy Engine (Phase 4) are the anticipated first consumers of
+  this engine's confidence signal for privileged-capability gating; no port is
+  defined toward them here, mirroring §0.8's treatment of `digital-twin-engine`
+  — designed once those engines' own TDDs define what they need, not
+  speculated on in advance.
 - **Dynamic sensor registration API** (§14): "Register Sensor"/"Remove Sensor" as
   real runtime endpoints, if Phase 4's sensor breadth ever needs registration
   without a redeploy.
@@ -1072,6 +1218,21 @@ project's standing "layer by layer, tested before the next layer begins" rule:
    phase's scope. *Mitigation:* named prominently rather than silently deferred;
    a candidate Phase 4 (or earlier, if the Gate Review judges it urgent)
    hardening item.
+6. **Exponential smoothing (§8 step 6) trades reaction speed for stability** — a
+   genuine, sudden identity change (a different person actually sits down)
+   takes several correlation windows to fully surface in `smoothed_confidence`,
+   by the same mechanism that (deliberately) prevents one noisy window from
+   causing visible jitter. *Accepted deliberately*, per the user's own framing
+   ("without disrupting the conversation unnecessarily") — `ALPHA` (§8) is the
+   single tunable parameter this tradeoff lives in, calibrated with real data
+   (§20), not fixed by guess.
+7. **ADR-032 raises the stakes on this engine's own confidence-calibration
+   accuracy (§24)** — once a future engine gates a privileged capability on
+   this signal, an uncalibrated tier boundary is no longer only a recognition
+   inconvenience, it becomes a security parameter. *Mitigation:* named
+   explicitly so that calibration work (§20) is prioritized accordingly before
+   any future engine is approved to consume this signal for authorization,
+   not treated as a lower-urgency follow-up once ADR-032 has real consumers.
 
 ## 26. Explicit implementation order
 
