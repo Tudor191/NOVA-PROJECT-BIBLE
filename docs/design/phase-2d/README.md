@@ -12,15 +12,19 @@ draws an explicit boundary against — see the blueprint's §9.4) and
 [ADR-025](../../architecture/adr/ADR-025-personal-edition-is-the-flagship.md)
 (Personal Edition priority order, directly governing this phase's scope choices).
 
-Status: **Blueprint approved. Doc 22 and Doc 23 approved. The first two Phase
-2D-A Technical Design Documents (01 — Communication Engine, 02 — Personality
-Engine) are drafted and pending user review — implementation must not begin until
-both are explicitly approved,** the same discipline Phase 2B's and Phase 2C's own
-TDDs were held to. Per direct user instruction, this phase was preceded by a full
-architectural blueprint and two permanent governing documents *before* any
-individual engine's TDD, the same "validate the architecture before designing a
-single engine" discipline applied one level higher: here, to an entire phase's
-worth of engines at once, not just one.
+Status: **Blueprint approved. Doc 22 and Doc 23 approved. Both Phase 2D-A
+Technical Design Documents (01 — Communication Engine, 02 — Personality Engine)
+approved. Phase 2D-A is implemented and Gate-Reviewed (Go, pending the user's
+explicit decision on the Gate Review's real-Postgres-verification
+recommendation) — see the
+[Architecture Review Report](../../roadmap/architecture-reviews/phase-2d-a-voice-communication-foundation.md)
+and the
+[Gate Review](../../roadmap/architecture-reviews/phase-2d-a-gate-review.md).**
+Per direct user instruction, this phase was preceded by a full architectural
+blueprint and two permanent governing documents *before* any individual engine's
+TDD, the same "validate the architecture before designing a single engine"
+discipline applied one level higher: here, to an entire phase's worth of engines
+at once, not just one.
 
 **A note on naming:** this work was originally requested under the working name
 "Phase 3" (sub-phases 3A–3D). It has been reconciled against the existing roadmap
