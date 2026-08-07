@@ -28,7 +28,7 @@ def _wait_for_turn_count(
     deadline = time.monotonic() + timeout_s
     context: dict = {}
     while time.monotonic() < deadline:
-        context = client.get(f"/sessions/{session_id}/context").json()
+        context = client.get(f"/v1/communication/sessions/{session_id}/context").json()
         if context["turn_count"] >= expected:
             return context
         time.sleep(0.02)
@@ -46,12 +46,12 @@ def test_websocket_text_frame_is_recorded_as_an_inbound_turn(monkeypatch) -> Non
     )
     with TestClient(app) as client:
         created = client.post(
-            "/sessions",
+            "/v1/communication/sessions",
             json={"user_id": str(uuid4()), "channel": "text", "device_id": str(uuid4())},
         ).json()
         session_id = created["session_id"]
 
-        with client.websocket_connect(f"/sessions/{session_id}") as websocket:
+        with client.websocket_connect(f"/v1/communication/sessions/{session_id}") as websocket:
             websocket.send_json({"kind": "text", "content": "Hello over websocket"})
             context = _wait_for_turn_count(client, session_id, 1)
 
@@ -70,18 +70,18 @@ def test_disconnecting_pauses_the_session(monkeypatch) -> None:  # type: ignore[
     )
     with TestClient(app) as client:
         created = client.post(
-            "/sessions",
+            "/v1/communication/sessions",
             json={"user_id": str(uuid4()), "channel": "text", "device_id": str(uuid4())},
         ).json()
         session_id = created["session_id"]
 
-        with client.websocket_connect(f"/sessions/{session_id}"):
+        with client.websocket_connect(f"/v1/communication/sessions/{session_id}"):
             pass  # connect, then disconnect immediately
 
         deadline = time.monotonic() + 2.0
         state = None
         while time.monotonic() < deadline:
-            state = client.get(f"/sessions/{session_id}/context").json()["state"]
+            state = client.get(f"/v1/communication/sessions/{session_id}/context").json()["state"]
             if state == "paused":
                 break
             time.sleep(0.02)
@@ -99,7 +99,7 @@ def test_unknown_session_id_closes_the_websocket(monkeypatch) -> None:  # type: 
     )
     with TestClient(app) as client:
         try:
-            with client.websocket_connect(f"/sessions/{uuid4()}"):
+            with client.websocket_connect(f"/v1/communication/sessions/{uuid4()}"):
                 pass
         except Exception:
             pass  # a rejected connection surfaces as a WebSocketDisconnect-family exception

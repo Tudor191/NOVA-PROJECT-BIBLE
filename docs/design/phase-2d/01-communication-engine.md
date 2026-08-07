@@ -549,16 +549,23 @@ response chunk to achieve perceived streaming (§0.3, §4).
 Bible Part 13's "Communication APIs" list, realized as `communication-engine`'s
 FastAPI surface (external callers: `apps/web-client`, `api-gateway`/`ws-gateway`):
 
+All routes are served under the `/v1/communication` prefix, per the project-wide
+`/v1/<domain>/...` REST convention (Phase 2D-A Gate Review correction — bare
+paths were an inconsistency against every other engine's own API surface):
+
 | Endpoint | Method | Notes |
 |---|---|---|
-| `/sessions` | POST | Create Session |
-| `/sessions/{id}/messages` | POST | Send Message (text) |
-| `/sessions/{id}` (WebSocket) | — | Voice channel + streaming text, via `ws-gateway` |
-| `/sessions/{id}/pause` | POST | Pause Conversation |
-| `/sessions/{id}/resume` | POST | Resume Conversation |
-| `/sessions/{id}` | DELETE | Close Session |
-| `/sessions/{id}/context` | GET | Retrieve Context |
-| `/notifications` | POST | Generate Notification (minimal, §10) |
+| `/v1/communication/sessions` | POST | Create Session |
+| `/v1/communication/sessions/{id}/messages` | POST | Send Message (text) |
+| `/v1/communication/sessions/{id}` (WebSocket) | — | Voice channel + streaming text, via `ws-gateway` |
+| `/v1/communication/sessions/{id}/pause` | POST | Pause Conversation |
+| `/v1/communication/sessions/{id}/resume` | POST | Resume Conversation |
+| `/v1/communication/sessions/{id}` | DELETE | Close Session |
+| `/v1/communication/sessions/{id}/context` | GET | Retrieve Context |
+| `/v1/communication/notifications` | POST | Generate Notification (minimal, §10) |
+
+`/internal/health`, `/internal/readiness`, `/internal/metrics` remain
+unprefixed by `/v1` — the ops/probe surface, not a versioned domain API.
 
 `Broadcast Update` and `Synchronize Devices` (Bible Part 13) are **not exposed
 this phase** — both require multi-device continuity, explicitly out of Phase 2D's

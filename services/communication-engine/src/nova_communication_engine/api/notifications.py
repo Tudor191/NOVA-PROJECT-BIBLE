@@ -1,7 +1,10 @@
-"""`POST /notifications` (docs/design/phase-2d/01-communication-engine.md
-Sec10, Sec12) -- Generate Notification, minimal this phase: recorded, not
-yet delivered through any push channel (Sec12's own honest scope note; the
-full "Communication Policies" prioritization intelligence is 2D-C scope).
+"""`POST /v1/communication/notifications`
+(docs/design/phase-2d/01-communication-engine.md Sec10, Sec12) -- Generate
+Notification, minimal this phase: recorded, not yet delivered through any
+push channel (Sec12's own honest scope note; the full "Communication
+Policies" prioritization intelligence is 2D-C scope). Prefixed
+`/v1/communication` per the Phase 2D-A Gate Review's API-consistency
+finding -- see `sessions.py`'s docstring.
 """
 
 from __future__ import annotations
@@ -14,7 +17,7 @@ from pydantic import BaseModel
 
 from nova_communication_engine.domain.models import Notification, NotificationPriority
 
-router = APIRouter(prefix="/notifications", tags=["notifications"])
+router = APIRouter(prefix="/v1/communication/notifications", tags=["notifications"])
 
 
 class CreateNotificationRequest(BaseModel):

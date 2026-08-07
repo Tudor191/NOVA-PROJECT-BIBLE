@@ -1,8 +1,9 @@
-"""`GET /memory` (docs/design/phase-2d/02-personality-engine.md Sec11) --
-the current resolved Personality Memory profile (Sec6). Read-only this
-phase -- no endpoint mutates it; it changes only via
+"""`GET /v1/personality/memory` (docs/design/phase-2d/02-personality-engine.md
+Sec11) -- the current resolved Personality Memory profile (Sec6). Read-only
+this phase -- no endpoint mutates it; it changes only via
 `personality.memory.update` once Phase 2D-D's `digital-twin-engine` exists
-(Sec7.2, ADR-030)."""
+(Sec7.2, ADR-030). Prefixed `/v1/personality` per the Phase 2D-A Gate
+Review's API-consistency finding -- see `identity.py`'s docstring."""
 
 from __future__ import annotations
 
@@ -10,7 +11,7 @@ from fastapi import APIRouter, Request
 
 from nova_personality_engine.domain.models import MemoryProfile
 
-router = APIRouter(tags=["memory"])
+router = APIRouter(prefix="/v1/personality", tags=["memory"])
 
 
 @router.get("/memory", response_model=MemoryProfile)

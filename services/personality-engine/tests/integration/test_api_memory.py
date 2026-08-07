@@ -22,7 +22,7 @@ def test_memory_returns_the_resolved_profile(monkeypatch) -> None:  # type: igno
         ),
     )
     with TestClient(app) as client:
-        response = client.get("/memory")
+        response = client.get("/v1/personality/memory")
 
     assert response.status_code == 200
     body = response.json()

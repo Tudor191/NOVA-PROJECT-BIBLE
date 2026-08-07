@@ -20,7 +20,7 @@ def client(monkeypatch):  # type: ignore[no-untyped-def]
 
 
 def test_style_defaults_to_professional_with_no_hint(client) -> None:  # type: ignore[no-untyped-def]
-    response = client.get("/style")
+    response = client.get("/v1/personality/style")
     assert response.status_code == 200
     assert response.json()["style"] == "professional"
 
@@ -40,7 +40,7 @@ def test_style_defaults_to_professional_with_no_hint(client) -> None:  # type: i
     ],
 )
 def test_style_maps_every_situation_hint(client, situation_hint, expected_style) -> None:  # type: ignore[no-untyped-def]
-    response = client.get("/style", params={"situation_hint": situation_hint})
+    response = client.get("/v1/personality/style", params={"situation_hint": situation_hint})
     assert response.status_code == 200
     assert response.json()["style"] == expected_style
 
@@ -49,6 +49,6 @@ def test_style_returns_503_when_core_identity_is_not_loaded(monkeypatch) -> None
     monkeypatch.setenv("EVENT_BUS_BACKEND", "in_memory")
     app = create_app(Settings(), repository=FakePersonalityRepository(core_identity=None))
     with TestClient(app) as test_client:
-        response = test_client.get("/style")
+        response = test_client.get("/v1/personality/style")
 
     assert response.status_code == 503

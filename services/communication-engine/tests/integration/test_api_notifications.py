@@ -26,7 +26,8 @@ def test_create_notification_defaults_priority_and_leaves_it_undelivered(
     )
     with TestClient(app) as client:
         response = client.post(
-            "/notifications", json={"user_id": str(uuid4()), "content": "Your report is ready."}
+            "/v1/communication/notifications",
+            json={"user_id": str(uuid4()), "content": "Your report is ready."},
         )
 
     assert response.status_code == 201

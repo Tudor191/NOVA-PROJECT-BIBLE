@@ -37,7 +37,7 @@ learned about this specific user's preferences* (that is
 - **Core Identity changes only through a Doc 23 amendment, never a runtime
   API (§3, §14).** `alembic/versions/0001_initial_schema.py` seeds the one
   `core_identity` row directly from Doc 23 §2/§6; there is no
-  `PUT /identity` endpoint, by design.
+  `PUT /v1/personality/identity` endpoint, by design.
 - **The one no-graceful-degradation failure mode (§8).** Every other Personal
   Edition default (verbosity, style) falls back safely; a Core Identity load
   failure does not -- there is no safe default for *who NOVA is*, so the
@@ -48,10 +48,10 @@ learned about this specific user's preferences* (that is
 ```mermaid
 flowchart TB
     subgraph API["api/ (FastAPI)"]
-        identity["identity.py\n(GET /identity, /identity/snapshot)"]
-        validate["validate.py\n(POST /validate)"]
-        style["style.py\n(GET /style)"]
-        memory["memory.py\n(GET /memory, read-only)"]
+        identity["identity.py\n(GET /v1/personality/identity, /identity/snapshot)"]
+        validate["validate.py\n(POST /v1/personality/validate)"]
+        style["style.py\n(GET /v1/personality/style)"]
+        memory["memory.py\n(GET /v1/personality/memory, read-only)"]
         health["health.py"]
     end
 
@@ -94,8 +94,8 @@ per validation.
 
 | Direction | Subject | Payload |
 |---|---|---|
-| Serves | `personality.validate_response.request` / reply | `PersonalityValidateResponseRequestPayload` / `ReplyPayload` -- Event Bus RPC alternative to `POST /validate`, same `domain.validator.validate` underneath |
-| Serves | `personality.style.select.request` / reply | `PersonalityStyleSelectRequestPayload` / `ReplyPayload` -- Event Bus RPC alternative to `GET /style` |
+| Serves | `personality.validate_response.request` / reply | `PersonalityValidateResponseRequestPayload` / `ReplyPayload` -- Event Bus RPC alternative to `POST /v1/personality/validate`, same `domain.validator.validate` underneath |
+| Serves | `personality.style.select.request` / reply | `PersonalityStyleSelectRequestPayload` / `ReplyPayload` -- Event Bus RPC alternative to `GET /v1/personality/style` |
 
 `events/published.py` is an empty `frozenset` by design (§10) -- this engine
 publishes nothing in Phase 2D-A; both RPC replies are returned directly from
@@ -107,19 +107,22 @@ in `events/subscribed.py` -- no handler exists until Phase 2D-D's
 
 ## Owned APIs
 
-- `GET /identity` -- the current `CoreIdentity` (§3); 503 if not loaded.
-- `GET /identity/snapshot` -- a cacheable summary (`IdentitySnapshot`) for
-  `communication-engine`'s fast-path (that document's §13); 503 if not
+- `GET /v1/personality/identity` -- the current `CoreIdentity` (§3); 503 if
+  not loaded.
+- `GET /v1/personality/identity/snapshot` -- a cacheable summary
+  (`IdentitySnapshot`) for `communication-engine`'s fast-path (that
+  document's §13); 503 if not loaded.
+- `POST /v1/personality/validate` -- runs `domain.validator.validate`,
+  records a `validation_audit` row regardless of outcome (Doc 23 §8's
+  trust-through-inspectability requirement); 503 if Core Identity is not
   loaded.
-- `POST /validate` -- runs `domain.validator.validate`, records a
-  `validation_audit` row regardless of outcome (Doc 23 §8's trust-through-
-  inspectability requirement); 503 if Core Identity is not loaded.
-- `GET /style` -- runs `domain.style_selector.select_style` against
-  `situation_hint`/`channel` query params; 503 if Core Identity is not
-  loaded.
-- `GET /memory` -- the current resolved `MemoryProfile` (§6), read-only this
-  phase -- no endpoint mutates it (ADR-030).
-- `GET /internal/health`, `GET /internal/readiness`, `GET /internal/metrics`.
+- `GET /v1/personality/style` -- runs `domain.style_selector.select_style`
+  against `situation_hint`/`channel` query params; 503 if Core Identity is
+  not loaded.
+- `GET /v1/personality/memory` -- the current resolved `MemoryProfile`
+  (§6), read-only this phase -- no endpoint mutates it (ADR-030).
+- `GET /internal/health`, `GET /internal/readiness`, `GET /internal/metrics`
+  (unprefixed by design -- ops/probe surface, not a versioned domain API).
 
 `Update Preferences`, `Behavior Analysis`, `Emotion Profile`, `Teaching Mode`
 (Bible Part 17) are not exposed this phase -- each requires either

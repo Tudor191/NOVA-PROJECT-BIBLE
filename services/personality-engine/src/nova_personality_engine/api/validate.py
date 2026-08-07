@@ -1,7 +1,9 @@
-"""`POST /validate` (docs/design/phase-2d/02-personality-engine.md Sec11) --
-HTTP mirror of the `personality.validate_response` Event-Bus RPC
+"""`POST /v1/personality/validate` (docs/design/phase-2d/02-personality-engine.md
+Sec11) -- HTTP mirror of the `personality.validate_response` Event-Bus RPC
 (`events/handlers.py`), for admin/debug use. Runs the same
-`domain.validator.validate` the RPC path runs."""
+`domain.validator.validate` the RPC path runs. Prefixed `/v1/personality`
+per the Phase 2D-A Gate Review's API-consistency finding -- see
+`identity.py`'s docstring."""
 
 from __future__ import annotations
 
@@ -14,7 +16,7 @@ from pydantic import BaseModel
 from nova_personality_engine.domain.models import ConfidenceTier, ValidationResult
 from nova_personality_engine.domain.validator import validate
 
-router = APIRouter(tags=["validate"])
+router = APIRouter(prefix="/v1/personality", tags=["validate"])
 
 
 class ValidateRequest(BaseModel):

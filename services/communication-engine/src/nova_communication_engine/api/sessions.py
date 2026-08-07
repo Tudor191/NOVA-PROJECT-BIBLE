@@ -1,7 +1,7 @@
-"""`/sessions*` (docs/design/phase-2d/01-communication-engine.md Sec12) --
-Create Session, Send Message (text), Pause/Resume Conversation, Close
-Session, Retrieve Context. The WebSocket channel (voice + streaming text)
-is `api/websocket.py`; this router is the synchronous HTTP surface.
+"""`/v1/communication/sessions*` (docs/design/phase-2d/01-communication-engine.md
+Sec12) -- Create Session, Send Message (text), Pause/Resume Conversation,
+Close Session, Retrieve Context. The WebSocket channel (voice + streaming
+text) is `api/websocket.py`; this router is the synchronous HTTP surface.
 
 `POST /sessions/{id}/messages` records the inbound turn and returns an
 acknowledgment only -- design doc Sec6's "Determine Intent" pass-through
@@ -9,6 +9,12 @@ means the actual reply is generated asynchronously by a content-source
 engine (Reasoning Engine) and delivered later through the `communication.
 intent` gate, over whatever channel connection is currently live (design
 doc Sec8.2).
+
+Prefixed `/v1/communication` per the Phase 2D-A Gate Review's API-consistency
+finding: every prior engine's public API follows `/v1/<domain>/...`; this
+engine's original bare-path routes were a real, unintentional deviation,
+corrected immediately per the user's own standing instruction to fix a
+Gate-Review-identified inconsistency rather than carry it forward as debt.
 """
 
 from __future__ import annotations
@@ -24,7 +30,7 @@ from nova_communication_engine.domain.models import ChannelType, ConversationSta
 from nova_communication_engine.domain.session_lifecycle import InvalidCloseStateError
 from nova_communication_engine.domain.state_machine import InvalidTransitionError
 
-router = APIRouter(prefix="/sessions", tags=["sessions"])
+router = APIRouter(prefix="/v1/communication/sessions", tags=["sessions"])
 
 
 class CreateSessionRequest(BaseModel):

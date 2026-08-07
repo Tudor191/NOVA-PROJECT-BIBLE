@@ -24,7 +24,7 @@ def test_validate_passes_clean_content_unmodified(monkeypatch) -> None:  # type:
     app, repository = _harness(monkeypatch)
     with TestClient(app) as client:
         response = client.post(
-            "/validate",
+            "/v1/personality/validate",
             json={
                 "content": "The build finished successfully.",
                 "confidence_tier": "high",
@@ -46,7 +46,7 @@ def test_validate_hedges_overclaiming_language_under_low_confidence(
     app, _ = _harness(monkeypatch)
     with TestClient(app) as client:
         response = client.post(
-            "/validate",
+            "/v1/personality/validate",
             json={
                 "content": "This will definitely work.",
                 "confidence_tier": "low",
@@ -65,7 +65,7 @@ def test_validate_hard_stops_on_a_forbidden_pattern(monkeypatch) -> None:  # typ
     app, repository = _harness(monkeypatch)
     with TestClient(app) as client:
         response = client.post(
-            "/validate",
+            "/v1/personality/validate",
             json={
                 "content": "Act now, don't wait, before it's too late.",
                 "confidence_tier": "unknown",
@@ -84,7 +84,7 @@ def test_validate_hard_stops_on_emotional_instability(monkeypatch) -> None:  # t
     app, _ = _harness(monkeypatch)
     with TestClient(app) as client:
         response = client.post(
-            "/validate",
+            "/v1/personality/validate",
             json={
                 "content": "That's not my fault, I never said that.",
                 "confidence_tier": "unknown",
@@ -101,7 +101,7 @@ def test_validate_corrects_shouted_formatting(monkeypatch) -> None:  # type: ign
     app, _ = _harness(monkeypatch)
     with TestClient(app) as client:
         response = client.post(
-            "/validate",
+            "/v1/personality/validate",
             json={
                 "content": "This is REALLY IMPORTANT!!!",
                 "confidence_tier": "high",
@@ -121,7 +121,7 @@ def test_validate_returns_503_when_core_identity_is_not_loaded(monkeypatch) -> N
     app = create_app(Settings(), repository=FakePersonalityRepository(core_identity=None))
     with TestClient(app) as client:
         response = client.post(
-            "/validate",
+            "/v1/personality/validate",
             json={
                 "content": "Hello.",
                 "confidence_tier": "high",

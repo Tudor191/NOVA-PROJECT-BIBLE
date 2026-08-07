@@ -1,5 +1,7 @@
-"""`GET /style` (docs/design/phase-2d/02-personality-engine.md Sec11) -- HTTP
-mirror of the `personality.style.select` Event-Bus RPC (`events/handlers.py`).
+"""`GET /v1/personality/style` (docs/design/phase-2d/02-personality-engine.md
+Sec11) -- HTTP mirror of the `personality.style.select` Event-Bus RPC
+(`events/handlers.py`). Prefixed `/v1/personality` per the Phase 2D-A Gate
+Review's API-consistency finding -- see `identity.py`'s docstring.
 """
 
 from __future__ import annotations
@@ -12,7 +14,7 @@ from pydantic import BaseModel
 from nova_personality_engine.domain.models import CommunicationStyle
 from nova_personality_engine.domain.style_selector import select_style
 
-router = APIRouter(tags=["style"])
+router = APIRouter(prefix="/v1/personality", tags=["style"])
 
 
 class StyleResponse(BaseModel):

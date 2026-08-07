@@ -1,5 +1,7 @@
-"""`WS /sessions/{id}` (docs/design/phase-2d/01-communication-engine.md
-Sec12) -- the voice channel + streaming text channel. Registers this
+"""`WS /v1/communication/sessions/{id}` (docs/design/phase-2d/
+01-communication-engine.md Sec12) -- the voice channel + streaming text
+channel. Prefixed `/v1/communication` per the Phase 2D-A Gate Review's
+API-consistency finding -- see `sessions.py`'s docstring. Registers this
 connection's `ChannelAdapter` in `session_registry` so the `communication.
 intent` gate (driven by `events/handlers.py`'s served RPC) can deliver
 generated content to it; unregisters on disconnect and pauses the session
@@ -41,7 +43,7 @@ from nova_communication_engine.domain.models import (
 from nova_communication_engine.domain.ports import ChannelAdapter
 from nova_communication_engine.domain.vad import TransportVad, TransportVadConfig, UtteranceEvent
 
-router = APIRouter(tags=["websocket"])
+router = APIRouter(prefix="/v1/communication", tags=["websocket"])
 
 _SILENCE_POLL_INTERVAL_S = 0.1
 _TRANSCRIBE_UNAVAILABLE_NOTICE = "Voice is temporarily unavailable. Please try again shortly."

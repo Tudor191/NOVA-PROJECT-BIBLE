@@ -49,9 +49,9 @@ same service, it does not replace it). Concretely:
 ```mermaid
 flowchart TB
     subgraph API["api/ (FastAPI)"]
-        sessions["sessions.py\n(POST/DELETE /sessions*)"]
+        sessions["sessions.py\n(POST/DELETE /v1/communication/sessions*)"]
         notifications["notifications.py"]
-        websocket["websocket.py\n(WS /sessions/{id})"]
+        websocket["websocket.py\n(WS /v1/communication/sessions/{id})"]
         health["health.py"]
     end
 
@@ -120,7 +120,7 @@ doc §14's own single-instance-per-session admission for this phase).
 | Serves | `communication.intent.deliver.request` / reply | The ADR-005 gate -- `CommunicationIntentDeliverRequestPayload` / `ReplyPayload` |
 | Serves | `communication.session.create.request` / reply | `CommunicationSessionCreateRequestPayload` / `ReplyPayload` |
 | Serves | `communication.session.close.request` / reply | `CommunicationSessionCloseRequestPayload` / `ReplyPayload` |
-| Publishes | `communication.session.created` | On every `POST /sessions` (or the equivalent RPC) |
+| Publishes | `communication.session.created` | On every `POST /v1/communication/sessions` (or the equivalent RPC) |
 | Publishes | `communication.session.state_changed` | On every state transition -- the Live Communication Dashboard's data source |
 | Publishes | `communication.session.completed` | On session close -- Memory Engine's intended (not yet wired) archival trigger |
 | Publishes | `communication.turn.received` | Every inbound turn -- for Reasoning Engine to subscribe to |
@@ -136,18 +136,21 @@ allow-list -- design doc §0.6: no 2D-A code path calls them yet.
 
 ## Owned APIs
 
-- `POST /sessions` -- Create Session.
-- `POST /sessions/{id}/messages` -- Send Message (text); returns an
-  acknowledgment only, since the actual reply is generated asynchronously
-  and delivered through the intent gate (§6, §8.2).
-- `WS /sessions/{id}` -- voice channel + streaming text (`api/websocket.py`).
-- `POST /sessions/{id}/pause`, `POST /sessions/{id}/resume`.
-- `DELETE /sessions/{id}` -- Close Session; 409 unless the session is in
-  `Waiting` (§3.1's only documented close edge).
-- `GET /sessions/{id}/context` -- Retrieve Context.
-- `POST /notifications` -- Generate Notification (minimal this phase; no
-  push-delivery integration exists yet).
-- `GET /internal/health`, `GET /internal/readiness`, `GET /internal/metrics`.
+- `POST /v1/communication/sessions` -- Create Session.
+- `POST /v1/communication/sessions/{id}/messages` -- Send Message (text);
+  returns an acknowledgment only, since the actual reply is generated
+  asynchronously and delivered through the intent gate (§6, §8.2).
+- `WS /v1/communication/sessions/{id}` -- voice channel + streaming text
+  (`api/websocket.py`).
+- `POST /v1/communication/sessions/{id}/pause`,
+  `POST /v1/communication/sessions/{id}/resume`.
+- `DELETE /v1/communication/sessions/{id}` -- Close Session; 409 unless the
+  session is in `Waiting` (§3.1's only documented close edge).
+- `GET /v1/communication/sessions/{id}/context` -- Retrieve Context.
+- `POST /v1/communication/notifications` -- Generate Notification (minimal
+  this phase; no push-delivery integration exists yet).
+- `GET /internal/health`, `GET /internal/readiness`, `GET /internal/metrics`
+  (unprefixed by design -- ops/probe surface, not a versioned domain API).
 
 `Broadcast Update`/`Synchronize Devices` (Bible Part 13) are not exposed
 this phase (§12) -- multi-device continuity is out of Phase 2D's scope; the

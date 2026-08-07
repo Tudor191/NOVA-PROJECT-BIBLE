@@ -273,13 +273,20 @@ prior engine.
 
 Bible Part 17's "Personality APIs" list, realized:
 
+All routes are served under the `/v1/personality` prefix, per the project-wide
+`/v1/<domain>/...` REST convention (Phase 2D-A Gate Review correction — bare
+paths were an inconsistency against every other engine's own API surface):
+
 | Endpoint | Method | Notes |
 |---|---|---|
-| `/identity` | GET | Retrieve Personality (§3) |
-| `/validate` | POST | Validate Response — HTTP mirror of the RPC (§7.1), for admin/debug use |
-| `/style` | GET | Communication Style — current default/context-mapped style (§5) |
-| `/identity/snapshot` | GET | Identity Snapshot — used by `communication-engine`'s fast-path (§13 of that doc) |
-| `/memory` | GET | Retrieve current Personality Memory profile (§6) |
+| `/v1/personality/identity` | GET | Retrieve Personality (§3) |
+| `/v1/personality/validate` | POST | Validate Response — HTTP mirror of the RPC (§7.1), for admin/debug use |
+| `/v1/personality/style` | GET | Communication Style — current default/context-mapped style (§5) |
+| `/v1/personality/identity/snapshot` | GET | Identity Snapshot — used by `communication-engine`'s fast-path (§13 of that doc) |
+| `/v1/personality/memory` | GET | Retrieve current Personality Memory profile (§6) |
+
+`/internal/health`, `/internal/readiness`, `/internal/metrics` remain
+unprefixed by `/v1` — the ops/probe surface, not a versioned domain API.
 
 `Update Preferences`, `Behavior Analysis`, `Emotion Profile`, `Teaching Mode`
 (Bible Part 17) are **not exposed this phase** — each requires either
@@ -292,8 +299,8 @@ yet (§0.2, §7.2).
 Both served RPCs are pure, deterministic, in-memory computation over the small
 state in §9 (no external calls, no model inference, §0.3) — sub-millisecond
 target, so this engine is never the dominant term in `communication-engine`'s
-latency budget (Master Blueprint Risk §11.1). The `/identity/snapshot` endpoint
-exists specifically to support that document's §13 fast-path, cached client-side
+latency budget (Master Blueprint Risk §11.1). The `/v1/personality/identity/snapshot`
+endpoint exists specifically to support that document's §13 fast-path, cached client-side
 by `communication-engine` rather than refetched per utterance. This design —
 rule-based validation over a model call — is itself the concrete application of
 Master Blueprint §13.2 (low latency is part of NOVA's personality): between a

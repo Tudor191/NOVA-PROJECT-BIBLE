@@ -15,7 +15,7 @@ def test_identity_returns_the_loaded_core_identity(monkeypatch) -> None:  # type
     monkeypatch.setenv("EVENT_BUS_BACKEND", "in_memory")
     app = create_app(Settings(), repository=FakePersonalityRepository())
     with TestClient(app) as client:
-        response = client.get("/identity")
+        response = client.get("/v1/personality/identity")
 
     assert response.status_code == 200
     body = response.json()
@@ -27,7 +27,7 @@ def test_identity_returns_503_when_core_identity_is_not_loaded(monkeypatch) -> N
     monkeypatch.setenv("EVENT_BUS_BACKEND", "in_memory")
     app = create_app(Settings(), repository=FakePersonalityRepository(core_identity=None))
     with TestClient(app) as client:
-        response = client.get("/identity")
+        response = client.get("/v1/personality/identity")
 
     assert response.status_code == 503
 
@@ -43,7 +43,7 @@ def test_identity_snapshot_reflects_the_default_style_and_memory_profile(
         ),
     )
     with TestClient(app) as client:
-        response = client.get("/identity/snapshot")
+        response = client.get("/v1/personality/identity/snapshot")
 
     assert response.status_code == 200
     body = response.json()
@@ -58,6 +58,6 @@ def test_identity_snapshot_returns_503_when_core_identity_is_not_loaded(
     monkeypatch.setenv("EVENT_BUS_BACKEND", "in_memory")
     app = create_app(Settings(), repository=FakePersonalityRepository(core_identity=None))
     with TestClient(app) as client:
-        response = client.get("/identity/snapshot")
+        response = client.get("/v1/personality/identity/snapshot")
 
     assert response.status_code == 503
