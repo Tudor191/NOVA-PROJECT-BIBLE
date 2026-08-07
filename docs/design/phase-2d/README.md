@@ -14,12 +14,14 @@ draws an explicit boundary against — see the blueprint's §9.4) and
 
 Status: **Blueprint approved. Doc 22 and Doc 23 approved. Both Phase 2D-A
 Technical Design Documents (01 — Communication Engine, 02 — Personality Engine)
-approved. Phase 2D-A is implemented and Gate-Reviewed (Go, pending the user's
-explicit decision on the Gate Review's real-Postgres-verification
-recommendation) — see the
+approved. Phase 2D-A is implemented and Gate-Reviewed (Go — the real-Postgres-
+verification recommendation remains an explicitly open, tracked item, to be
+closed as soon as a Docker-capable environment is available) — see the
 [Architecture Review Report](../../roadmap/architecture-reviews/phase-2d-a-voice-communication-foundation.md)
 and the
 [Gate Review](../../roadmap/architecture-reviews/phase-2d-a-gate-review.md).**
+The Phase 2D-B Technical Design Document (03 — Perception Engine) is drafted and
+**pending the user's review and approval — implementation has not begun.**
 Per direct user instruction, this phase was preceded by a full architectural
 blueprint and two permanent governing documents *before* any individual engine's
 TDD, the same "validate the architecture before designing a single engine"
@@ -40,6 +42,7 @@ See the blueprint's §0 for the full reconciliation and the exact 3A→2D-A / 3B
 | [00 — Master Architectural Blueprint](00-master-blueprint.md) | Why Phase 2D exists, what separates it from Phases 2A–2C, explicit in/out-of-scope boundaries, the four sub-phases (2D-A Voice & Communication Foundation, 2D-B Identity & Presence, 2D-C Conversation Intelligence, 2D-D Personal Companion) and their responsibilities, the talking-TO-vs-ABOUT-NOVA addressee-detection boundary, cross-engine communication model, data ownership matrix, API/RPC/statelessness matrix, reconciliation with already-canonical Bible engines (Perception, Digital Twin, Cognitive State), dependency graph, architectural risks, and alignment with NOVA's long-term-companion vision |
 | [01 — Communication Engine](01-communication-engine.md) | Phase 2D-A's transport/lifecycle layer: the required speech-modality extension to `ai-model-orchestration-engine` (ADR-020 compliance), the `ConversationSession` state machine, the audio pipeline and barge-in, the `communication.intent` gate (ADR-005 enforcement), the honest interim for addressee detection ahead of Phase 2D-B/C, data model, event contracts, APIs, and Doc 22/23 compliance mapping |
 | [02 — Personality Engine](02-personality-engine.md) | The rule-based, model-free (ADR-020-compliant-by-construction) implementation of Doc 23: the Consistency Validator, Style Selector, Personality Memory (a static default until Phase 2D-D's `digital-twin-engine` exists to populate it for real), the Personality/Digital-Twin boundary enforced structurally, data model, event/API contracts, and Doc 22/23 compliance mapping |
+| [03 — Perception Engine](03-perception-engine.md) | Phase 2D-B's minimal (voice + camera) slice of Bible Part 11: the required biometric/wake-signal extension to `ai-model-orchestration-engine` (ADR-020 compliance) and the required `ActiveContext` extension to World Model Engine (ADR-017 compliance), the Sensor Abstraction Layer's full lifecycle contract, the Identity Registry, the evidence-fusion identity-confidence algorithm (no single signal is ever sufficient), the talking-TO-vs-ABOUT-NOVA boundary (2D-B observes and publishes, 2D-C decides), privacy/consent architecture, data model, event/API contracts, and Doc 22/23 compliance mapping. **Pending review and approval.** |
 
 **Companion documents (not phase-scoped — permanent):**
 [Doc 22 — NOVA Human Interaction Principles](../../architecture/22-nova-human-interaction-principles.md)
