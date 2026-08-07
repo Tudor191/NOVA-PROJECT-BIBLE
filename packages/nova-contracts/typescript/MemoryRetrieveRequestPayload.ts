@@ -11,6 +11,7 @@ export type ProjectId = string | null;
 export type MemoryType = "semantic" | "procedural" | "episodic" | "project" | "preference" | "decision";
 export type IncludeRelationships = boolean;
 export type Limit = number;
+export type SchemaVersion = number;
 
 /**
  * Request/reply RPC served by Memory Engine
@@ -23,5 +24,6 @@ export interface MemoryRetrieveRequestPayload {
   memory_type?: MemoryType | null;
   include_relationships?: IncludeRelationships;
   limit?: Limit;
+  schema_version?: SchemaVersion;
   [k: string]: unknown;
 }

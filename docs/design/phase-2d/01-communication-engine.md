@@ -15,9 +15,13 @@ and [Doc 23 — NOVA Personality Specification](../../architecture/23-nova-perso
 (sole legal AI-provider channel — §0.3 below is this document's most consequential
 finding against it).
 
-Status: **Pending review and approval — implementation must not begin until this
-document is explicitly approved**, the same discipline every prior phase's TDD has
-been held to.
+Status: **Approved. Implemented and Gate-Reviewed (Go), approved by the user.**
+`communication-engine` is now built at production-grade per this design package,
+with the
+[Architecture Review Report](../../roadmap/architecture-reviews/phase-2d-a-voice-communication-foundation.md)
+and the formal
+[Phase 2D-A Gate Review](../../roadmap/architecture-reviews/phase-2d-a-gate-review.md)
+filed.
 
 ## 0. The boundary this document defends
 

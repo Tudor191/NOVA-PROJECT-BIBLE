@@ -15,10 +15,12 @@ export type RecencyDecay = number | null;
 export type Confidence = number | null;
 export type Results = MemorySearchResultPayload[];
 export type Degraded = boolean;
+export type SchemaVersion = number;
 
 export interface MemoryRetrieveReplyPayload {
   results?: Results;
   degraded?: Degraded;
+  schema_version?: SchemaVersion;
   [k: string]: unknown;
 }
 /**

@@ -1,5 +1,6 @@
 export type UserId = string;
 export type Scope = string | null;
+export type SchemaVersion = number;
 
 /**
  * The highest-QPS internal call in the whole Phase 1 surface -- every
@@ -11,5 +12,6 @@ export type Scope = string | null;
 export interface ContextRequestPayload {
   user_id: UserId;
   scope?: Scope;
+  schema_version?: SchemaVersion;
   [k: string]: unknown;
 }

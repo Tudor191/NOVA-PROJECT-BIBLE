@@ -6,11 +6,13 @@ export type NodeId = string;
  */
 export type KnowledgeLayer = "raw" | "processed" | "verified" | "connected" | "applied" | "expert" | "strategic";
 export type Reason = string;
+export type SchemaVersion = number;
 
 export interface LayerAdvancedPayload {
   node_id: NodeId;
   previous_layer: KnowledgeLayer;
   new_layer: KnowledgeLayer;
   reason: Reason;
+  schema_version?: SchemaVersion;
   [k: string]: unknown;
 }

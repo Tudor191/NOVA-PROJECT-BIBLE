@@ -10,6 +10,7 @@ export type UserId = string;
  */
 export type ObjectState = "unknown" | "active" | "idle" | "executing" | "completed" | "failed" | "waiting" | "learning";
 export type Confidence = number | null;
+export type SchemaVersion = number;
 
 /**
  * Shared shape for `.created`/`.updated`/`.deleted` -- the three subjects
@@ -23,5 +24,6 @@ export interface WorldObjectChangedPayload {
   previous_state?: ObjectState | null;
   new_state: ObjectState;
   confidence?: Confidence;
+  schema_version?: SchemaVersion;
   [k: string]: unknown;
 }

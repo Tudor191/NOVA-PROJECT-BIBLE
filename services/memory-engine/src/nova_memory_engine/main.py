@@ -154,7 +154,6 @@ def create_app(
         await bus.subscribe(
             "perception.*.observed", handlers.make_perception_observed_handler(repo)
         )
-        await bus.subscribe("reasoning.result", handlers.make_reasoning_result_handler(repo))
         await bus.subscribe("action.result", handlers.make_action_result_handler(repo))
         await bus.subscribe(
             "communication.intent.received", handlers.make_communication_intent_handler(repo)

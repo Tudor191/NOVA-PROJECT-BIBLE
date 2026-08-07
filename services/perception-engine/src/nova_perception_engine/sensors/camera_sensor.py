@@ -25,7 +25,7 @@ from nova_perception_engine.domain.sensor import (
     CalibrationResult,
     PermissionStatus,
     SensorConfig,
-    SensorError,
+    SensorErrorReport,
     SensorHealth,
     SensorState,
     next_state,
@@ -109,7 +109,7 @@ class CameraSensor:
     def permission_status(self) -> PermissionStatus:
         return PermissionStatus(granted=self._consent_active, source="camera")
 
-    def report_error(self, error: SensorError) -> None:
+    def report_error(self, error: SensorErrorReport) -> None:
         logger.warning("camera sensor error", extra={"sensor_id": error.sensor_id})
         self._transition("fail")
 

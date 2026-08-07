@@ -251,7 +251,6 @@ def create_app(
             "perception.filesystem.observed",
             handlers.make_perception_filesystem_observed_handler(repo),
         )
-        await bus.subscribe("reasoning.result", handlers.make_reasoning_result_handler(repo))
 
         app.state.settings = settings
         app.state.repository = repo

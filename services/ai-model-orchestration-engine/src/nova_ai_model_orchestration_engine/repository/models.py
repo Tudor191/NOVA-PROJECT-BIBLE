@@ -47,7 +47,13 @@ class ModelRegistryORM(Base):
     health_status: Mapped[str] = mapped_column(Text, nullable=False, default="unknown")
     schema_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+    """`onupdate=func.now()` (Project Health Review, August 2026): without this,
+    `update_health`/`update_benchmark` below update `health_status`/
+    `avg_latency_ms`/`avg_quality_score` without ever bumping this column,
+    defeating its own purpose of tracking staleness."""
 
 
 class ModelHealthSnapshotORM(Base):

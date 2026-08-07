@@ -13,10 +13,12 @@ export type KnowledgeLayer = "raw" | "processed" | "verified" | "connected" | "a
 export type RelatedNodeIds = string[];
 export type Results = KnowledgeSearchResultPayload[];
 export type Degraded = boolean;
+export type SchemaVersion = number;
 
 export interface KnowledgeRetrieveReplyPayload {
   results?: Results;
   degraded?: Degraded;
+  schema_version?: SchemaVersion;
   [k: string]: unknown;
 }
 /**

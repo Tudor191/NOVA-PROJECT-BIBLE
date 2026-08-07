@@ -123,7 +123,6 @@ implementation already is that adapter (mirroring how Memory Engine uses
 | Serves | `knowledge.link.request` / reply | `KnowledgeLinkRequestPayload` / `KnowledgeLinkReplyPayload` (called by Memory Engine, §01 §5) |
 | Subscribes | `memory.long_term.created` | candidate for graph node creation/linking (placeholder -- see Known limitations) |
 | Subscribes | `perception.filesystem.observed` | triggers documentation reindexing (placeholder) |
-| Subscribes | `reasoning.result` | usage signal feeding `evolution.py`'s Applied/Expert/Strategic transitions (real effect, synthetic producer) |
 
 See `events/published.py` / `events/subscribed.py` for the enforced allow-lists
 (checked by `nova_eventbus_sdk.boundary.BoundEventBus` at publish/subscribe/serve

@@ -4,6 +4,7 @@ export type NodeBId = string;
 export type Description = string;
 export type Status = string;
 export type Resolution = string | null;
+export type SchemaVersion = number;
 
 /**
  * Shared shape for `.detected` and `.resolved` -- `resolution`/`resolved_at`
@@ -16,5 +17,6 @@ export interface ContradictionPayload {
   description: Description;
   status: Status;
   resolution?: Resolution;
+  schema_version?: SchemaVersion;
   [k: string]: unknown;
 }

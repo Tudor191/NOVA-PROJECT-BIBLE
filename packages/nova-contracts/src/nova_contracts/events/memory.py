@@ -9,6 +9,14 @@ truth (docs/architecture/02-repository-and-folder-structure.md §4), and Memory
 Engine's `domain/models.py` imports these rather than redefining them, exactly as
 `nova-core`'s domain layer already imports `ModuleStatus` from
 `nova_contracts.events.system`.
+
+`schema_version: int = 1` (Project Health Review, August 2026): backfilled onto
+every `@register_payload`-decorated class here per ADR-024 (interface
+versioning from day one) -- this module predates ADR-024's adoption (Phase 1)
+and was never retroactively updated. Purely additive (a defaulted field), no
+behavior change. `MemorySearchResultPayload` is a nested value object embedded
+in `MemoryRetrieveReplyPayload`, not itself a registered wire payload, so it
+does not carry its own `schema_version`.
 """
 
 from __future__ import annotations
@@ -69,6 +77,7 @@ class ShortTermMemoryCreatedPayload(BaseModel):
     project_id: UUID | None = None
     category: str
     expires_at: datetime
+    schema_version: int = 1
 
 
 @register_payload("memory.long_term.created")
@@ -81,6 +90,7 @@ class LongTermMemoryCreatedPayload(BaseModel):
     confidence: float | None = Field(default=None, ge=0.0, le=1.0)
     privacy_level: PrivacyLevel
     knowledge_node_id: str | None = None
+    schema_version: int = 1
 
 
 @register_payload("memory.long_term.updated")
@@ -89,11 +99,13 @@ class LongTermMemoryUpdatedPayload(BaseModel):
     user_id: UUID
     updated_fields: list[str]
     version: int = Field(ge=1)
+    schema_version: int = 1
 
 
 @register_payload("memory.consolidation.started")
 class ConsolidationStartedPayload(BaseModel):
     run_id: UUID
+    schema_version: int = 1
 
 
 @register_payload("memory.consolidation.completed")
@@ -104,6 +116,7 @@ class ConsolidationCompletedPayload(BaseModel):
     records_advanced: int = Field(ge=0)
     records_deleted: int = Field(ge=0)
     status: str
+    schema_version: int = 1
 
 
 @register_payload("memory.lifecycle.transitioned")
@@ -113,6 +126,7 @@ class LifecycleTransitionedPayload(BaseModel):
     previous_state: LifecycleState
     new_state: LifecycleState
     reason: str
+    schema_version: int = 1
 
 
 @register_payload("memory.decision.recorded")
@@ -123,6 +137,7 @@ class DecisionRecordedPayload(BaseModel):
     objective: str
     chosen_alternative: str
     confidence_at_decision: float | None = Field(default=None, ge=0.0, le=1.0)
+    schema_version: int = 1
 
 
 @register_payload("memory.embedding.completed")
@@ -130,6 +145,7 @@ class EmbeddingCompletedPayload(BaseModel):
     memory_id: UUID
     embedding_model: str
     dimensions: int = Field(gt=0)
+    schema_version: int = 1
 
 
 class MemorySearchResultPayload(BaseModel):
@@ -158,6 +174,7 @@ class MemoryRetrieveRequestPayload(BaseModel):
     memory_type: MemoryType | None = None
     include_relationships: bool = False
     limit: int = Field(default=10, ge=1, le=100)
+    schema_version: int = 1
 
 
 @register_payload("memory.retrieve.reply")
@@ -167,3 +184,4 @@ class MemoryRetrieveReplyPayload(BaseModel):
     """Set when `VectorStore` (or, if requested, Knowledge Engine) was unreachable
     and results fell back to a narrower search mode -- docs/design/phase-1/
     01-memory-engine.md §17's "Read-path degradation"."""
+    schema_version: int = 1

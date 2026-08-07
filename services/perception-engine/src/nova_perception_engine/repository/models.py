@@ -17,7 +17,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import REAL, DateTime, LargeBinary, MetaData, Text, func
+from sqlalchemy import REAL, DateTime, ForeignKey, LargeBinary, MetaData, Text, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
@@ -63,8 +63,13 @@ class IdentityObservationORM(Base):
     )
     user_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
     identity_id: Mapped[uuid.UUID | None] = mapped_column(
-        PG_UUID(as_uuid=True), nullable=True
+        PG_UUID(as_uuid=True),
+        ForeignKey("perception.enrolled_identity.identity_id"),
+        nullable=True,
     )
+    """Project Health Review (August 2026): this FK was already present in
+    the migration (`identity_id UUID REFERENCES perception.enrolled_identity`)
+    but missing here -- the two are now back in sync."""
     fused_confidence: Mapped[float] = mapped_column(REAL, nullable=False)
     confidence_tier: Mapped[str] = mapped_column(Text, nullable=False)
     per_modality_signals: Mapped[dict] = mapped_column(JSONB, nullable=False)

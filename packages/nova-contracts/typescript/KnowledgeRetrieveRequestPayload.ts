@@ -10,6 +10,7 @@ export type ProjectId = string | null;
 export type UserId = string | null;
 export type MaxHops = number;
 export type Limit = number;
+export type SchemaVersion = number;
 
 /**
  * Request/reply RPC served by Knowledge Engine (docs/design/phase-1/
@@ -23,5 +24,6 @@ export interface KnowledgeRetrieveRequestPayload {
   user_id?: UserId;
   max_hops?: MaxHops;
   limit?: Limit;
+  schema_version?: SchemaVersion;
   [k: string]: unknown;
 }

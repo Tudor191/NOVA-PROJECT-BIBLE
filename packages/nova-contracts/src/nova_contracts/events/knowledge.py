@@ -15,6 +15,14 @@ package's internal representation.
 docs/design/phase-1/00-shared-foundations.md's "Confidence and privacy, everywhere"
 convention is one shared classification across all three Phase 1 engines, not a
 per-engine copy.
+
+`schema_version: int = 1` (Project Health Review, August 2026): backfilled onto
+every `@register_payload`-decorated class here per ADR-024 (interface
+versioning from day one) -- this module predates ADR-024's adoption (Phase 1)
+and was never retroactively updated. Purely additive (a defaulted field), no
+behavior change. `KnowledgeSearchResultPayload` is a nested value object embedded
+in `KnowledgeRetrieveReplyPayload`, not itself a registered wire payload, so it
+does not carry its own `schema_version`.
 """
 
 from __future__ import annotations
@@ -61,11 +69,13 @@ class KnowledgeLinkRequestPayload(BaseModel):
 
     memory_id: UUID
     concept_name: str
+    schema_version: int = 1
 
 
 @register_payload("knowledge.link.reply")
 class KnowledgeLinkReplyPayload(BaseModel):
     knowledge_node_id: str
+    schema_version: int = 1
 
 
 @register_payload("knowledge.traverse.request")
@@ -75,11 +85,13 @@ class KnowledgeTraverseRequestPayload(BaseModel):
 
     seed_node_id: str
     max_hops: int = Field(default=DEFAULT_MAX_HOPS, ge=1, le=MAX_HOPS_LIMIT)
+    schema_version: int = 1
 
 
 @register_payload("knowledge.traverse.reply")
 class KnowledgeTraverseReplyPayload(BaseModel):
     connected_node_ids: list[str] = Field(default_factory=list)
+    schema_version: int = 1
 
 
 @register_payload("knowledge.node.created")
@@ -99,6 +111,7 @@ class KnowledgeNodeChangedPayload(BaseModel):
     confidence: float = Field(ge=0.0, le=1.0)
     layer: KnowledgeLayer
     version: int = Field(ge=1)
+    schema_version: int = 1
 
 
 @register_payload("knowledge.edge.created")
@@ -107,6 +120,7 @@ class KnowledgeEdgeCreatedPayload(BaseModel):
     to_node_id: str
     relationship_type: str
     confidence: float = Field(ge=0.0, le=1.0)
+    schema_version: int = 1
 
 
 @register_payload("knowledge.contradiction.detected")
@@ -121,6 +135,7 @@ class ContradictionPayload(BaseModel):
     description: str
     status: str
     resolution: str | None = None
+    schema_version: int = 1
 
 
 @register_payload("knowledge.layer.advanced")
@@ -129,6 +144,7 @@ class LayerAdvancedPayload(BaseModel):
     previous_layer: KnowledgeLayer
     new_layer: KnowledgeLayer
     reason: str
+    schema_version: int = 1
 
 
 class KnowledgeSearchResultPayload(BaseModel):
@@ -159,6 +175,7 @@ class KnowledgeRetrieveRequestPayload(BaseModel):
     user_id: UUID | None = None
     max_hops: int = Field(default=DEFAULT_MAX_HOPS, ge=1, le=MAX_HOPS_LIMIT)
     limit: int = Field(default=10, ge=1, le=100)
+    schema_version: int = 1
 
 
 @register_payload("knowledge.retrieve.reply")
@@ -169,3 +186,4 @@ class KnowledgeRetrieveReplyPayload(BaseModel):
     a narrower search mode -- mirrors docs/design/phase-1/01-memory-engine.md §17's
     "Read-path degradation", applied here per §17's Neo4j-unreachable-during-a-read
     failure mode."""
+    schema_version: int = 1

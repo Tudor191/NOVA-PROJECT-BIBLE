@@ -76,29 +76,3 @@ def make_perception_filesystem_observed_handler(repository: KnowledgeMetadataRep
     return handle
 
 
-def make_reasoning_result_handler(repository: KnowledgeMetadataRepository):  # type: ignore[no-untyped-def]
-    """Usage signal feeding `domain/evolution.py`'s Connected -> Applied and
-    Expert -> Strategic transitions (§6, §13). `reasoning.result` has no
-    formalized payload contract yet (Reasoning Engine is Phase 2) -- this handler
-    defensively extracts `knowledge_node_id`(s) and `project_id` from whatever
-    shape arrives, same pattern as Memory Engine's placeholder handlers, but the
-    *effect* (`record_usage`) is real and tested via the synthetic event harness,
-    not a no-op: the `node_usage` table exists specifically so this signal has
-    somewhere to land the moment a real producer exists."""
-
-    async def handle(envelope: EventEnvelope) -> None:
-        project_id = _uuid_from(envelope.payload, "project_id")
-        node_ids = envelope.payload.get("knowledge_node_ids") or envelope.payload.get(
-            "referenced_node_ids"
-        )
-        single = envelope.payload.get("knowledge_node_id")
-        if single and not node_ids:
-            node_ids = [single]
-        if not node_ids or not isinstance(node_ids, list):
-            logger.warning("reasoning.result missing knowledge_node_id(s), skipping")
-            return
-        for node_id in node_ids:
-            if isinstance(node_id, str) and node_id:
-                await repository.record_usage(node_id, project_id=project_id)
-
-    return handle

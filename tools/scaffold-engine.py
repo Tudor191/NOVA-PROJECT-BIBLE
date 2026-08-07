@@ -17,8 +17,9 @@ from __future__ import annotations
 import argparse
 import re
 import sys
-import tomllib
 from pathlib import Path
+
+import tomlkit
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SERVICES_DIR = REPO_ROOT / "services"
@@ -88,50 +89,55 @@ def _render(engine_dir: Path, module: str, name: str, title: str, env_prefix: st
     )
 
 
+_CONTRACT_MODULES_KEY = {
+    "Engines are independent (ADR-004): no engine imports another "
+    "engine's internals directly": "modules",
+    "No engine imports a message broker client directly (ADR-006): "
+    "only nova_eventbus_sdk may": "source_modules",
+    "No engine imports a graph database client directly (ADR-007): "
+    "only nova_graphstore_sdk may": "source_modules",
+}
+"""The 3 contracts (beyond `root_packages` itself) every new engine belongs in
+by default. Deliberately excludes the ADR-020 "no LLM SDK" contract, which
+`ai-model-orchestration-engine` itself must NOT appear in (it's the one engine
+allowed to import an LLM SDK) -- that contract has always required a manual,
+judgment-call edit and still does; automating it is a separate decision, not
+part of this fix."""
+
+
 def _update_root_pyproject(module: str) -> None:
     """Add the new engine to the workspace-wide import-boundary contracts
     (docs/architecture/00-overview-and-decisions.md, ADR-004) so it's enforced from
     its very first commit, exactly like every other engine.
+
+    Uses `tomlkit` (parses and re-serializes losslessly, preserving comments and
+    formatting) rather than literal-string matching. The original implementation
+    matched a literal `root_packages = [\\n    "nova_core",\\n]` pattern that only
+    existed while `nova_core` was the *only* entry in each list -- true for the
+    very first engine scaffolded after `nova-core`, false for every one after
+    that, so `str.replace()` silently returned the text unchanged from the third
+    engine onward, with no error and no warning (Project Health Review, August
+    2026 -- confirmed by testing the same pattern against the current file, which
+    already has 9 engines listed: zero matches). Every engine from
+    `knowledge-engine` on had to be added to these contracts by hand as a result.
     """
-    text = ROOT_PYPROJECT.read_text()
-    parsed = tomllib.loads(text)
-    root_packages = parsed.get("tool", {}).get("importlinter", {}).get("root_packages", [])
+    doc = tomlkit.parse(ROOT_PYPROJECT.read_text())
+    importlinter = doc["tool"]["importlinter"]
+
+    root_packages = importlinter["root_packages"]
     if module in root_packages:
         return
+    root_packages.append(module)
 
-    text = text.replace(
-        'root_packages = [\n    "nova_core",\n]',
-        f'root_packages = [\n    "nova_core",\n    "{module}",\n]',
-        1,
-    )
-    text = text.replace(
-        'name = "Engines are independent (ADR-004): no engine imports another '
-        'engine\'s internals directly"\ntype = "independence"\nmodules = [\n'
-        '    "nova_core",\n]',
-        'name = "Engines are independent (ADR-004): no engine imports another '
-        'engine\'s internals directly"\ntype = "independence"\nmodules = [\n'
-        f'    "nova_core",\n    "{module}",\n]',
-        1,
-    )
-    text = text.replace(
-        'name = "No engine imports a message broker client directly (ADR-006): '
-        'only nova_eventbus_sdk may"\ntype = "forbidden"\nsource_modules = [\n'
-        '    "nova_core",\n]',
-        'name = "No engine imports a message broker client directly (ADR-006): '
-        'only nova_eventbus_sdk may"\ntype = "forbidden"\nsource_modules = [\n'
-        f'    "nova_core",\n    "{module}",\n]',
-        1,
-    )
-    text = text.replace(
-        'name = "No engine imports a graph database client directly (ADR-007): '
-        'only nova_graphstore_sdk may"\ntype = "forbidden"\nsource_modules = [\n'
-        '    "nova_core",\n]',
-        'name = "No engine imports a graph database client directly (ADR-007): '
-        'only nova_graphstore_sdk may"\ntype = "forbidden"\nsource_modules = [\n'
-        f'    "nova_core",\n    "{module}",\n]',
-        1,
-    )
-    ROOT_PYPROJECT.write_text(text)
+    for contract in importlinter["contracts"]:
+        key = _CONTRACT_MODULES_KEY.get(contract.get("name"))
+        if key is None:
+            continue
+        modules = contract[key]
+        if module not in modules:
+            modules.append(module)
+
+    ROOT_PYPROJECT.write_text(tomlkit.dumps(doc))
 
 
 def main() -> int:

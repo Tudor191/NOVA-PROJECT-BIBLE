@@ -16,6 +16,7 @@ export type Confidence = number;
  */
 export type KnowledgeLayer = "raw" | "processed" | "verified" | "connected" | "applied" | "expert" | "strategic";
 export type Version = number;
+export type SchemaVersion = number;
 
 /**
  * Shared shape for both `knowledge.node.created` and `.updated` -- the two
@@ -33,5 +34,6 @@ export interface KnowledgeNodeChangedPayload {
   confidence: Confidence;
   layer: KnowledgeLayer;
   version: Version;
+  schema_version?: SchemaVersion;
   [k: string]: unknown;
 }

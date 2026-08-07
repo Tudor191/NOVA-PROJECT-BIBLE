@@ -1,5 +1,6 @@
 export type SeedNodeId = string;
 export type MaxHops = number;
+export type SchemaVersion = number;
 
 /**
  * Bounded graph traversal from an existing node -- unbounded traversal is
@@ -8,5 +9,6 @@ export type MaxHops = number;
 export interface KnowledgeTraverseRequestPayload {
   seed_node_id: SeedNodeId;
   max_hops?: MaxHops;
+  schema_version?: SchemaVersion;
   [k: string]: unknown;
 }

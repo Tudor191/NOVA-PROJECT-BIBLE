@@ -30,7 +30,7 @@ from nova_perception_engine.domain.sensor import (
     CalibrationResult,
     PermissionStatus,
     SensorConfig,
-    SensorError,
+    SensorErrorReport,
     SensorHealth,
     SensorState,
     next_state,
@@ -113,7 +113,7 @@ class VoiceSensor:
     def permission_status(self) -> PermissionStatus:
         return PermissionStatus(granted=self._consent_active, source="microphone")
 
-    def report_error(self, error: SensorError) -> None:
+    def report_error(self, error: SensorErrorReport) -> None:
         logger.warning("voice sensor error", extra={"sensor_id": error.sensor_id})
         self._transition("fail")
 

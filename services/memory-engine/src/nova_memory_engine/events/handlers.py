@@ -66,24 +66,6 @@ def make_perception_observed_handler(repository: MemoryRepository):  # type: ign
     return handle
 
 
-def make_reasoning_result_handler(repository: MemoryRepository):  # type: ignore[no-untyped-def]
-    async def handle(envelope: EventEnvelope) -> None:
-        user_id = _uuid_from(envelope.payload, "user_id")
-        content = _text_from(envelope.payload, "summary", "content")
-        if user_id is None or content is None:
-            logger.warning("reasoning.result missing user_id/content, skipping")
-            return
-        await episodic.remember(
-            repository,
-            user_id=user_id,
-            content=content,
-            source="reasoning",
-            correlation_id=envelope.correlation_id,
-        )
-
-    return handle
-
-
 def make_action_result_handler(repository: MemoryRepository):  # type: ignore[no-untyped-def]
     async def handle(envelope: EventEnvelope) -> None:
         user_id = _uuid_from(envelope.payload, "user_id")

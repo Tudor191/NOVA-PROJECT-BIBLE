@@ -9,8 +9,13 @@ and §15 maps them explicitly. Doc 23 defines who NOVA is; this document defines
 that identity is enforced in running code, deterministically, on every response
 [01-communication-engine.md](01-communication-engine.md) delivers.
 
-Status: **Pending review and approval — implementation must not begin until this
-document is explicitly approved.**
+Status: **Approved. Implemented and Gate-Reviewed (Go), approved by the user.**
+`personality-engine` is now built at production-grade per this design package,
+with the
+[Architecture Review Report](../../roadmap/architecture-reviews/phase-2d-a-voice-communication-foundation.md)
+and the formal
+[Phase 2D-A Gate Review](../../roadmap/architecture-reviews/phase-2d-a-gate-review.md)
+filed.
 
 ## 0. The boundary this document defends
 

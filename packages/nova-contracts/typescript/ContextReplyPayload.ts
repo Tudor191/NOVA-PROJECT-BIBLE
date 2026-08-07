@@ -7,6 +7,7 @@ export type Activity = string | null;
 export type Confidence = number | null;
 export type UpdatedAt = string | null;
 export type Degraded = boolean;
+export type SchemaVersion = number;
 
 export interface ContextReplyPayload {
   user_id: UserId;
@@ -18,5 +19,6 @@ export interface ContextReplyPayload {
   confidence?: Confidence;
   updated_at?: UpdatedAt;
   degraded?: Degraded;
+  schema_version?: SchemaVersion;
   [k: string]: unknown;
 }

@@ -93,16 +93,24 @@ Knowledge Engine and World Model Engine each stay self-contained callees.
 
 ```mermaid
 flowchart LR
-    Perception["Perception Engine\n(Phase 4)"] -.perception.*.observed.-> Memory
+    Perception["Perception Engine\n(minimal voice+camera slice shipped\nPhase 2D-B; full sensing Phase 4)"] -.perception.*.observed.-> Memory
     Perception -.perception.*.observed.-> WorldModel
     Action["Action / Agent OS\n(later phases)"] -.action.result.-> Memory
     Action -.action.result.-> WorldModel
     Memory["Memory Engine"] -.knowledge.link.request\nknowledge.traverse.request.-> Knowledge["Knowledge Engine"]
     Memory -."memory.long_term.created".-> Knowledge
-    Thinking["Thinking Pipeline\n(future Reasoning Engine)"] -.world_model.context.request.-> WorldModel["World Model Engine"]
+    Thinking["Reasoning Engine\n(shipped Phase 2B)"] -.world_model.context.request.-> WorldModel["World Model Engine"]
     Thinking -.memory.retrieve.request.-> Memory
     Thinking -.knowledge.retrieve.request\nknowledge.traverse.request.-> Knowledge
 ```
+
+Updated (Project Health Review, August 2026): this diagram was accurate when this
+document was written in Phase 1, when neither Perception nor Reasoning existed
+yet. Both have since shipped (Reasoning Engine in Phase 2B, a minimal
+voice+camera slice of Perception Engine in Phase 2D-B); this document's own
+title still scopes it to Memory/Knowledge/World Model specifically, so the rest
+of its analysis is unaffected, but the diagram's labels are corrected here
+rather than left describing a "future" that has partly already arrived.
 
 - **Memory → Knowledge:** the only direct engine-to-engine RPC relationship among
   the three, and even this is only ever event-bus-mediated request/reply (ADR-004) —

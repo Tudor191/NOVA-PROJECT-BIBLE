@@ -19,6 +19,7 @@ export type Confidence = number | null;
  */
 export type PrivacyLevel = "public" | "internal" | "confidential" | "highly_sensitive";
 export type KnowledgeNodeId = string | null;
+export type SchemaVersion = number;
 
 export interface LongTermMemoryCreatedPayload {
   memory_id: MemoryId;
@@ -29,5 +30,6 @@ export interface LongTermMemoryCreatedPayload {
   confidence?: Confidence;
   privacy_level: PrivacyLevel;
   knowledge_node_id?: KnowledgeNodeId;
+  schema_version?: SchemaVersion;
   [k: string]: unknown;
 }

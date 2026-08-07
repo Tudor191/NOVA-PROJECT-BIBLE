@@ -7,13 +7,18 @@ against this engine is one of this document's central concerns), and Part 6 (Cog
 State Engine / Executive Cognition, Phase 2C/6, whose "continuous background thinking"
 loop is explicitly *not* this engine's job).
 
-Status: **Pending review and approval — implementation must not begin until this
-document is explicitly approved**, per direct user instruction. This is a deliberate
-departure from Phase 2A's precedent (approved to proceed immediately after its own
-Gate Review): the user has designated the Reasoning Engine one of the most critical
-architectural milestones of the entire project and wants the architecture validated
-before any implementation code is written, the same validate-before-build discipline
-Phase 1's three engines were held to.
+Status: **Approved. Implemented and Gate-Reviewed (Go), approved by the user.**
+This document was approved before any implementation code was written — a
+deliberate departure from Phase 2A's precedent (approved to proceed immediately
+after its own Gate Review): the user designated the Reasoning Engine one of the
+most critical architectural milestones of the entire project and wanted the
+architecture validated first, the same validate-before-build discipline Phase 1's
+three engines were held to. `reasoning-engine` is now built at production-grade
+per this design package, with the
+[Architecture Review Report](../../roadmap/architecture-reviews/phase-2b-reasoning-engine.md)
+and the formal
+[Phase 2B Gate Review](../../roadmap/architecture-reviews/phase-2b-gate-review.md)
+filed.
 
 ## Contents
 

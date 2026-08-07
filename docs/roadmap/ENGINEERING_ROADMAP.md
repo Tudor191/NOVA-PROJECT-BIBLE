@@ -393,8 +393,8 @@ all approved — see [`docs/design/phase-2d/`](../design/phase-2d/README.md).**
 **2D-A (Voice & Communication Foundation)**'s two Technical Design Documents
 ([01 — Communication Engine](../design/phase-2d/01-communication-engine.md),
 [02 — Personality Engine](../design/phase-2d/02-personality-engine.md)) are
-drafted and pending user review — implementation must not begin until both are
-explicitly approved. Per direct user instruction, this phase's original single-milestone
+approved, implemented, and Gate-Reviewed (Go) — see the top status line above
+for the full 2D-A/2D-B/Project-Health-Review history. Per direct user instruction, this phase's original single-milestone
 scope ("make NOVA's intelligence actually reachable by a person") was expanded and
 restructured into four sub-phases, with two permanent governing documents filed
 alongside it, before any Technical Design Document or implementation work began —

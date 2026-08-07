@@ -20,7 +20,7 @@ __all__ = [
     "PermissionStatus",
     "Sensor",
     "SensorConfig",
-    "SensorError",
+    "SensorErrorReport",
     "SensorHealth",
     "SensorState",
     "next_state",
@@ -74,7 +74,7 @@ class PermissionStatus(BaseModel):
     source: Literal["microphone", "camera"]
 
 
-class SensorError(BaseModel):
+class SensorErrorReport(BaseModel):
     sensor_id: str
     message: str
     occurred_at: str
@@ -108,7 +108,7 @@ class Sensor(Protocol):
 
     def permission_status(self) -> PermissionStatus: ...
 
-    def report_error(self, error: SensorError) -> None: ...
+    def report_error(self, error: SensorErrorReport) -> None: ...
 
     def capabilities(self) -> frozenset[str]: ...
 

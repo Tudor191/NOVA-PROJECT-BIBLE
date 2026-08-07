@@ -8,6 +8,7 @@ export type UserId = string;
  */
 export type LifecycleState = "active" | "weak" | "archived" | "scheduled_for_deletion" | "deleted";
 export type Reason = string;
+export type SchemaVersion = number;
 
 export interface LifecycleTransitionedPayload {
   memory_id: MemoryId;
@@ -15,5 +16,6 @@ export interface LifecycleTransitionedPayload {
   previous_state: LifecycleState;
   new_state: LifecycleState;
   reason: Reason;
+  schema_version?: SchemaVersion;
   [k: string]: unknown;
 }

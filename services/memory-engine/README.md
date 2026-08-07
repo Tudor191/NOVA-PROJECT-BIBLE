@@ -107,7 +107,6 @@ layers that implement or wire those ports to real infrastructure.
 | Requests | `knowledge.traverse.request` / reply | `KnowledgeTraverseRequestPayload` / `KnowledgeTraverseReplyPayload` |
 | Serves | `memory.retrieve.request` / reply | `MemoryRetrieveRequestPayload` / `MemoryRetrieveReplyPayload` |
 | Subscribes | `perception.*.observed` | (placeholder handler -- no upstream producer yet) |
-| Subscribes | `reasoning.result` | (placeholder handler) |
 | Subscribes | `action.result` | (placeholder handler) |
 | Subscribes | `communication.intent.received` | (placeholder handler) |
 | Subscribes | `agent_os.task.completed` | (placeholder handler) |

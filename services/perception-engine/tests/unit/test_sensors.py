@@ -63,12 +63,14 @@ async def test_illegal_transition_raises(sensor_cls) -> None:  # type: ignore[no
 
 @pytest.mark.parametrize("sensor_cls", _SENSOR_CLASSES)
 async def test_report_error_transitions_running_sensor_to_failed(sensor_cls) -> None:  # type: ignore[no-untyped-def]
-    from nova_perception_engine.domain.sensor import SensorError
+    from nova_perception_engine.domain.sensor import SensorErrorReport
 
     sensor = _make_sensor(sensor_cls)
     await sensor.initialize()
     await sensor.start()
-    sensor.report_error(SensorError(sensor_id=sensor.sensor_id, message="boom", occurred_at="now"))
+    sensor.report_error(
+        SensorErrorReport(sensor_id=sensor.sensor_id, message="boom", occurred_at="now")
+    )
     assert sensor.state() == "failed"
 
     # Sec12's restart path: failed -> initialize is a legal transition.

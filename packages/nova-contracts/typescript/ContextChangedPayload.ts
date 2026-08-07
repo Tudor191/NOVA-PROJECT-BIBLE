@@ -9,6 +9,7 @@ export type IdentityId = string | null;
 export type Confidence1 = number;
 export type ModalitySummary = string;
 export type PresentIdentities = PresentIdentityPayload[];
+export type SchemaVersion = number;
 
 /**
  * One fused Active Context update (docs/design/phase-1/
@@ -24,6 +25,7 @@ export interface ContextChangedPayload {
   activity?: Activity;
   confidence: Confidence;
   present_identities?: PresentIdentities;
+  schema_version?: SchemaVersion;
   [k: string]: unknown;
 }
 /**
