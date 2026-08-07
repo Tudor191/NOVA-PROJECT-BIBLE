@@ -144,7 +144,8 @@ def create_app(
             source_engine="world-model-engine",
         )
         await bus.subscribe(
-            "perception.*.observed", handlers.make_perception_observed_handler(history_repo)
+            "perception.*.observed",
+            handlers.make_perception_dispatch_handler(context_repo, history_repo),
         )
         await bus.subscribe("action.result", handlers.make_action_result_handler(history_repo))
         await bus.subscribe("agent_os.task.*", handlers.make_agent_os_task_handler())

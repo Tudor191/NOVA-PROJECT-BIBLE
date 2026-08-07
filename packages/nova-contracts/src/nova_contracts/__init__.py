@@ -141,6 +141,7 @@ from nova_contracts.events.world_model import (
     ContextRequestPayload,
     ObjectState,
     PredictionPayload,
+    PresentIdentityPayload,
     WorldObjectChangedPayload,
 )
 from nova_contracts.registry import (
@@ -244,6 +245,7 @@ __all__ = [
     "PersonalityValidateResponseReplyPayload",
     "PersonalityValidateResponseRequestPayload",
     "PredictionPayload",
+    "PresentIdentityPayload",
     "PrivacyLevel",
     "ReasoningMode",
     "ReasoningOutcome",

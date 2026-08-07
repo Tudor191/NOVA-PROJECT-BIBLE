@@ -33,6 +33,7 @@ __all__ = [
     "ObjectState",
     "ObjectStateHistoryEntry",
     "Prediction",
+    "PresentIdentitySignal",
     "PrivacyLevel",
     "Snapshot",
     "WorldObject",
@@ -65,6 +66,26 @@ class WorldObject(BaseModel):
     updated_at: datetime = Field(default_factory=_utcnow)
 
 
+class PresentIdentitySignal(BaseModel):
+    """One currently-present identity, as reported by `perception-engine`
+    (docs/design/phase-2d/03-perception-engine.md §0.6) -- additive extension
+    to `ActiveContext`, filed alongside that document's own approval rather
+    than discovered mid-implementation (the Phase 2D-B TDD's own §0.6 finding:
+    this engine's Active Context previously had no field representing "who is
+    present" at all, despite the Phase 2D Master Blueprint's claim that it
+    did). `identity_id` is `None` for a confidently-detected-but-unenrolled
+    presence -- mirrors `perception-engine`'s own `IdentityObservation.
+    identity_id` convention exactly, so this field is a direct pass-through of
+    that engine's signal, never a re-interpretation of it."""
+
+    identity_id: UUID | None = None
+    confidence: float = Field(ge=0.0, le=1.0)
+    modality_summary: str
+    """Free-text label, e.g. `"voice+face"` -- opaque to World Model, the same
+    convention `WorldObject.label`/`ContextComponent.source` already use for
+    caller-supplied descriptive strings this engine attaches no behavior to."""
+
+
 class ActiveContext(BaseModel):
     """`world:context:<user_id>` (§4) -- Redis is the primary store, not a cache
     of this. This model is the in-process representation `domain/context.py`
@@ -79,6 +100,13 @@ class ActiveContext(BaseModel):
     activity: str | None = None
     platform: str | None = None
     confidence: float = Field(default=0.5, ge=0.0, le=1.0)
+    present_identities: list[PresentIdentitySignal] = Field(default_factory=list)
+    """Who is currently present, per `perception-engine` (docs/design/
+    phase-2d/03-perception-engine.md §0.6) -- optional, additive (ADR-024),
+    unpopulated by every consumer that predates Phase 2D-B. Always the current
+    snapshot, never an accumulating history -- World Model represents current
+    reality only (ADR-017), so a departed identity is removed, not appended to
+    a growing log."""
     updated_at: datetime = Field(default_factory=_utcnow)
 
 

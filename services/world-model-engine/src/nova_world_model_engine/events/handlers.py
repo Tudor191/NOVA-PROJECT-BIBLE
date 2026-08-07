@@ -1,21 +1,32 @@
 """Event Bus subscription handlers -- docs/design/phase-1/03-world-model-engine.md
 §13.
 
-Per docs/design/phase-1/04-cross-engine-integration.md, Perception, Planning,
-and Agent OS don't exist yet in Phase 1 -- these handlers are contracts this
-engine is ready to serve, exercised today by a synthetic/test-published event,
-not a live upstream producer (mirroring Memory/Knowledge Engine's own
-`events/handlers.py`, same rationale).
+Per docs/design/phase-1/04-cross-engine-integration.md, Planning and Agent OS
+don't exist yet -- `make_mode_changed_handler`/`make_agent_os_task_handler`
+remain honest no-ops, contracts this engine is ready to serve, exercised today
+by a synthetic/test-published event, not a live upstream producer (§13's
+"shifts Attention Model weighting" gives one worked example but no general
+formula, and inventing one would be exactly the speculative behavior this
+project's standing instructions rule out).
 
-`make_perception_observed_handler` and `make_action_result_handler` implement
-real effects (an object state transition via `object_graph.observe_object`),
-not placeholders -- §3's "Object write path" sequence diagram is concrete
-enough to implement against even without a finalized upstream payload schema.
-`make_mode_changed_handler` and `make_agent_os_task_handler` are honest
-no-ops: §13's "shifts Attention Model weighting" gives one worked example
-(Part 6: "if gaming begins, performance monitoring becomes dominant") but no
-general formula, and inventing one would be exactly the speculative behavior
-this project's standing instructions rule out.
+`perception-engine` (Phase 2D-B) is this engine's first *real* Perception
+producer -- `make_perception_dispatch_handler` is the single handler
+registered against the `perception.*.observed` wildcard subscription
+(`main.py`), routing each event by its exact subject rather than assuming
+every match is object-shaped:
+
+- `perception.presence.observed` / `perception.identity.observed` ->
+  `ActiveContext.present_identities` (docs/design/phase-2d/
+  03-perception-engine.md §0.6) -- `make_perception_presence_observed_handler`/
+  `make_perception_identity_observed_handler`, both real effects via
+  `domain/context.py`'s `clear_present_identities`/`upsert_present_identity`.
+- anything else (object-shaped: window, file, project handles -- Phase 4's
+  `nova-companion` desktop sensors) -> `make_perception_observed_handler`'s
+  original object-graph path, unchanged since Phase 1.
+
+Both are wired against a single wildcard subscription, not two competing
+subscriptions to overlapping subjects -- NATS would otherwise deliver the same
+message to two independent handlers, double-processing it.
 """
 
 from __future__ import annotations
@@ -25,11 +36,13 @@ from uuid import UUID
 from nova_contracts import EventEnvelope
 from nova_observability import get_logger
 
-from nova_world_model_engine.domain import object_graph, state_management, temporal
-from nova_world_model_engine.domain.models import ObjectState, WorldObject
-from nova_world_model_engine.domain.ports import WorldHistoryRepository
+from nova_world_model_engine.domain import context, object_graph, state_management, temporal
+from nova_world_model_engine.domain.models import ObjectState, PresentIdentitySignal, WorldObject
+from nova_world_model_engine.domain.ports import ContextRepository, WorldHistoryRepository
 
 logger = get_logger("world-model-engine.events.handlers")
+
+_PRESENCE_SUBJECTS = frozenset({"perception.presence.observed", "perception.identity.observed"})
 
 
 def _text_from(payload: dict, *keys: str) -> str | None:
@@ -48,6 +61,14 @@ def _uuid_from(payload: dict, key: str) -> UUID | None:
         return UUID(str(value))
     except ValueError:
         return None
+
+
+def _float_from(payload: dict, key: str, *, default: float = 0.0) -> float:
+    value = payload.get(key)
+    try:
+        return float(value) if value is not None else default
+    except (TypeError, ValueError):
+        return default
 
 
 async def _current_state(history_repo: WorldHistoryRepository, object_id: str) -> ObjectState:
@@ -89,6 +110,100 @@ def make_perception_observed_handler(history_repo: WorldHistoryRepository):  # t
         await object_graph.observe_object(
             history_repo, obj=obj, previous_state=previous, correlation_id=envelope.correlation_id
         )
+
+    return handle
+
+
+def make_perception_presence_observed_handler(  # type: ignore[no-untyped-def]
+    context_repo: ContextRepository, history_repo: WorldHistoryRepository
+):
+    """`perception.presence.observed` (docs/design/phase-2d/
+    03-perception-engine.md §13.2) -> `ActiveContext.present_identities` (§0.6).
+    Only acts on `present=False` (presence lost): clears the roster, since
+    World Model represents current reality only (ADR-017) and a stale
+    "still present" entry after presence is lost would be exactly that kind
+    of fabricated state. `present=True` alone carries no identity opinion --
+    `perception.identity.observed` (below) is what actually populates the
+    roster, so a bare presence-detected event is a deliberate no-op here."""
+
+    async def handle(envelope: EventEnvelope) -> None:
+        user_id = _uuid_from(envelope.payload, "user_id")
+        present = envelope.payload.get("present")
+        if user_id is None or not isinstance(present, bool):
+            logger.warning(
+                "perception.presence.observed missing user_id/present, skipping",
+                extra={"subject": envelope.subject},
+            )
+            return
+        if present:
+            return  # no identity opinion carried by a bare presence signal
+        await context.clear_present_identities(
+            context_repo, history_repo, user_id=user_id, correlation_id=envelope.correlation_id
+        )
+
+    return handle
+
+
+def make_perception_identity_observed_handler(  # type: ignore[no-untyped-def]
+    context_repo: ContextRepository, history_repo: WorldHistoryRepository
+):
+    """`perception.identity.observed` (docs/design/phase-2d/
+    03-perception-engine.md §13.2) -> `ActiveContext.present_identities`
+    (§0.6). A direct pass-through of `perception-engine`'s own fused/smoothed
+    identity signal (§8 of that document) -- this engine neither re-scores nor
+    re-interprets the confidence value, per ADR-017's boundary against
+    becoming a second identity-fusion engine."""
+
+    async def handle(envelope: EventEnvelope) -> None:
+        user_id = _uuid_from(envelope.payload, "user_id")
+        confidence = envelope.payload.get("confidence")
+        modality_summary = _text_from(envelope.payload, "modality_summary") or "unknown"
+        if user_id is None or confidence is None:
+            logger.warning(
+                "perception.identity.observed missing user_id/confidence, skipping",
+                extra={"subject": envelope.subject},
+            )
+            return
+        identity_id = _uuid_from(envelope.payload, "identity_id")
+        signal = PresentIdentitySignal(
+            identity_id=identity_id,
+            confidence=_float_from(envelope.payload, "confidence"),
+            modality_summary=modality_summary,
+        )
+        await context.upsert_present_identity(
+            context_repo,
+            history_repo,
+            user_id=user_id,
+            identity=signal,
+            correlation_id=envelope.correlation_id,
+        )
+
+    return handle
+
+
+def make_perception_dispatch_handler(  # type: ignore[no-untyped-def]
+    context_repo: ContextRepository, history_repo: WorldHistoryRepository
+):
+    """The single handler registered against the `perception.*.observed`
+    wildcard subscription (`main.py`) -- routes by exact subject rather than
+    assuming every match is object-shaped, per this module's own docstring.
+    `perception-engine` (Phase 2D-B) never publishes an object-shaped
+    `perception.*.observed` payload (that path is reserved for Phase 4's
+    desktop-sensor extension), but this dispatcher makes the split explicit
+    and mechanical rather than relying on that convention holding by
+    convention alone."""
+
+    presence_handler = make_perception_presence_observed_handler(context_repo, history_repo)
+    identity_handler = make_perception_identity_observed_handler(context_repo, history_repo)
+    object_handler = make_perception_observed_handler(history_repo)
+
+    async def handle(envelope: EventEnvelope) -> None:
+        if envelope.subject == "perception.presence.observed":
+            await presence_handler(envelope)
+        elif envelope.subject == "perception.identity.observed":
+            await identity_handler(envelope)
+        else:
+            await object_handler(envelope)
 
     return handle
 

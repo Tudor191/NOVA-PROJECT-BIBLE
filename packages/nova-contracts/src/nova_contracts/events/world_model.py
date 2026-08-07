@@ -56,6 +56,18 @@ class WorldObjectChangedPayload(BaseModel):
     confidence: float | None = Field(default=None, ge=0.0, le=1.0)
 
 
+class PresentIdentityPayload(BaseModel):
+    """One currently-present identity (docs/design/phase-2d/
+    03-perception-engine.md §0.6) -- a direct pass-through of that engine's own
+    `IdentityObservation`/`IdentityConfidenceState` signal, never
+    re-interpreted here. `identity_id` is `None` for a confidently-detected-
+    but-unenrolled presence."""
+
+    identity_id: UUID | None = None
+    confidence: float = Field(ge=0.0, le=1.0)
+    modality_summary: str
+
+
 @register_payload("world_model.context.changed")
 class ContextChangedPayload(BaseModel):
     """One fused Active Context update (docs/design/phase-1/
@@ -69,6 +81,10 @@ class ContextChangedPayload(BaseModel):
     task: str | None = None
     activity: str | None = None
     confidence: float = Field(ge=0.0, le=1.0)
+    present_identities: list[PresentIdentityPayload] = Field(default_factory=list)
+    """Who is currently present, per `perception-engine` (docs/design/
+    phase-2d/03-perception-engine.md §0.6) -- additive (ADR-024), empty for
+    every update that predates Phase 2D-B."""
 
 
 @register_payload("world_model.attention.shifted")

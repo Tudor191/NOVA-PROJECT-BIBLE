@@ -8,9 +8,11 @@ from uuid import uuid4
 from nova_contracts import EventEnvelope
 from nova_world_model_engine.events.handlers import (
     make_action_result_handler,
+    make_perception_dispatch_handler,
     make_perception_observed_handler,
 )
 
+from tests.fakes.context_repository import FakeContextRepository
 from tests.fakes.history_repository import FakeWorldHistoryRepository
 
 
@@ -107,3 +109,92 @@ async def test_action_result_invalid_outcome_is_skipped() -> None:
     )
 
     assert history_repo.history == []
+
+
+# --- perception-engine dispatch (docs/design/phase-2d/03-perception-engine.md
+# §0.6, §13.2) -- the single handler behind the `perception.*.observed`
+# wildcard, routing presence/identity to Active Context and everything else
+# to the pre-existing object-graph path. -------------------------------------
+
+
+async def test_dispatch_routes_identity_observed_to_present_identities() -> None:
+    context_repo = FakeContextRepository()
+    history_repo = FakeWorldHistoryRepository()
+    handler = make_perception_dispatch_handler(context_repo, history_repo)
+    user_id = uuid4()
+    identity_id = uuid4()
+
+    await handler(
+        _envelope(
+            "perception.identity.observed",
+            {
+                "user_id": str(user_id),
+                "identity_id": str(identity_id),
+                "confidence": 0.9,
+                "modality_summary": "voice+face",
+            },
+        )
+    )
+
+    context = await context_repo.get_context(user_id)
+    assert context is not None
+    assert len(context.present_identities) == 1
+    assert context.present_identities[0].identity_id == identity_id
+    assert history_repo.history == []  # never touches the object-graph path
+
+
+async def test_dispatch_routes_presence_lost_to_clear_present_identities() -> None:
+    context_repo = FakeContextRepository()
+    history_repo = FakeWorldHistoryRepository()
+    handler = make_perception_dispatch_handler(context_repo, history_repo)
+    user_id = uuid4()
+
+    await handler(
+        _envelope(
+            "perception.identity.observed",
+            {
+                "user_id": str(user_id),
+                "identity_id": str(uuid4()),
+                "confidence": 0.9,
+                "modality_summary": "voice",
+            },
+        )
+    )
+    await handler(
+        _envelope("perception.presence.observed", {"user_id": str(user_id), "present": False})
+    )
+
+    context = await context_repo.get_context(user_id)
+    assert context is not None
+    assert context.present_identities == []
+
+
+async def test_dispatch_ignores_bare_presence_detected_signal() -> None:
+    context_repo = FakeContextRepository()
+    history_repo = FakeWorldHistoryRepository()
+    handler = make_perception_dispatch_handler(context_repo, history_repo)
+    user_id = uuid4()
+
+    await handler(
+        _envelope("perception.presence.observed", {"user_id": str(user_id), "present": True})
+    )
+
+    assert await context_repo.get_context(user_id) is None
+
+
+async def test_dispatch_routes_object_shaped_events_to_object_graph_path() -> None:
+    context_repo = FakeContextRepository()
+    history_repo = FakeWorldHistoryRepository()
+    handler = make_perception_dispatch_handler(context_repo, history_repo)
+    user_id = uuid4()
+
+    await handler(
+        _envelope(
+            "perception.window.observed",
+            {"object_id": "window:1", "label": "Window", "user_id": str(user_id)},
+        )
+    )
+
+    history = await history_repo.list_object_history("window:1")
+    assert len(history) == 1
+    assert await context_repo.get_context(user_id) is None
