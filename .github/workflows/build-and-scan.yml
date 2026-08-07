@@ -59,6 +59,8 @@ jobs:
           - ai-model-orchestration-engine
           - reasoning-engine
           - executive-cognition-engine
+          - personality-engine
+          - communication-engine
     steps:
       - uses: actions/checkout@v4
 
