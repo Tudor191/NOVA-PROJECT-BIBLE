@@ -56,6 +56,7 @@ root_packages = [
     "nova_ai_model_orchestration_engine",
     "nova_reasoning_engine",
     "nova_executive_cognition_engine",
+    "nova_personality_engine",
 ]
 include_external_packages = true
 
@@ -70,6 +71,7 @@ modules = [
     "nova_ai_model_orchestration_engine",
     "nova_reasoning_engine",
     "nova_executive_cognition_engine",
+    "nova_personality_engine",
 ]
 
 [[tool.importlinter.contracts]]
@@ -83,6 +85,7 @@ source_modules = [
     "nova_ai_model_orchestration_engine",
     "nova_reasoning_engine",
     "nova_executive_cognition_engine",
+    "nova_personality_engine",
 ]
 forbidden_modules = [
     "nats",
@@ -101,6 +104,7 @@ source_modules = [
     "nova_ai_model_orchestration_engine",
     "nova_reasoning_engine",
     "nova_executive_cognition_engine",
+    "nova_personality_engine",
 ]
 forbidden_modules = [
     "neo4j",
@@ -120,6 +124,7 @@ source_modules = [
     "nova_world_model_engine",
     "nova_reasoning_engine",
     "nova_executive_cognition_engine",
+    "nova_personality_engine",
 ]
 forbidden_modules = [
     "anthropic",

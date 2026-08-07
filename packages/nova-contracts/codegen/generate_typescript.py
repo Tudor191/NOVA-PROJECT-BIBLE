@@ -61,6 +61,11 @@ from nova_contracts import (
     ModelHealthChangedPayload,
     ModelRegistryChangedPayload,
     ModuleStatusChangedPayload,
+    PersonalityMemoryUpdatePayload,
+    PersonalityStyleSelectReplyPayload,
+    PersonalityStyleSelectRequestPayload,
+    PersonalityValidateResponseReplyPayload,
+    PersonalityValidateResponseRequestPayload,
     PredictionPayload,
     ReasoningProcessCompletedPayload,
     ReasoningProcessFailedPayload,
@@ -135,6 +140,11 @@ MODELS: list[type[BaseModel]] = [
     ExecutiveDecisionCompletedPayload,
     ExecutiveDecisionFailedPayload,
     ExecutiveHumanOverrideAppliedPayload,
+    PersonalityValidateResponseRequestPayload,
+    PersonalityValidateResponseReplyPayload,
+    PersonalityStyleSelectRequestPayload,
+    PersonalityStyleSelectReplyPayload,
+    PersonalityMemoryUpdatePayload,
 ]
 
 PACKAGE_ROOT = Path(__file__).resolve().parent.parent

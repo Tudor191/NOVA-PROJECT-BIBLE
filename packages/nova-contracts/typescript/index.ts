@@ -55,3 +55,8 @@ export * from "./ExecutiveOutcomeReportReplyPayload";
 export * from "./ExecutiveDecisionCompletedPayload";
 export * from "./ExecutiveDecisionFailedPayload";
 export * from "./ExecutiveHumanOverrideAppliedPayload";
+export * from "./PersonalityValidateResponseRequestPayload";
+export * from "./PersonalityValidateResponseReplyPayload";
+export * from "./PersonalityStyleSelectRequestPayload";
+export * from "./PersonalityStyleSelectReplyPayload";
+export * from "./PersonalityMemoryUpdatePayload";
