@@ -877,12 +877,19 @@ contracts module.
 
 ### 13.3 Consumed events
 
-- `communication.session.created`, `communication.session.state_changed`,
-  `communication.session.completed` — tracked to answer "is a session currently
-  active with this speaker" (Master Blueprint §5.1), one of §10's addressee
-  candidate signals. This is the one genuine dependency direction from this
-  engine toward `communication-engine`, the inverse of §0.7's producer/consumer
-  asymmetry.
+- `communication.session.created`, `communication.session.completed` — tracked
+  to answer "is a session currently active with this speaker" (Master Blueprint
+  §5.1), one of §10's addressee candidate signals. This is the one genuine
+  dependency direction from this engine toward `communication-engine`, the
+  inverse of §0.7's producer/consumer asymmetry. `communication.session.
+  state_changed` (§13.2 of the communication-engine design doc) is deliberately
+  **not** subscribed: its payload carries `session_id` only, no `user_id`
+  (`CommunicationSessionStateChangedPayload`), so it cannot be attributed to a
+  speaker by this tracker; and its `Paused` state is not "ended" for this
+  tracker's purpose, so it carries no actionable transition this engine would
+  act on even if `user_id` were present. Discovered and corrected during
+  implementation (§20's own "verify before trusting documentation" discipline)
+  rather than carried forward as a mismatch between this document and the code.
 
 New `ai-model-orchestration-engine` contracts (§0.2, additive to the existing set):
 `ai_model.detect_wake_phrase.request`/`.reply`, `ai_model.embed_voice.request`/

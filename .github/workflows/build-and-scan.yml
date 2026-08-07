@@ -61,6 +61,7 @@ jobs:
           - executive-cognition-engine
           - personality-engine
           - communication-engine
+          - perception-engine
     steps:
       - uses: actions/checkout@v4
 
