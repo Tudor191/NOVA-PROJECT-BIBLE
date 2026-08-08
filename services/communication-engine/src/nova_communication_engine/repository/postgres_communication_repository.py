@@ -19,6 +19,8 @@ from sqlalchemy.orm import selectinload
 
 from nova_communication_engine.domain.models import (
     ChannelType,
+    ConversationDecisionTrace,
+    ConversationMemory,
     ConversationSession,
     ConversationState,
     ConversationTurn,
@@ -28,6 +30,7 @@ from nova_communication_engine.domain.models import (
 )
 from nova_communication_engine.domain.ports import OutboxEvent, OutboxRow
 from nova_communication_engine.repository.models import (
+    ConversationDecisionTraceORM,
     ConversationSessionORM,
     ConversationTurnORM,
     NotificationORM,
@@ -50,6 +53,23 @@ def _session_to_domain(row: ConversationSessionORM) -> ConversationSession:
         objective=row.objective,
         pending_questions=row.pending_questions,
         closed_at=row.closed_at,
+        conversation_memory=ConversationMemory.model_validate(row.conversation_memory),
+        interrupted_content=row.interrupted_content,
+        dnd_override=row.dnd_override,
+    )
+
+
+def _decision_trace_to_domain(row: ConversationDecisionTraceORM) -> ConversationDecisionTrace:
+    return ConversationDecisionTrace(
+        id=row.id,
+        session_id=row.session_id,
+        decision_type=row.decision_type,
+        inputs=row.inputs,
+        confidence=row.confidence,
+        confidence_tier=row.confidence_tier,
+        outcome=row.outcome,
+        reason=row.reason,
+        created_at=row.created_at,
     )
 
 
@@ -99,6 +119,9 @@ class PostgresCommunicationRepository:
                 state=session.state.value,
                 objective=session.objective,
                 pending_questions=session.pending_questions,
+                conversation_memory=session.conversation_memory.model_dump(mode="json"),
+                interrupted_content=session.interrupted_content,
+                dnd_override=session.dnd_override,
             )
             db_session.add(orm)
             await db_session.flush()
@@ -220,3 +243,63 @@ class PostgresCommunicationRepository:
                 .where(OutboxEventORM.id == outbox_id)
                 .values(dispatched_at=func.now())
             )
+
+    async def _update_session_column(
+        self, session_id: UUID, *, values: dict[str, object]
+    ) -> ConversationSession:
+        async with self._session_factory() as db_session, db_session.begin():
+            await db_session.execute(
+                update(ConversationSessionORM)
+                .where(ConversationSessionORM.session_id == session_id)
+                .values(**values)
+            )
+            stmt = (
+                select(ConversationSessionORM)
+                .where(ConversationSessionORM.session_id == session_id)
+                .options(selectinload(ConversationSessionORM.turns))
+            )
+            row = (await db_session.execute(stmt)).scalar_one()
+            return _session_to_domain(row)
+
+    async def update_conversation_memory(
+        self, session_id: UUID, *, memory: ConversationMemory
+    ) -> ConversationSession:
+        return await self._update_session_column(
+            session_id, values={"conversation_memory": memory.model_dump(mode="json")}
+        )
+
+    async def set_interrupted_content(
+        self, session_id: UUID, *, content: str | None
+    ) -> ConversationSession:
+        return await self._update_session_column(
+            session_id, values={"interrupted_content": content}
+        )
+
+    async def set_dnd_override(self, session_id: UUID, *, enabled: bool) -> ConversationSession:
+        return await self._update_session_column(session_id, values={"dnd_override": enabled})
+
+    async def set_pending_questions(
+        self, session_id: UUID, *, questions: list[str] | None
+    ) -> ConversationSession:
+        return await self._update_session_column(
+            session_id, values={"pending_questions": questions}
+        )
+
+    async def create_decision_trace(
+        self, trace: ConversationDecisionTrace
+    ) -> ConversationDecisionTrace:
+        async with self._session_factory() as db_session, db_session.begin():
+            orm = ConversationDecisionTraceORM(
+                id=trace.id,
+                session_id=trace.session_id,
+                decision_type=trace.decision_type,
+                inputs=trace.inputs,
+                confidence=trace.confidence,
+                confidence_tier=trace.confidence_tier,
+                outcome=trace.outcome,
+                reason=trace.reason,
+            )
+            db_session.add(orm)
+            await db_session.flush()
+            await db_session.refresh(orm)
+            return _decision_trace_to_domain(orm)

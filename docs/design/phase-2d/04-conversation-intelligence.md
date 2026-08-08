@@ -13,7 +13,13 @@ governed throughout by
 and [Doc 23 — NOVA Personality Specification](../../architecture/23-nova-personality-specification.md)
 (§21 maps every major decision below against both, plus every applicable ADR).
 
-**Status: Draft, pending approval.** This document was produced only after a
+**Status: Approved and implemented (Option B, per §0.4).** See the
+[Phase 2D-C Gate Review](../../roadmap/architecture-reviews/phase-2d-c-gate-review.md)
+for the full implementation record, including the explicit breakdown of
+what is fully verified, what is verified only through contract-level
+fakes, and what remains genuinely unverified end-to-end pending
+`perception-engine`'s still-unwired production signal chain. This document
+was produced only after a
 full verification pass of `communication-engine`, `personality-engine`,
 `perception-engine`, `world-model-engine`, and all applicable ADRs/Bible
 sections against their **actual current code**, per the standing rule
@@ -950,22 +956,22 @@ None of items 2–4 require this document's own scope to change if deferred
 absence. Item 5 is the one genuine open technical question requiring
 research (not a decision) before implementation can be fully scoped.
 
-## 24. What happens next
+## 24. What happened next
 
-**This document is a draft, not yet approved.** Per direct instruction, no
-implementation begins until the user has reviewed it and explicitly:
+**Approved.** The user resolved §0.4 as Option B, authorized the §21 items
+2–3 prerequisites (World Model, perception registration), and confirmed
+item 4 (`personality-engine`'s `channel` fix) was explicitly *not*
+authorized this wave — outside the §0.5–§0.7 prerequisite scope the
+approval was bounded to. Item 5 (Reasoning Engine's consumption mechanism)
+was investigated as instructed and found to have no existing integration
+to hook into at all — a larger, disclosed finding, not implemented this
+wave. Implementation, full verification, and the
+[Gate Review](../../roadmap/architecture-reviews/phase-2d-c-gate-review.md)
+are complete; see that document for the exact record of what is and isn't
+verified end-to-end. Phase 2D-D does not begin without further explicit
+approval.
 
-- Resolved §0.4 (Option A vs. Option B, or a third option not proposed
-  here).
-- Confirmed or amended §0.5–§0.9's design decisions (each argued from
-  precedent/ADR, none silently assumed).
-- Authorized the small, disclosed prerequisite extensions in §21
-  items 2–4.
-- Acknowledged that item 5 (Reasoning Engine's actual consumption
-  mechanism) requires a further verification pass before it can be
-  specified as precisely as items 2–4 were.
-
-Following this project's established discipline: Design → Implementation →
+Followed this project's established discipline: Design → Implementation →
 Testing → Architecture Review → Gate Review → Engineering Metrics →
 Approval, one layer at a time, with every tradeoff disclosed as it's found,
 not smoothed over in the telling.

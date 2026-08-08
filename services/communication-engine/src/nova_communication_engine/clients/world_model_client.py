@@ -44,4 +44,5 @@ class WorldModelClient:
             project_id=parsed.project_id,
             device=parsed.device,
             degraded=parsed.degraded,
+            present_identities=parsed.present_identities,
         )

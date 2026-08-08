@@ -7,6 +7,10 @@ export type Activity = string | null;
 export type Confidence = number | null;
 export type UpdatedAt = string | null;
 export type Degraded = boolean;
+export type IdentityId = string | null;
+export type Confidence1 = number;
+export type ModalitySummary = string;
+export type PresentIdentities = PresentIdentityPayload[];
 export type SchemaVersion = number;
 
 export interface ContextReplyPayload {
@@ -19,6 +23,20 @@ export interface ContextReplyPayload {
   confidence?: Confidence;
   updated_at?: UpdatedAt;
   degraded?: Degraded;
+  present_identities?: PresentIdentities;
   schema_version?: SchemaVersion;
+  [k: string]: unknown;
+}
+/**
+ * One currently-present identity (docs/design/phase-2d/
+ * 03-perception-engine.md §0.6) -- a direct pass-through of that engine's own
+ * `IdentityObservation`/`IdentityConfidenceState` signal, never
+ * re-interpreted here. `identity_id` is `None` for a confidently-detected-
+ * but-unenrolled presence.
+ */
+export interface PresentIdentityPayload {
+  identity_id?: IdentityId;
+  confidence: Confidence1;
+  modality_summary: ModalitySummary;
   [k: string]: unknown;
 }

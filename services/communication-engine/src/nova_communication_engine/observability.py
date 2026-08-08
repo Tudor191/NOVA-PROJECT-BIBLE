@@ -37,6 +37,11 @@ class CommunicationEngineMetrics:
     outbox_dispatched_total: Counter
     """Labeled by `subject`."""
 
+    addressee_fusion_total: Counter
+    """04-conversation-intelligence.md Sec4/Sec15 -- labeled by `outcome`
+    (`activated` | `clarify` | `silent`), the same calibration-data
+    collection Master Blueprint Risk Sec11.2 requires."""
+
 
 def create_metrics() -> CommunicationEngineMetrics:
     meter = get_meter("communication-engine")
@@ -73,5 +78,9 @@ def create_metrics() -> CommunicationEngineMetrics:
         outbox_dispatched_total=meter.create_counter(
             "communication_engine_outbox_dispatched_total",
             description="Outbox events dispatched to the Event Bus, labeled by subject.",
+        ),
+        addressee_fusion_total=meter.create_counter(
+            "communication_engine_addressee_fusion_total",
+            description="Addressee-detection fusion outcomes, labeled by outcome.",
         ),
     )

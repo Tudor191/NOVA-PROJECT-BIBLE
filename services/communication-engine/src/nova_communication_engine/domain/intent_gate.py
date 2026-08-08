@@ -129,6 +129,12 @@ async def deliver_intent(
         )
         saved_turn = await repository.append_turn(turn)
         if result.barged_in:
+            # Sec5.1 (04-conversation-intelligence.md): "no information
+            # should be lost" -- the interrupted content is already
+            # recorded as this outbound turn (above); `interrupted_content`
+            # additionally flags it for the Clarification Engine's
+            # resume-offer, distinct from the turn log itself.
+            await repository.set_interrupted_content(session.session_id, content=final_content)
             return IntentDeliveryOutcome(
                 delivered=result.delivered_chunks > 0,
                 personality_validated=personality_validated,

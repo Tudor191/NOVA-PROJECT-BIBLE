@@ -26,6 +26,8 @@ from uuid import uuid4
 import pytest
 from nova_communication_engine.domain.models import (
     ChannelType,
+    ConversationDecisionTrace,
+    ConversationMemory,
     ConversationSession,
     ConversationState,
     ConversationTurn,
@@ -155,3 +157,84 @@ async def test_outbox_enqueue_list_and_mark_dispatched_round_trip(
 
     ready_after = await repository.list_dispatch_ready()
     assert not any(row.id == outbox_id for row in ready_after)
+
+
+# --- Phase 2D-C additive schema (04-conversation-intelligence.md Sec3/Sec14) --
+
+
+async def test_conversation_memory_round_trips_through_real_postgres(
+    repository: PostgresCommunicationRepository,
+) -> None:
+    session = await repository.create_session(
+        ConversationSession(user_id=uuid4(), channel=ChannelType.VOICE, device_id=uuid4())
+    )
+    memory = ConversationMemory(decisions=["chose option B"], feedback=["liked it"])
+
+    updated = await repository.update_conversation_memory(session.session_id, memory=memory)
+    fetched = await repository.get_session(session.session_id)
+
+    assert updated.conversation_memory == memory
+    assert fetched is not None
+    assert fetched.conversation_memory == memory
+
+
+async def test_interrupted_content_round_trips_and_clears(
+    repository: PostgresCommunicationRepository,
+) -> None:
+    session = await repository.create_session(
+        ConversationSession(user_id=uuid4(), channel=ChannelType.VOICE, device_id=uuid4())
+    )
+
+    set_result = await repository.set_interrupted_content(
+        session.session_id, content="the deployment plan"
+    )
+    assert set_result.interrupted_content == "the deployment plan"
+
+    cleared_result = await repository.set_interrupted_content(session.session_id, content=None)
+    assert cleared_result.interrupted_content is None
+
+
+async def test_dnd_override_round_trips(repository: PostgresCommunicationRepository) -> None:
+    session = await repository.create_session(
+        ConversationSession(user_id=uuid4(), channel=ChannelType.VOICE, device_id=uuid4())
+    )
+    assert session.dnd_override is False
+
+    updated = await repository.set_dnd_override(session.session_id, enabled=True)
+
+    assert updated.dnd_override is True
+
+
+async def test_pending_questions_round_trips(repository: PostgresCommunicationRepository) -> None:
+    session = await repository.create_session(
+        ConversationSession(user_id=uuid4(), channel=ChannelType.VOICE, device_id=uuid4())
+    )
+
+    updated = await repository.set_pending_questions(
+        session.session_id, questions=["Want me to continue?"]
+    )
+
+    assert updated.pending_questions == ["Want me to continue?"]
+
+
+async def test_decision_trace_persists_with_no_session_foreign_key_requirement(
+    repository: PostgresCommunicationRepository,
+) -> None:
+    """`conversation_decision_trace.session_id` has no foreign key (unlike
+    `conversation_turn.session_id`) -- a pre-session addressee check must
+    persist with `session_id=None` (Sec3.2's own documented reason)."""
+    trace = ConversationDecisionTrace(
+        session_id=None,
+        decision_type="addressee_fusion",
+        inputs={"wake_word_matched": True},
+        confidence=0.7,
+        confidence_tier="medium",
+        outcome="activated",
+        reason="score=0.700",
+    )
+
+    created = await repository.create_decision_trace(trace)
+
+    assert created.id == trace.id
+    assert created.session_id is None
+    assert created.confidence == 0.7

@@ -15,6 +15,7 @@ from nova_eventbus_sdk.backends.in_memory import InMemoryEventBus
 from nova_testkit.model_gateway import FakeModelGateway
 from nova_testkit.nats import nats_container, nats_event_bus
 from nova_testkit.neo4j import neo4j_container, neo4j_driver
+from nova_testkit.perception_signal_source import FakePerceptionSignalSource
 from nova_testkit.postgres import (
     postgres_container,
     postgres_engine,
@@ -26,6 +27,7 @@ from nova_testkit.redis import redis_client, redis_container
 __all__ = [
     "event_bus",
     "fake_model_gateway",
+    "fake_perception_signal_source",
     "nats_container",
     "nats_event_bus",
     "neo4j_container",
@@ -71,3 +73,13 @@ async def fake_model_gateway(event_bus: InMemoryEventBus) -> AsyncIterator[FakeM
     await gateway.start(event_bus)
     yield gateway
     await gateway.stop()
+
+
+@pytest.fixture
+def fake_perception_signal_source() -> FakePerceptionSignalSource:
+    """A `FakePerceptionSignalSource` (`perception_signal_source.py`), ready
+    to publish `perception.*` events onto this test's `event_bus` fixture.
+    No `start()`/`stop()` lifecycle -- unlike `fake_model_gateway`, this
+    fake only publishes, it serves no subject, so there is no subscription
+    to tear down."""
+    return FakePerceptionSignalSource()

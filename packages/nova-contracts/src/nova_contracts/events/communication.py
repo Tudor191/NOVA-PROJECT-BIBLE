@@ -1,9 +1,18 @@
 """Communication Engine event payloads (Bible Part 13), per
 docs/design/phase-2d/01-communication-engine.md Sec7 (the `communication.
-intent` gate), Sec10 (data model), and Sec11 (event contracts).
+intent` gate), Sec10 (data model), and Sec11 (event contracts); extended by
+docs/design/phase-2d/04-conversation-intelligence.md Sec10 for Phase 2D-C's
+`ResponseShapingDirectivePayload` and `memory_annotations`.
 
 Every payload carries `schema_version: int = 1` from its first commit
 (ADR-024), the same discipline every engine's payloads follow since Phase 2A.
+
+`CommunicationStyle` is imported from `nova_contracts.events.personality`
+rather than redefined here -- Bible Part 13's own nine-style palette is
+`personality-engine`'s vocabulary (`personality.style.select`'s reply
+already returns it); `ResponseShapingDirectivePayload` carries the resolved
+value that RPC produced, not a second, independent enum for the same
+concept.
 """
 
 from __future__ import annotations
@@ -15,6 +24,7 @@ from uuid import UUID, uuid4
 
 from pydantic import BaseModel, Field
 
+from nova_contracts.events.personality import CommunicationStyle
 from nova_contracts.registry import register_payload
 
 
@@ -72,6 +82,16 @@ class CommunicationIntentDeliverRequestPayload(BaseModel):
     confidence_tier: str = "unknown"
     requesting_engine: str
     correlation_id: UUID = Field(default_factory=uuid4)
+    memory_annotations: list[dict[str, str]] | None = None
+    """Phase 2D-C addition (04-conversation-intelligence.md Sec9) -- a
+    content-source engine may optionally categorize a piece of its own
+    content as one of Bible Part 13's Conversation Memory categories
+    (`{"category": "decision" | "preference" | "correction" | "feedback",
+    "text": ...}`). `communication-engine` only stores what it's told,
+    categorized by the producing engine -- it never infers or extracts a
+    category itself (Sec0.1: this engine never generates or classifies
+    content, only transports and gates it). `None`/absent is the common
+    case and changes nothing about delivery."""
     schema_version: int = 1
 
 
@@ -181,6 +201,33 @@ class CommunicationTurnReceivedPayload(BaseModel):
     content: str
     channel: ChannelType
     created_at: datetime
+    schema_version: int = 1
+
+
+@register_payload("communication.response_shaping.directive")
+class ResponseShapingDirectivePayload(BaseModel):
+    """Phase 2D-C addition (04-conversation-intelligence.md Sec0.7/Sec7/
+    Sec8/Sec10) -- published alongside (same `correlation_id` as)
+    `communication.turn.received`, never merged into that payload: this is
+    a policy decision *about* the turn, not a property *of* it (the same
+    "decision-trace-shaped data gets its own payload" convention
+    `ArbitrationResult` already established relative to
+    `ExecutiveRequestPayload` in Phase 2C). `communication-engine` computes
+    and publishes this; it does not itself apply it to any generated
+    content (Sec0.1 -- this engine never generates content). Whether/how a
+    content-source engine (e.g. Reasoning Engine) currently consumes it is
+    explicitly *not* implied by this payload's existence -- see Sec0.7's
+    own disclosed finding that no such consumer exists yet."""
+
+    session_id: UUID
+    style: CommunicationStyle
+    verbosity: str
+    technical_depth: str
+    situation_hint: str | None = None
+    response_language: str = "en"
+    """Doc 22 Principles 10-11 -- English-first this phase; not a per-message
+    inference (Principle 9's consistency requirement)."""
+    correlation_id: UUID = Field(default_factory=uuid4)
     schema_version: int = 1
 
 

@@ -12,6 +12,8 @@ from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 from nova_communication_engine.domain.models import (
+    ConversationDecisionTrace,
+    ConversationMemory,
     ConversationSession,
     ConversationState,
     ConversationTurn,
@@ -25,6 +27,7 @@ class FakeCommunicationRepository:
         self.sessions: dict[UUID, ConversationSession] = {}
         self.notifications: dict[UUID, Notification] = {}
         self.outbox: list[OutboxEvent] = []
+        self.decision_traces: list[ConversationDecisionTrace] = []
         self._dispatched: set[int] = set()
 
     async def create_session(self, session: ConversationSession) -> ConversationSession:
@@ -95,3 +98,39 @@ class FakeCommunicationRepository:
     async def mark_dispatched(self, outbox_id: UUID) -> None:
         index = outbox_id.int - 1
         self._dispatched.add(index)
+
+    async def update_conversation_memory(
+        self, session_id: UUID, *, memory: ConversationMemory
+    ) -> ConversationSession:
+        session = self.sessions[session_id]
+        updated = session.model_copy(update={"conversation_memory": memory})
+        self.sessions[session_id] = updated
+        return updated
+
+    async def set_interrupted_content(
+        self, session_id: UUID, *, content: str | None
+    ) -> ConversationSession:
+        session = self.sessions[session_id]
+        updated = session.model_copy(update={"interrupted_content": content})
+        self.sessions[session_id] = updated
+        return updated
+
+    async def set_dnd_override(self, session_id: UUID, *, enabled: bool) -> ConversationSession:
+        session = self.sessions[session_id]
+        updated = session.model_copy(update={"dnd_override": enabled})
+        self.sessions[session_id] = updated
+        return updated
+
+    async def create_decision_trace(
+        self, trace: ConversationDecisionTrace
+    ) -> ConversationDecisionTrace:
+        self.decision_traces.append(trace)
+        return trace
+
+    async def set_pending_questions(
+        self, session_id: UUID, *, questions: list[str] | None
+    ) -> ConversationSession:
+        session = self.sessions[session_id]
+        updated = session.model_copy(update={"pending_questions": questions})
+        self.sessions[session_id] = updated
+        return updated

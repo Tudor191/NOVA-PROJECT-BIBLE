@@ -196,11 +196,20 @@ def scoped_view(context: ActiveContext, *, scope: str | None) -> dict[str, Any]:
 
 _AGENT_SCOPE_FIELDS: dict[str, tuple[str, ...]] = {
     "coding-agent": ("project_id", "task", "device"),
-    "communication-engine": ("activity", "device", "platform"),
+    "communication-engine": ("activity", "device", "platform", "present_identities"),
 }
 """Per-category field whitelists (§7 step 4's worked examples: "a `coding-agent`
 gets project/file/IDE fields; a `communication-engine` request gets
 conversation/device fields"). Unlisted categories fall back to every updatable
 field -- a documented default, not a silent full-context leak, since Active
 Context itself never carries more than `_UPDATABLE_FIELDS` plus `confidence`/
-`updated_at` (both always included)."""
+`updated_at` (both always included).
+
+`communication-engine` gained `present_identities` per
+docs/design/phase-2d/04-conversation-intelligence.md §0.5 -- Phase 2D-C's
+addressee-detection fusion needs a low-latency, already-cached read of "who's
+present" (ADR-012), and `present_identities` was never in this tuple despite
+`ActiveContext` carrying it since Phase 2D-B (task #96). Additive only:
+`present_identities` is not in `_UPDATABLE_FIELDS` and was never reachable
+through the scoped view before this change, so no existing caller's response
+shape changes."""

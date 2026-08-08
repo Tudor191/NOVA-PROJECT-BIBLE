@@ -59,6 +59,7 @@ from nova_contracts.events.communication import (
     DigitalTwinPreferencesGetReplyPayload,
     DigitalTwinPreferencesGetRequestPayload,
     NotificationPriority,
+    ResponseShapingDirectivePayload,
     TurnDirection,
 )
 from nova_contracts.events.executive_cognition import (
@@ -108,6 +109,18 @@ from nova_contracts.events.memory import (
     MemoryType,
     PrivacyLevel,
     ShortTermMemoryCreatedPayload,
+)
+from nova_contracts.events.perception import (
+    AttentionState,
+    GazeDirection,
+    PerceptionAddresseeSignalCandidatePayload,
+    PerceptionAttentionObservedPayload,
+    PerceptionConsentChangedPayload,
+    PerceptionIdentityObservedPayload,
+    PerceptionPresenceObservedPayload,
+    PerceptionSensorHealthChangedPayload,
+    PerceptionSource,
+    PerceptionWakeDetectedPayload,
 )
 from nova_contracts.events.personality import (
     CommunicationStyle,
@@ -161,6 +174,7 @@ from nova_contracts.registry import (
 __all__ = [
     "ArbitrationOutcome",
     "AttentionShiftedPayload",
+    "AttentionState",
     "BudgetExceededPayload",
     "BudgetScope",
     "ChannelType",
@@ -208,6 +222,7 @@ __all__ = [
     "FaceEmbedReplyPayload",
     "FaceEmbedRequestPayload",
     "FailureAction",
+    "GazeDirection",
     "GazeEstimateReplyPayload",
     "GazeEstimateRequestPayload",
     "GenerateReplyPayload",
@@ -247,6 +262,14 @@ __all__ = [
     "ObjectState",
     "OutcomeReportResult",
     "OverrideAction",
+    "PerceptionAddresseeSignalCandidatePayload",
+    "PerceptionAttentionObservedPayload",
+    "PerceptionConsentChangedPayload",
+    "PerceptionIdentityObservedPayload",
+    "PerceptionPresenceObservedPayload",
+    "PerceptionSensorHealthChangedPayload",
+    "PerceptionSource",
+    "PerceptionWakeDetectedPayload",
     "PersonalContext",
     "PersonalityMemoryUpdatePayload",
     "PersonalityStyleSelectReplyPayload",
@@ -265,6 +288,7 @@ __all__ = [
     "RequestCompletedPayload",
     "RequestFailedPayload",
     "RequestOutcome",
+    "ResponseShapingDirectivePayload",
     "ShortTermMemoryCreatedPayload",
     "SynthesizeReplyPayload",
     "SynthesizeRequestPayload",

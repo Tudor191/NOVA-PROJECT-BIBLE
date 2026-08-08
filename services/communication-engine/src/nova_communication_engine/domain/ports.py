@@ -15,11 +15,13 @@ from datetime import datetime
 from typing import Any, Protocol, runtime_checkable
 from uuid import UUID
 
-from nova_contracts import EventEnvelope
+from nova_contracts import EventEnvelope, PresentIdentityPayload
 from pydantic import BaseModel
 
 from nova_communication_engine.domain.models import (
     ChannelCapabilities,
+    ConversationDecisionTrace,
+    ConversationMemory,
     ConversationSession,
     ConversationTurn,
     InboundMessage,
@@ -119,11 +121,20 @@ class ModelOrchestrationPort(Protocol):
 
 
 class WorldModelSnapshot(BaseModel):
+    """Deliberately narrower than executive-cognition-engine's/reasoning-engine's
+    own `WorldModelSnapshot` (5 of their 8 fields) -- a genuine semantic
+    projection for this engine's own use case, not an oversight (Extraction E
+    design review, STEP 3). `present_identities` was added per
+    docs/design/phase-2d/04-conversation-intelligence.md §0.5/§4 for
+    addressee-detection fusion -- still narrower than the other engines'
+    copy, which has no such field at all."""
+
     user_id: UUID
     objective: str | None = None
     project_id: UUID | None = None
     device: str | None = None
     degraded: bool = False
+    present_identities: list[PresentIdentityPayload] = []
 
 
 @runtime_checkable
@@ -196,6 +207,41 @@ class CommunicationRepository(Protocol):
     async def list_dispatch_ready(self, *, limit: int = 100) -> list[OutboxRow]: ...
 
     async def mark_dispatched(self, outbox_id: UUID) -> None: ...
+
+    async def update_conversation_memory(
+        self, session_id: UUID, *, memory: ConversationMemory
+    ) -> ConversationSession:
+        """Design doc Sec9 -- persists the full, already-updated
+        `ConversationMemory` in one write, the same "caller computes the new
+        value, repository persists it" shape `update_session_state` already
+        uses for `state`."""
+        ...
+
+    async def set_interrupted_content(
+        self, session_id: UUID, *, content: str | None
+    ) -> ConversationSession:
+        """Design doc Sec5.1 -- `content=None` clears it (resumed or
+        explicitly dropped)."""
+        ...
+
+    async def set_pending_questions(
+        self, session_id: UUID, *, questions: list[str] | None
+    ) -> ConversationSession:
+        """Design doc Sec6.2 -- the Clarification Engine's own write path
+        for the field `01-communication-engine.md` reserved unused since
+        2D-A; also used by Sec5.1's interruption-resume offer, which is
+        structurally a pending question the user can respond to."""
+        ...
+
+    async def set_dnd_override(self, session_id: UUID, *, enabled: bool) -> ConversationSession:
+        """Design doc Sec5.2."""
+        ...
+
+    async def create_decision_trace(
+        self, trace: ConversationDecisionTrace
+    ) -> ConversationDecisionTrace:
+        """Design doc Sec3.2/Sec15 -- append-only, never mutated."""
+        ...
 
 
 @runtime_checkable

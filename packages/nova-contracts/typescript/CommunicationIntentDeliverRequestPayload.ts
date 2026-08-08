@@ -3,6 +3,11 @@ export type Content = string;
 export type ConfidenceTier = string;
 export type RequestingEngine = string;
 export type CorrelationId = string;
+export type MemoryAnnotations =
+  | {
+      [k: string]: string;
+    }[]
+  | null;
 export type SchemaVersion = number;
 
 /**
@@ -17,6 +22,7 @@ export interface CommunicationIntentDeliverRequestPayload {
   confidence_tier?: ConfidenceTier;
   requesting_engine: RequestingEngine;
   correlation_id?: CorrelationId;
+  memory_annotations?: MemoryAnnotations;
   schema_version?: SchemaVersion;
   [k: string]: unknown;
 }

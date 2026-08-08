@@ -35,6 +35,7 @@ from nova_communication_engine.domain.ports import (
     WorldModelPort,
 )
 from nova_communication_engine.events.handlers import (
+    make_addressee_signal_handler,
     make_intent_deliver_handler,
     make_session_close_handler,
     make_session_create_handler,
@@ -128,6 +129,9 @@ def create_app(
             "communication.session.close.request",
             make_session_close_handler(app),
             source_engine="communication-engine",
+        )
+        await bus.subscribe(
+            "perception.addressee_signal.candidate", make_addressee_signal_handler(app)
         )
 
         app.state.settings = settings

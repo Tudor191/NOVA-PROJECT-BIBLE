@@ -23,6 +23,14 @@ Restart recovery (Sec3.5) is deliberately **not** modeled as a table
 transition -- it is an operational safety net applied directly by
 `repository`/`main.py` at startup, not a domain event a live session ever
 raises during normal operation.
+
+`CLARIFICATION` (`Thinking -> Waiting`) activates the transition this
+module's own docstring named as reserved-but-unwired, per Phase 2D-C
+(docs/design/phase-2d/04-conversation-intelligence.md Sec6.2): the
+Clarification Engine raises it in place of `CONTENT_READY`/`DELIVERED` when
+a turn resolves into a pending question instead of a generated response --
+`pending_questions` (`domain/models.py`) carries the question itself, this
+event only carries the state transition.
 """
 
 from __future__ import annotations
@@ -35,14 +43,15 @@ __all__ = ["ConversationEvent", "InvalidTransitionError", "transition", "valid_e
 
 
 class ConversationEvent(StrEnum):
-    """The Sec3.1-diagram edges this engine's own pipeline actually raises
-    this phase. `CLARIFICATION` (Waiting from Thinking) is not listed --
-    design doc Sec0.4/Sec6: the Clarification Engine is 2D-C scope, not yet
-    reachable."""
+    """The Sec3.1-diagram edges this engine's own pipeline raises.
+    `CLARIFICATION` was reserved-but-unwired through Phase 2D-A/B; Phase
+    2D-C's Clarification Engine (04-conversation-intelligence.md Sec6)
+    activates it."""
 
     TRIGGER = "trigger"
     CAPTURED = "captured"
     CONTENT_READY = "content_ready"
+    CLARIFICATION = "clarification"
     DELIVERED = "delivered"
     BARGE_IN = "barge_in"
     CLOSE = "close"
@@ -62,6 +71,7 @@ _TRANSITIONS: dict[tuple[ConversationState, ConversationEvent], ConversationStat
     (ConversationState.WAITING, ConversationEvent.TRIGGER): ConversationState.LISTENING,
     (ConversationState.LISTENING, ConversationEvent.CAPTURED): ConversationState.THINKING,
     (ConversationState.THINKING, ConversationEvent.CONTENT_READY): ConversationState.SPEAKING,
+    (ConversationState.THINKING, ConversationEvent.CLARIFICATION): ConversationState.WAITING,
     (ConversationState.SPEAKING, ConversationEvent.DELIVERED): ConversationState.WAITING,
     (ConversationState.SPEAKING, ConversationEvent.BARGE_IN): ConversationState.LISTENING,
     (ConversationState.WAITING, ConversationEvent.CLOSE): ConversationState.COMPLETED,

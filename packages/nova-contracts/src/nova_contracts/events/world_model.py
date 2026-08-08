@@ -145,4 +145,15 @@ class ContextReplyPayload(BaseModel):
     unreachable -- docs/design/phase-1/03-world-model-engine.md §17: World Model
     fails fast rather than silently returning stale/empty context; the caller
     (Executive Cognition) has its own documented fallback for this signal."""
+    present_identities: list[PresentIdentityPayload] = Field(default_factory=list)
+    """Who is currently present, per `perception-engine` (docs/design/
+    phase-2d/03-perception-engine.md §0.6) -- additive (ADR-024), empty for
+    every caller that predates Phase 2D-C. Added per
+    docs/design/phase-2d/04-conversation-intelligence.md §0.5: `ActiveContext`
+    has carried this since Phase 2D-B (task #96), but this RPC reply had no
+    field for it and could never return it regardless of `scope` -- only the
+    unscoped REST path (`GET /v1/world/context`) could. Server-side scoping
+    (`domain/context.py::scoped_view`) still governs whether any given caller
+    receives a non-empty list here -- this field's presence on the payload
+    class does not itself bypass Agent Awareness filtering."""
     schema_version: int = 1

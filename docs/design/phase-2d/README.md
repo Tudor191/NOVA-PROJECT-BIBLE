@@ -30,6 +30,14 @@ and the
 Cumulative Production SLOC crossed the 30,000 Project Health Review reminder
 threshold this phase (31,610 SLOC) — flagged explicitly, pending the user's
 decision on whether to act on it before Phase 2D-C.
+Phase 2D-C (04 — Conversation Intelligence) is implemented (Option B, per
+direct user approval of the TDD's §0.4 fork) and Gate-Reviewed — see the
+[Gate Review](../../roadmap/architecture-reviews/phase-2d-c-gate-review.md)
+for the explicit four-part breakdown of what is fully verified, what is
+verified only through contract-level fakes, and what remains genuinely
+unverified end-to-end pending `perception-engine`'s still-unwired
+production signal chain and the newly-discovered, unbuilt
+`communication-engine`↔`reasoning-engine` integration loop.
 Per direct user instruction, this phase was preceded by a full architectural
 blueprint and two permanent governing documents *before* any individual engine's
 TDD, the same "validate the architecture before designing a single engine"
@@ -51,7 +59,7 @@ See the blueprint's §0 for the full reconciliation and the exact 3A→2D-A / 3B
 | [01 — Communication Engine](01-communication-engine.md) | Phase 2D-A's transport/lifecycle layer: the required speech-modality extension to `ai-model-orchestration-engine` (ADR-020 compliance), the `ConversationSession` state machine, the audio pipeline and barge-in, the `communication.intent` gate (ADR-005 enforcement), the honest interim for addressee detection ahead of Phase 2D-B/C, data model, event contracts, APIs, and Doc 22/23 compliance mapping |
 | [02 — Personality Engine](02-personality-engine.md) | The rule-based, model-free (ADR-020-compliant-by-construction) implementation of Doc 23: the Consistency Validator, Style Selector, Personality Memory (a static default until Phase 2D-D's `digital-twin-engine` exists to populate it for real), the Personality/Digital-Twin boundary enforced structurally, data model, event/API contracts, and Doc 22/23 compliance mapping |
 | [03 — Perception Engine](03-perception-engine.md) | Phase 2D-B's minimal (voice + camera) slice of Bible Part 11: the required biometric/wake-signal extension to `ai-model-orchestration-engine` (ADR-020 compliance) and the required `ActiveContext` extension to World Model Engine (ADR-017 compliance), the Sensor Abstraction Layer's full lifecycle contract, the Identity Registry, the evidence-fusion identity-confidence algorithm (no single signal is ever sufficient), the talking-TO-vs-ABOUT-NOVA boundary (2D-B observes and publishes, 2D-C decides), privacy/consent architecture, data model, event/API contracts, and Doc 22/23 compliance mapping. **Approved and implemented.** |
-| [04 — Conversation Intelligence](04-conversation-intelligence.md) | Phase 2D-C's behavioral/policy extension to `communication-engine`: addressee-detection fusion (2D-B signals + conversational context), the silence/interruption policy layer, the Clarification Engine, response-length/tone/multilingual-response shaping, session-scoped Conversation Memory, one disclosed open architectural fork requiring the user's decision (perception-engine's unwired production signal path), three disclosed small required cross-engine extensions, and Doc 22/23/ADR compliance mapping. **Draft — pending the user's review and approval; implementation not yet authorized.** |
+| [04 — Conversation Intelligence](04-conversation-intelligence.md) | Phase 2D-C's behavioral/policy extension to `communication-engine`: addressee-detection fusion (2D-B signals + conversational context), the silence/interruption policy layer, the Clarification Engine, response-length/tone/multilingual-response shaping, session-scoped Conversation Memory, one disclosed open architectural fork requiring the user's decision (perception-engine's unwired production signal path), three disclosed small required cross-engine extensions, and Doc 22/23/ADR compliance mapping. **Approved and implemented, Option B — see the [Gate Review](../../roadmap/architecture-reviews/phase-2d-c-gate-review.md) for exactly what is and isn't verified end-to-end.** |
 
 **Companion documents (not phase-scoped — permanent):**
 [Doc 22 — NOVA Human Interaction Principles](../../architecture/22-nova-human-interaction-principles.md)

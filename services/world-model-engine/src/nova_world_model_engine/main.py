@@ -22,7 +22,12 @@ from typing import TYPE_CHECKING
 from uuid import UUID
 
 from fastapi import FastAPI
-from nova_contracts import ContextReplyPayload, ContextRequestPayload, EventEnvelope
+from nova_contracts import (
+    ContextReplyPayload,
+    ContextRequestPayload,
+    EventEnvelope,
+    PresentIdentityPayload,
+)
 from nova_eventbus_sdk import bind_event_bus
 from nova_observability import configure_observability, get_logger, prometheus_asgi_app
 from nova_service_kit import make_health_router
@@ -80,6 +85,10 @@ def _make_context_request_handler(app: FastAPI):  # type: ignore[no-untyped-def]
             if scoped.get("updated_at")
             else None,
             degraded=False,
+            present_identities=[
+                PresentIdentityPayload.model_validate(identity)
+                for identity in scoped.get("present_identities", [])
+            ],
         )
 
     return handle

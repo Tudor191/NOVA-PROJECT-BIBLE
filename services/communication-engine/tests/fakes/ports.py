@@ -19,10 +19,17 @@ class FakePersonalityPort:
         *,
         outcome: ValidationOutcome | None = None,
         raise_timeout: bool = False,
+        style_selection: StyleSelection | None = None,
+        raise_style_timeout: bool = False,
     ) -> None:
         self.outcome = outcome or ValidationOutcome(passed=True)
         self.raise_timeout = raise_timeout
+        self.style_selection = style_selection or StyleSelection(
+            style="professional", verbosity="moderate", technical_depth="moderate"
+        )
+        self.raise_style_timeout = raise_style_timeout
         self.validate_calls: list[str] = []
+        self.select_style_calls: list[tuple[str | None, str | None]] = []
 
     async def validate_response(
         self,
@@ -44,9 +51,10 @@ class FakePersonalityPort:
         channel: str | None,
         correlation_id: UUID | None = None,
     ) -> StyleSelection:
-        return StyleSelection(
-            style="professional", verbosity="moderate", technical_depth="moderate"
-        )
+        self.select_style_calls.append((situation_hint, channel))
+        if self.raise_style_timeout:
+            raise TimeoutError("personality.style.select timed out")
+        return self.style_selection
 
 
 class FakeModelOrchestrationPort:
