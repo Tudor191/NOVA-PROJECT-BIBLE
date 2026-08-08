@@ -43,3 +43,12 @@ class Settings(BaseSettings):
 
     communication_engine_transcribe_rpc_timeout_ms: int = 5000
     """Design doc Sec0.3, Sec8.1 -- `ai_model.transcribe` timeout."""
+
+    communication_engine_reasoning_rpc_timeout_ms: int = 10000
+    """Closure doc (05-conversation-intelligence-closure.md) Sec5, Priority
+    3 -- how long `conversation_orchestration.handle_conversation_turn`
+    waits on `reasoning.reason.request` before falling back to
+    `FALLBACK_CONTENT`. Longer than the other RPC timeouts above: unlike a
+    lookup or a single transcription/synthesis call, reasoning-engine's own
+    pipeline may itself call memory/knowledge/world-model/ai-model before
+    returning."""

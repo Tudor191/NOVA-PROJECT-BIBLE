@@ -9,7 +9,12 @@ from fastapi.testclient import TestClient
 from nova_communication_engine.config import Settings
 from nova_communication_engine.main import create_app
 
-from tests.fakes.ports import FakeModelOrchestrationPort, FakePersonalityPort, FakeWorldModelPort
+from tests.fakes.ports import (
+    FakeModelOrchestrationPort,
+    FakePersonalityPort,
+    FakeReasoningPort,
+    FakeWorldModelPort,
+)
 from tests.fakes.repository import FakeCommunicationRepository
 
 
@@ -23,6 +28,7 @@ def test_create_notification_defaults_priority_and_leaves_it_undelivered(
         personality_port=FakePersonalityPort(),
         model_orchestration_port=FakeModelOrchestrationPort(),
         world_model_port=FakeWorldModelPort(),
+        reasoning_port=FakeReasoningPort(),
     )
     with TestClient(app) as client:
         response = client.post(

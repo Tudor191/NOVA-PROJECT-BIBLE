@@ -1,8 +1,13 @@
 # Phase 2D-C Closure — Conversation Intelligence Production Readiness
 
-**Status: DESIGN ONLY. No implementation has begun. Per direct instruction,
-this document is reviewed and approved by the user before any Priority 1-6
-code change starts.**
+**Status: Priority 3 approved (Fork #1: synchronous RPC) and implemented —
+see the
+[Priority 3 Gate Review](../../roadmap/architecture-reviews/phase-2d-c-closure-priority-3-gate-review.md)
+for exactly what was built and what remains unverified. Priorities 1, 2, 4,
+5, and 6 remain DESIGN ONLY, exactly as below — no implementation has begun
+on any of them, and per direct instruction this document's remaining
+sections are not reinterpreted or silently resolved by Priority 3's
+completion.**
 
 This document is the required deliverable of the "Phase 2D-C Closure" task,
 using the [Phase 2D-C Gate Review](../../roadmap/architecture-reviews/phase-2d-c-gate-review.md)
@@ -365,6 +370,15 @@ touches the Personal Edition's actual onboarding story, which this
 document has no authority to decide silently. **Flagged as Fork #2 in §12.**
 
 ## 5. Priority 3 — the communication-engine ↔ reasoning-engine conversation loop
+
+**Implemented — see the
+[Priority 3 Gate Review](../../roadmap/architecture-reviews/phase-2d-c-closure-priority-3-gate-review.md).**
+The design below (§5.1-§5.5) is preserved as-written, as the rationale
+record — the approved design was Fork #1 (synchronous RPC), built
+essentially as designed, with one disclosed scope reduction (response-shaping
+hints were not threaded into the reasoning request — the Gate Review's §1
+explains why) and one implementation-level judgment call flagged for
+confirmation (the Gate Review's §7).
 
 ### 5.1 Confirmed: the documented chain does not exist, on **both** ends
 

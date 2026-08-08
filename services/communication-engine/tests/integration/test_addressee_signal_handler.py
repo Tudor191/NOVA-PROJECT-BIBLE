@@ -18,7 +18,12 @@ from nova_communication_engine.main import create_app
 from nova_contracts.events.perception import GazeDirection
 from nova_testkit import FakePerceptionSignalSource
 
-from tests.fakes.ports import FakeModelOrchestrationPort, FakePersonalityPort, FakeWorldModelPort
+from tests.fakes.ports import (
+    FakeModelOrchestrationPort,
+    FakePersonalityPort,
+    FakeReasoningPort,
+    FakeWorldModelPort,
+)
 from tests.fakes.repository import FakeCommunicationRepository
 
 
@@ -33,6 +38,7 @@ async def test_a_published_candidate_signal_produces_a_recorded_decision_trace(
         personality_port=FakePersonalityPort(),
         model_orchestration_port=FakeModelOrchestrationPort(),
         world_model_port=FakeWorldModelPort(),
+        reasoning_port=FakeReasoningPort(),
     )
 
     async with app.router.lifespan_context(app):
@@ -65,6 +71,7 @@ async def test_a_low_confidence_signal_records_a_silent_outcome(
         personality_port=FakePersonalityPort(),
         model_orchestration_port=FakeModelOrchestrationPort(),
         world_model_port=FakeWorldModelPort(),
+        reasoning_port=FakeReasoningPort(),
     )
 
     async with app.router.lifespan_context(app):

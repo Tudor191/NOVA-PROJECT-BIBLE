@@ -38,14 +38,17 @@ verified only through contract-level fakes, and what remains genuinely
 unverified end-to-end pending `perception-engine`'s still-unwired
 production signal chain and the newly-discovered, unbuilt
 `communication-engine`↔`reasoning-engine` integration loop.
-**Phase 2D-C Closure (05 — Conversation Intelligence Closure) is a
-design-only deliverable, not yet implemented and not yet user-approved**,
-closing the Gate Review's six disclosed gaps in dependency order — see the
+**Phase 2D-C Closure (05 — Conversation Intelligence Closure)** closes the
+Gate Review's six disclosed gaps in dependency order — see the
 [closure design document](05-conversation-intelligence-closure.md) for the
-full dependency analysis, per-priority technical designs, and three
-open architectural forks awaiting the user's decision before any
-Priority 1-6 implementation begins. Phase 2D-D does not start until this
-closure is explicitly approved.
+full dependency analysis, per-priority technical designs, and remaining
+open architectural forks. **Priority 3 (the communication-engine ↔
+reasoning-engine conversation loop) is approved and implemented** — see the
+[Priority 3 Gate Review](../../roadmap/architecture-reviews/phase-2d-c-closure-priority-3-gate-review.md).
+**Priorities 1, 2, 4, 5, and 6 remain design-only, not yet implemented and
+not yet user-approved**, each awaiting its own explicit go-ahead before any
+further code changes. Phase 2D-D does not start until the full closure is
+explicitly approved.
 Per direct user instruction, this phase was preceded by a full architectural
 blueprint and two permanent governing documents *before* any individual engine's
 TDD, the same "validate the architecture before designing a single engine"

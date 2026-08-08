@@ -37,6 +37,8 @@ __all__ = [
     "OutboxEvent",
     "OutboxRow",
     "PersonalityPort",
+    "ReasoningOutcomeResult",
+    "ReasoningPort",
     "StyleSelection",
     "ValidationOutcome",
     "WorldModelPort",
@@ -101,6 +103,46 @@ class PersonalityPort(Protocol):
         channel: str | None,
         correlation_id: UUID | None = None,
     ) -> StyleSelection: ...
+
+
+class ReasoningOutcomeResult(BaseModel):
+    """Priority 3 closure (docs/design/phase-2d/
+    05-conversation-intelligence-closure.md Sec5) -- this engine's own view
+    of a `reasoning.reason.request` reply, independent of reasoning-engine's
+    wire schema (the same "port defines its own narrower result type"
+    convention `StyleSelection`/`WorldModelSnapshot` already establish
+    above). `outcome` mirrors `nova_contracts.events.reasoning.
+    ReasoningOutcome`'s four values (`decided`/`degraded`/`failed`/
+    `abandoned`) as a plain string rather than importing that enum, so this
+    port's own contract does not couple to reasoning-engine's schema module
+    beyond the client that implements it."""
+
+    outcome: str
+    content: str | None = None
+    confidence_score: float | None = None
+    reasoning_process_id: UUID | None = None
+    error: str | None = None
+
+
+@runtime_checkable
+class ReasoningPort(Protocol):
+    """Priority 3 closure -- the synchronous `reasoning.reason.request` RPC
+    call, following the exact pattern `PersonalityPort`/`WorldModelPort`
+    already establish (a real, load-bearing synchronous dependency, not an
+    event-driven subscription -- closure doc Sec5.3/Fork #1, user-approved).
+    Implemented by `clients/reasoning_client.py`.
+
+    `TimeoutError` propagates uncaught, mirroring `PersonalityPort.
+    validate_response`'s own documented convention: the caller
+    (`conversation_orchestration.handle_conversation_turn`) is the one place
+    that catches it and applies the degraded-mode fallback, exactly as
+    `domain.intent_gate.deliver_intent` already does for a personality
+    timeout -- this port's own job is only the RPC call and payload
+    translation."""
+
+    async def reason(
+        self, *, objective_text: str, user_id: UUID, correlation_id: UUID | None = None
+    ) -> ReasoningOutcomeResult: ...
 
 
 @runtime_checkable

@@ -6,7 +6,12 @@ from fastapi.testclient import TestClient
 from nova_communication_engine.config import Settings
 from nova_communication_engine.main import create_app
 
-from tests.fakes.ports import FakeModelOrchestrationPort, FakePersonalityPort, FakeWorldModelPort
+from tests.fakes.ports import (
+    FakeModelOrchestrationPort,
+    FakePersonalityPort,
+    FakeReasoningPort,
+    FakeWorldModelPort,
+)
 from tests.fakes.repository import FakeCommunicationRepository
 
 
@@ -21,6 +26,7 @@ def test_health_and_readiness(monkeypatch) -> None:  # type: ignore[no-untyped-d
         personality_port=FakePersonalityPort(),
         model_orchestration_port=FakeModelOrchestrationPort(),
         world_model_port=FakeWorldModelPort(),
+        reasoning_port=FakeReasoningPort(),
     )
     with TestClient(app) as client:
         health = client.get("/internal/health")

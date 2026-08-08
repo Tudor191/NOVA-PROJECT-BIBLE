@@ -1,9 +1,14 @@
 """communication-engine's FastAPI entrypoint -- wires `CommunicationRepository`,
-the three upstream ports (`PersonalityPort`, `ModelOrchestrationPort`,
-`WorldModelPort`), the `SessionRegistry`, and the Event Bus to their
-concrete implementations; registers the three served RPCs declared in
-`events/subscribed.py`; and runs design doc Sec3.5's restart recovery pass
-at startup.
+the four upstream ports (`PersonalityPort`, `ModelOrchestrationPort`,
+`WorldModelPort`, `ReasoningPort`), the `SessionRegistry`, and the Event Bus
+to their concrete implementations; registers the three served RPCs declared
+in `events/subscribed.py`; and runs design doc Sec3.5's restart recovery
+pass at startup.
+
+`ReasoningPort` (docs/design/phase-2d/05-conversation-intelligence-closure.md
+Sec5, Priority 3) is the newest of the four -- closes the previously-unwired
+communication-engine <-> reasoning-engine conversation loop via the same
+synchronous-RPC-client pattern the other three already establish.
 
 `create_app` accepts each port as an optional override so tests can inject
 fakes without needing real Postgres/a real Event Bus RPC round trip reachable
@@ -32,6 +37,7 @@ from nova_communication_engine.domain.ports import (
     CommunicationRepository,
     ModelOrchestrationPort,
     PersonalityPort,
+    ReasoningPort,
     WorldModelPort,
 )
 from nova_communication_engine.events.handlers import (
@@ -58,6 +64,7 @@ def create_app(
     personality_port: PersonalityPort | None = None,
     model_orchestration_port: ModelOrchestrationPort | None = None,
     world_model_port: WorldModelPort | None = None,
+    reasoning_port: ReasoningPort | None = None,
 ) -> FastAPI:
     settings = settings or Settings()
     configure_observability("communication-engine", log_level=settings.log_level)
@@ -114,6 +121,14 @@ def create_app(
                 bus, timeout_ms=settings.communication_engine_world_model_rpc_timeout_ms
             )
 
+        reasoning = reasoning_port
+        if reasoning is None:
+            from nova_communication_engine.clients.reasoning_client import ReasoningClient
+
+            reasoning = ReasoningClient(
+                bus, timeout_ms=settings.communication_engine_reasoning_rpc_timeout_ms
+            )
+
         await bus.connect()
         await bus.serve(
             "communication.intent.deliver.request",
@@ -139,6 +154,7 @@ def create_app(
         app.state.personality_port = personality
         app.state.model_orchestration_port = model_orchestration
         app.state.world_model_port = world_model
+        app.state.reasoning_port = reasoning
         app.state.session_registry = SessionRegistry()
         app.state.bus = bus
         app.state.metrics = metrics

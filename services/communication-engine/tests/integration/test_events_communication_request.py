@@ -23,7 +23,12 @@ from nova_contracts import (
 )
 from nova_eventbus_sdk import BoundEventBus
 
-from tests.fakes.ports import FakeModelOrchestrationPort, FakePersonalityPort, FakeWorldModelPort
+from tests.fakes.ports import (
+    FakeModelOrchestrationPort,
+    FakePersonalityPort,
+    FakeReasoningPort,
+    FakeWorldModelPort,
+)
 from tests.fakes.repository import FakeCommunicationRepository
 
 
@@ -38,6 +43,7 @@ async def test_session_create_and_intent_deliver_round_trip_through_the_real_eve
         personality_port=FakePersonalityPort(),
         model_orchestration_port=FakeModelOrchestrationPort(),
         world_model_port=FakeWorldModelPort(),
+        reasoning_port=FakeReasoningPort(),
     )
 
     async with app.router.lifespan_context(app):

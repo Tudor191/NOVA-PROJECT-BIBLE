@@ -32,6 +32,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from nova_communication_engine.channels.text_adapter import TextChannelAdapter
 from nova_communication_engine.channels.voice_adapter import VoiceChannelAdapter
+from nova_communication_engine.conversation_orchestration import schedule_conversation_turn
 from nova_communication_engine.domain import session_lifecycle
 from nova_communication_engine.domain.models import (
     ChannelType,
@@ -98,10 +99,17 @@ async def session_websocket(websocket: WebSocket, session_id: UUID) -> None:
             )
             await adapter.deliver(notice)
             return
-        await session_lifecycle.record_inbound_turn(
+        updated_session, turn = await session_lifecycle.record_inbound_turn(
             session=current,
             content=transcript,
             repository=state.repository,
+            correlation_id=session_id,
+        )
+        schedule_conversation_turn(
+            websocket.app,
+            session_id=session_id,
+            user_id=updated_session.user_id,
+            content=turn.content,
             correlation_id=session_id,
         )
 
@@ -122,10 +130,17 @@ async def session_websocket(websocket: WebSocket, session_id: UUID) -> None:
             if inbound.kind is InboundMessageKind.TEXT:
                 current = await state.repository.get_session(session_id)
                 if current is not None:
-                    await session_lifecycle.record_inbound_turn(
+                    updated_session, turn = await session_lifecycle.record_inbound_turn(
                         session=current,
                         content=inbound.content or "",
                         repository=state.repository,
+                        correlation_id=session_id,
+                    )
+                    schedule_conversation_turn(
+                        websocket.app,
+                        session_id=session_id,
+                        user_id=updated_session.user_id,
+                        content=turn.content,
                         correlation_id=session_id,
                     )
                 continue

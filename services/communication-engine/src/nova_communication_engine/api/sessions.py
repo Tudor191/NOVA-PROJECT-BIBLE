@@ -25,6 +25,7 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
+from nova_communication_engine.conversation_orchestration import schedule_conversation_turn
 from nova_communication_engine.domain import session_lifecycle
 from nova_communication_engine.domain.models import ChannelType, ConversationState
 from nova_communication_engine.domain.session_lifecycle import InvalidCloseStateError
@@ -102,7 +103,7 @@ async def send_message(
 ) -> SendMessageResponse:
     session = await _get_session_or_404(session_id, request)
     try:
-        _updated_session, turn = await session_lifecycle.record_inbound_turn(
+        updated_session, turn = await session_lifecycle.record_inbound_turn(
             session=session,
             content=body.content,
             repository=request.app.state.repository,
@@ -110,6 +111,13 @@ async def send_message(
         )
     except InvalidTransitionError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    schedule_conversation_turn(
+        request.app,
+        session_id=session_id,
+        user_id=updated_session.user_id,
+        content=turn.content,
+        correlation_id=session_id,
+    )
     return SendMessageResponse(turn_id=turn.turn_id, session_id=session_id)
 
 

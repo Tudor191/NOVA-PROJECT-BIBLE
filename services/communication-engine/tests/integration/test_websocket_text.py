@@ -11,6 +11,7 @@ instant `send_json` returns on the test client side.
 
 from __future__ import annotations
 
+import asyncio
 import time
 from uuid import uuid4
 
@@ -18,7 +19,12 @@ from fastapi.testclient import TestClient
 from nova_communication_engine.config import Settings
 from nova_communication_engine.main import create_app
 
-from tests.fakes.ports import FakeModelOrchestrationPort, FakePersonalityPort, FakeWorldModelPort
+from tests.fakes.ports import (
+    FakeModelOrchestrationPort,
+    FakePersonalityPort,
+    FakeReasoningPort,
+    FakeWorldModelPort,
+)
 from tests.fakes.repository import FakeCommunicationRepository
 
 
@@ -43,6 +49,12 @@ def test_websocket_text_frame_is_recorded_as_an_inbound_turn(monkeypatch) -> Non
         personality_port=FakePersonalityPort(),
         model_orchestration_port=FakeModelOrchestrationPort(),
         world_model_port=FakeWorldModelPort(),
+        # Held (never released): asserts state immediately after the turn
+        # is recorded, before Priority 3's background reasoning round trip
+        # would otherwise complete and move the session past `thinking` --
+        # see test_conversation_orchestration.py for the completed-loop
+        # assertions this test deliberately does not make.
+        reasoning_port=FakeReasoningPort(hold=asyncio.Event()),
     )
     with TestClient(app) as client:
         created = client.post(
@@ -67,6 +79,7 @@ def test_disconnecting_pauses_the_session(monkeypatch) -> None:  # type: ignore[
         personality_port=FakePersonalityPort(),
         model_orchestration_port=FakeModelOrchestrationPort(),
         world_model_port=FakeWorldModelPort(),
+        reasoning_port=FakeReasoningPort(),
     )
     with TestClient(app) as client:
         created = client.post(
@@ -96,6 +109,7 @@ def test_unknown_session_id_closes_the_websocket(monkeypatch) -> None:  # type: 
         personality_port=FakePersonalityPort(),
         model_orchestration_port=FakeModelOrchestrationPort(),
         world_model_port=FakeWorldModelPort(),
+        reasoning_port=FakeReasoningPort(),
     )
     with TestClient(app) as client:
         try:

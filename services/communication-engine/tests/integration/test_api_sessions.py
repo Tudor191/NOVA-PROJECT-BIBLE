@@ -5,6 +5,7 @@ Postgres/Event Bus RPC involved).
 
 from __future__ import annotations
 
+import asyncio
 from uuid import uuid4
 
 import pytest
@@ -12,7 +13,12 @@ from fastapi.testclient import TestClient
 from nova_communication_engine.config import Settings
 from nova_communication_engine.main import create_app
 
-from tests.fakes.ports import FakeModelOrchestrationPort, FakePersonalityPort, FakeWorldModelPort
+from tests.fakes.ports import (
+    FakeModelOrchestrationPort,
+    FakePersonalityPort,
+    FakeReasoningPort,
+    FakeWorldModelPort,
+)
 from tests.fakes.repository import FakeCommunicationRepository
 
 
@@ -30,6 +36,13 @@ def harness(monkeypatch):  # type: ignore[no-untyped-def]
         personality_port=FakePersonalityPort(),
         model_orchestration_port=FakeModelOrchestrationPort(),
         world_model_port=FakeWorldModelPort(),
+        # Held (never released): these tests assert session state
+        # immediately after `send_message` returns, before Priority 3's
+        # background reasoning round trip would otherwise complete and move
+        # the session on to `speaking`/`waiting` -- see
+        # test_conversation_orchestration.py for the completed-loop
+        # assertions this fixture's tests deliberately do not make.
+        reasoning_port=FakeReasoningPort(hold=asyncio.Event()),
     )
     with TestClient(app) as client:
         yield client, repository
