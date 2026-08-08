@@ -39,6 +39,22 @@ ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+markers = [
+    "real_infra: requires real backing-store infrastructure via testcontainers (Docker) -- excluded from the default `pytest`/`turbo run test` invocation (ADR-033); select explicitly with `-m real_infra`.",
+]
+
+# ADR-033 (docs/architecture/adr/ADR-033-test-infrastructure-boundary-and-two-tier-testing.md):
+# `--cov=<pkg>.domain` is passed per engine (each engine's own `test` script in its
+# `package.json`); the threshold and report shape are centralized here so every
+# engine enforces the identical 85% domain-coverage gate `16-testing-strategy.md §1`
+# has always specified, without repeating the number in 10 different files.
+[tool.coverage.run]
+branch = true
+
+[tool.coverage.report]
+fail_under = 85
+show_missing = true
+skip_covered = false
 
 # ADR-004 (docs/architecture/00-overview-and-decisions.md): engines may only cross-
 # communicate via the Event Bus, never by importing each other's internals, and never
@@ -60,6 +76,7 @@ root_packages = [
     "nova_personality_engine",
     "nova_communication_engine",
     "nova_perception_engine",
+    "nova_testkit",
 ]
 include_external_packages = true
 
@@ -149,3 +166,27 @@ forbidden_modules = [
 # type rejects as too broad to list directly ("subpackages of external packages
 # are not valid"). Add its actual top-level distribution name here once a Google
 # connector is built and that name is confirmed, rather than guessing now.
+
+# ADR-033: nova-testkit is test infrastructure, never a reverse dependency on any
+# engine's own production code (its Postgres fixture takes an Alembic config path,
+# never an engine's models module -- docs/design/nova-testkit/
+# technical-implementation-plan.md §2.3). This contract makes that boundary a
+# structural fact, not merely a design intention.
+[[tool.importlinter.contracts]]
+name = "nova-testkit has no engine-specific knowledge (ADR-033): it may not import any engine's own top-level package"
+type = "forbidden"
+source_modules = [
+    "nova_testkit",
+]
+forbidden_modules = [
+    "nova_core",
+    "nova_memory_engine",
+    "nova_knowledge_engine",
+    "nova_world_model_engine",
+    "nova_ai_model_orchestration_engine",
+    "nova_reasoning_engine",
+    "nova_executive_cognition_engine",
+    "nova_personality_engine",
+    "nova_communication_engine",
+    "nova_perception_engine",
+]

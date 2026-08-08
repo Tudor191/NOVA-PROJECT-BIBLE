@@ -62,6 +62,7 @@ next unused number, regardless of which subsystem they originate from.
 | [030](ADR-030-personality-stores-digital-twin-learns.md) | Personality Engine stores and applies resolved preferences; Digital Twin Engine is the sole epistemic learner | `personality-engine` (Phase 2D-A), `digital-twin-engine` (Phase 2D-D); binding on both engines' TDDs and every subsequent implementation decision |
 | [031](ADR-031-subjective-experience-quality-is-a-first-class-requirement.md) | Subjective experience quality (natural, responsive, consistent) is a first-class requirement and standing tiebreaker among architecture-compliant implementation options | NOVA-wide; binding on every engine, every phase, from this point forward — generalizes Master Blueprint §13.2's latency-specific instance |
 | [032](ADR-032-identity-confidence-is-also-an-authorization-signal.md) | Identity confidence is also an authorization signal: future privileged capabilities (automation, smart-home, financial, security-sensitive) must gate on configurable identity-confidence thresholds, never on a binary identity check | `perception-engine` (Phase 2D-B); binding on every future engine that gates a privileged capability — Action Engine (Phase 3/NAOS), Autonomy Engine (Phase 4), and beyond |
+| [033](ADR-033-test-infrastructure-boundary-and-two-tier-testing.md) | Test infrastructure dependencies are development/test-only, never production; integration testing is a permanent two-tier model (fake-backed + real-infrastructure), neither tier retiring the other | `nova-testkit`; binding on every engine's `tests/` directory and every future shared test-infrastructure package, from this point forward |
 
 See also: [Phase 1 Architecture Review Report](../../roadmap/architecture-reviews/phase-1-data-memory-substrate.md)
 and [Doc 20 — Engine Responsibility Boundaries](../20-engine-responsibility-boundaries.md),
@@ -92,3 +93,9 @@ Technical Design Document (`perception-engine`) and authorizing its
 implementation to begin, per explicit user directive extending that document's
 evidence-fusion identity-confidence model into a permanent, NOVA-wide principle
 governing every future privileged-capability engine's authorization logic.
+ADR-033 was added after approving the `nova-testkit` Technical Implementation
+Plan (STEP 2 of the Project Health Review's approved 5-step plan) and
+authorizing its implementation to begin, per explicit user directive to file
+one ADR covering the two permanent rules that plan's design depends on: the
+test-infrastructure dev-only dependency boundary, and the fake-backed/
+real-infrastructure two-tier testing model.

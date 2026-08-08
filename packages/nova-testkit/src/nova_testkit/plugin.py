@@ -12,6 +12,8 @@ from collections.abc import AsyncIterator
 import pytest
 from nova_eventbus_sdk.backends.in_memory import InMemoryEventBus
 
+from nova_testkit.model_gateway import FakeModelGateway
+
 
 @pytest.fixture
 async def event_bus() -> AsyncIterator[InMemoryEventBus]:
@@ -26,3 +28,17 @@ async def event_bus() -> AsyncIterator[InMemoryEventBus]:
     await bus.connect()
     yield bus
     await bus.close()
+
+
+@pytest.fixture
+async def fake_model_gateway(event_bus: InMemoryEventBus) -> AsyncIterator[FakeModelGateway]:
+    """A `FakeModelGateway` (`model_gateway.py`) already `start()`-ed against
+    this test's `event_bus` -- serves every `ai_model.*.request` subject with
+    deterministic replies. Depends on `event_bus`, not a second, independent
+    bus: any code under test that also receives `event_bus` (or a component
+    built from it) can reach this gateway over the same in-memory connection.
+    """
+    gateway = FakeModelGateway()
+    await gateway.start(event_bus)
+    yield gateway
+    await gateway.stop()

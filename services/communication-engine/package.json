@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "scripts": {
     "lint": "uv run --package communication-engine ruff check . && uv run --package communication-engine mypy src",
-    "test": "uv run --package communication-engine pytest",
+    "test": "uv run --package communication-engine pytest -m \"not real_infra\" --cov=nova_communication_engine.domain",
     "build": "echo 'communication-engine: no build step (container image built via Dockerfile in CI)'",
     "dev": "uv run --package communication-engine uvicorn nova_communication_engine.main:app --reload --port 8000"
   }

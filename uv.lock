@@ -1705,7 +1705,9 @@ name = "nova-testkit"
 version = "0.1.0"
 source = { editable = "packages/nova-testkit" }
 dependencies = [
+    { name = "nova-contracts" },
     { name = "nova-eventbus-sdk" },
+    { name = "pydantic" },
     { name = "pytest" },
 ]
 
@@ -1716,7 +1718,9 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "nova-contracts", editable = "packages/nova-contracts" },
     { name = "nova-eventbus-sdk", editable = "packages/nova-eventbus-sdk" },
+    { name = "pydantic", specifier = ">=2.9" },
     { name = "pytest", specifier = ">=8.3" },
 ]
 

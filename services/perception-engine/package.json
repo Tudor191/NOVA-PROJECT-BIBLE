@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "scripts": {
     "lint": "uv run --package perception-engine ruff check . && uv run --package perception-engine mypy src",
-    "test": "uv run --package perception-engine pytest",
+    "test": "uv run --package perception-engine pytest -m \"not real_infra\" --cov=nova_perception_engine.domain",
     "build": "echo 'perception-engine: no build step (container image built via Dockerfile in CI)'",
     "dev": "uv run --package perception-engine uvicorn nova_perception_engine.main:app --reload --port 8000"
   }

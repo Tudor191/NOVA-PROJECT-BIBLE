@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "scripts": {
     "lint": "uv run --package personality-engine ruff check . && uv run --package personality-engine mypy src",
-    "test": "uv run --package personality-engine pytest",
+    "test": "uv run --package personality-engine pytest -m \"not real_infra\" --cov=nova_personality_engine.domain",
     "build": "echo 'personality-engine: no build step (container image built via Dockerfile in CI)'",
     "dev": "uv run --package personality-engine uvicorn nova_personality_engine.main:app --reload --port 8000"
   }

@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "scripts": {
     "lint": "uv run --package reasoning-engine ruff check . && uv run --package reasoning-engine mypy src",
-    "test": "uv run --package reasoning-engine pytest",
+    "test": "uv run --package reasoning-engine pytest -m \"not real_infra\" --cov=nova_reasoning_engine.domain",
     "build": "echo 'reasoning-engine: no build step (container image built via Dockerfile in CI)'",
     "dev": "uv run --package reasoning-engine uvicorn nova_reasoning_engine.main:app --reload --port 8000"
   }

@@ -4,7 +4,9 @@ version = "0.1.0"
 description = "Shared pytest fixtures for every NOVA engine: in-memory event bus harness, async waiting helpers."
 requires-python = ">=3.12"
 dependencies = [
+    "nova-contracts",
     "nova-eventbus-sdk",
+    "pydantic>=2.9",
     "pytest>=8.3",
 ]
 
@@ -22,6 +24,7 @@ packages = ["src/nova_testkit"]
 allow-direct-references = true
 
 [tool.uv.sources]
+nova-contracts = { workspace = true }
 nova-eventbus-sdk = { workspace = true }
 
 [dependency-groups]
