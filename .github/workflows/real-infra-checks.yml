@@ -1,0 +1,75 @@
+name: Real-Infrastructure Checks
+
+# STAGED ROLLOUT (docs/design/nova-testkit/technical-implementation-plan.md
+# §7, §15 item 1; ADR-033): runs the @pytest.mark.real_infra suite --
+# testcontainers-backed Postgres/Redis/Neo4j/NATS fixtures, and the three
+# priority engines' real-Postgres repository tests -- against a real Docker
+# daemon. This workflow is intentionally NOT added to this repository's
+# required status checks and does not block merges. Its purpose during this
+# first stage is to establish reliable CI execution and collect runtime/
+# flakiness data; only once that data shows the suite is stable should the
+# exact hard-gate policy (every PR vs. merge-to-main-only, which packages,
+# what failure handling) be proposed for approval and this workflow promoted
+# to a required check. Do not add it to branch protection before that
+# follow-up proposal.
+#
+# NOT YET VERIFIED against a real GitHub Actions runner (no Docker daemon was
+# reachable in the environment this workflow was authored in) -- correctness
+# rests on GitHub-hosted `ubuntu-latest` runners' well-documented, standard
+# pre-installed Docker Engine, not an empirical run here. Treat the first few
+# real executions of this workflow as the actual verification.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    # Nightly, in addition to per-PR runs -- extra data points on days with
+    # no PR activity, and a canary for image-level drift (e.g. an upstream
+    # postgres:16-alpine/neo4j:5-community patch release) independent of any
+    # code change here.
+    - cron: "17 4 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: real-infra-checks-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  real-infra:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      # nova-testkit exercises all four fixture types directly (its own
+      # test_postgres.py/test_redis.py/test_neo4j.py/test_nats.py); the three
+      # engines exercise a real Postgres*Repository class against real schema
+      # -- task #93's now-closed backlog (docs/roadmap/architecture-reviews/
+      # project-health-review-2026-08.md §17, §27.1).
+      matrix:
+        include:
+          - package: nova-testkit
+            path: packages/nova-testkit
+          - package: communication-engine
+            path: services/communication-engine
+          - package: personality-engine
+            path: services/personality-engine
+          - package: perception-engine
+            path: services/perception-engine
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          python-version: "3.12"
+
+      - name: Install Python workspace
+        run: uv sync --all-packages --frozen
+
+      - name: Confirm Docker daemon is reachable
+        run: docker info
+
+      - name: Run real-infrastructure tests (${{ matrix.package }})
+        working-directory: ${{ matrix.path }}
+        run: uv run --package ${{ matrix.package }} pytest -m real_infra -v
