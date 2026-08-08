@@ -45,7 +45,13 @@ full dependency analysis, per-priority technical designs, and remaining
 open architectural forks. **Priority 3 (the communication-engine ↔
 reasoning-engine conversation loop) is approved and implemented** — see the
 [Priority 3 Gate Review](../../roadmap/architecture-reviews/phase-2d-c-closure-priority-3-gate-review.md).
-**Priorities 1, 2, 4, 5, and 6 remain design-only, not yet implemented and
+**Priority 1 (perception-engine's production signal chain, including a new
+`POST /v1/perception/observations` ingestion endpoint) is approved and
+implemented** — see the
+[Priority 1 Gate Review](../../roadmap/architecture-reviews/phase-2d-c-closure-priority-1-gate-review.md)
+for the disclosed capability limit (no identity matching or session-active
+signal yet, pending Priority 2).
+**Priorities 2, 4, 5, and 6 remain design-only, not yet implemented and
 not yet user-approved**, each awaiting its own explicit go-ahead before any
 further code changes. Phase 2D-D does not start until the full closure is
 explicitly approved.

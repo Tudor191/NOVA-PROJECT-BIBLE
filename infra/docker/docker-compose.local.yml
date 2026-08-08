@@ -405,6 +405,43 @@ services:
       redis:
         condition: service_healthy
 
+  # Priority 1 of docs/design/phase-2d/05-conversation-intelligence-closure.md
+  # Sec3.5 -- the same image as perception-engine above, running its Arq
+  # outbox-dispatch worker instead of the FastAPI app, so newly-orchestrated
+  # `perception.addressee_signal.candidate` outbox rows are actually
+  # dispatched rather than queuing forever. This gap (a worker defined but
+  # never deployed) exists for every engine in this compose file, not only
+  # perception-engine -- closing it everywhere is out of this priority's
+  # scope; closing it here is Priority 1's own explicit "done" definition
+  # (closure doc Sec3.5), since this pass is what makes the gap observable
+  # in practice for the first time.
+  perception-engine-worker:
+    build:
+      context: ../..
+      dockerfile: services/perception-engine/Dockerfile
+    command: ["arq", "nova_perception_engine.workers.WorkerSettings"]
+    restart: unless-stopped
+    # The image's own HEALTHCHECK curls the FastAPI app's /internal/health --
+    # meaningless for this process (no HTTP server, no port 8000 listener
+    # here), so it is disabled rather than left to report a permanently
+    # false "unhealthy" for a container that is actually fine.
+    healthcheck:
+      disable: true
+    environment:
+      EVENT_BUS_BACKEND: nats
+      NATS_URL: nats://nats:4222
+      NOVA_ENGINE_NAME: perception-engine
+      PERCEPTION_ENGINE_POSTGRES_DSN: postgresql+asyncpg://${POSTGRES_USER:-nova}:${POSTGRES_PASSWORD:-nova_dev_password}@postgres:5432/${POSTGRES_DB:-nova}
+      PERCEPTION_ENGINE_REDIS_URL: redis://redis:6379/0
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+    depends_on:
+      nats:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
 volumes:
   postgres-data:
   neo4j-data:

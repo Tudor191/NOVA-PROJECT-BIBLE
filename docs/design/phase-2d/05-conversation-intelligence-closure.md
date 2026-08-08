@@ -2,12 +2,15 @@
 
 **Status: Priority 3 approved (Fork #1: synchronous RPC) and implemented —
 see the
-[Priority 3 Gate Review](../../roadmap/architecture-reviews/phase-2d-c-closure-priority-3-gate-review.md)
-for exactly what was built and what remains unverified. Priorities 1, 2, 4,
-5, and 6 remain DESIGN ONLY, exactly as below — no implementation has begun
-on any of them, and per direct instruction this document's remaining
-sections are not reinterpreted or silently resolved by Priority 3's
-completion.**
+[Priority 3 Gate Review](../../roadmap/architecture-reviews/phase-2d-c-closure-priority-3-gate-review.md).
+Priority 1 approved (Fork #3 Option 1: a real ingestion endpoint; and a new,
+user-confirmed capability limit — no identity matching or session-active
+lookup this pass, deferred to Priority 2) and implemented — see the
+[Priority 1 Gate Review](../../roadmap/architecture-reviews/phase-2d-c-closure-priority-1-gate-review.md).
+Priorities 2, 4, 5, and 6 remain DESIGN ONLY, exactly as below — no
+implementation has begun on any of them, and per direct instruction this
+document's remaining sections are not reinterpreted or silently resolved by
+Priority 1 or 3's completion.**
 
 This document is the required deliverable of the "Phase 2D-C Closure" task,
 using the [Phase 2D-C Gate Review](../../roadmap/architecture-reviews/phase-2d-c-gate-review.md)
@@ -92,6 +95,18 @@ in parallel with either (fully independent), **P6** continuously tracked
 throughout.
 
 ## 3. Priority 1 — perception-engine's production signal chain
+
+**Implemented — see the
+[Priority 1 Gate Review](../../roadmap/architecture-reviews/phase-2d-c-closure-priority-1-gate-review.md).**
+The design below (§3.1-§3.10) is preserved as-written, as the rationale
+record. Fork #3 was resolved as Option 1 (a real ingestion endpoint,
+`POST /v1/perception/observations`) per direct user approval. A second,
+newly-surfaced question not anticipated by this section as originally
+written — `VoiceSensor.match_voiceprint`/`CameraSensor.match_faceprint`/
+`SessionActivityTracker.is_active` all require a `user_id` this priority
+does not have — was put to the user before implementation and resolved as
+"build without them, capped capability" (see the Gate Review's §1 for the
+full finding and §8 for exactly what this caps).
 
 ### 3.1 What "production signal" means in this architecture (stated explicitly, per instruction)
 

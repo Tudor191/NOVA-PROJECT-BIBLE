@@ -32,11 +32,13 @@ from nova_service_kit import make_health_router
 
 from nova_perception_engine.api.consent import router as consent_router
 from nova_perception_engine.api.identities import router as identities_router
+from nova_perception_engine.api.observations import router as observations_router
 from nova_perception_engine.api.sensors import router as sensors_router
 from nova_perception_engine.clients.ai_model_orchestration_client import (
     AIModelOrchestrationClient,
 )
 from nova_perception_engine.config import Settings
+from nova_perception_engine.domain.correlation_buffer import WindowCorrelationBuffer
 from nova_perception_engine.domain.ports import AIModelOrchestrationPort, PerceptionRepository
 from nova_perception_engine.domain.session_activity import SessionActivityTracker
 from nova_perception_engine.events.handlers import make_session_dispatch_handler
@@ -120,6 +122,7 @@ def create_app(
             camera_sensor.sensor_id: camera_sensor,
         }
         app.state.sensors_by_source = {"microphone": voice_sensor, "camera": camera_sensor}
+        app.state.correlation_buffer = WindowCorrelationBuffer()
         app.state.ready = True
 
         yield
@@ -141,6 +144,7 @@ def create_app(
     fastapi_app.include_router(identities_router)
     fastapi_app.include_router(consent_router)
     fastapi_app.include_router(sensors_router)
+    fastapi_app.include_router(observations_router)
     fastapi_app.mount("/internal/metrics", prometheus_asgi_app())
     return fastapi_app
 
