@@ -11,7 +11,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
-from nova_eventbus_sdk import BoundEventBus, get_event_bus
+from nova_eventbus_sdk import bind_event_bus
 from nova_observability import configure_observability, get_logger, prometheus_asgi_app
 
 from nova_core.api.health import router as health_router
@@ -30,9 +30,8 @@ def create_app(settings: NovaCoreSettings | None = None) -> FastAPI:
     configure_observability("nova-core", log_level=settings.log_level)
 
     registry = ModuleRegistry()
-    bus = BoundEventBus(
-        get_event_bus(),
-        engine_name="nova-core",
+    bus = bind_event_bus(
+        "nova-core",
         publishable_subjects=PUBLISHABLE_SUBJECTS,
         subscribable_subjects=SUBSCRIBABLE_SUBJECTS,
     )

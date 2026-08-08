@@ -5,7 +5,7 @@ No engine, agent, or gateway may import a broker's native client library (`nats`
 `get_event_bus()` factory.
 """
 
-from nova_eventbus_sdk.boundary import BoundEventBus, SubjectNotAllowedError
+from nova_eventbus_sdk.boundary import BoundEventBus, SubjectNotAllowedError, bind_event_bus
 from nova_eventbus_sdk.factory import get_event_bus, register_backend
 from nova_eventbus_sdk.interface import (
     BusHealth,
@@ -27,6 +27,7 @@ __all__ = [
     "RequestHandler",
     "SubjectNotAllowedError",
     "Subscription",
+    "bind_event_bus",
     "get_event_bus",
     "register_backend",
 ]

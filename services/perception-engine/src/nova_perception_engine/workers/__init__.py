@@ -15,14 +15,14 @@ from typing import Any
 
 from arq import cron
 from arq.connections import RedisSettings
-from nova_eventbus_sdk import BoundEventBus, get_event_bus
+from nova_eventbus_sdk import bind_event_bus
 from nova_observability import configure_observability, get_logger
+from nova_service_kit import create_engine, create_session_factory
 
 from nova_perception_engine.config import Settings
 from nova_perception_engine.events.published import PUBLISHABLE_SUBJECTS
 from nova_perception_engine.events.subscribed import SUBSCRIBABLE_SUBJECTS
 from nova_perception_engine.observability import create_metrics
-from nova_perception_engine.repository.db import create_engine, create_session_factory
 from nova_perception_engine.repository.postgres_perception_repository import (
     PostgresPerceptionRepository,
 )
@@ -42,9 +42,8 @@ async def startup(ctx: dict[str, Any]) -> None:
     engine = create_engine(_SETTINGS.postgres_dsn)
     session_factory = create_session_factory(engine)
 
-    bus = BoundEventBus(
-        get_event_bus(),
-        engine_name="perception-engine",
+    bus = bind_event_bus(
+        "perception-engine",
         publishable_subjects=PUBLISHABLE_SUBJECTS,
         subscribable_subjects=SUBSCRIBABLE_SUBJECTS,
     )

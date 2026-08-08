@@ -27,11 +27,11 @@ from nova_contracts import (
     MemoryRetrieveRequestPayload,
     MemorySearchResultPayload,
 )
-from nova_eventbus_sdk import BoundEventBus, get_event_bus
+from nova_eventbus_sdk import bind_event_bus
 from nova_observability import configure_observability, get_logger, prometheus_asgi_app
+from nova_service_kit import make_health_router
 
 from nova_memory_engine.api.decisions import router as decisions_router
-from nova_memory_engine.api.health import router as health_router
 from nova_memory_engine.api.memories import router as memories_router
 from nova_memory_engine.config import Settings
 from nova_memory_engine.domain import retrieval
@@ -103,9 +103,8 @@ def create_app(
     configure_observability("memory-engine", log_level=settings.log_level)
     metrics = create_metrics()  # must follow configure_observability -- see observability.py
 
-    bus = BoundEventBus(
-        get_event_bus(),
-        engine_name="memory-engine",
+    bus = bind_event_bus(
+        "memory-engine",
         publishable_subjects=PUBLISHABLE_SUBJECTS,
         subscribable_subjects=SUBSCRIBABLE_SUBJECTS,
     )
@@ -119,7 +118,8 @@ def create_app(
         if repo is None:
             # Lazy imports: SQLAlchemy/asyncpg should not be required just to
             # import this module when a fake repository is injected (tests).
-            from nova_memory_engine.repository.db import create_engine, create_session_factory
+            from nova_service_kit import create_engine, create_session_factory
+
             from nova_memory_engine.repository.postgres_memory_repository import (
                 PostgresMemoryRepository,
             )
@@ -181,7 +181,7 @@ def create_app(
             await engine.dispose()
 
     fastapi_app = FastAPI(title="memory-engine", version="0.1.0", lifespan=lifespan)
-    fastapi_app.include_router(health_router)
+    fastapi_app.include_router(make_health_router())
     fastapi_app.include_router(memories_router)
     fastapi_app.include_router(decisions_router)
     fastapi_app.mount("/internal/metrics", prometheus_asgi_app())

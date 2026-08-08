@@ -4,31 +4,36 @@
 1. `apply_pending_graph_writes` -- rows where `graph_write IS NOT NULL AND
    graph_applied_at IS NULL` get their Neo4j write applied (via
    `domain.object_graph.apply_graph_write`), then `graph_applied_at` is set.
+   Genuinely engine-specific (touches `nova_graphstore_sdk` and this engine's
+   own `domain.object_graph`), so it stays here rather than moving to
+   `nova_service_kit`.
 2. `dispatch_ready_events` -- rows ready to publish get published via
    `nova-eventbus-sdk`, then `dispatched_at` is set. An event with a pending
-   graph write is never published before that write actually lands.
+   graph write is never published before that write actually lands. The
+   dispatch loop itself is now a thin wrapper around the shared
+   `nova_service_kit.dispatch_ready_events` (Project Health Review, August
+   2026; `docs/design/nova-service-kit/boilerplate-extraction-proposal.md`
+   Extraction C) -- identical to every other engine's own dispatch loop
+   before this extraction.
 
 Both phases mark each row immediately after its own step succeeds (never
 batched at the commit level), so a crash partway through only risks
 reapplying/republishing the *next* row, never silently drops one.
-
-The outbox row's own `id` is reused as `EventEnvelope.event_id` so a retried
-publish after a crash carries the same `event_id`, enabling exactly-once
-delivery via consumer-side `event_id` dedup.
 """
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from nova_contracts import EventEnvelope
-from nova_eventbus_sdk.interface import EventBus
 from nova_graphstore_sdk import GraphStore
+from nova_service_kit import dispatch_ready_events as _dispatch_ready_events
 
 from nova_world_model_engine.domain import object_graph
 from nova_world_model_engine.domain.ports import WorldHistoryRepository
 
 if TYPE_CHECKING:
+    from nova_eventbus_sdk import EventBus
+
     from nova_world_model_engine.observability import WorldModelEngineMetrics
 
 DEFAULT_BATCH_SIZE = 100
@@ -63,20 +68,6 @@ async def dispatch_ready_events(
     metrics: WorldModelEngineMetrics | None = None,
 ) -> int:
     """Saga step 3 (§17). Returns the number of rows dispatched."""
-    dispatched = 0
-    rows = await repository.list_dispatch_ready(limit=batch_size)
-    for row in rows:
-        envelope = EventEnvelope(
-            event_id=row.id,
-            subject=row.subject,
-            source_engine=source_engine,
-            correlation_id=row.correlation_id,
-            causation_id=row.causation_id,
-            payload=row.payload,
-        )
-        await bus.publish(envelope)
-        await repository.mark_dispatched(row.id)
-        dispatched += 1
-        if metrics is not None:
-            metrics.outbox_dispatched_total.add(1, {"subject": row.subject})
-    return dispatched
+    return await _dispatch_ready_events(
+        repository, bus, source_engine=source_engine, batch_size=batch_size, metrics=metrics
+    )

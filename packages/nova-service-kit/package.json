@@ -1,0 +1,10 @@
+{
+  "name": "@nova/nova-service-kit",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "lint": "uv run --package nova-service-kit ruff check . && uv run --package nova-service-kit mypy src",
+    "test": "uv run --package nova-service-kit pytest",
+    "build": "echo 'nova-service-kit: no build step (pure Python library)'"
+  }
+}

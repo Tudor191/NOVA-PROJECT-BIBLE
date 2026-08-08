@@ -33,6 +33,7 @@ __all__ = [
     "EventPublisher",
     "MemoryRepository",
     "OutboxEvent",
+    "OutboxRow",
     "VectorIndex",
     "WorkingMemoryStore",
 ]
@@ -48,6 +49,26 @@ class OutboxEvent(BaseModel):
     payload: dict[str, Any]
     correlation_id: UUID
     causation_id: UUID | None = None
+
+
+class OutboxRow(BaseModel):
+    """A persisted, not-yet-dispatched outbox row, as read back by
+    `list_dispatch_ready` -- carries its own `id`, reused as `EventEnvelope.
+    event_id` for exactly-once delivery, the same convention every other
+    engine's outbox dispatcher already uses. Added per the Project Health
+    Review (August 2026)/`docs/design/nova-service-kit/
+    boilerplate-extraction-proposal.md` Extraction C prerequisite: this
+    engine's outbox dispatcher previously bypassed the repository-port
+    abstraction entirely, talking to SQLAlchemy directly instead of going
+    through `list_dispatch_ready`/`mark_dispatched` like every other engine.
+    """
+
+    id: UUID
+    subject: str
+    payload: dict[str, Any]
+    correlation_id: UUID
+    causation_id: UUID | None = None
+    created_at: datetime
 
 
 @runtime_checkable
@@ -156,6 +177,10 @@ class MemoryRepository(Protocol):
     async def append_audit_log(
         self, *, memory_id: UUID, action: str, actor: str, detail: dict[str, Any] | None = None
     ) -> None: ...
+
+    async def list_dispatch_ready(self, *, limit: int = 100) -> list[OutboxRow]: ...
+
+    async def mark_dispatched(self, outbox_id: UUID) -> None: ...
 
 
 @runtime_checkable

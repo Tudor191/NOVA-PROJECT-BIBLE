@@ -14,14 +14,14 @@ from typing import Any
 
 from arq import cron
 from arq.connections import RedisSettings
-from nova_eventbus_sdk import BoundEventBus, get_event_bus
+from nova_eventbus_sdk import bind_event_bus
 from nova_observability import configure_observability, get_logger
+from nova_service_kit import create_engine, create_session_factory
 
 from nova_memory_engine.config import Settings
 from nova_memory_engine.events.published import PUBLISHABLE_SUBJECTS
 from nova_memory_engine.events.subscribed import SUBSCRIBABLE_SUBJECTS
 from nova_memory_engine.observability import create_metrics
-from nova_memory_engine.repository.db import create_engine, create_session_factory
 from nova_memory_engine.repository.postgres_memory_repository import PostgresMemoryRepository
 from nova_memory_engine.workers.consolidation_worker import (
     arq_run_consolidation,
@@ -57,9 +57,8 @@ async def startup(ctx: dict[str, Any]) -> None:
     )
     await vector_index.connect()
 
-    bus = BoundEventBus(
-        get_event_bus(),
-        engine_name="memory-engine",
+    bus = bind_event_bus(
+        "memory-engine",
         publishable_subjects=PUBLISHABLE_SUBJECTS,
         subscribable_subjects=SUBSCRIBABLE_SUBJECTS,
     )

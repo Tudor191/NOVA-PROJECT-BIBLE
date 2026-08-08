@@ -39,14 +39,14 @@ from nova_contracts import (
     WakePhraseDetectReplyPayload,
     WakePhraseDetectRequestPayload,
 )
-from nova_eventbus_sdk import BoundEventBus, get_event_bus
+from nova_eventbus_sdk import bind_event_bus
 from nova_observability import configure_observability, get_logger, prometheus_asgi_app
+from nova_service_kit import make_health_router
 
 from nova_ai_model_orchestration_engine.api.embed import router as embed_router
 from nova_ai_model_orchestration_engine.api.face_embed import router as face_embed_router
 from nova_ai_model_orchestration_engine.api.gaze_estimate import router as gaze_estimate_router
 from nova_ai_model_orchestration_engine.api.generate import router as generate_router
-from nova_ai_model_orchestration_engine.api.health import router as health_router
 from nova_ai_model_orchestration_engine.api.models import router as models_router
 from nova_ai_model_orchestration_engine.api.synthesize import router as synthesize_router
 from nova_ai_model_orchestration_engine.api.transcribe import router as transcribe_router
@@ -417,9 +417,8 @@ def create_app(
     configure_observability("ai-model-orchestration-engine", log_level=settings.log_level)
     metrics = create_metrics()  # must follow configure_observability -- see observability.py
 
-    bus = BoundEventBus(
-        get_event_bus(),
-        engine_name="ai-model-orchestration-engine",
+    bus = bind_event_bus(
+        "ai-model-orchestration-engine",
         publishable_subjects=PUBLISHABLE_SUBJECTS,
         subscribable_subjects=SUBSCRIBABLE_SUBJECTS,
     )
@@ -432,10 +431,8 @@ def create_app(
         registry_repo = registry_repository
         usage_repo = usage_repository
         if registry_repo is None or usage_repo is None:
-            from nova_ai_model_orchestration_engine.repository.db import (
-                create_engine,
-                create_session_factory,
-            )
+            from nova_service_kit import create_engine, create_session_factory
+
             from nova_ai_model_orchestration_engine.repository.postgres_registry_repository import (
                 PostgresModelRegistryRepository,
             )
@@ -519,7 +516,7 @@ def create_app(
     fastapi_app = FastAPI(
         title="ai-model-orchestration-engine", version="0.1.0", lifespan=lifespan
     )
-    fastapi_app.include_router(health_router)
+    fastapi_app.include_router(make_health_router())
     fastapi_app.include_router(models_router)
     fastapi_app.include_router(generate_router)
     fastapi_app.include_router(embed_router)

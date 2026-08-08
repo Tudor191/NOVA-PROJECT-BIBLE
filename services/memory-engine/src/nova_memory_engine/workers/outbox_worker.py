@@ -10,9 +10,9 @@ from typing import TYPE_CHECKING
 
 from nova_eventbus_sdk.interface import EventBus
 from nova_observability import get_logger
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from nova_memory_engine.repository.outbox_dispatcher import dispatch_pending
+from nova_memory_engine.domain.ports import MemoryRepository
+from nova_memory_engine.repository.outbox_dispatcher import dispatch_ready_events
 
 if TYPE_CHECKING:
     from nova_memory_engine.observability import MemoryEngineMetrics
@@ -21,12 +21,12 @@ logger = get_logger("memory-engine.workers.outbox")
 
 
 async def run_outbox_dispatch(
-    session_factory: async_sessionmaker[AsyncSession],
+    repository: MemoryRepository,
     bus: EventBus,
     *,
     metrics: MemoryEngineMetrics | None = None,
 ) -> int:
-    dispatched = await dispatch_pending(session_factory, bus, metrics=metrics)
+    dispatched = await dispatch_ready_events(repository, bus, metrics=metrics)
     if dispatched:
         logger.info("outbox dispatch", extra={"dispatched": dispatched})
     return dispatched
@@ -34,4 +34,4 @@ async def run_outbox_dispatch(
 
 async def arq_run_outbox_dispatch(ctx: dict) -> None:
     """Arq entrypoint (`WorkerSettings.cron_jobs` in `workers/__init__.py`)."""
-    await run_outbox_dispatch(ctx["session_factory"], ctx["bus"], metrics=ctx.get("metrics"))
+    await run_outbox_dispatch(ctx["memory_repository"], ctx["bus"], metrics=ctx.get("metrics"))

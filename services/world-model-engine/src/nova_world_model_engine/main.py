@@ -23,12 +23,12 @@ from uuid import UUID
 
 from fastapi import FastAPI
 from nova_contracts import ContextReplyPayload, ContextRequestPayload, EventEnvelope
-from nova_eventbus_sdk import BoundEventBus, get_event_bus
+from nova_eventbus_sdk import bind_event_bus
 from nova_observability import configure_observability, get_logger, prometheus_asgi_app
+from nova_service_kit import make_health_router
 
 from nova_world_model_engine.api.context import router as context_router
 from nova_world_model_engine.api.graph import router as graph_router
-from nova_world_model_engine.api.health import router as health_router
 from nova_world_model_engine.api.objects import router as objects_router
 from nova_world_model_engine.api.snapshots import router as snapshots_router
 from nova_world_model_engine.config import Settings
@@ -96,9 +96,8 @@ def create_app(
     configure_observability("world-model-engine", log_level=settings.log_level)
     metrics = create_metrics()  # must follow configure_observability -- see observability.py
 
-    bus = BoundEventBus(
-        get_event_bus(),
-        engine_name="world-model-engine",
+    bus = bind_event_bus(
+        "world-model-engine",
         publishable_subjects=PUBLISHABLE_SUBJECTS,
         subscribable_subjects=SUBSCRIBABLE_SUBJECTS,
     )
@@ -110,7 +109,8 @@ def create_app(
         engine: AsyncEngine | None = None
         history_repo = history_repository
         if history_repo is None:
-            from nova_world_model_engine.repository.db import create_engine, create_session_factory
+            from nova_service_kit import create_engine, create_session_factory
+
             from nova_world_model_engine.repository.postgres_history_repository import (
                 PostgresHistoryRepository,
             )
@@ -169,7 +169,7 @@ def create_app(
             await engine.dispose()
 
     fastapi_app = FastAPI(title="world-model-engine", version="0.1.0", lifespan=lifespan)
-    fastapi_app.include_router(health_router)
+    fastapi_app.include_router(make_health_router())
     fastapi_app.include_router(context_router)
     fastapi_app.include_router(objects_router)
     fastapi_app.include_router(graph_router)

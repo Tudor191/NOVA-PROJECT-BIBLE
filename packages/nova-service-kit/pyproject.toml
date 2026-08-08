@@ -1,0 +1,33 @@
+[project]
+name = "nova-service-kit"
+version = "0.1.0"
+description = "Shared FastAPI/SQLAlchemy infrastructure boilerplate -- health/readiness routing, Postgres engine/session-factory construction, and the transactional-outbox dispatch loop -- used identically by every engine that has one, with zero engine-specific knowledge of any kind."
+requires-python = ">=3.12"
+dependencies = [
+    "nova-contracts",
+    "nova-eventbus-sdk",
+    "fastapi>=0.115",
+    "pydantic>=2.9",
+    "sqlalchemy[asyncio]>=2.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/nova_service_kit"]
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.uv.sources]
+nova-contracts = { workspace = true }
+nova-eventbus-sdk = { workspace = true }
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "httpx>=0.27",
+]

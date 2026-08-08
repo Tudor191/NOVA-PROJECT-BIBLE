@@ -1,5 +1,9 @@
-"""Async SQLAlchemy engine/session factory for the `model_orchestration`
-Postgres schema (docs/design/phase-2a/00-ai-model-orchestration-engine.md §4)."""
+"""Async SQLAlchemy engine/session factory construction -- identical across
+every engine with a Postgres schema (Project Health Review, August 2026;
+`docs/design/nova-service-kit/boilerplate-extraction-proposal.md` Extraction B).
+Zero engine-specific knowledge: takes a DSN, returns a plain SQLAlchemy engine
+and session factory, nothing more.
+"""
 
 from __future__ import annotations
 

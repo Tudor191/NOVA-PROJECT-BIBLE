@@ -3,7 +3,7 @@ from uuid import uuid4
 import pytest
 from nova_contracts import EventEnvelope
 from nova_eventbus_sdk.backends.in_memory import InMemoryEventBus
-from nova_eventbus_sdk.boundary import BoundEventBus, SubjectNotAllowedError
+from nova_eventbus_sdk.boundary import BoundEventBus, SubjectNotAllowedError, bind_event_bus
 from pydantic import BaseModel
 
 
@@ -81,3 +81,36 @@ async def test_serve_within_allow_list_succeeds() -> None:
     await bus.serve(
         "memory.retrieve.request", handler, source_engine="memory-engine"
     )  # should not raise
+
+
+async def test_bind_event_bus_constructs_an_equivalent_bound_bus(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`bind_event_bus()` (Extraction D, docs/design/nova-service-kit/
+    boilerplate-extraction-proposal.md) must produce the same object every
+    engine's `main.py`/`workers/__init__.py` previously constructed by hand:
+    a `BoundEventBus` wrapping `get_event_bus()`'s result, scoped to the given
+    engine name and allow-lists -- verified behaviorally (allowed subjects
+    pass, disallowed subjects raise), not by inspecting private attributes."""
+    monkeypatch.setenv("EVENT_BUS_BACKEND", "in_memory")
+
+    bus = bind_event_bus(
+        "memory-engine",
+        publishable_subjects=frozenset({"memory.*.created"}),
+        subscribable_subjects=frozenset(),
+    )
+    assert isinstance(bus, BoundEventBus)
+    await bus.connect()
+
+    await bus.publish(
+        EventEnvelope(
+            subject="memory.episodic.created", source_engine="memory-engine", correlation_id=uuid4()
+        )
+    )  # should not raise -- within the declared allow-list
+
+    with pytest.raises(SubjectNotAllowedError):
+        await bus.publish(
+            EventEnvelope(
+                subject="action.execute", source_engine="memory-engine", correlation_id=uuid4()
+            )
+        )

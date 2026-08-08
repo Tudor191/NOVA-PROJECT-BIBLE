@@ -13,7 +13,7 @@ from nova_memory_engine.domain.models import (
     MemoryType,
     ShortTermRecord,
 )
-from nova_memory_engine.domain.ports import OutboxEvent, VersionConflictError
+from nova_memory_engine.domain.ports import OutboxEvent, OutboxRow, VersionConflictError
 
 
 @dataclass
@@ -220,3 +220,9 @@ class FakeMemoryRepository:
         self.audit_log.append(
             RecordedAuditEntry(memory_id=memory_id, action=action, actor=actor, detail=detail)
         )
+
+    async def list_dispatch_ready(self, *, limit: int = 100) -> list[OutboxRow]:
+        return []
+
+    async def mark_dispatched(self, outbox_id: UUID) -> None:
+        return None

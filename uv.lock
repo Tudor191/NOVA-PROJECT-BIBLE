@@ -19,6 +19,7 @@ members = [
     "nova-eventbus-sdk",
     "nova-graphstore-sdk",
     "nova-observability",
+    "nova-service-kit",
     "nova-testkit",
     "nova-vectorstore-sdk",
     "perception-engine",
@@ -54,6 +55,7 @@ dependencies = [
     { name = "nova-embeddings-sdk" },
     { name = "nova-eventbus-sdk" },
     { name = "nova-observability" },
+    { name = "nova-service-kit" },
     { name = "pydantic-settings" },
     { name = "sqlalchemy", extra = ["asyncio"] },
     { name = "uvicorn", extra = ["standard"] },
@@ -78,6 +80,7 @@ requires-dist = [
     { name = "nova-embeddings-sdk", editable = "packages/nova-embeddings-sdk" },
     { name = "nova-eventbus-sdk", editable = "packages/nova-eventbus-sdk" },
     { name = "nova-observability", editable = "packages/nova-observability" },
+    { name = "nova-service-kit", editable = "packages/nova-service-kit" },
     { name = "pydantic-settings", specifier = ">=2.6" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.32" },
@@ -463,6 +466,7 @@ dependencies = [
     { name = "nova-contracts" },
     { name = "nova-eventbus-sdk" },
     { name = "nova-observability" },
+    { name = "nova-service-kit" },
     { name = "pydantic-settings" },
     { name = "sqlalchemy", extra = ["asyncio"] },
     { name = "uvicorn", extra = ["standard"] },
@@ -485,6 +489,7 @@ requires-dist = [
     { name = "nova-contracts", editable = "packages/nova-contracts" },
     { name = "nova-eventbus-sdk", editable = "packages/nova-eventbus-sdk" },
     { name = "nova-observability", editable = "packages/nova-observability" },
+    { name = "nova-service-kit", editable = "packages/nova-service-kit" },
     { name = "pydantic-settings", specifier = ">=2.6" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.32" },
@@ -686,6 +691,7 @@ dependencies = [
     { name = "nova-contracts" },
     { name = "nova-eventbus-sdk" },
     { name = "nova-observability" },
+    { name = "nova-service-kit" },
     { name = "pydantic-settings" },
     { name = "sqlalchemy", extra = ["asyncio"] },
     { name = "uvicorn", extra = ["standard"] },
@@ -708,6 +714,7 @@ requires-dist = [
     { name = "nova-contracts", editable = "packages/nova-contracts" },
     { name = "nova-eventbus-sdk", editable = "packages/nova-eventbus-sdk" },
     { name = "nova-observability", editable = "packages/nova-observability" },
+    { name = "nova-service-kit", editable = "packages/nova-service-kit" },
     { name = "pydantic-settings", specifier = ">=2.6" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.32" },
@@ -1141,6 +1148,7 @@ dependencies = [
     { name = "nova-eventbus-sdk" },
     { name = "nova-graphstore-sdk" },
     { name = "nova-observability" },
+    { name = "nova-service-kit" },
     { name = "nova-vectorstore-sdk" },
     { name = "pgvector" },
     { name = "pydantic-settings" },
@@ -1168,6 +1176,7 @@ requires-dist = [
     { name = "nova-eventbus-sdk", editable = "packages/nova-eventbus-sdk" },
     { name = "nova-graphstore-sdk", editable = "packages/nova-graphstore-sdk" },
     { name = "nova-observability", editable = "packages/nova-observability" },
+    { name = "nova-service-kit", editable = "packages/nova-service-kit" },
     { name = "nova-vectorstore-sdk", editable = "packages/nova-vectorstore-sdk" },
     { name = "pgvector", specifier = ">=0.3" },
     { name = "pydantic-settings", specifier = ">=2.6" },
@@ -1368,6 +1377,7 @@ dependencies = [
     { name = "nova-eventbus-sdk" },
     { name = "nova-graphstore-sdk" },
     { name = "nova-observability" },
+    { name = "nova-service-kit" },
     { name = "nova-vectorstore-sdk" },
     { name = "pgvector" },
     { name = "pydantic-settings" },
@@ -1395,6 +1405,7 @@ requires-dist = [
     { name = "nova-eventbus-sdk", editable = "packages/nova-eventbus-sdk" },
     { name = "nova-graphstore-sdk", editable = "packages/nova-graphstore-sdk" },
     { name = "nova-observability", editable = "packages/nova-observability" },
+    { name = "nova-service-kit", editable = "packages/nova-service-kit" },
     { name = "nova-vectorstore-sdk", editable = "packages/nova-vectorstore-sdk" },
     { name = "pgvector", specifier = ">=0.3" },
     { name = "pydantic-settings", specifier = ">=2.6" },
@@ -1715,6 +1726,41 @@ dev = [
 ]
 
 [[package]]
+name = "nova-service-kit"
+version = "0.1.0"
+source = { editable = "packages/nova-service-kit" }
+dependencies = [
+    { name = "fastapi" },
+    { name = "nova-contracts" },
+    { name = "nova-eventbus-sdk" },
+    { name = "pydantic" },
+    { name = "sqlalchemy", extra = ["asyncio"] },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "httpx" },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "fastapi", specifier = ">=0.115" },
+    { name = "nova-contracts", editable = "packages/nova-contracts" },
+    { name = "nova-eventbus-sdk", editable = "packages/nova-eventbus-sdk" },
+    { name = "pydantic", specifier = ">=2.9" },
+    { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "httpx", specifier = ">=0.27" },
+    { name = "pytest", specifier = ">=8.3" },
+    { name = "pytest-asyncio", specifier = ">=0.24" },
+]
+
+[[package]]
 name = "nova-testkit"
 version = "0.1.0"
 source = { editable = "packages/nova-testkit" }
@@ -1913,6 +1959,7 @@ dependencies = [
     { name = "nova-contracts" },
     { name = "nova-eventbus-sdk" },
     { name = "nova-observability" },
+    { name = "nova-service-kit" },
     { name = "pydantic-settings" },
     { name = "sqlalchemy", extra = ["asyncio"] },
     { name = "uvicorn", extra = ["standard"] },
@@ -1936,6 +1983,7 @@ requires-dist = [
     { name = "nova-contracts", editable = "packages/nova-contracts" },
     { name = "nova-eventbus-sdk", editable = "packages/nova-eventbus-sdk" },
     { name = "nova-observability", editable = "packages/nova-observability" },
+    { name = "nova-service-kit", editable = "packages/nova-service-kit" },
     { name = "pydantic-settings", specifier = ">=2.6" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.32" },
@@ -1960,6 +2008,7 @@ dependencies = [
     { name = "nova-contracts" },
     { name = "nova-eventbus-sdk" },
     { name = "nova-observability" },
+    { name = "nova-service-kit" },
     { name = "pydantic-settings" },
     { name = "sqlalchemy", extra = ["asyncio"] },
     { name = "uvicorn", extra = ["standard"] },
@@ -1981,6 +2030,7 @@ requires-dist = [
     { name = "nova-contracts", editable = "packages/nova-contracts" },
     { name = "nova-eventbus-sdk", editable = "packages/nova-eventbus-sdk" },
     { name = "nova-observability", editable = "packages/nova-observability" },
+    { name = "nova-service-kit", editable = "packages/nova-service-kit" },
     { name = "pydantic-settings", specifier = ">=2.6" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.32" },
@@ -2390,6 +2440,7 @@ dependencies = [
     { name = "nova-contracts" },
     { name = "nova-eventbus-sdk" },
     { name = "nova-observability" },
+    { name = "nova-service-kit" },
     { name = "pydantic-settings" },
     { name = "sqlalchemy", extra = ["asyncio"] },
     { name = "uvicorn", extra = ["standard"] },
@@ -2412,6 +2463,7 @@ requires-dist = [
     { name = "nova-contracts", editable = "packages/nova-contracts" },
     { name = "nova-eventbus-sdk", editable = "packages/nova-eventbus-sdk" },
     { name = "nova-observability", editable = "packages/nova-observability" },
+    { name = "nova-service-kit", editable = "packages/nova-service-kit" },
     { name = "pydantic-settings", specifier = ">=2.6" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.32" },
@@ -2935,6 +2987,7 @@ dependencies = [
     { name = "nova-eventbus-sdk" },
     { name = "nova-graphstore-sdk" },
     { name = "nova-observability" },
+    { name = "nova-service-kit" },
     { name = "pydantic-settings" },
     { name = "redis" },
     { name = "sqlalchemy", extra = ["asyncio"] },
@@ -2959,6 +3012,7 @@ requires-dist = [
     { name = "nova-eventbus-sdk", editable = "packages/nova-eventbus-sdk" },
     { name = "nova-graphstore-sdk", editable = "packages/nova-graphstore-sdk" },
     { name = "nova-observability", editable = "packages/nova-observability" },
+    { name = "nova-service-kit", editable = "packages/nova-service-kit" },
     { name = "pydantic-settings", specifier = ">=2.6" },
     { name = "redis", specifier = ">=5.0" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0" },

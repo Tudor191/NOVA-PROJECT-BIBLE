@@ -7,6 +7,7 @@ dependencies = [
     "nova-contracts",
     "nova-eventbus-sdk",
     "nova-observability",
+    "nova-service-kit",
     "nova-vectorstore-sdk",
     "nova-graphstore-sdk",
     "nova-embeddings-sdk",
@@ -35,6 +36,7 @@ allow-direct-references = true
 nova-contracts = { workspace = true }
 nova-eventbus-sdk = { workspace = true }
 nova-observability = { workspace = true }
+nova-service-kit = { workspace = true }
 nova-vectorstore-sdk = { workspace = true }
 nova-graphstore-sdk = { workspace = true }
 nova-embeddings-sdk = { workspace = true }

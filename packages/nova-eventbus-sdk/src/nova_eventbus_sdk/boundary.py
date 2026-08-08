@@ -15,6 +15,7 @@ from uuid import UUID
 from nova_contracts import EventEnvelope
 from pydantic import BaseModel
 
+from nova_eventbus_sdk.factory import get_event_bus
 from nova_eventbus_sdk.interface import (
     BusHealth,
     EventHandler,
@@ -145,3 +146,25 @@ class BoundEventBus:
 
     async def health(self) -> BusHealth:
         return await self._bus.health()  # type: ignore[attr-defined]
+
+
+def bind_event_bus(
+    engine_name: str,
+    *,
+    publishable_subjects: frozenset[str],
+    subscribable_subjects: frozenset[str],
+) -> BoundEventBus:
+    """`BoundEventBus(get_event_bus(), engine_name=..., publishable_subjects=...,
+    subscribable_subjects=...)` in one call -- every engine's `main.py` and
+    `workers/__init__.py` constructed this identically, 18 call sites total
+    (Project Health Review, August 2026; `docs/design/nova-service-kit/
+    boilerplate-extraction-proposal.md` Extraction D). `bus.connect()` remains a
+    separate, explicit call at each call site -- `main.py` and `workers/__init__.py`
+    have different shutdown-ordering needs this helper deliberately does not hide.
+    """
+    return BoundEventBus(
+        get_event_bus(),
+        engine_name=engine_name,
+        publishable_subjects=publishable_subjects,
+        subscribable_subjects=subscribable_subjects,
+    )

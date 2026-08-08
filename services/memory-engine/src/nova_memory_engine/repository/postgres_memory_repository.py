@@ -22,7 +22,7 @@ from nova_memory_engine.domain.models import (
     MemoryType,
     ShortTermRecord,
 )
-from nova_memory_engine.domain.ports import OutboxEvent, VersionConflictError
+from nova_memory_engine.domain.ports import OutboxEvent, OutboxRow, VersionConflictError
 from nova_memory_engine.repository.models import (
     AuditLogORM,
     ConsolidationRunORM,
@@ -373,4 +373,33 @@ class PostgresMemoryRepository:
                 AuditLogORM(
                     memory_record_id=memory_id, action=action, actor=actor, detail=detail
                 )
+            )
+
+    async def list_dispatch_ready(self, *, limit: int = 100) -> list[OutboxRow]:
+        async with self._session_factory() as session:
+            stmt = (
+                select(OutboxEventORM)
+                .where(OutboxEventORM.dispatched_at.is_(None))
+                .order_by(OutboxEventORM.created_at)
+                .limit(limit)
+            )
+            rows = (await session.execute(stmt)).scalars().all()
+            return [
+                OutboxRow(
+                    id=row.id,
+                    subject=row.subject,
+                    payload=row.payload,
+                    correlation_id=row.correlation_id,
+                    causation_id=row.causation_id,
+                    created_at=row.created_at,
+                )
+                for row in rows
+            ]
+
+    async def mark_dispatched(self, outbox_id: UUID) -> None:
+        async with self._session_factory() as session, session.begin():
+            await session.execute(
+                update(OutboxEventORM)
+                .where(OutboxEventORM.id == outbox_id)
+                .values(dispatched_at=func.now())
             )

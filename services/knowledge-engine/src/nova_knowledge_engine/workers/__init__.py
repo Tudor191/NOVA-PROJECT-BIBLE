@@ -15,14 +15,14 @@ from typing import Any
 
 from arq import cron
 from arq.connections import RedisSettings
-from nova_eventbus_sdk import BoundEventBus, get_event_bus
+from nova_eventbus_sdk import bind_event_bus
 from nova_observability import configure_observability, get_logger
+from nova_service_kit import create_engine, create_session_factory
 
 from nova_knowledge_engine.config import Settings
 from nova_knowledge_engine.events.published import PUBLISHABLE_SUBJECTS
 from nova_knowledge_engine.events.subscribed import SUBSCRIBABLE_SUBJECTS
 from nova_knowledge_engine.observability import create_metrics
-from nova_knowledge_engine.repository.db import create_engine, create_session_factory
 from nova_knowledge_engine.repository.postgres_metadata_repository import (
     PostgresMetadataRepository,
 )
@@ -63,9 +63,8 @@ async def startup(ctx: dict[str, Any]) -> None:
     graph_store = get_graph_store()
     await graph_store.connect()
 
-    bus = BoundEventBus(
-        get_event_bus(),
-        engine_name="knowledge-engine",
+    bus = bind_event_bus(
+        "knowledge-engine",
         publishable_subjects=PUBLISHABLE_SUBJECTS,
         subscribable_subjects=SUBSCRIBABLE_SUBJECTS,
     )

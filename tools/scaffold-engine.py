@@ -96,7 +96,16 @@ _CONTRACT_MODULES_KEY = {
     "only nova_eventbus_sdk may": "source_modules",
     "No engine imports a graph database client directly (ADR-007): "
     "only nova_graphstore_sdk may": "source_modules",
+    "nova-service-kit has no engine-specific knowledge (ADR-034): it "
+    "may not import any engine's own top-level package": "forbidden_modules",
 }
+"""Deliberately excludes ADR-033's "nova-testkit has no engine-specific
+knowledge" contract, matching this dict's pre-existing scope (the ADR-020 "no
+LLM SDK" contract is excluded for a different, judgment-call reason -- see the
+docstring below). That contract's own `forbidden_modules` list not being
+auto-populated per new engine is a pre-existing gap, not introduced or widened
+here; fixing it is unrelated to ADR-034 or the nova-service-kit extraction
+this dict entry supports and is left for separate consideration."""
 """The 3 contracts (beyond `root_packages` itself) every new engine belongs in
 by default. Deliberately excludes the ADR-020 "no LLM SDK" contract, which
 `ai-model-orchestration-engine` itself must NOT appear in (it's the one engine
