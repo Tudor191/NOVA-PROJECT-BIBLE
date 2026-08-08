@@ -38,6 +38,14 @@ verified only through contract-level fakes, and what remains genuinely
 unverified end-to-end pending `perception-engine`'s still-unwired
 production signal chain and the newly-discovered, unbuilt
 `communication-engine`↔`reasoning-engine` integration loop.
+**Phase 2D-C Closure (05 — Conversation Intelligence Closure) is a
+design-only deliverable, not yet implemented and not yet user-approved**,
+closing the Gate Review's six disclosed gaps in dependency order — see the
+[closure design document](05-conversation-intelligence-closure.md) for the
+full dependency analysis, per-priority technical designs, and three
+open architectural forks awaiting the user's decision before any
+Priority 1-6 implementation begins. Phase 2D-D does not start until this
+closure is explicitly approved.
 Per direct user instruction, this phase was preceded by a full architectural
 blueprint and two permanent governing documents *before* any individual engine's
 TDD, the same "validate the architecture before designing a single engine"
@@ -60,6 +68,7 @@ See the blueprint's §0 for the full reconciliation and the exact 3A→2D-A / 3B
 | [02 — Personality Engine](02-personality-engine.md) | The rule-based, model-free (ADR-020-compliant-by-construction) implementation of Doc 23: the Consistency Validator, Style Selector, Personality Memory (a static default until Phase 2D-D's `digital-twin-engine` exists to populate it for real), the Personality/Digital-Twin boundary enforced structurally, data model, event/API contracts, and Doc 22/23 compliance mapping |
 | [03 — Perception Engine](03-perception-engine.md) | Phase 2D-B's minimal (voice + camera) slice of Bible Part 11: the required biometric/wake-signal extension to `ai-model-orchestration-engine` (ADR-020 compliance) and the required `ActiveContext` extension to World Model Engine (ADR-017 compliance), the Sensor Abstraction Layer's full lifecycle contract, the Identity Registry, the evidence-fusion identity-confidence algorithm (no single signal is ever sufficient), the talking-TO-vs-ABOUT-NOVA boundary (2D-B observes and publishes, 2D-C decides), privacy/consent architecture, data model, event/API contracts, and Doc 22/23 compliance mapping. **Approved and implemented.** |
 | [04 — Conversation Intelligence](04-conversation-intelligence.md) | Phase 2D-C's behavioral/policy extension to `communication-engine`: addressee-detection fusion (2D-B signals + conversational context), the silence/interruption policy layer, the Clarification Engine, response-length/tone/multilingual-response shaping, session-scoped Conversation Memory, one disclosed open architectural fork requiring the user's decision (perception-engine's unwired production signal path), three disclosed small required cross-engine extensions, and Doc 22/23/ADR compliance mapping. **Approved and implemented, Option B — see the [Gate Review](../../roadmap/architecture-reviews/phase-2d-c-gate-review.md) for exactly what is and isn't verified end-to-end.** |
+| [05 — Conversation Intelligence Closure](05-conversation-intelligence-closure.md) | Closes the Gate Review's six disclosed production-readiness gaps in dependency order: perception-engine's real production signal chain, the `user_id`/session-correlation problem, the missing communication-engine↔reasoning-engine conversation loop, the cross-context "start listening" mechanism, personality-engine's inert `channel` parameter, and real-infrastructure verification status — with a full dependency graph, per-priority technical designs backed by direct code investigation, and three open architectural forks. **Design only, not yet implemented, not yet user-approved.** |
 
 **Companion documents (not phase-scoped — permanent):**
 [Doc 22 — NOVA Human Interaction Principles](../../architecture/22-nova-human-interaction-principles.md)
