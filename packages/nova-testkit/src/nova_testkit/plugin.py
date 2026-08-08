@@ -15,7 +15,12 @@ from nova_eventbus_sdk.backends.in_memory import InMemoryEventBus
 from nova_testkit.model_gateway import FakeModelGateway
 from nova_testkit.nats import nats_container, nats_event_bus
 from nova_testkit.neo4j import neo4j_container, neo4j_driver
-from nova_testkit.postgres import postgres_container, postgres_engine, postgres_session
+from nova_testkit.postgres import (
+    postgres_container,
+    postgres_engine,
+    postgres_session,
+    postgres_session_factory,
+)
 from nova_testkit.redis import redis_client, redis_container
 
 __all__ = [
@@ -28,6 +33,7 @@ __all__ = [
     "postgres_container",
     "postgres_engine",
     "postgres_session",
+    "postgres_session_factory",
     "redis_client",
     "redis_container",
 ]

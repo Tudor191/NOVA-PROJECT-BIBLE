@@ -52,6 +52,7 @@ __all__ = [
     "postgres_container",
     "postgres_engine",
     "postgres_session",
+    "postgres_session_factory",
     "run_alembic_upgrade",
 ]
 
@@ -77,11 +78,24 @@ def run_alembic_upgrade(alembic_ini_path: str | Path) -> None:
     Call `os.environ["<ENGINE>_POSTGRES_DSN"] = postgres_container.
     get_connection_url()` first, from the engine's own test file, so that
     `Settings()` resolves to the container rather than to `docker-compose.
-    local.yml`'s `postgres` service (or a bare local default)."""
+    local.yml`'s `postgres` service (or a bare local default).
+
+    `script_location` (every engine's `alembic.ini` sets it to the relative
+    path `alembic`) is explicitly re-anchored to `alembic_ini_path`'s own
+    parent directory rather than left to Alembic's own default resolution --
+    confirmed by reading `alembic.util.pyfiles.coerce_resource_to_filename`
+    directly, a relative `script_location` resolves against the *process's
+    current working directory* at upgrade time, not the ini file's location.
+    That happens to match today's convention (`uv run --package <name>
+    pytest` runs with cwd already at that engine's own root), but making it
+    explicit here means this function is correct regardless of the caller's
+    cwd, not merely correct by convention."""
     from alembic import command
     from alembic.config import Config
 
-    cfg = Config(str(alembic_ini_path))
+    ini_path = Path(alembic_ini_path).resolve()
+    cfg = Config(str(ini_path))
+    cfg.set_main_option("script_location", str(ini_path.parent / "alembic"))
     command.upgrade(cfg, "head")
 
 
@@ -97,28 +111,50 @@ async def postgres_engine(postgres_container: PostgresContainer) -> AsyncIterato
 
 
 @pytest.fixture
-async def postgres_session(postgres_engine: AsyncEngine) -> AsyncIterator[AsyncSession]:
-    """One test = one outer transaction, unconditionally rolled back at
-    teardown -- real Postgres, zero cross-test state leakage, no need to
-    restart the container or truncate tables between tests (implementation
-    plan §2.4). `join_transaction_mode="create_savepoint"` is SQLAlchemy 2.0's
-    documented mechanism for joining a `Session` to an already-open connection
-    transaction: repository code that calls `session.begin()`/`commit()`
-    internally (this project's own write-path convention,
-    `repository/db.py`) transparently becomes a SAVEPOINT instead of a real
-    commit, so production repository code runs completely unmodified against
-    this fixture and still gets rolled back at teardown regardless of how many
-    times it committed."""
+async def postgres_session_factory(
+    postgres_engine: AsyncEngine,
+) -> AsyncIterator[async_sessionmaker[AsyncSession]]:
+    """A real `async_sessionmaker[AsyncSession]` bound to one rollback-safe
+    connection -- this project's own repository constructor shape: every real
+    `Postgres*Repository` (confirmed universal across personality-engine,
+    communication-engine, perception-engine, and every earlier engine) takes
+    `session_factory: async_sessionmaker[AsyncSession]` and creates its own
+    sessions internally per call (`async with self._session_factory() as
+    db_session, db_session.begin(): ...`), never a single pre-built session.
+    Passing this fixture straight into a real repository's constructor is
+    therefore the primary, intended way to exercise one -- unmodified
+    production code included.
+
+    One test = one outer transaction, unconditionally rolled back at teardown.
+    `join_transaction_mode="create_savepoint"` is SQLAlchemy 2.0's documented
+    mechanism for joining a `Session` to an already-open connection
+    transaction: every session the repository creates from this factory
+    becomes a SAVEPOINT instead of a real commit, so a repository method that
+    calls `session.begin()`/commits internally still rolls back at teardown
+    regardless of how many times, or how many separate sessions, it
+    committed."""
     async with postgres_engine.connect() as connection:
         outer_transaction = await connection.begin()
-        session_factory = async_sessionmaker(
+        factory = async_sessionmaker(
             bind=connection,
             expire_on_commit=False,
             join_transaction_mode="create_savepoint",
         )
-        session = session_factory()
         try:
-            yield session
+            yield factory
         finally:
-            await session.close()
             await outer_transaction.rollback()
+
+
+@pytest.fixture
+async def postgres_session(
+    postgres_session_factory: async_sessionmaker[AsyncSession],
+) -> AsyncIterator[AsyncSession]:
+    """One ready-to-use `AsyncSession` from `postgres_session_factory`, for
+    tests that run direct queries rather than constructing a repository
+    class (e.g. this package's own `test_postgres.py`)."""
+    session = postgres_session_factory()
+    try:
+        yield session
+    finally:
+        await session.close()
