@@ -4,6 +4,19 @@ and `ConstraintKind` are re-exported from `nova_contracts.events.reasoning` rath
 than redefined here, the same shared-enum convention every prior engine follows
 for cross-cutting classification schemes (e.g. `PrivacyLevel`).
 
+`MemoryReference` and `WorldModelSnapshot` (§7.3, §7.2), along with
+`PersonalContext` (§7.5), are re-exported from `nova_contracts.entities` rather
+than redefined here, as of a design review (`docs/design/nova-service-kit/
+boilerplate-extraction-proposal.md` Extraction E) that confirmed they are
+genuinely semantically identical to Executive Cognition Engine's own copies --
+not merely coincidentally similar in shape: both engines' `clients/`
+implementations call the same upstream subject/payload with byte-identical
+translation logic. This is the same sanctioned shared-vocabulary exception to
+ADR-004 the enum re-exports above already rely on, not a new kind of
+cross-engine dependency -- neither engine imports the other's internals; both
+import a third, neutral package. `KnowledgeReference` (§7.4) has no equivalent
+anywhere else in the repository and stays local, unextracted.
+
 **The boundary this file exists to enforce** (ADR-026, design doc §0): every
 model here either describes *this engine's own reasoning process* (a
 `ReasoningProcess`, a `Hypothesis`, a `Decision`, a `ReasoningTrace`) or is a
@@ -21,6 +34,7 @@ from datetime import UTC, datetime
 from typing import Literal
 from uuid import UUID, uuid4
 
+from nova_contracts.entities import MemoryReference, PersonalContext, WorldModelSnapshot
 from nova_contracts.events.reasoning import (
     ConstraintKind,
     FailureAction,
@@ -94,15 +108,6 @@ class Constraint(BaseModel):
     hard: bool = True
 
 
-class MemoryReference(BaseModel):
-    """§7.3 -- carries Memory Engine's own ID and a summary only, never the
-    memory's full content duplicated into this engine's own records."""
-
-    memory_id: UUID
-    summary: str
-    confidence: float | None = Field(default=None, ge=0.0, le=1.0)
-
-
 class KnowledgeReference(BaseModel):
     """§7.4 -- carries Knowledge Engine's own node ID and its maturity layer
     (Phase 1, ADR-015), used by Confidence Estimation's `knowledge_quality` factor
@@ -113,34 +118,6 @@ class KnowledgeReference(BaseModel):
     layer: str
     confidence: float = Field(ge=0.0, le=1.0)
     related_node_ids: list[str] = Field(default_factory=list)
-
-
-class WorldModelSnapshot(BaseModel):
-    """§7.2 -- a read-only snapshot of World Model's Active Context. `degraded`
-    mirrors `ContextReplyPayload.degraded`: not an error, a signal to proceed with
-    reduced confidence (§10)."""
-
-    user_id: UUID
-    objective: str | None = None
-    project_id: UUID | None = None
-    device: str | None = None
-    task: str | None = None
-    activity: str | None = None
-    confidence: float | None = None
-    degraded: bool = False
-
-
-class PersonalContext(BaseModel):
-    """§7.5 -- Phase 2B's honest placeholder: a thin projection of
-    `WorldModelSnapshot`, not a dedicated Digital Twin Engine concept (Bible Part
-    16, future phase). Named as its own type now so only this shape (and its one
-    adapter) changes when Digital Twin Engine ships (§25)."""
-
-    user_id: UUID
-    objective: str | None = None
-    project_id: UUID | None = None
-    device: str | None = None
-    task: str | None = None
 
 
 class ContextBundle(BaseModel):

@@ -4,8 +4,15 @@ Every event on the Event Bus and every cross-engine payload is defined exactly o
 here (docs/architecture/02-repository-and-folder-structure.md §4). Python consumers
 import these models directly; TypeScript consumers import the generated equivalents
 under `typescript/` (see codegen/generate_typescript.py).
+
+`entities.py` holds a second, smaller category: shared internal domain reference
+types that are genuinely identical across the engines that use them but are never
+themselves published on the Event Bus (see that module's own docstring) -- not
+`schema_version`-ed, and deliberately excluded from TypeScript codegen's `MODELS`
+allowlist for the same reason.
 """
 
+from nova_contracts.entities import MemoryReference, PersonalContext, WorldModelSnapshot
 from nova_contracts.envelope import EventEnvelope
 from nova_contracts.events.ai_model_orchestration import (
     BudgetExceededPayload,
@@ -225,6 +232,7 @@ __all__ = [
     "LifecycleTransitionedPayload",
     "LongTermMemoryCreatedPayload",
     "LongTermMemoryUpdatedPayload",
+    "MemoryReference",
     "MemoryRetrieveReplyPayload",
     "MemoryRetrieveRequestPayload",
     "MemorySearchResultPayload",
@@ -239,6 +247,7 @@ __all__ = [
     "ObjectState",
     "OutcomeReportResult",
     "OverrideAction",
+    "PersonalContext",
     "PersonalityMemoryUpdatePayload",
     "PersonalityStyleSelectReplyPayload",
     "PersonalityStyleSelectRequestPayload",
@@ -271,6 +280,7 @@ __all__ = [
     "VoiceEmbedRequestPayload",
     "WakePhraseDetectReplyPayload",
     "WakePhraseDetectRequestPayload",
+    "WorldModelSnapshot",
     "WorldObjectChangedPayload",
     "known_subjects",
     "payload_model_for",

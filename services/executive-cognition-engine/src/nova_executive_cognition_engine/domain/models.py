@@ -9,11 +9,22 @@ is reused directly from `nova_contracts.events.reasoning` -- design doc §14
 mirrors Reasoning Engine's own failure-recovery action set exactly rather
 than reinventing one.
 
-`MemoryReference`, `WorldModelSnapshot`, and `PersonalContext` are this
-engine's own independent redefinitions of Reasoning Engine's identically-
-shaped domain types (§5.3, §5.5, §5.6) -- structurally reused, never
-imported across the engine boundary (ADR-004): each engine owns its own
-lightweight representation of what it read from a shared upstream port.
+`MemoryReference`, `WorldModelSnapshot`, and `PersonalContext` (§5.3, §5.5,
+§5.6) are re-exported from `nova_contracts.entities` rather than redefined
+here, as of a design review (`docs/design/nova-service-kit/
+boilerplate-extraction-proposal.md` Extraction E) that confirmed they are
+genuinely semantically identical to Reasoning Engine's own copies -- not
+merely coincidentally similar in shape: both engines' `clients/`
+implementations call the same upstream subject/payload with byte-identical
+translation logic. This is the same sanctioned shared-vocabulary exception
+to ADR-004 every other re-export in this file already relies on, not a new
+kind of cross-engine dependency -- neither engine imports the other's
+internals; both import a third, neutral package. `Communication Engine`'s
+own, differently-shaped `WorldModelSnapshot` (5 of these 8 fields, a
+genuinely narrower projection for its own use case) was deliberately
+excluded from this extraction: structural similarity alone was not
+sufficient grounds to share a type, and remains the operative standard for
+any future candidate.
 
 **The boundary this file exists to enforce** (ADR-027/028/029, design doc
 §0): every model here either describes *this engine's own arbitration
@@ -32,6 +43,7 @@ from datetime import UTC, datetime
 from typing import Literal
 from uuid import UUID, uuid4
 
+from nova_contracts.entities import MemoryReference, PersonalContext, WorldModelSnapshot
 from nova_contracts.events.executive_cognition import (
     ArbitrationOutcome,
     CognitivePriorityScore,
@@ -76,44 +88,6 @@ class Goal(BaseModel):
     description: str
     priority: float = Field(ge=0.0, le=1.0)
     goal_tier: Literal["ad_hoc", "established"] = "ad_hoc"
-
-
-class MemoryReference(BaseModel):
-    """§5.3 -- carries Memory Engine's own ID and a summary only, never the
-    memory's full content duplicated into this engine's own records. Used
-    narrowly for historical-outcome lookups (§7.3), never general recall."""
-
-    memory_id: UUID
-    summary: str
-    confidence: float | None = Field(default=None, ge=0.0, le=1.0)
-
-
-class WorldModelSnapshot(BaseModel):
-    """§5.5 -- a read-only snapshot of World Model's Active Context, used for
-    situational grounding during arbitration. `degraded` mirrors
-    `ContextReplyPayload.degraded`: not an error, a signal to proceed without
-    that grounding rather than failing."""
-
-    user_id: UUID
-    objective: str | None = None
-    project_id: UUID | None = None
-    device: str | None = None
-    task: str | None = None
-    activity: str | None = None
-    confidence: float | None = None
-    degraded: bool = False
-
-
-class PersonalContext(BaseModel):
-    """§5.6 -- a thin projection of `WorldModelSnapshot`, the identical
-    placeholder pattern Reasoning Engine already established: Personal
-    Context has no dedicated engine yet (Bible Part 16, future phase)."""
-
-    user_id: UUID
-    objective: str | None = None
-    project_id: UUID | None = None
-    device: str | None = None
-    task: str | None = None
 
 
 class ExecutiveRequest(BaseModel):
