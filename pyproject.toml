@@ -37,6 +37,14 @@ no_implicit_optional = true
 module = ["asyncpg.*", "pgvector.*"]
 ignore_missing_imports = true
 
+# testcontainers ships no py.typed marker either (ADR-033's real-infrastructure
+# tier, docs/design/nova-testkit/technical-implementation-plan.md §3) -- used
+# only inside nova-testkit's own postgres.py/redis.py/neo4j.py/nats.py fixture
+# modules, never imported by any engine's own src/.
+[[tool.mypy.overrides]]
+module = ["testcontainers.*"]
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 markers = [

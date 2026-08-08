@@ -8,6 +8,13 @@ dependencies = [
     "nova-eventbus-sdk",
     "pydantic>=2.9",
     "pytest>=8.3",
+    # ADR-033 real-infrastructure tier (docs/design/nova-testkit/
+    # technical-implementation-plan.md §2, §3) -- dev/test-only for every engine
+    # that depends on nova-testkit, never a production dependency (ADR-033 itself).
+    "testcontainers[postgres,redis,neo4j,nats]>=4.9",
+    "sqlalchemy[asyncio]>=2.0",
+    "asyncpg>=0.29",
+    "alembic>=1.13",
 ]
 
 [project.entry-points.pytest11]

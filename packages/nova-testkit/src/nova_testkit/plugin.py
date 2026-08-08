@@ -13,6 +13,29 @@ import pytest
 from nova_eventbus_sdk.backends.in_memory import InMemoryEventBus
 
 from nova_testkit.model_gateway import FakeModelGateway
+from nova_testkit.nats import nats_container, nats_event_bus
+from nova_testkit.neo4j import neo4j_container, neo4j_driver
+from nova_testkit.postgres import postgres_container, postgres_engine, postgres_session
+from nova_testkit.redis import redis_client, redis_container
+
+__all__ = [
+    "event_bus",
+    "fake_model_gateway",
+    "nats_container",
+    "nats_event_bus",
+    "neo4j_container",
+    "neo4j_driver",
+    "postgres_container",
+    "postgres_engine",
+    "postgres_session",
+    "redis_client",
+    "redis_container",
+]
+"""Re-exported so pytest's plugin loader registers every fixture defined in
+`postgres.py`/`redis.py`/`neo4j.py`/`nats.py` under this single `pytest11`
+entry point -- one plugin module, matching `docs/architecture/
+16-testing-strategy.md`'s "no conftest.py needed" convention for every
+fixture this package provides, real-infrastructure ones included."""
 
 
 @pytest.fixture
