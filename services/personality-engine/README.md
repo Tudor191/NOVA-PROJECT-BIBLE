@@ -164,8 +164,12 @@ uv run --package personality-engine pytest services/personality-engine/tests
 
 - `tests/unit/` -- pure domain logic: every validator check family
   (`test_validator.py`, including the hard-stop-short-circuits-soft-
-  correction case) and every situation-hint-to-style mapping including the
-  no-hint default and channel forward-compatibility (`test_style_selector.py`).
+  correction case), every situation-hint-to-style mapping including the
+  no-hint default, and the channel-based verbosity override (Phase 2D-C
+  Closure Priority 5) -- voice overrides to "concise," every other channel
+  including `None` preserves the resolved `MemoryProfile.verbosity`
+  unchanged, and `style`/`technical_depth` are never affected by channel
+  (`test_style_selector.py`).
 - `tests/integration/` -- boots the real FastAPI app (lifespan-driven, real
   routes) with `PersonalityRepository` substituted for an in-memory fake
   (`tests/fakes/repository.py`): every API endpoint including the 503
@@ -190,12 +194,21 @@ across `src/`; `lint-imports` 4/4 contracts kept.
   against a real Postgres instance** -- every prior engine's own committed
   suite has the identical gap (fakes only); this sandbox has no Docker
   daemon to run one against.
-- **`select_style`'s `channel` parameter is accepted but does not yet
-  influence selection** -- no Phase 2D-A acceptance criterion depends on
-  channel-specific style, and inventing that rule now, untested against real
-  usage, would be exactly the "quality over feature count" violation Master
-  Blueprint §13.7 forbids. The parameter exists for forward compatibility
-  (§13.6).
+- **`select_style`'s `channel` parameter now overrides `verbosity` for the
+  voice channel** (Phase 2D-C Closure Priority 5, `docs/roadmap/
+  architecture-reviews/phase-2d-c-closure-priority-5-gate-review.md`):
+  `channel == "voice"` returns a fixed `"concise"` verbosity instead of the
+  resolved `MemoryProfile.verbosity`; every other channel value, including
+  `None`, is unchanged from before. `style`/`technical_depth` are never
+  affected by channel. **This is not yet reachable by any live
+  conversation** -- `communication-engine`'s `resolve_response_shaping()`,
+  the only caller anywhere in this codebase that could pass a real channel
+  value, is not called by any production turn-handling path (a pre-existing
+  gap the Priority 5 Gate Review documents in full; not this engine's own
+  file to fix). No graduated verbosity scale was introduced -- no ADR,
+  Bible section, Doc 23, or TDD defines one, and inventing one would have
+  been exactly the "channel-specific behavior merely because the field
+  exists" the approved research explicitly declined to do.
 - **`MemoryProfile` is a static default for the whole phase** -- by design
   (ADR-030): real personalization arrives only once `digital-twin-engine`
   ships in Phase 2D-D and starts publishing `personality.memory.update`.

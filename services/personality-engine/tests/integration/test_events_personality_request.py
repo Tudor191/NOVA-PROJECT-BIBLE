@@ -90,3 +90,37 @@ async def test_style_select_rpc_round_trips_through_the_real_event_bus(
         )
         reply = PersonalityStyleSelectReplyPayload.model_validate(reply_envelope.payload)
         assert reply.style == "analytical"
+
+
+async def test_style_select_rpc_voice_channel_overrides_verbosity(
+    monkeypatch,  # type: ignore[no-untyped-def]
+) -> None:
+    """Phase 2D-C Closure Priority 5 -- the real Event-Bus RPC path, not
+    just the HTTP mirror, reaches the same fix (default `MemoryProfile`
+    verbosity is "moderate", confirmed by `FakePersonalityRepository`'s own
+    default)."""
+    monkeypatch.setenv("EVENT_BUS_BACKEND", "in_memory")
+    app = create_app(Settings(), repository=FakePersonalityRepository())
+
+    async with app.router.lifespan_context(app):
+        caller_bus = BoundEventBus(
+            app.state.bus._bus,  # noqa: SLF001 -- same in-memory broker as the app's own bus
+            engine_name="test-caller-engine",
+            publishable_subjects=frozenset(
+                {"personality.validate_response.request", "personality.style.select.request"}
+            ),
+            subscribable_subjects=frozenset(),
+        )
+        reply_envelope = await caller_bus.request(
+            "personality.style.select.request",
+            PersonalityStyleSelectRequestPayload(
+                situation_hint="debugging",
+                channel="voice",
+                requesting_engine="test-caller-engine",
+                correlation_id=uuid4(),
+            ),
+            source_engine="test-caller-engine",
+        )
+        reply = PersonalityStyleSelectReplyPayload.model_validate(reply_envelope.payload)
+        assert reply.style == "analytical"  # unaffected by channel
+        assert reply.verbosity == "concise"

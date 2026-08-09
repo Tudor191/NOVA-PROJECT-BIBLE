@@ -52,3 +52,28 @@ def test_style_returns_503_when_core_identity_is_not_loaded(monkeypatch) -> None
         response = test_client.get("/v1/personality/style")
 
     assert response.status_code == 503
+
+
+def test_style_voice_channel_overrides_verbosity_to_concise(client) -> None:  # type: ignore[no-untyped-def]
+    """Phase 2D-C Closure Priority 5 -- the real HTTP route, through the
+    real app (default `MemoryProfile` verbosity is "moderate", confirmed
+    by `FakePersonalityRepository`'s own default)."""
+    response = client.get("/v1/personality/style", params={"channel": "voice"})
+    assert response.status_code == 200
+    assert response.json()["verbosity"] == "concise"
+
+
+@pytest.mark.parametrize("channel", [None, "text"])
+def test_style_non_voice_channel_preserves_verbosity(client, channel) -> None:  # type: ignore[no-untyped-def]
+    params = {"channel": channel} if channel is not None else {}
+    response = client.get("/v1/personality/style", params=params)
+    assert response.status_code == 200
+    assert response.json()["verbosity"] == "moderate"
+
+
+def test_style_voice_channel_does_not_change_style(client) -> None:  # type: ignore[no-untyped-def]
+    response = client.get(
+        "/v1/personality/style", params={"channel": "voice", "situation_hint": "debugging"}
+    )
+    assert response.status_code == 200
+    assert response.json()["style"] == "analytical"
