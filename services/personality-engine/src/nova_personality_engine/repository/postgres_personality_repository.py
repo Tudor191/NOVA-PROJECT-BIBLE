@@ -74,6 +74,7 @@ class PostgresPersonalityRepository:
             row.terminology_preference = profile.terminology_preference
             row.source = profile.source
             await session.flush()
+            await session.refresh(row)
             return _profile_to_domain(row)
 
     async def record_validation_audit(

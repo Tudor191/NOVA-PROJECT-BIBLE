@@ -17,8 +17,13 @@ from nova_contracts import EventEnvelope
 from nova_eventbus_sdk import ReplayPolicy
 from nova_eventbus_sdk.backends.nats import NatsEventBus
 from nova_testkit import wait_until
+from pydantic import BaseModel
 
 pytestmark = pytest.mark.real_infra
+
+
+class _Echo(BaseModel):
+    question: str
 
 
 async def test_real_publish_and_subscribe(nats_event_bus: NatsEventBus) -> None:
@@ -47,8 +52,13 @@ async def test_real_publish_and_subscribe(nats_event_bus: NatsEventBus) -> None:
 
 
 async def test_real_request_reply(nats_event_bus: NatsEventBus) -> None:
-    async def handler(envelope: EventEnvelope) -> EventEnvelope:
-        return envelope
+    """`handler` must return the reply *payload* (`RequestHandler`'s own
+    contract, `nova_eventbus_sdk.interface`) -- not the received `EventEnvelope`
+    itself, which both `NatsEventBus.serve()` and `InMemoryEventBus.serve()`
+    would otherwise re-wrap as the reply's payload."""
+
+    async def handler(envelope: EventEnvelope) -> _Echo:
+        return _Echo(**envelope.payload)
 
     subscription = await nats_event_bus.serve(
         "testkit.rpc.echo", handler, source_engine="test-server"
