@@ -33,6 +33,7 @@ from nova_communication_engine.config import Settings
 from nova_communication_engine.conversation_orchestration import (
     FALLBACK_CONTENT,
     handle_conversation_turn,
+    maybe_activate_listening,
 )
 from nova_communication_engine.domain.models import (
     ChannelType,
@@ -60,6 +61,17 @@ def _thinking_session(**overrides: object) -> ConversationSession:
         channel=ChannelType.TEXT,
         device_id=uuid4(),
         state=ConversationState.THINKING,
+    )
+    defaults.update(overrides)
+    return ConversationSession(**defaults)  # type: ignore[arg-type]
+
+
+def _voice_session(**overrides: object) -> ConversationSession:
+    defaults: dict[str, object] = dict(
+        user_id=uuid4(),
+        channel=ChannelType.VOICE,
+        device_id=uuid4(),
+        state=ConversationState.IDLE,
     )
     defaults.update(overrides)
     return ConversationSession(**defaults)  # type: ignore[arg-type]
@@ -387,3 +399,164 @@ def test_send_message_over_http_schedules_a_background_turn_that_reaches_deliver
                 time.sleep(0.02)
             assert state == "waiting"
         assert reasoning_port.reason_calls[0][0] == "Hello NOVA"
+
+
+# `maybe_activate_listening` (Phase 2D-C Closure Priority 4, docs/design/
+# phase-2d/05-conversation-intelligence-closure.md Sec6; Priority 4 review
+# Sec3) -- resolves `user_id` to zero, one, or more eligible sessions
+# (connected, voice-channel, Idle/Waiting) and triggers the single
+# unambiguous match's `StartListeningSignal`. Exercised through the real
+# app + lifespan, calling the function directly (mirrors this file's own
+# existing `handle_conversation_turn` tests) rather than through the
+# addressee-signal handler -- `test_addressee_signal_handler.py` already
+# covers that wiring at the Event Bus tier.
+
+
+async def test_maybe_activate_listening_triggers_the_single_eligible_connected_session(
+    monkeypatch,  # type: ignore[no-untyped-def]
+) -> None:
+    monkeypatch.setenv("EVENT_BUS_BACKEND", "in_memory")
+    repository = FakeCommunicationRepository()
+    app = _make_app(repository=repository, reasoning_port=FakeReasoningPort())
+
+    async with app.router.lifespan_context(app):
+        session = await repository.create_session(_voice_session())
+        app.state.session_registry.register(
+            session.session_id, FakeChannelAdapter(channel_type="voice")
+        )
+
+        await maybe_activate_listening(app, user_id=session.user_id, correlation_id=uuid4())
+
+        signal = app.state.session_registry.get_start_listening_signal(session.session_id)
+        assert signal is not None
+        assert signal.is_set() is True
+
+        traces = [
+            t for t in repository.decision_traces if t.decision_type == "listening_activation"
+        ]
+        assert len(traces) == 1
+        assert traces[0].outcome == "activated"
+        assert traces[0].session_id == session.session_id
+
+
+async def test_maybe_activate_listening_is_a_no_op_with_zero_eligible_sessions(
+    monkeypatch,  # type: ignore[no-untyped-def]
+) -> None:
+    monkeypatch.setenv("EVENT_BUS_BACKEND", "in_memory")
+    repository = FakeCommunicationRepository()
+    app = _make_app(repository=repository, reasoning_port=FakeReasoningPort())
+
+    async with app.router.lifespan_context(app):
+        # No session exists at all for this user_id.
+        await maybe_activate_listening(app, user_id=uuid4(), correlation_id=uuid4())
+
+        traces = [
+            t for t in repository.decision_traces if t.decision_type == "listening_activation"
+        ]
+        assert len(traces) == 1
+        assert traces[0].outcome == "no_eligible_session"
+        assert traces[0].session_id is None
+
+
+async def test_maybe_activate_listening_declines_to_guess_with_multiple_eligible_sessions(
+    monkeypatch,  # type: ignore[no-untyped-def]
+) -> None:
+    monkeypatch.setenv("EVENT_BUS_BACKEND", "in_memory")
+    repository = FakeCommunicationRepository()
+    app = _make_app(repository=repository, reasoning_port=FakeReasoningPort())
+
+    async with app.router.lifespan_context(app):
+        user_id = uuid4()
+        first = await repository.create_session(_voice_session(user_id=user_id))
+        second = await repository.create_session(_voice_session(user_id=user_id))
+        app.state.session_registry.register(
+            first.session_id, FakeChannelAdapter(channel_type="voice")
+        )
+        app.state.session_registry.register(
+            second.session_id, FakeChannelAdapter(channel_type="voice")
+        )
+
+        await maybe_activate_listening(app, user_id=user_id, correlation_id=uuid4())
+
+        # Neither candidate is triggered -- a false positive on the wrong
+        # device is strictly worse than staying silent (Doc 22 Principle 6).
+        for session_id in (first.session_id, second.session_id):
+            signal = app.state.session_registry.get_start_listening_signal(session_id)
+            assert signal is not None
+            assert signal.is_set() is False
+
+        traces = [
+            t for t in repository.decision_traces if t.decision_type == "listening_activation"
+        ]
+        assert len(traces) == 1
+        assert traces[0].outcome == "ambiguous_sessions"
+        assert traces[0].session_id is None
+        candidate_ids = set(traces[0].inputs["candidate_session_ids"])
+        assert candidate_ids == {str(first.session_id), str(second.session_id)}
+
+
+async def test_maybe_activate_listening_ignores_a_session_not_idle_or_waiting(
+    monkeypatch,  # type: ignore[no-untyped-def]
+) -> None:
+    monkeypatch.setenv("EVENT_BUS_BACKEND", "in_memory")
+    repository = FakeCommunicationRepository()
+    app = _make_app(repository=repository, reasoning_port=FakeReasoningPort())
+
+    async with app.router.lifespan_context(app):
+        session = await repository.create_session(_voice_session(state=ConversationState.THINKING))
+        app.state.session_registry.register(
+            session.session_id, FakeChannelAdapter(channel_type="voice")
+        )
+
+        await maybe_activate_listening(app, user_id=session.user_id, correlation_id=uuid4())
+
+        signal = app.state.session_registry.get_start_listening_signal(session.session_id)
+        assert signal is not None
+        assert signal.is_set() is False
+        traces = [
+            t for t in repository.decision_traces if t.decision_type == "listening_activation"
+        ]
+        assert traces[0].outcome == "no_eligible_session"
+
+
+async def test_maybe_activate_listening_ignores_a_disconnected_session(
+    monkeypatch,  # type: ignore[no-untyped-def]
+) -> None:
+    monkeypatch.setenv("EVENT_BUS_BACKEND", "in_memory")
+    repository = FakeCommunicationRepository()
+    app = _make_app(repository=repository, reasoning_port=FakeReasoningPort())
+
+    async with app.router.lifespan_context(app):
+        session = await repository.create_session(_voice_session())
+        # Deliberately never registered in session_registry -- no live
+        # WebSocket connection for this session.
+
+        await maybe_activate_listening(app, user_id=session.user_id, correlation_id=uuid4())
+
+        traces = [
+            t for t in repository.decision_traces if t.decision_type == "listening_activation"
+        ]
+        assert traces[0].outcome == "no_eligible_session"
+
+
+async def test_maybe_activate_listening_ignores_text_channel_sessions(
+    monkeypatch,  # type: ignore[no-untyped-def]
+) -> None:
+    monkeypatch.setenv("EVENT_BUS_BACKEND", "in_memory")
+    repository = FakeCommunicationRepository()
+    app = _make_app(repository=repository, reasoning_port=FakeReasoningPort())
+
+    async with app.router.lifespan_context(app):
+        session = await repository.create_session(
+            _voice_session(channel=ChannelType.TEXT, device_id=uuid4())
+        )
+        app.state.session_registry.register(
+            session.session_id, FakeChannelAdapter(channel_type="text")
+        )
+
+        await maybe_activate_listening(app, user_id=session.user_id, correlation_id=uuid4())
+
+        traces = [
+            t for t in repository.decision_traces if t.decision_type == "listening_activation"
+        ]
+        assert traces[0].outcome == "no_eligible_session"

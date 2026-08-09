@@ -119,13 +119,24 @@ async def record_inbound_turn(
     """Design doc Sec0.4's explicit trigger + Sec6's "Determine Intent"
     pass-through: `Idle`/`Waiting` -> `Listening` (the trigger) ->
     `Thinking` (content already captured by the time this is called),
-    publishing `communication.turn.received` for Reasoning Engine."""
-    session = await _apply_transition(
-        session=session,
-        event=ConversationEvent.TRIGGER,
-        repository=repository,
-        correlation_id=correlation_id,
-    )
+    publishing `communication.turn.received` for Reasoning Engine.
+
+    The `TRIGGER` application is skipped when `session` is already
+    `Listening` -- reached when a barge-in (`mark_barge_in`, `Speaking ->
+    Listening`) already applied it for this same turn before this function
+    was ever called (Phase 2D-C Closure Priority 4 review Sec1.3): applying
+    `TRIGGER` unconditionally crashed with `InvalidTransitionError`, since
+    `(Listening, TRIGGER)` is not a defined edge, on every user utterance
+    that followed a barge-in. Any other non-`Idle`/`Waiting`/`Listening`
+    state (a stale/malformed turn) still raises via the `CAPTURED`
+    application below, unchanged."""
+    if session.state in (ConversationState.IDLE, ConversationState.WAITING):
+        session = await _apply_transition(
+            session=session,
+            event=ConversationEvent.TRIGGER,
+            repository=repository,
+            correlation_id=correlation_id,
+        )
     session = await _apply_transition(
         session=session,
         event=ConversationEvent.CAPTURED,

@@ -34,9 +34,14 @@ from nova_observability import get_logger
 
 from nova_communication_engine.domain.addressee_fusion import confidence_tier_label
 from nova_communication_engine.domain.intent_gate import IntentDeliveryOutcome
+from nova_communication_engine.domain.models import (
+    ChannelType,
+    ConversationDecisionTrace,
+    ConversationState,
+)
 from nova_communication_engine.events.handlers import deliver_content_to_session
 
-__all__ = ["handle_conversation_turn", "schedule_conversation_turn"]
+__all__ = ["handle_conversation_turn", "maybe_activate_listening", "schedule_conversation_turn"]
 
 logger = get_logger("communication-engine.conversation_orchestration")
 
@@ -108,6 +113,91 @@ async def handle_conversation_turn(
         confidence_tier=confidence_tier,
         correlation_id=correlation_id,
     )
+
+
+async def maybe_activate_listening(app: FastAPI, *, user_id: UUID, correlation_id: UUID) -> None:
+    """Phase 2D-C Closure Priority 4 (docs/design/phase-2d/
+    05-conversation-intelligence-closure.md §6; Priority 4 review §3) --
+    the server-triggered counterpart to the client's own `TRIGGER_START`
+    message: a `high`-tier addressee-fusion outcome (`make_addressee_signal_
+    handler`, the only caller) resolves `user_id` to a connected,
+    voice-channel session already `Idle`/`Waiting`, and flips that
+    connection's `StartListeningSignal` -- `api/websocket.py`'s receive loop
+    picks it up on its next poll tick and starts capturing audio exactly as
+    if the user had pressed push-to-talk, without ever calling the FSM
+    directly (mirrors the client path's own local-flag-only semantics).
+
+    `IDLE`/`WAITING` are the only states the FSM's `TRIGGER` edge is legal
+    from -- any other state (already mid-turn) is a silent no-op, disclosed
+    via decision trace, not a guess (Doc 22 Principle 6). Likewise, zero or
+    more than one eligible connected session both resolve to a no-op: a
+    false-positive response is strictly worse than staying silent, so this
+    function never guesses which of several connected devices to activate,
+    or activates more than one.
+
+    Every attempt -- not only a successful activation -- writes a
+    `ConversationDecisionTrace` (Doc 22 Principle 7), matching the existing
+    per-candidate `addressee_fusion` trace `make_addressee_signal_handler`
+    already writes unconditionally."""
+    state = app.state
+
+    candidates = [
+        session
+        for session in await state.repository.list_non_terminal_sessions()
+        if session.user_id == user_id
+        and session.channel is ChannelType.VOICE
+        and state.session_registry.is_connected(session.session_id)
+        and session.state in (ConversationState.IDLE, ConversationState.WAITING)
+    ]
+
+    if not candidates:
+        await state.repository.create_decision_trace(
+            ConversationDecisionTrace(
+                session_id=None,
+                decision_type="listening_activation",
+                inputs={"user_id": str(user_id)},
+                outcome="no_eligible_session",
+                reason=(
+                    "No connected voice-channel session in Idle/Waiting was found for this user_id."
+                ),
+            )
+        )
+        state.metrics.listening_activations_total.add(1, {"outcome": "no_eligible_session"})
+        return
+
+    if len(candidates) > 1:
+        candidate_ids = [str(session.session_id) for session in candidates]
+        logger.warning(
+            "listening_activation_ambiguous_sessions",
+            extra={"user_id": str(user_id), "candidate_session_ids": candidate_ids},
+        )
+        await state.repository.create_decision_trace(
+            ConversationDecisionTrace(
+                session_id=None,
+                decision_type="listening_activation",
+                inputs={"user_id": str(user_id), "candidate_session_ids": candidate_ids},
+                outcome="ambiguous_sessions",
+                reason=(
+                    f"{len(candidates)} eligible connected voice sessions found for this "
+                    "user_id; declining to guess which one to activate (Doc 22 Principle 6)."
+                ),
+            )
+        )
+        state.metrics.listening_activations_total.add(1, {"outcome": "ambiguous_sessions"})
+        return
+
+    target = candidates[0]
+    state.session_registry.trigger_start_listening(target.session_id)
+    await state.repository.create_decision_trace(
+        ConversationDecisionTrace(
+            session_id=target.session_id,
+            decision_type="listening_activation",
+            inputs={"user_id": str(user_id)},
+            outcome="activated",
+            reason="Exactly one eligible connected voice session; triggered server-side listening.",
+        )
+    )
+    state.metrics.listening_activations_total.add(1, {"outcome": "activated"})
 
 
 def schedule_conversation_turn(

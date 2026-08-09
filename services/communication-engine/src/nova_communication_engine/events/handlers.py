@@ -18,11 +18,13 @@ unchanged.
 
 `make_addressee_signal_handler` (docs/design/phase-2d/
 04-conversation-intelligence.md Sec4/Sec10) is a genuine publish/subscribe
-handler, not a served RPC -- it never returns a reply. Its own docstring
-states the one deliberately incomplete piece of this phase's addressee
-fusion: it computes and records every fusion decision, but does not itself
-activate a live listening session on a `high` outcome (Priority 4 of the
-closure document above -- not in scope for this pass).
+handler, not a served RPC -- it never returns a reply. It computes and
+records every fusion decision, and -- since Phase 2D-C Closure Priority 4 --
+also attempts to activate a live listening session on a `high` outcome, via
+`conversation_orchestration.maybe_activate_listening`. That function is
+imported inside `handle()` below, not at module scope: `conversation_
+orchestration` itself imports `deliver_content_to_session` from this same
+module, so a top-level import here would be circular.
 """
 
 from __future__ import annotations
@@ -229,17 +231,24 @@ def make_addressee_signal_handler(app: FastAPI):  # type: ignore[no-untyped-def]
     """Sec4/Sec10 -- consumes `perception.addressee_signal.candidate`,
     computes the fusion outcome, and records a `ConversationDecisionTrace`
     for every candidate signal (Sec15's observability requirement; Master
-    Blueprint Risk Sec11.2's calibration-data collection). Deliberately
-    does not itself activate a live session -- see this module's own
-    docstring for why that is a disclosed gap, not a silent one. World
-    Model corroboration (`domain/addressee_fusion.py::
-    corroborate_identity_confidence`) is likewise not called here: it
-    needs a `user_id` to query `world_model.context.request` with, and
-    `perception.addressee_signal.candidate` carries none (perception-engine's
-    own, unchanged, already-approved shape -- Sec0.6 registered it
-    verbatim, it did not redesign it)."""
+    Blueprint Risk Sec11.2's calibration-data collection). Since Phase 2D-C
+    Closure Priority 4, a `tier == "high"` outcome (equivalently,
+    `action == "activated"` -- `domain/addressee_fusion.py::fuse`'s single
+    threshold branch makes the two checks equivalent by construction) also
+    calls `maybe_activate_listening` to resolve `payload.user_id` to a live
+    session and, if exactly one eligible one is connected, trigger it.
+    World Model corroboration (`domain/addressee_fusion.py::
+    corroborate_identity_confidence`) remains unwired here regardless: it
+    needs an independent World Model call this handler does not make,
+    unaffected by Priority 4's own, narrower use of `user_id` (session
+    resolution only, not an identity-confidence claim -- see
+    `PerceptionAddresseeSignalCandidatePayload`'s own docstring)."""
 
     async def handle(envelope: EventEnvelope) -> None:
+        from nova_communication_engine.conversation_orchestration import (
+            maybe_activate_listening,
+        )
+
         state = app.state
         payload = PerceptionAddresseeSignalCandidatePayload.model_validate(envelope.payload)
 
@@ -261,12 +270,14 @@ def make_addressee_signal_handler(app: FastAPI):  # type: ignore[no-untyped-def]
                 confidence=outcome.score,
                 confidence_tier=confidence_tier_label(outcome.score),
                 outcome=outcome.action,
-                reason=(
-                    f"score={outcome.score:.3f} against weights "
-                    "(no live-session activation this phase; see handler docstring)"
-                ),
+                reason=f"score={outcome.score:.3f} against weights",
             )
         )
         state.metrics.addressee_fusion_total.add(1, {"outcome": outcome.action})
+
+        if outcome.tier == "high":
+            await maybe_activate_listening(
+                app, user_id=payload.user_id, correlation_id=envelope.correlation_id
+            )
 
     return handle

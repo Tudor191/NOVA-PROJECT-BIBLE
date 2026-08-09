@@ -42,6 +42,11 @@ class CommunicationEngineMetrics:
     (`activated` | `clarify` | `silent`), the same calibration-data
     collection Master Blueprint Risk Sec11.2 requires."""
 
+    listening_activations_total: Counter
+    """Phase 2D-C Closure Priority 4 -- `conversation_orchestration.
+    maybe_activate_listening` attempts, labeled by `outcome` (`activated` |
+    `no_eligible_session` | `ambiguous_sessions`)."""
+
 
 def create_metrics() -> CommunicationEngineMetrics:
     meter = get_meter("communication-engine")
@@ -82,5 +87,9 @@ def create_metrics() -> CommunicationEngineMetrics:
         addressee_fusion_total=meter.create_counter(
             "communication_engine_addressee_fusion_total",
             description="Addressee-detection fusion outcomes, labeled by outcome.",
+        ),
+        listening_activations_total=meter.create_counter(
+            "communication_engine_listening_activations_total",
+            description="Server-triggered listening-activation attempts, labeled by outcome.",
         ),
     )

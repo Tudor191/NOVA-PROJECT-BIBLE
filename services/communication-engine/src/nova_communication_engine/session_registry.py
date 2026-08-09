@@ -20,7 +20,7 @@ from __future__ import annotations
 from uuid import UUID
 
 from nova_communication_engine.domain.ports import ChannelAdapter
-from nova_communication_engine.domain.speech import BargeInSignal
+from nova_communication_engine.domain.speech import BargeInSignal, StartListeningSignal
 
 __all__ = ["SessionRegistry"]
 
@@ -29,14 +29,17 @@ class SessionRegistry:
     def __init__(self) -> None:
         self._adapters: dict[UUID, ChannelAdapter] = {}
         self._barge_in_signals: dict[UUID, BargeInSignal] = {}
+        self._start_listening_signals: dict[UUID, StartListeningSignal] = {}
 
     def register(self, session_id: UUID, adapter: ChannelAdapter) -> None:
         self._adapters[session_id] = adapter
         self._barge_in_signals[session_id] = BargeInSignal()
+        self._start_listening_signals[session_id] = StartListeningSignal()
 
     def unregister(self, session_id: UUID) -> None:
         self._adapters.pop(session_id, None)
         self._barge_in_signals.pop(session_id, None)
+        self._start_listening_signals.pop(session_id, None)
 
     def get_adapter(self, session_id: UUID) -> ChannelAdapter | None:
         return self._adapters.get(session_id)
@@ -46,6 +49,14 @@ class SessionRegistry:
 
     def trigger_barge_in(self, session_id: UUID) -> None:
         signal = self._barge_in_signals.get(session_id)
+        if signal is not None:
+            signal.trigger()
+
+    def get_start_listening_signal(self, session_id: UUID) -> StartListeningSignal | None:
+        return self._start_listening_signals.get(session_id)
+
+    def trigger_start_listening(self, session_id: UUID) -> None:
+        signal = self._start_listening_signals.get(session_id)
         if signal is not None:
             signal.trigger()
 

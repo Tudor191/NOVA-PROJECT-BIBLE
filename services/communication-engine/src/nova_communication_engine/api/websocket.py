@@ -120,6 +120,21 @@ async def session_websocket(websocket: WebSocket, session_id: UUID) -> None:
                     adapter.receive(), timeout=_SILENCE_POLL_INTERVAL_S
                 )
             except TimeoutError:
+                # Phase 2D-C Closure Priority 4: the server-triggered
+                # counterpart to the client's own TRIGGER_START -- polled on
+                # the same cadence as the VAD silence feed below, the first
+                # in-loop check of a SessionRegistry-held signal (Priority 4
+                # review Sec1.2).
+                start_listening_signal = state.session_registry.get_start_listening_signal(
+                    session_id
+                )
+                if start_listening_signal is not None and start_listening_signal.is_set():
+                    start_listening_signal.clear()  # one-shot
+                    if not turn_active:  # do not clobber an in-progress turn
+                        vad.reset()
+                        audio_buffer = bytearray()
+                        turn_active = True
+
                 if turn_active:
                     event = vad.feed(energy_above_threshold=False, now_ms=_now_ms())
                     if event is UtteranceEvent.ENDED:

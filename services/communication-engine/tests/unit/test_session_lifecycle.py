@@ -84,6 +84,36 @@ async def test_record_inbound_turn_from_waiting_reuses_the_trigger_edge() -> Non
     assert updated.state is ConversationState.THINKING
 
 
+async def test_record_inbound_turn_from_listening_skips_the_redundant_trigger() -> None:
+    """Phase 2D-C Closure Priority 4 review Sec1.3: a barge-in
+    (`mark_barge_in`) already moves the session `Speaking -> Listening`
+    before the user's continuing speech is captured -- applying `TRIGGER`
+    again here used to raise `InvalidTransitionError` (`(Listening,
+    TRIGGER)` is not a defined edge), crashing the WebSocket connection on
+    every utterance that followed a barge-in."""
+    session = _session(ConversationState.LISTENING)
+    repo = await _seeded_repo(session)
+    updated, turn = await session_lifecycle.record_inbound_turn(
+        session=session, content="...as I was saying", repository=repo, correlation_id=uuid4()
+    )
+    assert updated.state is ConversationState.THINKING
+    assert turn.content == "...as I was saying"
+    subjects = [e.subject for e in repo.outbox]
+    assert subjects.count("communication.session.state_changed") == 1  # captured only, no trigger
+    assert "communication.turn.received" in subjects
+
+
+async def test_record_inbound_turn_from_thinking_still_raises() -> None:
+    """Not `Idle`/`Waiting`/`Listening` -- an invalid transition genuinely
+    is still an error, unchanged by the Listening-tolerant fix above."""
+    session = _session(ConversationState.THINKING)
+    repo = await _seeded_repo(session)
+    with pytest.raises(InvalidTransitionError):
+        await session_lifecycle.record_inbound_turn(
+            session=session, content="stray audio", repository=repo, correlation_id=uuid4()
+        )
+
+
 async def test_close_session_requires_waiting_state() -> None:
     session = _session(ConversationState.THINKING)
     repo = await _seeded_repo(session)

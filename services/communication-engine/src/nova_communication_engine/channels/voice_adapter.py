@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 
-from fastapi import WebSocket
+from fastapi import WebSocket, WebSocketDisconnect
 
 from nova_communication_engine.domain.models import (
     ChannelCapabilities,
@@ -31,6 +31,17 @@ class VoiceChannelAdapter:
 
     async def receive(self) -> InboundMessage:
         message = await self._websocket.receive()
+        if message["type"] == "websocket.disconnect":
+            # `WebSocket.receive()` is the raw ASGI-level call (needed here
+            # since a single voice-channel connection carries both binary
+            # audio and JSON control frames, unlike `TextChannelAdapter`'s
+            # single-mode `receive_json()`) -- unlike `receive_text()`/
+            # `receive_bytes()`/`receive_json()`, it does not itself raise
+            # `WebSocketDisconnect` on this message type, so this adapter
+            # must (mirrors Starlette's own `WebSocket._raise_on_disconnect`
+            # precedent, used internally by those three methods).
+            raise WebSocketDisconnect(message.get("code", 1000), message.get("reason"))
+
         audio = message.get("bytes")
         if audio is not None:
             return InboundMessage(kind=InboundMessageKind.AUDIO_CHUNK, audio=audio)

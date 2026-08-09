@@ -9,7 +9,15 @@ perception-engine's still-unwired production publisher (TDD Sec0.4, Option
 B). This is exactly the "contract-level, fake-driven" tier Sec22.1/Sec22.2
 describe -- not an end-to-end proof against real perception-engine
 sensors, which Sec0.4/Sec22.4 explicitly name as still open.
-"""
+
+Since Phase 2D-C Closure Priority 4, a `tier == "high"` outcome (this
+module's own `FusionOutcome.action == "activated"`) also drives
+`maybe_activate_listening`, which writes its own second, distinct
+`listening_activation` decision trace -- see
+`test_conversation_orchestration.py`/`test_websocket_voice.py` for that
+mechanism's own dedicated coverage; here it is asserted only far enough to
+confirm the wiring fires (`no_eligible_session`, since this test never
+creates a session for the signal's `user_id`)."""
 
 from __future__ import annotations
 
@@ -54,13 +62,23 @@ async def test_a_published_candidate_signal_produces_a_recorded_decision_trace(
             session_active=True,
         )
 
-        assert len(repository.decision_traces) == 1
+        # Two traces: the unconditional per-candidate `addressee_fusion` one,
+        # and Priority 4's own `listening_activation` attempt this "high"
+        # tier now also triggers.
+        assert len(repository.decision_traces) == 2
         trace = repository.decision_traces[0]
         assert trace.decision_type == "addressee_fusion"
         assert trace.session_id is None
         assert trace.outcome == "activated"
         assert trace.confidence_tier == "medium"  # score 0.70 is below the 0.85 "high" tier floor
         assert trace.confidence is not None and trace.confidence >= 0.70
+
+        activation_trace = repository.decision_traces[1]
+        assert activation_trace.decision_type == "listening_activation"
+        # No session exists for this signal's user_id in this test's
+        # repository -- the wiring fires, but finds nothing to activate.
+        assert activation_trace.outcome == "no_eligible_session"
+        assert activation_trace.session_id is None
 
 
 async def test_a_low_confidence_signal_records_a_silent_outcome(
@@ -79,9 +97,7 @@ async def test_a_low_confidence_signal_records_a_silent_outcome(
 
     async with app.router.lifespan_context(app):
         source = FakePerceptionSignalSource()
-        await source.publish_addressee_signal_candidate(
-            app.state.bus._bus, user_id=uuid4()
-        )  # noqa: SLF001
+        await source.publish_addressee_signal_candidate(app.state.bus._bus, user_id=uuid4())  # noqa: SLF001
 
         assert len(repository.decision_traces) == 1
         trace = repository.decision_traces[0]
