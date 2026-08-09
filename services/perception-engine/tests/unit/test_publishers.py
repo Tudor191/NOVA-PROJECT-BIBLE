@@ -84,6 +84,7 @@ def test_addressee_signal_candidate_carries_no_verdict_field() -> None:
         identity_confidence=0.7,
         gaze_direction="toward_device",
         session_active=True,
+        user_id=uuid4(),
         correlation_id=uuid4(),
     )
     assert event.subject == "perception.addressee_signal.candidate"

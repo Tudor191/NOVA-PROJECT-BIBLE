@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+from uuid import UUID
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -38,3 +40,15 @@ class Settings(BaseSettings):
     ai_model_orchestration_timeout_ms: int = 5000
     """Event-Bus request/reply timeout for the four biometric/wake RPCs
     (Sec0.2) -- `clients/ai_model_orchestration_client.py`."""
+
+    primary_user_id: UUID | None = None
+    """Closure Priority 2 (docs/design/phase-2d/
+    05-conversation-intelligence-closure.md Sec4) -- the deployment's
+    single trusted user (ADR-025's Personal Edition default), a scoped
+    stopgap for the not-yet-built `current_principal`/device-keypair
+    mechanism (docs/architecture/13-auth-and-security.md). Empty by
+    default, mirroring `template_encryption_key`'s pattern: the engine
+    still boots and serves presence-only observations without it configured,
+    but `observation_orchestration.py::handle_observation_window` degrades
+    explicitly (publishes nothing, logs a warning) rather than guessing a
+    user identity whenever it is unset -- never a silent fallback."""

@@ -13,6 +13,8 @@ sensors, which Sec0.4/Sec22.4 explicitly name as still open.
 
 from __future__ import annotations
 
+from uuid import uuid4
+
 from nova_communication_engine.config import Settings
 from nova_communication_engine.main import create_app
 from nova_contracts.events.perception import GazeDirection
@@ -45,6 +47,7 @@ async def test_a_published_candidate_signal_produces_a_recorded_decision_trace(
         source = FakePerceptionSignalSource()
         await source.publish_addressee_signal_candidate(
             app.state.bus._bus,  # noqa: SLF001 -- same in-memory broker as the app's own bus
+            user_id=uuid4(),
             wake_word_matched=True,
             wake_word_confidence=1.0,
             gaze_direction=GazeDirection.TOWARD_DEVICE,
@@ -76,7 +79,9 @@ async def test_a_low_confidence_signal_records_a_silent_outcome(
 
     async with app.router.lifespan_context(app):
         source = FakePerceptionSignalSource()
-        await source.publish_addressee_signal_candidate(app.state.bus._bus)  # noqa: SLF001
+        await source.publish_addressee_signal_candidate(
+            app.state.bus._bus, user_id=uuid4()
+        )  # noqa: SLF001
 
         assert len(repository.decision_traces) == 1
         trace = repository.decision_traces[0]

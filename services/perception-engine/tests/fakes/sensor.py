@@ -1,19 +1,21 @@
 """`FakeSensor` -- a configurable double covering only the surface
 `observation_orchestration.handle_observation_window` actually calls
 (`state`, `detect_presence`, `detect_wake_phrase`, `estimate_attention`,
-`report_error`) -- deliberately narrower than the real `Sensor` Protocol,
-since the real `VoiceSensor`/`CameraSensor` (exercised through
-`create_app`+`TestClient` in `tests/integration/test_api_observations.py`)
-already cover the full lifecycle contract elsewhere. This double exists to
-make failure/edge-case branches (non-`running` state, a raising detection
-call) deterministic and precise, without driving the real consent/lifecycle
-flow just to reach them.
+`match_voiceprint`, `match_faceprint`, `report_error`) -- deliberately
+narrower than the real `Sensor` Protocol, since the real `VoiceSensor`/
+`CameraSensor` (exercised through `create_app`+`TestClient` in
+`tests/integration/test_api_observations.py`) already cover the full
+lifecycle contract elsewhere. This double exists to make failure/edge-case
+branches (non-`running` state, a raising detection call, a configurable
+identity match) deterministic and precise, without driving the real
+consent/lifecycle flow just to reach them.
 """
 
 from __future__ import annotations
 
 from uuid import UUID
 
+from nova_perception_engine.domain.identity_fusion import ModalitySignal
 from nova_perception_engine.domain.models import AttentionObservation
 from nova_perception_engine.domain.sensor import SensorErrorReport, SensorState
 
@@ -30,6 +32,7 @@ class FakeSensor:
         presence: bool = True,
         wake_matched: bool = True,
         attention: AttentionObservation | None = None,
+        identity_signal: ModalitySignal | None = None,
         raise_on_detect: bool = False,
     ) -> None:
         self._state = state
@@ -41,9 +44,11 @@ class FakeSensor:
             gaze_direction="toward_device",
             confidence=0.9,
         )
+        self.identity_signal = identity_signal
         self.raise_on_detect = raise_on_detect
         self.errors: list[SensorErrorReport] = []
         self.presence_calls: list[bytes] = []
+        self.match_calls: list[UUID] = []
 
     def state(self) -> SensorState:
         return self._state
@@ -65,6 +70,18 @@ class FakeSensor:
         if self.raise_on_detect:
             raise RuntimeError("simulated detection failure")
         return self.attention
+
+    async def match_voiceprint(
+        self, window: bytes, *, user_id: UUID, correlation_id: UUID | None = None
+    ) -> ModalitySignal | None:
+        self.match_calls.append(user_id)
+        return self.identity_signal
+
+    async def match_faceprint(
+        self, window: bytes, *, user_id: UUID, correlation_id: UUID | None = None
+    ) -> ModalitySignal | None:
+        self.match_calls.append(user_id)
+        return self.identity_signal
 
     def report_error(self, error: SensorErrorReport) -> None:
         self.errors.append(error)

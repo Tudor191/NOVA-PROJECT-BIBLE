@@ -75,6 +75,7 @@ class FakePerceptionSignalSource:
         self,
         bus: EventBus,
         *,
+        user_id: UUID,
         wake_word_matched: bool = False,
         wake_word_confidence: float = 0.0,
         identity_id: UUID | None = None,
@@ -86,7 +87,11 @@ class FakePerceptionSignalSource:
         """The one subject Phase 2D-C's fusion (04-conversation-intelligence.md
         §4) actually consumes -- every default here scores `LOW` under that
         document's weighting, so a test must opt in to whichever signals it
-        wants to exercise a `HIGH`/`UNCERTAIN` outcome."""
+        wants to exercise a `HIGH`/`UNCERTAIN` outcome. `user_id` has no
+        default (Closure Priority 2, docs/design/phase-2d/
+        05-conversation-intelligence-closure.md Sec4) -- mirrors the real,
+        required contract field exactly, so a test caller must decide it
+        rather than inherit a hidden one."""
         payload = PerceptionAddresseeSignalCandidatePayload(
             wake_word_matched=wake_word_matched,
             wake_word_confidence=wake_word_confidence,
@@ -94,6 +99,7 @@ class FakePerceptionSignalSource:
             identity_confidence=identity_confidence,
             gaze_direction=gaze_direction,
             session_active=session_active,
+            user_id=user_id,
         )
         return await self._publish(
             bus,

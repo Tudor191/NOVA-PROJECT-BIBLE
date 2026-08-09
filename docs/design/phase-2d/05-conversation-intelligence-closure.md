@@ -7,10 +7,15 @@ Priority 1 approved (Fork #3 Option 1: a real ingestion endpoint; and a new,
 user-confirmed capability limit — no identity matching or session-active
 lookup this pass, deferred to Priority 2) and implemented — see the
 [Priority 1 Gate Review](../../roadmap/architecture-reviews/phase-2d-c-closure-priority-1-gate-review.md).
-Priorities 2, 4, 5, and 6 remain DESIGN ONLY, exactly as below — no
+Priority 2 approved (Fork #2: yes, add `Settings.primary_user_id`, Option A
+via E exactly as §4.2 recommends; plus two new, user-confirmed decisions —
+gate identity matching on active consent before matching, and leave World
+Model corroboration unwired this pass) and implemented — see the
+[Priority 2 Gate Review](../../roadmap/architecture-reviews/phase-2d-c-closure-priority-2-gate-review.md).
+Priorities 4, 5, and 6 remain DESIGN ONLY, exactly as below — no
 implementation has begun on any of them, and per direct instruction this
 document's remaining sections are not reinterpreted or silently resolved by
-Priority 1 or 3's completion.**
+Priority 1, 2, or 3's completion.**
 
 This document is the required deliverable of the "Phase 2D-C Closure" task,
 using the [Phase 2D-C Gate Review](../../roadmap/architecture-reviews/phase-2d-c-gate-review.md)
@@ -286,6 +291,20 @@ Gate-Reviewed engine — and per instruction this document stops here rather
 than deciding it.
 
 ## 4. Priority 2 — the `user_id`/session-correlation problem
+
+**Implemented — see the
+[Priority 2 Gate Review](../../roadmap/architecture-reviews/phase-2d-c-closure-priority-2-gate-review.md).**
+The design below (§4.1-§4.3) is preserved as-written, as the rationale
+record. Fork #2 was resolved exactly as §4.2 recommends — Option A via E:
+a new `Settings.primary_user_id: UUID | None`, populated onto every
+outbound `perception.addressee_signal.candidate` regardless of whether
+biometric identity matched. Two further decisions, not anticipated by this
+section as originally written, were put to the user before implementation
+and both resolved as recommended: identity matching
+(`match_voiceprint`/`match_faceprint`) is now gated on active per-source
+consent before it runs (Doc 22 Principle 8), and World Model's
+`corroborate_identity_confidence` RPC remains deliberately unwired this
+pass — see the Gate Review's §1 for the full findings.
 
 ### 4.1 Investigation findings
 

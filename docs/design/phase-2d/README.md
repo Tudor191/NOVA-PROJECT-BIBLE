@@ -51,7 +51,14 @@ implemented** — see the
 [Priority 1 Gate Review](../../roadmap/architecture-reviews/phase-2d-c-closure-priority-1-gate-review.md)
 for the disclosed capability limit (no identity matching or session-active
 signal yet, pending Priority 2).
-**Priorities 2, 4, 5, and 6 remain design-only, not yet implemented and
+**Priority 2 (the `user_id`/session-correlation problem — a configured
+`primary_user_id`, consent-gated identity matching, and real
+`session_active` resolution) is approved and implemented** — see the
+[Priority 2 Gate Review](../../roadmap/architecture-reviews/phase-2d-c-closure-priority-2-gate-review.md)
+for the disclosed pre-existing consent-gating gap this pass did not fix
+(sensor `start()` itself remains ungated) and confirmation that World Model
+corroboration remains unwired by explicit user choice.
+**Priorities 4, 5, and 6 remain design-only, not yet implemented and
 not yet user-approved**, each awaiting its own explicit go-ahead before any
 further code changes. Phase 2D-D does not start until the full closure is
 explicitly approved.
@@ -77,7 +84,7 @@ See the blueprint's §0 for the full reconciliation and the exact 3A→2D-A / 3B
 | [02 — Personality Engine](02-personality-engine.md) | The rule-based, model-free (ADR-020-compliant-by-construction) implementation of Doc 23: the Consistency Validator, Style Selector, Personality Memory (a static default until Phase 2D-D's `digital-twin-engine` exists to populate it for real), the Personality/Digital-Twin boundary enforced structurally, data model, event/API contracts, and Doc 22/23 compliance mapping |
 | [03 — Perception Engine](03-perception-engine.md) | Phase 2D-B's minimal (voice + camera) slice of Bible Part 11: the required biometric/wake-signal extension to `ai-model-orchestration-engine` (ADR-020 compliance) and the required `ActiveContext` extension to World Model Engine (ADR-017 compliance), the Sensor Abstraction Layer's full lifecycle contract, the Identity Registry, the evidence-fusion identity-confidence algorithm (no single signal is ever sufficient), the talking-TO-vs-ABOUT-NOVA boundary (2D-B observes and publishes, 2D-C decides), privacy/consent architecture, data model, event/API contracts, and Doc 22/23 compliance mapping. **Approved and implemented.** |
 | [04 — Conversation Intelligence](04-conversation-intelligence.md) | Phase 2D-C's behavioral/policy extension to `communication-engine`: addressee-detection fusion (2D-B signals + conversational context), the silence/interruption policy layer, the Clarification Engine, response-length/tone/multilingual-response shaping, session-scoped Conversation Memory, one disclosed open architectural fork requiring the user's decision (perception-engine's unwired production signal path), three disclosed small required cross-engine extensions, and Doc 22/23/ADR compliance mapping. **Approved and implemented, Option B — see the [Gate Review](../../roadmap/architecture-reviews/phase-2d-c-gate-review.md) for exactly what is and isn't verified end-to-end.** |
-| [05 — Conversation Intelligence Closure](05-conversation-intelligence-closure.md) | Closes the Gate Review's six disclosed production-readiness gaps in dependency order: perception-engine's real production signal chain, the `user_id`/session-correlation problem, the missing communication-engine↔reasoning-engine conversation loop, the cross-context "start listening" mechanism, personality-engine's inert `channel` parameter, and real-infrastructure verification status — with a full dependency graph, per-priority technical designs backed by direct code investigation, and three open architectural forks. **Design only, not yet implemented, not yet user-approved.** |
+| [05 — Conversation Intelligence Closure](05-conversation-intelligence-closure.md) | Closes the Gate Review's six disclosed production-readiness gaps in dependency order: perception-engine's real production signal chain, the `user_id`/session-correlation problem, the missing communication-engine↔reasoning-engine conversation loop, the cross-context "start listening" mechanism, personality-engine's inert `channel` parameter, and real-infrastructure verification status — with a full dependency graph, per-priority technical designs backed by direct code investigation, and three open architectural forks. **Priorities 1, 2, and 3 approved and implemented; Priorities 4, 5, and 6 remain design only, not yet implemented and not yet user-approved.** |
 
 **Companion documents (not phase-scoped — permanent):**
 [Doc 22 — NOVA Human Interaction Principles](../../architecture/22-nova-human-interaction-principles.md)

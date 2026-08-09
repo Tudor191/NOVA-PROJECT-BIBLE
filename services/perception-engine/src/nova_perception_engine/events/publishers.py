@@ -113,13 +113,16 @@ def addressee_signal_candidate(
     identity_confidence: float,
     gaze_direction: str,
     session_active: bool,
+    user_id: UUID,
     correlation_id: UUID,
 ) -> OutboxEvent:
     """Sec10 -- raw candidate signals only, no verdict field of any kind.
     Deliberately subject-named `.candidate`, not `.observed` -- never
     matches World Model's wildcard, consumed directly by
     `communication-engine`'s Phase 2D-C addressee fusion
-    (docs/design/phase-2d/04-conversation-intelligence.md Sec4)."""
+    (docs/design/phase-2d/04-conversation-intelligence.md Sec4).
+    `user_id` -- Closure Priority 2, see the payload's own docstring for
+    exactly what it does and does not claim."""
     payload = PerceptionAddresseeSignalCandidatePayload(
         wake_word_matched=wake_word_matched,
         wake_word_confidence=wake_word_confidence,
@@ -127,6 +130,7 @@ def addressee_signal_candidate(
         identity_confidence=identity_confidence,
         gaze_direction=gaze_direction,
         session_active=session_active,
+        user_id=user_id,
     )
     return OutboxEvent(
         subject="perception.addressee_signal.candidate",

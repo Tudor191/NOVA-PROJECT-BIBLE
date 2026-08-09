@@ -28,6 +28,7 @@ async def test_publish_addressee_signal_candidate_reaches_a_subscriber(
     identity_id = uuid4()
     await fake_perception_signal_source.publish_addressee_signal_candidate(
         event_bus,
+        user_id=uuid4(),
         wake_word_matched=True,
         wake_word_confidence=0.92,
         identity_id=identity_id,
@@ -49,7 +50,9 @@ async def test_publish_addressee_signal_candidate_reaches_a_subscriber(
 async def test_defaults_score_low_under_the_documented_fusion_weighting(
     event_bus: InMemoryEventBus, fake_perception_signal_source: FakePerceptionSignalSource
 ) -> None:
-    envelope = await fake_perception_signal_source.publish_addressee_signal_candidate(event_bus)
+    envelope = await fake_perception_signal_source.publish_addressee_signal_candidate(
+        event_bus, user_id=uuid4()
+    )
     payload = PerceptionAddresseeSignalCandidatePayload.model_validate(envelope.payload)
 
     assert payload.wake_word_matched is False
