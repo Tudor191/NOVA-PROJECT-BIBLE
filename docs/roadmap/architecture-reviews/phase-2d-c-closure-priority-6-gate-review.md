@@ -1,19 +1,20 @@
 # Phase 2D-C Closure — Priority 6 Gate Review: real-infrastructure fixes
 
-**Status: NOT complete — 33/34 confirmed passing.** The scheduled nightly
+**Status: NOT complete — 33/34 confirmed passing; the 34th fix is pushed and
+awaiting its first real-infrastructure execution.** The scheduled nightly
 `real-infra-checks.yml` run (`31359464265`, 2026-08-10T05:42:47Z, against
-commit `cce5626`) has executed and been inspected (§4). The
-`personality-engine` fix is **confirmed correct on real Postgres**:
+commit `cce5626`) executed and was inspected (§4). The `personality-engine`
+fix is **confirmed correct on real Postgres**:
 `test_update_memory_profile_persists_and_advances_updated_at` now passes.
-`nova-testkit`'s `test_real_request_reply` **still fails**, but for a
-distinct, more precisely diagnosed root cause than originally documented in
-the proposal — a second occurrence of the same envelope/payload conflation
+`nova-testkit`'s `test_real_request_reply` failed in that run for a distinct,
+more precisely diagnosed root cause than originally documented in the
+proposal — a second occurrence of the same envelope/payload conflation
 defect, at the test's `.request()` call site rather than its `serve()`
-handler (§4.2). This was a pre-existing defect the original fix did not
-touch and did not regress; it was simply unmasked once the handler-side
-defect stopped hiding it. Per explicit instruction, no further code change
-was made this pass — the new failure is root-caused and reported, not
-assumed away. Priority 6 remains open.
+handler (§4.2). That second occurrence has now been fixed (§8, commit
+`42ca8f2`) and fully locally verified; `workflow_dispatch` remains blocked by
+the same 403 (§4, re-confirmed, no workaround attempted), so this fix's real
+Postgres/NATS confirmation is pending the next nightly `schedule` firing.
+**Priority 6 will not be marked complete until that run shows 34/34.**
 
 ---
 
@@ -251,54 +252,111 @@ identical count to run `31296349533`, confirming no regression.
 Job `93365293714` (`perception-engine`): `7 passed, 127 deselected` — same.
 Neither package was touched by this pass's fixes, as expected.
 
-## 5. Current, honest status of all 34 real_infra tests
+## 5. Status as of run `31359464265` (before the second fix)
 
-| Package | Real_infra tests | Status as of run `31359464265` (2026-08-10) |
+| Package | Real_infra tests | Status |
 |---|---|---|
-| `communication-engine` | 11 | Confirmed passing for real (unchanged) |
-| `perception-engine` | 7 | Confirmed passing for real (unchanged) |
-| `personality-engine` | 5 | **All 5 confirmed passing**, including `test_update_memory_profile_persists_and_advances_updated_at` — the fix in §2.1 is verified against real Postgres |
-| `nova-testkit` | 11 | 10 confirmed passing; `test_real_request_reply` **still fails**, root cause now precisely identified as a second, distinct occurrence of the envelope/payload conflation defect at the test's `.request()` call site (§4.2) — not yet fixed |
-| **Total** | **34** | **33 confirmed passing for real; 1 failing with a fully root-caused, not-yet-implemented fix** |
+| `communication-engine` | 11 | Confirmed passing for real |
+| `perception-engine` | 7 | Confirmed passing for real |
+| `personality-engine` | 5 | **All 5 confirmed passing**, including `test_update_memory_profile_persists_and_advances_updated_at` — §2.1's fix verified against real Postgres |
+| `nova-testkit` | 11 | 10 confirmed passing; `test_real_request_reply` failing, root cause identified as a second, distinct occurrence of the envelope/payload conflation defect at the test's `.request()` call site (§4.2) |
+| **Total** | **34** | **33 confirmed passing for real; 1 failing, root-caused** |
 
-## 6. Remaining limitations
+This was reported to the user, who approved fixing the second occurrence
+(§8).
 
-- One real_infra test (`nova-testkit::test_real_request_reply`) still fails.
-  The fix implemented this pass corrected the defect as originally scoped
-  (the `serve()` handler) but did not cover a second occurrence of the same
-  conflation at the `.request()` call site in the same test — that occurrence
-  was not part of the approved fix scope and was only exposed, not
-  introduced, once the handler-side fix stopped masking it (§4.2). A
-  corrected fix (constructing and passing a plain `_Echo(question="ping")`
-  payload model to `.request()`, instead of a full `EventEnvelope`) is
-  implied by this diagnosis but has **not been implemented**, per instruction
-  to stop and report rather than assume.
-- This session still cannot run either real_infra suite locally (no reachable
-  Docker daemon) and still cannot dispatch `real-infra-checks.yml` manually
-  (§4's 403). Confirmation of any further fix again depends on the next
-  nightly `schedule` firing, or a manual dispatch by someone with sufficient
-  repository access.
-- Run-to-run stability now has two data points (runs `31296349533` and
-  `31359464265`): both completed cleanly through the full container
-  lifecycle (start, migrate/seed, test, teardown) with no ordering or
-  isolation anomalies — the only differences between the two runs are the
-  ones this pass's fixes intentionally produced. No flakiness observed so far.
+## 8. The second fix
 
-## 7. Compliance with this phase's constraints
+**Approved scope:** change only `test_nats.py`'s `.request()` call so
+`NatsEventBus.request()` receives a plain payload model instead of a full
+`EventEnvelope`; preserve request/reply semantics and the existing
+assertion; no production code, no `InMemoryEventBus`, no `RequestHandler`
+contract change; no unrelated cleanup.
+
+**Fix** (`packages/nova-testkit/tests/test_nats.py`, commit `42ca8f2`):
+
+```python
+reply = await nats_event_bus.request(
+    "testkit.rpc.echo",
+    _Echo(question="ping"),      # was: EventEnvelope(subject=..., payload={"question": "ping"})
+    source_engine="test-client",
+    timeout_ms=2000,
+)
+```
+
+`_Echo` is the same payload model already introduced for the `serve()`
+handler side in the first fix — reused here, not duplicated, since both
+call sites need exactly the same shape. The `assert reply.payload ==
+{"question": "ping"}` assertion is unchanged.
+
+**Regression coverage:** no new test was added. This one test
+(`test_real_request_reply`) already exercises the full round trip — the
+`.request()` call site *and* the `serve()` handler — and is the same test
+that caught both the original failure and this second occurrence, so it
+remains the correct and sufficient regression guard for both without
+duplication.
+
+**Local verification performed** (full sequence, matching the first pass):
+
+| Check | Result |
+|---|---|
+| Import-linter | 6/6 contracts kept |
+| Lint (ruff + mypy), all 18 packages | 18/18 passed |
+| Fast-tier tests, all 18 packages | 18/18 passed, including `personality-engine` (66/66) — confirms the first fix's coverage is still intact and untouched by this change |
+| `nova-testkit` fast-tier | 14 passed, 11 deselected |
+| Coverage gate negative control (`personality-engine`) | Exit 1, 99.22% — same pre-existing gap, unchanged (this package was not touched) |
+| docker-compose config | Valid |
+| TypeScript codegen | Zero diff |
+| `git diff` review | Exactly 1 file, `test_nats.py`, 6 insertions / 10 deletions |
+
+**Not run locally:** the real_infra suite itself, for the same
+already-documented reason (no reachable Docker daemon in this session).
+
+## 9. Second `workflow_dispatch` attempt — same blocker, no workaround
+
+After pushing the second fix, `workflow_dispatch` was attempted again:
+
+```
+POST /repos/Tudor191/NOVA-PROJECT-BIBLE/actions/workflows/real-infra-checks.yml/dispatches
+→ 403 "Resource not accessible by integration"
+```
+
+Identical to §4's original blocker — this session's GitHub integration still
+lacks `actions:write`. Per explicit instruction, no permission workaround was
+attempted. The fix is pushed to `claude/new-session-e1cseg`
+(commit `42ca8f2`), which remains the repository's default branch, so the
+next nightly `schedule` firing will pick it up automatically, exactly as
+happened for the first fix (§4).
+
+## 10. Remaining limitations
+
+- The second fix has full local static and fast-tier verification but **no
+  real-infrastructure execution evidence yet** — this is the one open item
+  before Priority 6 can close.
+- This session still cannot run either real_infra suite locally, and still
+  cannot dispatch `real-infra-checks.yml` manually (§9). Confirmation depends
+  on the next nightly `schedule` firing, or a manual dispatch by someone with
+  sufficient repository access.
+- Run-to-run stability has two data points so far (runs `31296349533` and
+  `31359464265`), both clean through the full container lifecycle with no
+  ordering or isolation anomalies. A third data point (the run confirming
+  this fix) will add further evidence.
+
+## 11. Compliance with this phase's constraints
 
 No real_infra test was weakened, skipped, reclassified, or converted to a
-fake-backed test. No test assertion was loosened. No production code beyond
-the one documented line was touched. No CI workflow file was modified. No
-GitHub permission was changed (the 403 was reported, not routed around). No
-further code change was made after discovering the second `nova-testkit`
-defect, per explicit instruction to stop and report. Phase 2D-D was not
+fake-backed test. No test assertion was loosened. No production code, no
+`InMemoryEventBus`, and no shared `RequestHandler` contract was touched by
+either fix. No CI workflow file was modified. No GitHub permission was
+changed (both 403s were reported, not routed around). Phase 2D-D was not
 started. No other Phase 2D-C priority was touched. The stale task-tracker
 entries were not updated, consistent with no explicit process requirement to
-do so. `git diff` was reviewed in full before committing (§3) and contains
-exactly the two approved files.
+do so. `git diff` was reviewed in full before each commit and contained
+exactly the intended files each time.
 
-**Priority 6 remains open.** 33 of 34 real_infra tests are confirmed passing
-against real infrastructure; `nova-testkit::test_real_request_reply` is not,
-and its precise root cause (§4.2) is reported here for review rather than
-fixed unilaterally. Priority 6 will not be marked complete, and Phase 2D-D
-will not begin, until the user reviews this finding and approves a next step.
+**Priority 6 remains open.** 33 of 34 real_infra tests have a confirmed
+passing real-infrastructure execution; the 34th (`nova-testkit::test_real_request_reply`)
+has a fix that is implemented, approved, and fully locally verified, but not
+yet confirmed against real NATS. Priority 6 will be marked complete only once
+a `real-infra-checks.yml` run against commit `42ca8f2` (or later) shows
+34/34, and Phase 2D-D will not begin until then.
