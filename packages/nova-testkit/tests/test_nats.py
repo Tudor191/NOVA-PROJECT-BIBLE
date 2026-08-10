@@ -52,10 +52,11 @@ async def test_real_publish_and_subscribe(nats_event_bus: NatsEventBus) -> None:
 
 
 async def test_real_request_reply(nats_event_bus: NatsEventBus) -> None:
-    """`handler` must return the reply *payload* (`RequestHandler`'s own
-    contract, `nova_eventbus_sdk.interface`) -- not the received `EventEnvelope`
-    itself, which both `NatsEventBus.serve()` and `InMemoryEventBus.serve()`
-    would otherwise re-wrap as the reply's payload."""
+    """Both sides of `request`/`serve` must exchange the reply/request
+    *payload* (`RequestHandler`'s and `request()`'s own contract,
+    `nova_eventbus_sdk.interface`) -- never a full `EventEnvelope`, which
+    both `NatsEventBus` and `InMemoryEventBus` would otherwise re-wrap as
+    the outer envelope's payload."""
 
     async def handler(envelope: EventEnvelope) -> _Echo:
         return _Echo(**envelope.payload)
@@ -65,12 +66,7 @@ async def test_real_request_reply(nats_event_bus: NatsEventBus) -> None:
     )
     reply = await nats_event_bus.request(
         "testkit.rpc.echo",
-        EventEnvelope(
-            subject="testkit.rpc.echo",
-            source_engine="test-client",
-            correlation_id=uuid4(),
-            payload={"question": "ping"},
-        ),
+        _Echo(question="ping"),
         source_engine="test-client",
         timeout_ms=2000,
     )
