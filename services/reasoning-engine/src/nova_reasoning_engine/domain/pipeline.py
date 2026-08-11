@@ -257,12 +257,13 @@ async def run(
 
     # Step: Generate hypotheses.
     try:
-        hypotheses, model_used = await hypothesis_generation.generate_hypotheses(
+        hypotheses, model_used, is_correction = await hypothesis_generation.generate_hypotheses(
             HypothesisGenerationRequest(
                 objective=request.objective_text,
                 context=context,
                 minimum_hypotheses=config.minimum_hypotheses,
                 thinking_mode_hint=request.thinking_mode_hint,
+                prior_nova_utterance=request.prior_nova_utterance,
             ),
             reasoning_process_id=process.id,
             model_port=model_port,
@@ -314,6 +315,7 @@ async def run(
             reason="no supported hypotheses survived evidence collection",
             start=start,
             on_stage=on_stage,
+            is_correction=is_correction,
         )
 
     # Step: Estimate risks / Constraint Evaluation -- hard gate before scoring.
@@ -331,6 +333,7 @@ async def run(
             reason="no feasible alternative: every alternative violated a hard constraint",
             start=start,
             on_stage=on_stage,
+            is_correction=is_correction,
         )
 
     # Step: Choose strategy -- Decision Matrix scoring (§15) + Goal Evaluation (§8).
@@ -403,6 +406,7 @@ async def run(
         selected_alternative_id=chosen.id,
         explanation=explanation,
         confidence_score=confidence.composite,
+        is_correction=is_correction,
     )
 
     await repository.transition_process(process.id, status=status)  # type: ignore[arg-type]
@@ -440,11 +444,18 @@ async def _fail(
     reason: str,
     start: float,
     on_stage: Callable[[str], Awaitable[None]] | None = None,
+    is_correction: bool | None = None,
 ) -> tuple[Decision, ReasoningTrace, Alternative | None]:
     """Bible Part 8: "failure should improve future reasoning rather than
     terminate execution" -- every failure still produces a `Decision` (with
     no selected alternative) and a `ReasoningTrace` (§17, §19), never a
-    process with no record."""
+    process with no record.
+
+    `is_correction` (Phase 2D-D §5.1): `None` by default -- the correct
+    value for a failure at or before hypothesis generation, where no
+    judgment was ever attempted. Callers that fail *after* hypothesis
+    generation succeeded pass its already-computed verdict through, so a
+    later-stage failure doesn't discard evidence already gathered."""
     recovery = failure_recovery.recommend_recovery(stage=stage, reason=reason, retry_count=0)
     explanation = explanation_module.DecisionExplanation(
         chosen_reason=f"No decision was produced: {recovery.reason}. Recommended recovery: "
@@ -456,6 +467,7 @@ async def _fail(
         selected_alternative_id=None,
         explanation=explanation,
         confidence_score=0.0,
+        is_correction=is_correction,
     )
     await repository.transition_process(process.id, status="failed")
     await _report_stage(on_stage, "failed")

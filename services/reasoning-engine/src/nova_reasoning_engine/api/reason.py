@@ -79,6 +79,7 @@ async def reason(body: ReasoningRequestPayload, request: Request) -> ReasoningRe
         confidence_score=decision.confidence_score,
         outcome=trace.outcome,
         trace_id=trace.id,
+        is_correction=decision.is_correction,
     )
 
 
@@ -121,6 +122,7 @@ async def reason_stream(body: ReasoningRequestPayload, request: Request) -> Stre
                 confidence_score=decision.confidence_score,
                 outcome=trace.outcome,
                 trace_id=trace.id,
+                is_correction=decision.is_correction,
             )
             await queue.put(json.dumps({"__complete__": reply.model_dump(mode="json")}))
 

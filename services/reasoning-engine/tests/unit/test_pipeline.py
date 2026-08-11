@@ -339,6 +339,63 @@ async def test_long_term_planning_applies_a_confidence_penalty_relative_to_analy
     assert planning_decision.confidence_score <= analytical_decision.confidence_score
 
 
+async def test_is_correction_threads_through_to_the_final_decision() -> None:
+    """Phase 2D-D Sec5.3: the correction verdict computed inside
+    `hypothesis_generation.generate_hypotheses` must survive every
+    intermediate pipeline stage (evidence collection, alternative
+    generation, decision matrix) and land on the returned `Decision`."""
+    model_port = FakeModelOrchestrationPort(
+        reply=GenerateReplyPayload(
+            text=(
+                "1. candidate explanation one.\n"
+                "2. candidate explanation two.\n"
+                "3. candidate explanation three.\n"
+                "CORRECTION: yes"
+            ),
+            input_tokens=10,
+            output_tokens=10,
+            finish_reason="stop",
+            structural_confidence=0.9,
+            model_id=uuid4(),
+            provider="fake",
+        )
+    )
+    ports = _grounded_ports()
+    ports["model_port"] = model_port
+    request = _analytical_request(prior_nova_utterance="The meeting is on Tuesday.")
+    decision, _trace, _chosen = await pipeline.run(request, **ports)
+    assert decision.is_correction is True
+
+
+async def test_is_correction_is_none_when_no_prior_utterance_supplied() -> None:
+    ports = _grounded_ports()
+    decision, _trace, _chosen = await pipeline.run(_analytical_request(), **ports)
+    assert decision.is_correction is None
+
+
+async def test_is_correction_survives_a_post_hypothesis_failure() -> None:
+    """`_fail()` called after hypothesis generation succeeds (e.g. no
+    supported hypotheses survive evidence collection) must still carry
+    forward whatever correction verdict was already computed -- it is not a
+    pre-hypothesis failure where no judgment was ever attempted."""
+    model_port = FakeModelOrchestrationPort(
+        reply=GenerateReplyPayload(
+            text="1. an unrelated hypothesis with no supporting context.\nCORRECTION: yes",
+            input_tokens=10,
+            output_tokens=10,
+            finish_reason="stop",
+            structural_confidence=0.9,
+            model_id=uuid4(),
+            provider="fake",
+        )
+    )
+    ports = _ports(model_port=model_port)  # empty context ports: nothing will match
+    request = _analytical_request(prior_nova_utterance="The meeting is on Tuesday.")
+    decision, trace, _chosen = await pipeline.run(request, **ports)
+    assert trace.outcome == "failed"
+    assert decision.is_correction is True
+
+
 async def test_context_assembly_failure_downgrades_an_otherwise_decided_outcome() -> None:
     """§5, §7.2, §17: one upstream port breaking its own documented
     graceful-degradation contract (raising instead of returning an empty

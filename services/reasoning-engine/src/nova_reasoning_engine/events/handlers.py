@@ -75,6 +75,7 @@ def make_reason_request_handler(app: FastAPI):  # type: ignore[no-untyped-def]
             confidence_score=decision.confidence_score,
             outcome=trace.outcome,
             trace_id=trace.id,
+            is_correction=decision.is_correction,
         )
 
     return handle

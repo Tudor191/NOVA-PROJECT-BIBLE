@@ -64,7 +64,7 @@ async def generate_alternatives(
     while len(supported) < minimum and retries < MAX_HYPOTHESIS_RETRIES:
         retries += 1
         try:
-            new_hypotheses, _model_used = await generate_hypotheses(
+            new_hypotheses, _model_used, _is_correction = await generate_hypotheses(
                 HypothesisGenerationRequest(
                     objective=objective,
                     context=context,

@@ -147,6 +147,11 @@ class ReasoningRequest(BaseModel):
     goals: list[Goal] = Field(default_factory=list)
     constraints: list[Constraint] = Field(default_factory=list)
     parent_process_id: UUID | None = None
+    prior_nova_utterance: str | None = None
+    """Phase 2D-D (docs/design/phase-2d/06-personal-companion.md Sec5.2) --
+    mirrors `nova_contracts.ReasoningRequestPayload`'s own field of the same
+    name. Threaded into `HypothesisGenerationRequest` unchanged; see
+    `hypothesis_generation.py` for how it's used."""
 
 
 class ReasoningProcess(BaseModel):
@@ -175,6 +180,13 @@ class HypothesisGenerationRequest(BaseModel):
     context: ContextBundle
     minimum_hypotheses: int = 3
     thinking_mode_hint: str | None = None
+    prior_nova_utterance: str | None = None
+    """Phase 2D-D Sec5.2/5.3 -- when set, `generate_hypotheses` adds one more
+    prompt context component and asks the same model call to also judge
+    whether `objective` corrects `prior_nova_utterance` (Sec5.1's exact,
+    narrow definition). `None` (the default for every caller except
+    `communication-engine` mid-conversation) means no such judgment is
+    requested at all."""
 
 
 class Hypothesis(BaseModel):
@@ -274,6 +286,12 @@ class Decision(BaseModel):
     explanation: DecisionExplanation
     confidence_score: float = Field(ge=0.0, le=1.0)
     human_override: HumanOverrideRequest | None = None
+    is_correction: bool | None = None
+    """Phase 2D-D Sec5.1 -- carried straight from `generate_hypotheses`'s own
+    judgment (via `pipeline.run()`, computed once per process, not
+    per-alternative). `None` when no judgment was attempted (no
+    `prior_nova_utterance` on the request, or the process failed before
+    hypothesis generation ran)."""
 
 
 class MultiStepConfig(BaseModel):
