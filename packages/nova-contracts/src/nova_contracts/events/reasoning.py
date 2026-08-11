@@ -113,6 +113,16 @@ class ReasoningRequestPayload(BaseModel):
     parent_process_id: UUID | None = None
     """Design doc §11 -- set when this request is one step of a Multi-step
     reasoning chain."""
+    prior_nova_utterance: str | None = None
+    """Phase 2D-D (docs/design/phase-2d/06-personal-companion.md §5.2) --
+    the requesting session's most recent outbound turn, when the caller is
+    `communication-engine` mid-conversation. Optional and additive
+    (ADR-024): a future Planning Engine caller (§7.1's own docstring) never
+    populates this, since it has no conversation session at all. Used only
+    to give `hypothesis_generation.py`'s existing model call the context it
+    needs to judge whether the current objective corrects a prior NOVA
+    statement (`is_correction` on the reply below) -- never persisted by
+    this engine itself, never used for any other purpose."""
     schema_version: int = 1
 
 
@@ -129,6 +139,15 @@ class ReasoningReplyPayload(BaseModel):
     """Set only when `outcome` is `failed`/`abandoned` -- an informative
     reply, not a bus timeout with no diagnostic (the same additive pattern
     ADR-024 established for `GenerateReplyPayload.error` in Phase 2A)."""
+    is_correction: bool | None = None
+    """Phase 2D-D §5.1 -- set only when `prior_nova_utterance` was supplied
+    on the request; `None` means no judgment was attempted (no prior
+    utterance existed, or the process degraded/failed before hypothesis
+    generation ran), not "not a correction." `True` means this engine's own
+    model call judged the current objective as substantively contradicting
+    or correcting content NOVA itself previously delivered -- never set for
+    mere uncertainty, disagreement, a clarification request, or the user
+    correcting their own prior statement (§5.1's exact exclusions)."""
     schema_version: int = 1
 
 

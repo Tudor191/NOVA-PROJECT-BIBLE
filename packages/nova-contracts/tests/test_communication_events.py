@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
@@ -105,6 +106,29 @@ def test_session_completed_validates_against_registry() -> None:
     )
     assert isinstance(validated, CommunicationSessionCompletedPayload)
     assert validated.turn_count == 4
+    assert validated.corrections == []
+    assert validated.preferences == []
+    assert validated.feedback == []
+    assert validated.decisions == []
+
+
+def test_session_completed_carries_conversation_memory_evidence() -> None:
+    """Phase 2D-D (06-personal-companion.md Sec6) -- additive, sourced from
+    ConversationMemory; digital-twin-engine's own learning input."""
+    completed = CommunicationSessionCompletedPayload(
+        session_id=uuid4(),
+        user_id=uuid4(),
+        turn_count=6,
+        closed_at=datetime.now(UTC),
+        corrections=["It's Tuesday, not Wednesday."],
+        preferences=["Prefers concise responses."],
+        feedback=["That was helpful."],
+        decisions=["Proceed with option B."],
+    )
+    assert completed.corrections == ["It's Tuesday, not Wednesday."]
+    assert completed.preferences == ["Prefers concise responses."]
+    assert completed.feedback == ["That was helpful."]
+    assert completed.decisions == ["Proceed with option B."]
 
 
 def test_turn_received_round_trip() -> None:

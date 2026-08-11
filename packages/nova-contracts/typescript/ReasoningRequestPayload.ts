@@ -30,6 +30,7 @@ export type Description1 = string;
 export type Hard = boolean;
 export type Constraints = ConstraintPayload[];
 export type ParentProcessId = string | null;
+export type PriorNovaUtterance = string | null;
 export type SchemaVersion = number;
 
 /**
@@ -48,6 +49,7 @@ export interface ReasoningRequestPayload {
   goals?: Goals;
   constraints?: Constraints;
   parent_process_id?: ParentProcessId;
+  prior_nova_utterance?: PriorNovaUtterance;
   schema_version?: SchemaVersion;
   [k: string]: unknown;
 }

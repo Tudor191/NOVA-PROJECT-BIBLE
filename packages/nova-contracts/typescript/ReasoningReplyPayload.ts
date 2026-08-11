@@ -9,6 +9,7 @@ export type ConfidenceScore = number | null;
 export type ReasoningOutcome = "decided" | "degraded" | "failed" | "abandoned";
 export type TraceId = string | null;
 export type Error = string | null;
+export type IsCorrection = boolean | null;
 export type SchemaVersion = number;
 
 export interface ReasoningReplyPayload {
@@ -20,6 +21,7 @@ export interface ReasoningReplyPayload {
   outcome: ReasoningOutcome;
   trace_id?: TraceId;
   error?: Error;
+  is_correction?: IsCorrection;
   schema_version?: SchemaVersion;
   [k: string]: unknown;
 }

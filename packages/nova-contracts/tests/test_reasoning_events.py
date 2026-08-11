@@ -44,7 +44,21 @@ def test_reasoning_request_defaults_and_schema_version() -> None:
     assert request.goals == []
     assert request.constraints == []
     assert request.parent_process_id is None
+    assert request.prior_nova_utterance is None
     assert request.schema_version == 1
+
+
+def test_reasoning_request_accepts_prior_nova_utterance() -> None:
+    """Phase 2D-D (06-personal-companion.md Sec5.2) -- optional, additive;
+    a non-communication-engine caller (e.g. a future Planning Engine) simply
+    never sets it, per the default above."""
+    request = ReasoningRequestPayload(
+        objective_text="actually it's Tuesday, not Wednesday",
+        user_id=uuid4(),
+        requesting_engine="communication-engine",
+        prior_nova_utterance="Your meeting is Wednesday at 3pm.",
+    )
+    assert request.prior_nova_utterance == "Your meeting is Wednesday at 3pm."
 
 
 def test_reasoning_request_accepts_goals_and_constraints() -> None:
@@ -76,6 +90,21 @@ def test_reasoning_reply_validates_against_registry() -> None:
     assert validated.decision_id is None
     assert validated.error is None
     assert validated.outcome is ReasoningOutcome.DECIDED
+    assert validated.is_correction is None
+
+
+def test_reasoning_reply_is_correction_round_trips() -> None:
+    """Phase 2D-D Sec5.1 -- `None` (no judgment attempted) is distinct from
+    `False` (judged and not a correction); both round-trip explicitly."""
+    reply = ReasoningReplyPayload(
+        reasoning_process_id=uuid4(), outcome=ReasoningOutcome.DECIDED, is_correction=True
+    )
+    assert reply.is_correction is True
+
+    reply_false = ReasoningReplyPayload(
+        reasoning_process_id=uuid4(), outcome=ReasoningOutcome.DECIDED, is_correction=False
+    )
+    assert reply_false.is_correction is False
 
 
 def test_reasoning_process_completed_round_trip() -> None:
