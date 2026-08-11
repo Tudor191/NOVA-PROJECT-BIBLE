@@ -1,432 +1,365 @@
-# Phase 2D-D — Personal Companion: Research & Design Proposal
+# Phase 2D-D — Personal Companion: Technical Design Document
 
-**Status: Research/Design proposal — awaiting approval. No production code has
-been written or modified to produce this document.** Every claim below was
-verified directly against the current source tree in this session (file
-paths and line-anchored evidence throughout), not recalled from prior
-documentation or task-tracker status. Where documentation and code disagree,
-code is treated as ground truth, matching this project's own standing rule
-(the same discipline the Phase 2D-C closure document was held to).
-
-This document does not begin implementation. Per instruction, it stops at
-every genuine design fork rather than resolving it, and does not reopen any
-decision already approved in Phase 2D-A/B/C unless current code evidence
-proves a concrete blocker (none was found — see §11).
+**Status: TDD — scope and all forks approved by the user. No production code
+has been written or modified to produce this document.** This document
+supersedes and completes `06-personal-companion.md`'s earlier
+research/proposal revision, incorporating the four originally-approved
+forks (A-D) and a fifth fork (E) discovered and approved during this pass.
+Every claim was verified directly against the current source tree this
+session, file:line cited throughout.
 
 ---
 
-## 0. Executive summary
+## 0. Approved decisions incorporated
 
-Phase 2D-D builds `digital-twin-engine` — a new, minimal-form engine — plus
-small, precedented extensions to `communication-engine` and
-`personality-engine`. The architecture is unusually well-prepared for this:
-**the wire contracts for both of digital-twin-engine's integration points
-already exist in `nova-contracts`**, defined and disclosed as dormant since
-Phase 2D-A/2D-C, exactly per Master Blueprint §13.6's "Progressive
-capability" principle. Nothing needs to be invented at the contract level;
-what's missing is the engine itself and a small number of call sites.
-
-However, direct verification surfaced a real, previously-undocumented gap:
-**the data digital-twin-engine would need to actually learn from does not
-yet exist in a form it can consume.** `communication.session.completed` —
-the event Master Blueprint §6 names as digital-twin-engine's learning
-input — carries only `session_id, user_id, objective, turn_count,
-closed_at`; none of `ConversationMemory`'s `corrections`/`preferences`/
-`feedback`/`decisions`/`questions` fields, which is where the actual
-evidence lives. This is not a Phase 2D-D design question so much as an
-unresolved Phase 2D-C-era gap this phase now depends on closing (§4, §11).
-Two smaller, related evidence gaps were also found for two of the three
-named trust-development inputs (§6.3).
-
-Four genuine design forks require a decision before implementation (§10).
-No fork reopens any Phase 2D-A/B/C decision — all four are new questions
-specific to 2D-D's own integration surface.
-
----
-
-## 1. Current-state verification (Rule: code over docs)
-
-### 1.1 What exists and is genuinely wired
-
-| Component | Status | Evidence |
+| Fork | Decision | Where addressed |
 |---|---|---|
-| `digital_twin.preferences.get.request`/`.reply` payloads | Defined in `nova-contracts`, unused | `packages/nova-contracts/src/nova_contracts/events/communication.py:237-251` |
-| `personality.memory.update` payload | Defined in `nova-contracts`, unused | `packages/nova-contracts/src/nova_contracts/events/personality.py:105-116` |
-| `personality-engine`'s `MemoryProfile.source` field (`"static_default"` vs `"digital_twin"`) | Exists, always `"static_default"` today | `services/personality-engine/src/nova_personality_engine/domain/models.py:100-110` |
-| `personality-engine`'s `PersonalityRepository.update_memory_profile` | Exists, fully correct (fixed this session, Phase 2D-C Closure Priority 6), **no caller anywhere** | `services/personality-engine/src/nova_personality_engine/domain/ports.py:30-33` |
-| `communication.session.completed` publish | **Real, wired, fires on every session close** | `services/communication-engine/src/nova_communication_engine/domain/session_lifecycle.py:235-236` |
-| `communication-engine`'s `Notification` model + `POST /v1/communication/notifications` | Exists, persists only — no delivery channel | `services/communication-engine/src/nova_communication_engine/domain/models.py:192-201`, `api/notifications.py` |
-| ADR-030 (personality/digital-twin boundary) | Filed, accepted | `docs/architecture/adr/ADR-030-personality-stores-digital-twin-learns.md` |
-| `digital-twin-engine` itself | **Does not exist** | `services/` directory listing — 10 engines, no `digital-twin-engine` |
-| `DigitalTwinPort` in `communication-engine` | **Does not exist** | `domain/ports.py:1-11`'s own docstring: "No `DigitalTwinPort`/`PerceptionPort` exists this phase" |
-| `personality.memory.update` subscription in `personality-engine` | **Does not exist** | `events/subscribed.py:10-13`'s own docstring: "no handler exists to subscribe to it until Phase 2D-D" |
-| `communication.session.completed` subscription anywhere | **Does not exist** | Grep of every engine's `events/subscribed.py`, zero hits outside `communication-engine`'s own `published.py` |
-| Trust-development metric, Habit Detection, Preference Evolution logic | **Does not exist anywhere** | Repo-wide grep for `trust.develop|TrustEngine|trust_metric` — zero hits |
-| Proactive-communication boundary policy | **Does not exist anywhere** | Repo-wide grep for `proactive` — zero relevant hits (only incidental matches in unrelated docstrings/caches) |
-
-### 1.2 Verified vs. inferred — applied throughout this document
-
-Following the same four-way classification the 2D-C closure document used
-(its own §14):
-
-- **Fully verified**: read directly, current session, cited by file:line.
-- **Contract/fake verified**: a payload/port/protocol exists and is
-  internally consistent, but nothing calls it against a real counterpart.
-- **Documented but unconfirmed**: stated in a design doc/ADR, not
-  independently re-derived from code this session.
-- **Absent**: searched for directly, not found.
-
-Every finding in §1.1 is **fully verified**. Bible Part 16's domain list and
-ADR-030's boundary decision are **documented**, cross-checked against code
-where code exists to check against (personality-engine's `source` field,
-`nova-contracts`' dormant payloads) and found consistent.
+| A | `personality.style.select` and `digital_twin.preferences.get` split by field — verbosity/technical_depth/terminology stay on the `personality.memory.update`-mediated path; digital-twin-owned fields (pacing, habit-timing) go on the direct RPC | §7.3 |
+| B | `CommunicationSessionCompletedPayload` enriched additively with `ConversationMemory`'s evidence fields; Memory Engine's unwired subscription stays separate, non-blocking debt | §6 |
+| C | Correction-frequency ships as the (explicitly partial) trust-development metric this phase; clarification-acceptance and proactive-suggestion acceptance/dismissal are not fabricated | §9 |
+| D | Warm-case proactive delivery ships; cold case stays out of scope, documented | §10 |
+| E | `reasoning-engine` added to scope to provide the correction signal; narrow, evidence-based, reuses the engine's one existing content-understanding model call rather than a new classifier | §5 |
 
 ---
 
-## 2. Phase 2D-D objective and scope (per the Master Blueprint, §4.4, §9.3)
+## 1. Current-state findings (re-verified this pass, supersedes anything in the prior revision that conflicts)
 
-**Builds:** `digital-twin-engine`, minimal form — exactly two of Bible Part
-16's eleven domains.
+### 1.1 Corrected understanding from this pass's deeper verification
 
-**In scope:**
-1. **Communication Profile domain** (Bible Part 16: response length,
-   technical depth, preferred terminology, explanation style, conversation
-   pacing) — populated only from real 2D-A/2D-C session evidence, never
-   synthetic.
-2. **Conversation-scoped Preference Evolution + Habit Detection slice** —
-   interaction-*timing* patterns only (e.g., terse during working hours,
-   detailed in the evening) — explicitly not workflow/project habits.
-3. **Trust-development metric** — tracked from correction frequency,
-   clarification-question acceptance, and proactive-suggestion
-   acceptance/dismissal rates (Master Blueprint §4.4).
-4. **Proactive-communication boundary policy** — user-configurable
-   frequency/topic limits on NOVA-*initiated speech*, never action.
+Two findings this pass revise the prior research document's picture —
+recorded here explicitly rather than silently:
 
-**Explicitly out of scope** (Master Blueprint §3.2, §9.3): the other nine
-Digital Twin domains (goals, projects, hardware, software, skills,
-knowledge, productivity, workflow beyond communication timing); any
-autonomous *action*; general autonomy levels/execution trust
-(`autonomy-engine`, Phase 4); NOVA's background cognition
-(`cognitive-state-engine`, Phase 4).
+- **`deliver_intent()` (`domain/intent_gate.py:59-70`) has no
+  `memory_annotations` parameter — but it is not the function Priority 3's
+  real turn path calls.** `conversation_orchestration.py` (the real,
+  wired turn-handling path) calls `events/handlers.py`'s
+  `deliver_content_to_session()` — a shared wrapper that **already**
+  applies `memory_annotations` to `ConversationMemory` *before* calling
+  `deliver_intent()` (`events/handlers.py:67-97`). The exact same wrapper
+  is what `make_intent_deliver_handler` (the `communication.intent.deliver.request`
+  event handler) calls too (`events/handlers.py:161-172`). **Both the real
+  turn path and the event-driven out-of-band path already funnel through
+  one shared, `memory_annotations`-capable function.** This means the
+  correction signal (§5) needs no new storage mechanism in
+  communication-engine — only a value to pass into a parameter that
+  already exists and is already wired into the real path.
+- **Fork D's warm-case delivery needs no new communication-engine delivery
+  mechanism either.** The 2D-C closure document already reserved
+  `communication.intent.deliver.request` by name for exactly this: "a
+  future proactive notification or reminder initiated by...another engine
+  that is not itself already inside a turn-handling call stack" (closure
+  doc §5.3 item 6). `deliver_content_to_session()` already resolves
+  `session_registry.get_adapter(session_id)` (`events/handlers.py:111`),
+  which is already `None` for a disconnected session, and `deliver_intent()`
+  already returns a clean `rejection_reason="no_live_channel_connection"`
+  rather than crashing (`intent_gate.py:113-121`). The warm/cold
+  distinction is not new work — it's the existing, already-approved
+  behavior of code that has simply never had a real caller yet.
 
----
-
-## 3. Architecture and dependency map
-
-```
-                    ┌──────────────────────────┐
-                    │ communication-engine      │
-                    │ (session_lifecycle.py)    │
-                    └─────────────┬─────────────┘
-                                  │ publishes
-                                  │ communication.session.completed
-                                  │ (session_id, user_id, objective,
-                                  │  turn_count, closed_at — ONLY,
-                                  │  see §4/Fork B)
-                                  ▼
-                    ┌──────────────────────────┐
-                    │ digital-twin-engine (NEW)  │
-                    │ - Communication Profile     │
-                    │ - Preference Evolution       │
-                    │ - trust-development metric   │
-                    │ - proactive-comm boundary    │
-                    └─────┬───────────────┬───────┘
-        publishes          │               │ serves (RPC)
-        personality.       │               │ digital_twin.preferences.get
-        memory.update      │               │ (already-defined contract)
-        (already-defined   │               │
-         contract)         ▼               ▼
-                 ┌──────────────────┐  ┌─────────────────────────┐
-                 │ personality-engine │  │ communication-engine      │
-                 │ (NEW subscription: │  │ (NEW: DigitalTwinPort,     │
-                 │ handler for        │  │  called from               │
-                 │ personality.memory │  │  resolve_response_shaping, │
-                 │ .update →          │  │  see Fork A)                │
-                 │ update_memory_     │  └─────────────────────────┘
-                 │ profile — the      │
-                 │ method Priority 6  │
-                 │ fixed this session)│
-                 └──────────────────┘
-```
-
-**Every existing component this phase is expected to touch:**
-
-| Component | Change required | Nature |
-|---|---|---|
-| `digital-twin-engine` | Build from scratch | New engine |
-| `nova-contracts` | Extend `CommunicationSessionCompletedPayload` (Fork B); no change needed for the two already-defined digital-twin payloads | Additive |
-| `communication-engine` | New `DigitalTwinPort` + client (mirrors `PersonalityPort`/`ReasoningPort`); wire into `resolve_response_shaping()` (Fork A); optionally extend `Notification` delivery for the warm case (Fork D) | Additive |
-| `personality-engine` | New subscription + handler for `personality.memory.update`, calling the already-correct `update_memory_profile` | Additive |
-| `docker-compose.local.yml` | New `digital-twin-engine` (+ its outbox worker, per Priority 1's established precedent — §9) service | Infra |
-| `.github/workflows/real-infra-checks.yml` | New matrix entry for `digital-twin-engine` | CI |
-| `pr-checks.yml` / turbo pipeline | Automatic — no engine-specific config, per every prior engine's own onboarding | None |
-| `apps/web-client` | Out of this document's scope (no `apps/` exists yet in this repo at all) | N/A |
-| `world-model-engine`, `memory-engine`, `knowledge-engine`, `reasoning-engine`, `executive-cognition-engine`, `ai-model-orchestration-engine`, `perception-engine` | **None required** | Not touched |
-
-**Dependency graph for this phase's own internal sequencing:**
-
-```
-communication-engine's CommunicationSessionCompletedPayload
-enrichment (Fork B decision)
-              │
-              ▼
-digital-twin-engine's domain layer (Communication Profile,
-Preference Evolution, trust metric, proactive-boundary policy)
-              │
-      ┌───────┴────────┐
-      ▼                ▼
-personality-engine    communication-engine
-subscription (small,   DigitalTwinPort (Fork A
-independent)           decision) + optional
-                        Notification wiring (Fork D)
-```
-
-Nothing in this phase depends on Phase 3 or Phase 4 work. Everything it
-depends on (2A–2C, Memory/Knowledge/World Model from Phase 1) is already
-built.
-
----
-
-## 4. Prerequisites — verified state, not assumed
-
-### 4.1 Completed prerequisites
-
-- Phases 2A, 2B, 2C, and all six Phase 2D-C Closure priorities are
-  implemented, Gate-Reviewed, and — as of this session — real-infrastructure
-  confirmed (34/34 `real_infra` tests passing on GitHub Actions, Priority 6
-  Gate Review). `communication-engine` can hold an actual, working
-  conversation through Reasoning today (Priority 3).
-- `personality-engine`'s `update_memory_profile` — the exact method
-  `personality.memory.update`'s handler would call — is fixed and
-  real-Postgres-confirmed working (this session, Priority 6 §2.1). This was
-  not done *for* Phase 2D-D, but it is a genuine, verified enabler for it:
-  before this session, calling this method against real Postgres crashed
-  with `MissingGreenlet` on every invocation.
-- Both of digital-twin-engine's wire contracts (`digital_twin.preferences.get`,
-  `personality.memory.update`) are already defined, versioned (`schema_version`),
-  and internally consistent with `MemoryProfile`'s existing field shape.
-- ADR-030 is filed and unambiguous about the ownership boundary — no
-  additional ADR is required before this phase's TDD.
-- `communication.session.completed` genuinely fires on every session close
-  — not dormant, not a stub.
-
-### 4.2 Incomplete prerequisites (must be resolved as part of this phase, not assumed away)
-
-- **`CommunicationSessionCompletedPayload` does not carry conversation
-  evidence** (§1.1, Fork B). This blocks digital-twin-engine from learning
-  anything from the event as currently shaped.
-- **`personality-engine` has no subscription mechanism for
-  `personality.memory.update`** — this is new work, not wiring an existing
-  handler.
-- **`communication-engine` has no `DigitalTwinPort`** — new work, though a
-  direct structural mirror of `PersonalityPort`/`ReasoningPort` (no design
-  novelty).
-
-### 4.3 Dormant/unreachable code this phase would newly activate
-
-- `personality-engine`'s `update_memory_profile` (dormant since it was
-  written in 2D-A; becomes reachable the moment a `personality.memory.update`
-  handler exists).
-- `communication-engine`'s response-shaping path already threads `channel`
-  through to `personality.style.select` — no change needed there; this
-  phase adds a *second*, parallel data source (`digital_twin.preferences.get`
-  or the `personality.memory.update`-mediated path — Fork A), not a
-  replacement.
-
-### 4.4 Stale documentation found
-
-- None beyond what's already disclosed. `response_shaping.py`'s own
-  docstring (`domain/response_shaping.py:10-15`) already correctly states
-  `digital_twin.preferences.get` "is deliberately never called this
-  phase... until Phase 2D-D's `digital-twin-engine` exists" — this is
-  accurate, current, and does not need correction.
-- `CommunicationSessionCompletedPayload`'s docstring already says "Memory
-  Engine is this event's intended (not yet wired, out of Phase 2D-A scope)
-  subscriber" (`events/communication.py:180-182`) — also accurate and
-  current; Memory Engine's `SUBSCRIBABLE_SUBJECTS`
-  (`services/memory-engine/src/nova_memory_engine/events/subscribed.py`)
-  confirms this subscription genuinely does not exist. **This is not new
-  technical debt this document is introducing — it is pre-existing, already
-  disclosed, and this phase now has a direct stake in resolving at least the
-  digital-twin-engine side of it (Fork B).**
-
-### 4.5 Infrastructure-dependent gaps (inherited, not new)
-
-- No companion-client transport exists anywhere in this repository (the same
-  gap the 2D-C closure document disclosed for Priority 1/4's "cold case").
-  This directly caps Fork D (§10) — true proactive delivery to a
-  disconnected user is out of reach this phase, for the identical,
-  already-disclosed reason, not a new gap.
-- The outbox-worker-as-a-deployed-process gap Priority 1 closed *only for
-  perception-engine* remains open for every other engine, including the two
-  this phase touches most (`communication-engine`, `personality-engine` —
-  neither has its own migrations this phase touches, so this doesn't block
-  Fork B, but `digital-twin-engine` itself will need its own worker service
-  deployed from day one, following Priority 1's precedent exactly, not the
-  older undeployed pattern — see §9).
-
-### 4.6 Architectural inconsistencies vs. the original TDD/Blueprint
-
-None found. The Master Blueprint's own text is internally consistent with
-current code at every point checked (§1.1's table). The one place existing
-code and the Blueprint's prose could be read two ways — how
-`digital_twin.preferences.get` and `personality.memory.update` relate to
-each other — is not an inconsistency, it is an underspecified design
-question this document raises as Fork A.
-
----
-
-## 5. Existing patterns and precedents to reuse (searched before proposing anything new)
-
-- **Engine skeleton**: `perception-engine`'s file layout is the closest
-  precedent — a minimal-form stateful engine shipped in exactly this same
-  incremental spirit ("ships now with two sensing modalities instead of the
-  full breadth," Master Blueprint §9.1). Its structure
-  (`api/`, `clients/`, `config.py`, `domain/`, `events/{handlers,published,
-  publishers,subscribed}.py`, `main.py`, `observability.py`,
-  `repository/{models,outbox_dispatcher,postgres_*_repository}.py`,
-  `workers/outbox_worker.py`) is the template `digital-twin-engine` should
-  follow, not a novel structure.
-- **Shared infrastructure**: `nova-service-kit` (`create_engine`,
-  `create_session_factory`, `make_health_router`, `dispatch_ready_events`,
-  `OutboxRepository`) — used identically by every prior engine, zero
-  engine-specific knowledge (ADR-034). No new shared package is needed.
-- **Outbox pattern**: every write-then-publish path in this codebase uses
-  the same transactional-outbox shape (`enqueue_outbox` alongside the
-  domain write, dispatched by `workers/outbox_dispatcher.py`). Reused
-  as-is.
-- **Port/client pattern for a new synchronous dependency**:
-  `communication-engine`'s `PersonalityPort`/`ReasoningPort`/`WorldModelPort`
-  (`domain/ports.py`) plus their `clients/*.py` implementations are the
-  exact, already-proven template for the new `DigitalTwinPort` — a
-  `Protocol` in `domain/ports.py`, an implementation in `clients/`, injected
-  the same way, degraded-mode fallback the same way (Fork A's mechanics
-  reuse this precedent regardless of which option is chosen).
-- **Fake port for testing**: `nova-testkit`'s `FakePerceptionSignalSource`
-  (built for 2D-C) is the direct precedent for a `FakeDigitalTwinPort`/
-  similar this phase would add to `nova-testkit`, not a bespoke per-test
-  fake.
-- **"Warm case only" precedent for a partially-blocked feature**: Priority
-  4's `StartListeningSignal` (mirrors `BargeInSignal` exactly, ships the
-  warm case, explicitly defers the cold case for the identical
-  already-disclosed reason) is the direct precedent Fork D's recommended
-  option follows.
-- **Real-Postgres verification pattern**: every existing engine's
-  `tests/integration/test_repository_real_postgres.py` +
-  `nova_testkit.postgres` fixtures — `digital-twin-engine` follows this
-  exactly, no new pattern needed (§12).
-- **ADR precedent for a one-way, enforced-by-omission dependency**: ADR-030
-  already *is* this pattern (modeled directly on ADR-017's World Model
-  boundary) — no new ADR needed for anything this document proposes, since
-  nothing here changes an existing ownership boundary.
-
-No existing pattern was found for: a trust/confidence-tracked preference
-history table (genuinely new to this codebase, though Bible Part 15's
-Knowledge Engine has an adjacent "maturity lifecycle" —
-ADR-015 — worth consulting as a *conceptual* precedent for "confidence
-that changes gradually with evidence," even though its schema is
-domain-specific to knowledge nodes and not directly reusable).
-
----
-
-## 6. Prerequisite gaps found in existing evidence sources (not adjacent debt — named 2D-D scope items with no data to learn from)
-
-Per instruction, these are reported because they are hard prerequisites for
-functionality this phase's own scope explicitly names, not unrelated
-findings.
-
-### 6.1 Communication Profile / Preference Evolution evidence
-
-Needs `ConversationMemory`'s `preferences`/`corrections`/`feedback` lists
-(Bible Part 13, Bible Part 16's own "Preference Evolution" discipline
-requires "consistent evidence" across multiple sessions). **Currently
-inaccessible to any subscriber of `communication.session.completed`** —
-this is Fork B.
-
-### 6.2 Habit Detection (interaction-timing slice)
-
-Needs only `closed_at` (already present) plus, ideally, per-turn
-timestamps to detect intra-session pacing — `ConversationTurn` already has
-its own timestamp per the existing schema (not verified line-by-line in
-this pass, reasonable to assume present given every other domain model's
-timestamp discipline; **flagged as documented-not-fully-verified** for the
-implementer to confirm before relying on it). The coarsest form
-("session closed at time X") is already sufficient for the narrow
-"prefers terse responses during working hours" example the Blueprint
-itself gives, so this domain's minimum viable evidence need is **already
-met**, unlike §6.1/§6.3.
-
-### 6.3 Trust-development metric — all three named inputs have gaps
-
-- **Correction frequency**: same gap as §6.1 (`ConversationMemory.corrections`
-  not exposed in the completion event) — resolved by the same Fork B
-  decision.
-- **Clarification-question acceptance**: `communication-engine`'s
-  Clarification Engine (`domain/clarification.py`) is scoped to
-  **addressee-ambiguity clarification only** (its own docstring, lines
-  1-7) — a fixed two-template system (`ADDRESSEE_CHECK_IN_CUE`,
-  `resume_offer()`), not general content clarification. There is
-  **no existing signal anywhere recording whether a user accepted,
-  answered, or ignored a clarification** — this would need to be newly
-  instrumented (e.g., as a new field on `ConversationDecisionTrace`, whose
-  `decision_type` enum does not currently include a
-  clarification-response outcome — `domain/models.py:180-182`).
-- **Proactive-suggestion acceptance/dismissal**: has **no evidence source
-  at all** — proactive suggestions have never been deliverable (§4.5), so
-  there is nothing to have an acceptance/dismissal rate over yet. This is
-  the most structurally incomplete of the three inputs.
-
-**This means the trust-development metric, as literally specified by the
-Master Blueprint's three named inputs, cannot be fully built this phase
-without also instrumenting new signals communication-engine does not
-currently produce.** This is not a reason to abandon the feature — it is a
-scope-precision finding: the TDD that follows this document's approval must
-either (a) instrument all three signals as part of 2D-D's own scope, or (b)
-explicitly narrow the trust metric to whichever subset of the three inputs
-has real evidence this phase, with the rest added when their own
-prerequisite (Fork D's proactive-delivery mechanism, general clarification)
-ships. **This is folded into Fork C (§10) rather than decided here.**
-
----
-
-## 7. Contracts and data flow
-
-### 7.1 Already-defined, reused as-is
+### 1.2 `ReasoningRequestPayload`/`ReasoningReplyPayload` — exact current shape
 
 ```python
-# nova_contracts.events.communication
-@register_payload("digital_twin.preferences.get.request")
-class DigitalTwinPreferencesGetRequestPayload(BaseModel):
+# nova_contracts.events.reasoning
+class ReasoningRequestPayload(BaseModel):
+    objective_text: str
     user_id: UUID
+    requesting_engine: str
+    correlation_id: UUID = Field(default_factory=uuid4)
+    reasoning_mode_hint: ReasoningMode | None = None
+    reasoning_level_hint: int | None = None
+    thinking_mode_hint: str | None = None
+    goals: list[GoalPayload] = Field(default_factory=list)
+    constraints: list[ConstraintPayload] = Field(default_factory=list)
+    parent_process_id: UUID | None = None
     schema_version: int = 1
 
-@register_payload("digital_twin.preferences.get.reply")
-class DigitalTwinPreferencesGetReplyPayload(BaseModel):
-    user_id: UUID
-    preferences: dict[str, Any] | None = None
-    schema_version: int = 1
-
-# nova_contracts.events.personality
-@register_payload("personality.memory.update")
-class PersonalityMemoryUpdatePayload(BaseModel):
-    verbosity: str | None = None
-    technical_depth: str | None = None
-    terminology_preference: dict[str, Any] | None = None
-    source: str = "digital_twin"
+class ReasoningReplyPayload(BaseModel):
+    reasoning_process_id: UUID
+    decision_id: UUID | None = None
+    chosen_description: str | None = None
+    explanation: str | None = None
+    confidence_score: float | None = None
+    outcome: ReasoningOutcome
+    trace_id: UUID | None = None
+    error: str | None = None
     schema_version: int = 1
 ```
 
-Both are ADR-024-compliant (versioned, additive-safe) and require no
-changes for this phase's minimum scope. `DigitalTwinPreferencesGetReplyPayload.preferences`
-being an untyped `dict[str, Any]` is a **known looseness** worth tightening
-in the TDD proper (a typed sub-model per Communication Profile field) but
-not a blocker — the contract as defined is functional.
+**Neither payload has any field carrying the current session's recent
+conversation history.** `context_assembly.assemble_context()`
+(`domain/context_assembly.py:29-92`) fans out to Memory/Knowledge/World
+Model/PersonalContext/Goals ports — none of which have access to an
+*in-progress* session's own turns (Memory Engine only ever receives
+archived, post-completion sessions, and — per §6.4 — does not even receive
+those today). **Reasoning-engine, as currently wired, cannot know what
+NOVA itself said earlier in the live conversation it is being asked about.**
+This is a hard prerequisite for Fork E's correction judgment, addressed in
+§5.2.
 
-### 7.2 New, additive contract needed (Fork B)
+### 1.3 The one place reasoning-engine already does real content understanding
 
-`CommunicationSessionCompletedPayload` needs new optional fields to carry
-learning evidence — proposed shape (illustrative, not final — the TDD
-should finalize exact naming):
+`domain/hypothesis_generation.py`'s `generate_hypotheses()` is the **sole,
+explicitly-documented exception** where reasoning-engine calls a model for
+actual content understanding — its own docstring states this plainly:
+"Why this step legitimately calls a model, unlike almost every other
+domain-layer decision in NOVA... this module is the deliberate, documented
+exception" (`hypothesis_generation.py:1-13`). Every other stage
+(`decision_matrix`, `confidence`, `constraint_evaluator`, `goal_evaluator`)
+is deliberately structural and model-free. `pipeline.py::run()` calls it
+once, at line 258-269, with the full assembled `ContextBundle`.
+
+---
+
+## 2. Approved scope (unchanged from the prior revision, restated for completeness)
+
+**Builds** `digital-twin-engine` (new, minimal form — Bible Part 16's
+Communication Profile domain + a conversation-scoped Preference
+Evolution/Habit Detection slice + a trust-development metric + a
+proactive-communication boundary policy).
+
+**Extends** `communication-engine` (new `DigitalTwinPort`; enriched
+`CommunicationSessionCompletedPayload` producer; correction-signal
+transport; warm-case proactive delivery, reusing existing infrastructure),
+`personality-engine` (new `personality.memory.update` subscription), and —
+**newly, per Fork E** — `reasoning-engine` (one additive request field, one
+additive reply field, one extended existing model call).
+
+**Does not touch**: `world-model-engine`, `memory-engine` (beyond the
+already-disclosed, non-blocking debt item in §6.4), `knowledge-engine`,
+`executive-cognition-engine`, `ai-model-orchestration-engine`,
+`perception-engine`.
+
+---
+
+## 3. Architecture and data flow
+
+```
+                          ┌───────────────────────────┐
+                          │ communication-engine         │
+                          │ conversation_orchestration.py │
+                          └──────────────┬────────────────┘
+                                          │ reasoning.reason.request
+                                          │ (+ NEW: prior_nova_utterance)
+                                          ▼
+                          ┌───────────────────────────┐
+                          │ reasoning-engine              │
+                          │ hypothesis_generation.py      │
+                          │ (existing model call, EXTENDED)│
+                          └──────────────┬────────────────┘
+                                          │ reasoning.reason.reply
+                                          │ (+ NEW: is_correction)
+                                          ▼
+                          ┌───────────────────────────┐
+                          │ communication-engine          │
+                          │ conversation_orchestration.py │
+                          │ builds memory_annotations      │
+                          │ from is_correction, passes to  │
+                          │ deliver_content_to_session()   │
+                          │ (ALREADY memory_annotations-   │
+                          │  capable, no new mechanism)    │
+                          └──────────────┬────────────────┘
+                                          │ ConversationMemory.corrections
+                                          │ accumulates during session
+                                          ▼
+                              session closes → session_lifecycle.py
+                                          │ communication.session.completed
+                                          │ (NEW: enriched with corrections/
+                                          │  preferences/feedback/decisions)
+                                          ▼
+                          ┌───────────────────────────┐
+                          │ digital-twin-engine (NEW)      │
+                          │ - Communication Profile          │
+                          │ - Preference Evolution            │
+                          │ - correction-frequency trust      │
+                          │   metric (partial, per Fork C)     │
+                          │ - proactive-boundary policy         │
+                          └──────┬───────────────┬─────────────┘
+              publishes           │               │ serves (RPC)
+              personality.        │               │ digital_twin.preferences.get
+              memory.update       │               │ (Fork A: pacing/habit fields
+              (verbosity/         │               │  only, not verbosity/depth)
+              technical_depth/    ▼               ▼
+              terminology)  ┌──────────────┐ ┌──────────────────────┐
+                            │personality-   │ │ communication-engine    │
+                            │engine (NEW    │ │ (NEW DigitalTwinPort,    │
+                            │subscription → │ │  called from              │
+                            │update_memory_ │ │  resolve_response_shaping)│
+                            │profile, fixed │ └──────────────────────┘
+                            │Priority 6)    │
+                            └──────────────┘
+
+              Separately, warm-case proactive delivery (Fork D):
+              digital-twin-engine → communication.intent.deliver.request
+              (EXISTING event/handler, reserved for exactly this by the
+               2D-C closure document — no new communication-engine
+               mechanism required, §10)
+```
+
+---
+
+## 4. Engine ownership and boundaries
+
+Unchanged from the Master Blueprint's data ownership matrix (§7 of that
+document) and ADR-030, with one addition: **`reasoning-engine` now owns the
+correction judgment** — a narrow, additive responsibility, not a new
+category of ownership. Reasoning-engine already owns "deciding what's
+worth saying" (ADR-026); judging whether what's worth saying corrects a
+prior statement is the same kind of content-understanding judgment, not a
+new kind of authority.
+
+**Why communication-engine cannot make this judgment itself:** every
+existing docstring in this engine's own domain layer states this
+explicitly and repeatedly — `response_shaping.py:50-53` ("never from
+parsing turn content, which stays Reasoning Engine's job... this engine
+never generates or classifies content"), `intent_gate.py`'s own framing
+(never generates content, only gates it), `clarification.py:8-9` ("this
+engine has no channel to request that from Reasoning Engine... inventing
+one here would be exactly the kind of undisclosed scope expansion this
+project's standing discipline forbids"). Communication-engine has never,
+anywhere in its design or implementation, been given semantic
+understanding of what users say — only structural signals it can count
+(turn counts, timestamps, decision traces). Judging "does this correct
+what NOVA said" requires understanding *meaning*, which this engine is
+architecturally forbidden from doing.
+
+**Why reasoning-engine is the correct owner:** it is the only engine in
+this chain with (a) real content understanding via a model call
+(`hypothesis_generation.py`), (b) already-assembled context about the
+objective, and (c) an existing, precedented "the caller passes hints,
+reasoning-engine folds them into its one real model call" pattern
+(Priority 3 already established this for response-shaping hints — see
+`05-conversation-intelligence-closure.md` §5.3 item 3).
+
+---
+
+## 5. The correction signal — exact design
+
+### 5.1 Semantics — precisely defined, per instruction
+
+**`is_correction: bool`** on `ReasoningReplyPayload` means: *reasoning-engine's
+own judgment, made with the current turn's text and the immediately
+preceding NOVA utterance in this session both in view, that the current
+turn asserts something factually or substantively inconsistent with what
+NOVA previously said* — not merely different, not merely a follow-up.
+
+**Explicitly excluded, per instruction, and encoded directly in the model
+prompt's own instructions** (§5.3):
+
+- **Uncertainty** ("I'm not sure that's right") — a hedge, not a
+  correction, unless it also asserts what *is* right.
+  correct.
+- **Disagreement** ("I don't think so") with no substantive counter-claim
+  — disagreement alone is not evidence of what NOVA got wrong.
+- **Clarification requests** ("what did you mean by X?") — the user
+  seeking understanding, not asserting NOVA was wrong.
+- **User self-correction** ("sorry, I meant Y not X") — corrects the
+  *user's own* prior statement, not NOVA's.
+
+Only an inbound turn that substantively contradicts or corrects content
+NOVA itself previously delivered counts. This is deliberately the
+narrowest reading available, per instruction #3.
+
+### 5.2 Where the prior-NOVA-utterance context comes from
+
+**New, additive field on `ReasoningRequestPayload`:**
+
+```python
+prior_nova_utterance: str | None = None
+```
+
+Sourced from data `communication-engine` already owns — the session's most
+recent outbound `ConversationTurn`. **New, small repository method**
+(mirroring `CommunicationRepository.list_non_terminal_sessions()`'s own
+precedent of a purpose-built read query):
+
+```python
+async def get_last_outbound_turn(self, session_id: UUID) -> ConversationTurn | None: ...
+```
+
+Called by `conversation_orchestration.py` immediately before its existing
+`state.reasoning_port.reason(...)` call (`conversation_orchestration.py:84`),
+populating the new request field. **This introduces no new cross-engine
+dependency** — the data already lives in `communication-engine`'s own
+repository; this is a same-engine query added to an already-existing
+outbound call, not a new port or a new call direction. This directly
+answers instruction #5: existing context (`assemble_context`'s
+memory/knowledge/world-model/personal-context/goals fan-out) is **not**
+sufficient — none of those ports have access to an in-progress session's
+own turns — but the fix does not require introducing a new dependency,
+only widening a payload `communication-engine` already sends with data it
+already has.
+
+### 5.3 Reasoning pipeline integration point — exact
+
+**`domain/hypothesis_generation.py`**, not a new module, not a new pipeline
+stage. `build_prompt_context()` (`hypothesis_generation.py:47-`) gains one
+more optional context component, using the exact same `_component()`
+helper every other context source already uses:
+
+```python
+if prior_nova_utterance:
+    components.append(_component("prior_response", prior_nova_utterance, priority=9))
+```
+
+The model call this function already makes is extended with an additional,
+explicit instruction — appended to the existing prompt construction, not a
+second call — asking the model to also emit a structured correction
+verdict when `prior_response` context is present, using §5.1's precise
+definition verbatim in the instruction text (uncertainty/disagreement/
+clarification/self-correction explicitly named as non-qualifying, mirroring
+how this codebase already encodes precise behavioral distinctions directly
+in prompts elsewhere — e.g., `personality.validate_response`'s own
+constraint-checking approach). `generate_hypotheses()`'s return type gains
+one additive field alongside its existing `hypotheses`/`model_used`
+tuple members; `pipeline.py::run()` threads it through the `Decision`
+object to `ReasoningReplyPayload.is_correction`.
+
+**No new classifier, no new model call, no parallel reasoning path.** One
+existing model invocation now also answers one more well-defined question
+in the same completion.
+
+### 5.4 Storage — reuses existing, already-wired mechanism (§1.1)
+
+`conversation_orchestration.py`, upon receiving `is_correction=True` in
+`ReasoningOutcomeResult` (an additive field on this port-level result type
+too, mirroring `outcome`/`confidence_score`'s existing shape,
+`domain/ports.py:112-119`), constructs a `memory_annotations` entry:
+
+```python
+[{"category": "correction", "text": <the current turn's content>}]
+```
+
+and passes it into the **already-existing** `memory_annotations` parameter
+of `deliver_content_to_session()` — the same call this orchestration
+already makes for delivery. **Zero new storage code path.**
+Communication-engine's role here is exactly instruction #6's constraint:
+it transports and stores a value reasoning-engine already computed; it
+never itself decides whether something is a correction.
+
+### 5.5 Complete path (instruction #4)
+
+```
+inbound turn (WS/HTTP) → record_inbound_turn (existing)
+→ conversation_orchestration.handle_conversation_turn (existing)
+→ get_last_outbound_turn (NEW, same-engine query) → prior_nova_utterance
+→ reasoning_port.reason(..., prior_nova_utterance=...) (existing call, additive arg)
+→ reasoning-engine: pipeline.run() → context_assembly (unchanged)
+→ hypothesis_generation.generate_hypotheses (EXTENDED: one more prompt
+  component, one more parsed field) → is_correction
+→ ReasoningReplyPayload.is_correction (NEW field) → communication-engine
+→ conversation_orchestration builds memory_annotations (NEW, ~5 lines)
+→ deliver_content_to_session(memory_annotations=...) (EXISTING, unchanged)
+→ apply_memory_annotations → ConversationMemory.corrections (EXISTING,
+  unchanged, simply reached for the first time)
+→ [session closes] → CommunicationSessionCompletedPayload (ENRICHED,
+  Fork B) → digital-twin-engine consumes corrections list
+→ correction-frequency = len(corrections) per session, accumulated per
+  user over time, per Fork C's approved partial-metric scope
+```
+
+---
+
+## 6. `CommunicationSessionCompletedPayload` enrichment (Fork B)
 
 ```python
 class CommunicationSessionCompletedPayload(BaseModel):
@@ -435,7 +368,7 @@ class CommunicationSessionCompletedPayload(BaseModel):
     objective: str | None = None
     turn_count: int
     closed_at: datetime
-    # New, optional (ADR-024), populated from ConversationMemory:
+    # New, additive (ADR-024), sourced from ConversationMemory:
     corrections: list[str] | None = None
     preferences: list[str] | None = None
     feedback: list[str] | None = None
@@ -443,470 +376,530 @@ class CommunicationSessionCompletedPayload(BaseModel):
     schema_version: int = 1
 ```
 
-This is additive and backward-compatible; no existing consumer breaks
-(there are currently zero consumers of this event outside its own
-publisher).
+Populated in `session_lifecycle.py`'s existing close transition
+(`session_lifecycle.py:235-236`) directly from the session's own, already-
+loaded `ConversationMemory` — no new read required, the data is already in
+hand at the point this event is constructed.
 
-### 7.3 New port/client
+### 6.4 Memory Engine's subscription — confirmed, separate, non-blocking
 
-`communication-engine`'s `domain/ports.py` gains a `DigitalTwinPort`
-Protocol, structurally identical to `PersonalityPort`:
+Re-confirmed this pass: `services/memory-engine/src/nova_memory_engine/events/subscribed.py`'s
+`SUBSCRIBABLE_SUBJECTS` does not include `communication.session.completed`.
+Per Fork B's approval, this stays **explicitly out of Phase 2D-D's scope**
+— digital-twin-engine subscribes directly to the enriched event and does
+not depend on Memory Engine's wiring. Tracked separately, not absorbed.
 
-```python
-class PreferenceSelection(BaseModel):
-    verbosity: str | None
-    technical_depth: str | None
-    # further fields per Fork A's resolution
+---
 
-@runtime_checkable
-class DigitalTwinPort(Protocol):
-    async def get_preferences(
-        self, *, user_id: UUID, correlation_id: UUID | None = None
-    ) -> PreferenceSelection | None: ...
+## 7. API/RPC/event contracts — complete list
+
+### 7.1 New engine: `digital-twin-engine`
+
+- `GET /v1/digital-twin/profile` — Retrieve Profile (Communication Profile
+  scope, Bible Part 16 "Digital Twin APIs", scoped per Master Blueprint §8).
+- `PATCH /v1/digital-twin/profile` — Update Profile (user-initiated
+  correction/override — Bible Part 16's "User Control": view/modify).
+- `GET /v1/digital-twin/preferences` — Retrieve Preferences (mirrors the
+  served RPC below, HTTP-accessible for a future dashboard).
+- `POST /v1/digital-twin/reset` — Reset Domain (Bible Part 16's own-named
+  user-control capability, scoped to this phase's two domains only).
+- Serves `digital_twin.preferences.get.request`/`.reply` (already defined,
+  §7.3).
+- Publishes `personality.memory.update` (already defined, §7.3).
+- Publishes a new `communication.intent.deliver.request` call (as a
+  *client*, for Fork D's warm-case proactive delivery, §10) — reuses the
+  existing subject, digital-twin-engine simply becomes a second caller of
+  it (mirroring the closure document's own "another engine" framing).
+- Subscribes to `communication.session.completed` (enriched, §6).
+
+### 7.2 `communication-engine` additions
+
+- New `DigitalTwinPort` Protocol (`domain/ports.py`), structurally
+  identical to `PersonalityPort`:
+  ```python
+  class PreferenceSelection(BaseModel):
+      conversation_pacing: str | None
+      habit_timing_hint: str | None
+      # Fork A: only fields personality-engine's StyleSelection does not
+      # already cover.
+
+  @runtime_checkable
+  class DigitalTwinPort(Protocol):
+      async def get_preferences(
+          self, *, user_id: UUID, correlation_id: UUID | None = None
+      ) -> PreferenceSelection | None: ...
+  ```
+  Implemented by new `clients/digital_twin_client.py`, mirroring
+  `clients/personality_client.py` exactly.
+- New `CommunicationRepository.get_last_outbound_turn()` (§5.2).
+- `resolve_response_shaping()` extended to optionally call
+  `digital_twin_port.get_preferences()` (Fork A, Option 3's field split —
+  called only when pacing/timing data is actually consulted, e.g. by
+  silence-policy logic, not on every single turn, preserving Master
+  Blueprint §13.2's low-latency rule).
+- `conversation_orchestration.py` extended per §5.5's complete path.
+- A small `user_id → connected session_id` resolution capability for
+  Fork D's warm-case delivery (§10.2) — the one genuinely new piece of
+  communication-engine logic this phase adds to the delivery path itself.
+
+### 7.3 `nova-contracts` changes — complete list
+
+| Payload | Change | ADR-024 compliance |
+|---|---|---|
+| `ReasoningRequestPayload` | `+ prior_nova_utterance: str \| None = None` | Additive, optional, versioned |
+| `ReasoningReplyPayload` | `+ is_correction: bool \| None = None` | Additive, optional, versioned |
+| `CommunicationSessionCompletedPayload` | `+ corrections/preferences/feedback/decisions: list[str] \| None = None` | Additive, optional, versioned |
+| `DigitalTwinPreferencesGetReplyPayload` | Unchanged this phase (its `preferences: dict[str, Any]` looseness is noted but not fixed here — not a blocker) | N/A |
+| `PersonalityMemoryUpdatePayload` | Unchanged — already fits exactly | N/A |
+
+No breaking changes. No existing consumer of any modified payload exists
+today (all are either brand-new consumers this phase creates, or, for
+`ReasoningReplyPayload`, the sole existing consumer is
+`conversation_orchestration.py` itself, which this phase also modifies in
+the same pass).
+
+---
+
+## 8. Personality preference integration (Fork A — exact field split)
+
+| Field | Path | Owner of the value |
+|---|---|---|
+| `verbosity` | `personality.memory.update` (async, digital-twin publishes) → `personality-engine.MemoryProfile` → `personality.style.select` (existing, unchanged call) | `personality-engine` applies; digital-twin learns |
+| `technical_depth` | Same path | Same |
+| `terminology_preference` | Same path | Same |
+| `conversation_pacing` | `digital_twin.preferences.get` (sync, direct RPC, new `DigitalTwinPort`) | `digital-twin-engine` only — `personality-engine` has no concept of pacing |
+| habit-timing hints | Same direct RPC | Same |
+
+This is the precise resolution of Fork A: no field is ever sourced from
+both paths, eliminating the "undefined precedence on conflict" risk named
+in the original research document's Fork A discussion.
+
+---
+
+## 9. Correction-frequency calculation (Fork C, incorporating Fork E)
+
+```
+correction_frequency(user_id, window) =
+    sum(len(session.corrections) for session in
+        completed_sessions(user_id, within=window))
+    / count(completed_sessions(user_id, within=window))
 ```
 
-Implemented by a new `clients/digital_twin_client.py`, calling
-`digital_twin.preferences.get.request` — the same shape as
-`clients/personality_client.py`/`clients/reasoning_client.py`.
+A simple, explicitly-partial trust signal: average corrections per
+completed session over a rolling window (exact window size — e.g. last 20
+sessions, or last 30 days — is an implementation-time parameter, not an
+architectural fork). Stored with the same evolution discipline as
+Communication Profile (§8 of the prior revision's persistence section,
+unchanged): append-only history, current resolved value, never overwritten
+on one data point.
 
-### 7.4 Data flow summary
-
-```
-Turn evidence accumulates in ConversationMemory during a session (existing,
-unchanged) → session closes → communication.session.completed (enriched,
-Fork B) → digital-twin-engine consumes, updates Communication Profile /
-Preference Evolution / trust metric (its own persisted state) →
-digital-twin-engine publishes personality.memory.update (already-defined)
-→ personality-engine's new handler calls update_memory_profile (already
-correct) → future personality.style.select calls reflect the learned
-baseline.
-
-In parallel, mid-turn: communication-engine's resolve_response_shaping()
-optionally also calls digital_twin.preferences.get directly (Fork A) for
-data personality-engine's narrower StyleSelection doesn't carry.
-```
+**Explicitly not computed this phase** (Fork C, unchanged from original
+approval): clarification-question acceptance, proactive-suggestion
+acceptance/dismissal. `digital-twin-engine`'s trust-metric API/schema
+should reserve space for these (nullable columns, per Bible Part 16's own
+"every stored element should indicate origin, purpose, confidence" —
+applies to *absence* of a signal too) without computing them, so adding
+them later is additive, not a migration.
 
 ---
 
-## 8. Persistence implications
+## 10. Proactive suggestion policy — warm case (Fork D)
 
-`digital-twin-engine` is stateful (Master Blueprint §8) and needs its own
-Postgres schema, following every prior engine's exact pattern: a
-`digital_twin` schema (mirroring `personality`, `perception`,
-`communication`), an Alembic migration chain starting at `0001_initial_schema.py`,
-and — per Bible Part 16's own "Digital Twin Memory" section ("every
-important change becomes part of historical evolution... track what
-changed, when, why, confidence, source") — an append-only history table
-for Preference Evolution, not just a single mutable current-value row
-(mirroring `ConversationDecisionTrace`'s own append-only design, §5.5 of
-this document, and `ADR-016`'s "contradiction recording, not overwriting"
-principle from Knowledge Engine — the same evidence-preserving discipline
-applied to a different domain).
+### 10.1 The policy itself (digital-twin-engine's own domain logic)
 
-Proposed minimal schema shape (illustrative — the TDD proper defines
-exact columns):
+A pure function, no side effects: given a proposed proactive message
+(content, topic tag) and the user's configured boundary policy
+(frequency limit per topic, per time window; enabled/disabled), returns
+allow/deny. This is the only genuinely new logic this feature needs —
+everything downstream of "allowed" reuses existing infrastructure (§1.1).
 
-- `communication_profile` (current resolved values — verbosity,
-  technical_depth, terminology_preference, explanation_style,
-  conversation_pacing — one row per user, mirroring `memory_profile`'s
-  singleton-per-user shape).
-- `preference_evolution_history` (append-only: what changed, when, why,
-  confidence, source — per Bible Part 16 verbatim).
-- `habit_signal` (interaction-timing observations, conversation-scoped
-  only per §2's scope limit).
-- `trust_metric` (current resolved trust signal + its own history,
-  same evolution discipline).
-- `proactive_boundary_policy` (user-configured frequency/topic limits).
+### 10.2 Delivery — reusing existing infrastructure, not new plumbing
 
-No cross-engine shared table (ADR-004 compliance, matching every other
-engine's Postgres schema being private to that engine).
+1. Digital-twin-engine's policy allows a proactive message for `user_id`.
+2. Digital-twin-engine needs a `session_id` to target. **New, small
+   capability**: communication-engine needs a way to answer "does this
+   user have a currently-connected session, and if so, which one" — today,
+   `SessionRegistry` is keyed by `session_id`, not `user_id` (matching its
+   documented single-concurrent-session-per-instance scope, `session_registry.py:5-9`).
+   The smallest addition consistent with that existing scope assumption:
+   `SessionRegistry` gains a `user_id → session_id` lookup for currently-
+   connected sessions only (not a general multi-session index — ADR-025's
+   single-user-per-instance assumption, already relied on by Priority 2,
+   makes "the one connected session, if any" a well-defined question).
+   Exposed via a small new RPC or reused from an existing session-lookup
+   surface — **implementation-time detail, not an architectural fork**,
+   since there is exactly one sensible shape given the existing
+   single-instance assumption already governing this codebase.
+3. If a connected session is found: digital-twin-engine publishes
+   `communication.intent.deliver.request` with that `session_id`
+   (`requesting_engine="digital-twin-engine"`) — the **existing**,
+   already-implemented, already-tested event/handler path
+   (`make_intent_deliver_handler`), which already runs the message through
+   personality validation (ADR-005 compliance, unchanged) and delivers
+   through the live channel adapter.
+4. If no connected session is found: **no delivery is attempted** — the
+   suggestion is not queued, not retried, simply not deliverable this
+   phase (§10.3).
 
----
+### 10.3 Cold case — explicit limitation
 
-## 9. Security and boundary analysis
-
-- **ADR-004** (Event Bus is the only legal cross-engine channel): every
-  proposed integration point (§7) is an event/RPC, not a direct import or
-  HTTP call between engines. Compliant by construction.
-- **ADR-005** (only `communication-engine` renders user-facing output):
-  `digital-twin-engine` never speaks directly — even the
-  proactive-communication boundary policy only ever *permits or denies*
-  something communication-engine (or a future notification path) would
-  say; it never itself delivers content. Compliant.
-- **ADR-030**: this document proposes zero changes to the one-way
-  dependency direction it establishes. `personality-engine` still gets no
-  port to query digital-twin — the flow stays publish-only, exactly as
-  decided.
-- **Consent/privacy** (Bible Part 16's own "Privacy First," Doc 22
-  Principle 8): Communication Profile and Preference Evolution data is
-  more sensitive than most prior engines' data (it is literally a model of
-  how the user communicates). The existing `perception-engine` consent
-  pattern (`api/consent.py`, `domain/consent.py` — per-source, explicit,
-  revocable) is the direct precedent to reuse for user control over
-  digital-twin-engine's learning (Bible Part 16's own "User Control"
-  section: view/modify/delete/export/pause/reset). **This is a genuine
-  scope item for the TDD, not optional** — Bible Part 16 states
-  "Transparency is mandatory," and this phase is the first time any engine
-  stores a model *of the user's own communication patterns* rather than
-  content the user explicitly sent.
-- **Data ownership matrix** (Master Blueprint §7): this document's schema
-  proposal (§8) respects "never touches: goals/projects/hardware/software/
-  skills domains" — nothing proposed here reads or writes outside
-  Communication Profile / conversation-scoped Preferences / trust /
-  proactive-boundary.
-- **No new authorization signal**: unlike ADR-032 (identity confidence as
-  authorization for perception-engine), nothing in this phase's proposed
-  design uses any digital-twin data as an authorization/access-control
-  input — it only ever shapes *how* NOVA responds, never *whether* it's
-  allowed to.
+No companion-client transport exists anywhere in this repository (the
+same, already-disclosed gap from the 2D-C closure document's Priority 1/4
+"cold case" — re-confirmed unchanged this session). A user with no
+currently-connected session cannot receive a proactive message this phase,
+under any design — this is a companion-client/transport gap, not a
+digital-twin-engine or communication-engine limitation, and is not
+proposed to be closed here. Documented, not fabricated around.
 
 ---
 
-## 10. Design forks requiring the user's decision
+## 11. Persistence and repository changes
 
-### Fork A — How does `communication-engine` combine `personality.style.select` and `digital_twin.preferences.get`?
+### 11.1 `digital-twin-engine` (new, own Postgres schema)
 
-**Evidence**: Master Blueprint §4.3 states response-length/tone selection
-consumes *both* "personality-engine's style rules and digital-twin-engine's
-learned preferences... via served RPC." ADR-030 establishes digital-twin
-already pushes its resolved values into personality-engine via
-`personality.memory.update`, so `personality.style.select`'s reply should
-already reflect digital-twin's latest learning by the time it's called.
+- `communication_profile` — current resolved values, one row per user.
+- `preference_evolution_history` — append-only (Bible Part 16's "Digital
+  Twin Memory": what changed, when, why, confidence, source).
+- `habit_signal` — conversation-scoped interaction-timing observations.
+- `trust_metric` — current correction-frequency value + its own history
+  (nullable columns reserved for the two not-yet-computed inputs, §9).
+- `proactive_boundary_policy` — user-configured limits.
+- Own Alembic migration chain, `0001_initial_schema.py`, following every
+  prior engine's exact convention.
 
-**Options:**
-1. **Personality-mediated only.** Do not call `digital_twin.preferences.get`
-   from `resolve_response_shaping()` at all this phase. Rely entirely on
-   the async `personality.memory.update` → `update_memory_profile` →
-   `personality.style.select` chain. **Cost:** the served RPC contract
-   (`digital_twin.preferences.get`) ships but has zero real callers this
-   phase either — the same "defined, not yet called" state it's in today,
-   just moved one phase later than the Blueprint's own text implies.
-   **Benefit:** avoids the exact "guaranteed extra synchronous hop" latency
-   cost `response_shaping.py`'s own docstring already argued against once
-   (Master Blueprint §13.2), for data that (for verbosity/technical_depth)
-   is already flowing through the existing call.
-2. **Direct RPC only**, for fields `personality-engine`'s `StyleSelection`
-   doesn't carry (conversation pacing, interaction habits) — leave
-   `personality.memory.update` unused this phase. **Cost:** two independent
-   preference pathways with no defined precedence if they ever disagree on
-   an overlapping field (they shouldn't, if scoped correctly, but nothing
-   enforces that). **Benefit:** matches the Blueprint's literal "both" text
-   for the fields that are genuinely digital-twin-only.
-3. **Both, scoped to non-overlapping fields** — `personality.memory.update`
-   remains the path for verbosity/technical_depth/terminology (fields
-   `personality-engine` already owns and applies); `digital_twin.preferences.get`
-   is called only for fields personality-engine has no concept of
-   (conversation pacing, habit-derived timing hints) that response-shaping
-   or silence-policy logic would consume directly. **Cost:** the most
-   design work (deciding the exact field split); **Benefit:** matches the
-   Blueprint's "both" text precisely, keeps ADR-030's boundary
-   (personality-engine still never learns), avoids redundant computation.
+### 11.2 `communication-engine` (no new schema — additive query only)
 
-**Recommendation:** **Option 3.** It is the only option that is both
-literally consistent with the Blueprint's own "both" language and internally
-non-redundant. The field split should be drawn along the same line ADR-030
-already draws — anything personality-engine's `MemoryProfile` already models
-(verbosity, technical_depth, terminology) stays on the async path;
-anything it doesn't (pacing, timing habits) goes on the direct RPC path,
-called only when that data is actually needed (e.g., only when silence/pacing
-policy is being evaluated, not on every single turn) to preserve the
-low-latency tie-break rule.
+- `get_last_outbound_turn()` (§5.2) — reads the existing `conversation_turn`
+  table with a new query shape (most-recent-outbound-by-session), no new
+  columns, no migration.
+- No new persisted field is required for `is_correction` beyond what
+  `ConversationMemory.corrections` (existing column, `repository/models.py:48`)
+  already stores.
 
-### Fork B — How does `digital-twin-engine` obtain conversation evidence?
+### 11.3 `reasoning-engine` (no new schema)
 
-**Evidence:** §4.2, §6 — `CommunicationSessionCompletedPayload` carries
-none of `ConversationMemory`'s substance today; Memory Engine's own
-intended subscription to this event was never wired either (a pre-existing,
-disclosed gap this phase now has a direct stake in).
+`is_correction` is a reply-only, transient value — not itself persisted by
+reasoning-engine (mirrors `confidence_score`'s own treatment: part of the
+reply and the trace, not a new dedicated table).
 
-**Options:**
-1. **Enrich the event additively** (§7.2) so `digital-twin-engine` gets
-   everything from the event it already subscribes to. **Cost:** touches
-   `communication-engine`'s publish call site and `nova-contracts`
-   (both additive, low risk). **Benefit:** simplest, most local change;
-   `digital-twin-engine` needs no new outbound call to learn.
-2. **`digital-twin-engine` calls back into `communication-engine`** via a
-   new served RPC (e.g. `communication.session.memory.get`), keyed by
-   `session_id`, upon receiving the (unenriched) completion event.
-   **Cost:** a new RPC surface on `communication-engine`, plus an extra
-   synchronous hop *after* the session has already closed (lower latency
-   sensitivity than Fork A, since nothing is waiting on this in a live
-   turn) — but two round trips (event, then RPC) to get one session's data.
-3. **Route through Memory Engine instead** — also wire Memory Engine's own
-   long-disclosed subscription to `communication.session.completed`
-   (enriched per Option 1 or its own RPC per Option 2) so it archives the
-   full session, and have `digital-twin-engine` read from Memory Engine's
-   episodic store rather than directly from communication-engine. **Cost:**
-   the largest — fixes a second engine's gap as a side effect of this
-   phase, which is exactly the kind of scope expansion instruction #10
-   asks to flag rather than silently absorb. **Benefit:** matches Master
-   Blueprint §4.3's own stated intent ("written to Memory Engine... as this
-   session's episodic record") most faithfully, and gives every future
-   consumer of session history (not just digital-twin-engine) one place to
-   read it from.
+### 11.4 `personality-engine` (no new schema)
 
-**Recommendation:** **Option 1** for this phase's own scope, with Option
-3's Memory Engine wiring **explicitly flagged as a separate, adjacent
-prerequisite gap** (not a hard blocker for 2D-D, since Option 1 lets
-digital-twin-engine learn directly without waiting on Memory Engine) that
-should be tracked and closed independently — consistent with instruction
-#10's "flag unrelated findings separately unless they are a hard
-prerequisite." It is not a hard prerequisite here because Option 1 fully
-unblocks 2D-D on its own.
-
-### Fork C — How much of the trust-development metric ships this phase, given §6.3's evidence gaps?
-
-**Evidence:** §6.3 — all three named inputs (correction frequency,
-clarification-acceptance, proactive-suggestion acceptance/dismissal) have
-either a data-shape gap (correction frequency — resolved by Fork B) or no
-existing signal at all (the other two).
-
-**Options:**
-1. **Ship correction-frequency only this phase** (the one input Fork B's
-   resolution directly unblocks), with the metric explicitly documented as
-   partial, and clarification-acceptance/proactive-suggestion inputs added
-   later as their own prerequisites (general clarification instrumentation;
-   Fork D's delivery mechanism) ship. **Cost:** the trust metric is
-   narrower than the Blueprint's literal three-input description this
-   phase. **Benefit:** honest, ships something real rather than a
-   fabricated composite; matches this project's own standing discipline
-   against inventing evidence that doesn't exist yet (Doc 22, Doc 23 §6).
-2. **Instrument all three inputs as part of this phase's own scope** —
-   add a clarification-response outcome to `ConversationDecisionTrace`
-   (communication-engine change) and build Fork D's warm-case delivery
-   path with acceptance/dismissal tracking, before digital-twin-engine's
-   trust metric is considered "done." **Cost:** meaningfully larger scope,
-   touching communication-engine's decision-trace model and requiring
-   Fork D resolved first as a hard dependency rather than a parallel item.
-   **Benefit:** ships the metric as literally specified.
-
-**Recommendation:** **Option 1.** Building a metric on two-thirds fabricated
-or absent evidence would violate this project's own repeated,
-already-established discipline (Bible Part 16's own "never create
-assumptions without evidence"; Doc 22/23's anti-fabrication rules already
-cited throughout this codebase's own docstrings). A correctly-scoped
-partial metric, honestly disclosed as partial, is preferable to a complete-
-looking one that isn't.
-
-### Fork D — Does this phase build any real proactive-communication delivery, or policy only?
-
-**Evidence:** §4.5, §9 — no companion-client transport exists (inherited
-gap); `Notification`/`POST /v1/communication/notifications` already exists
-but only persists, never delivers; Priority 4's `StartListeningSignal`
-precedent shows a "warm case now, cold case deferred" split is both
-possible and already-approved practice in this exact codebase.
-
-**Options:**
-1. **Policy only.** `digital-twin-engine` builds and exposes the
-   proactive-communication boundary policy (config, limits, an evaluation
-   function returning allow/deny for a hypothetical proactive message) with
-   no wiring to any actual delivery path. **Cost:** the feature is
-   contract/fake-verifiable only — no real end-to-end proof it changes
-   anything a user would experience. **Benefit:** zero new risk surface,
-   fully honest about the existing companion-client gap, smallest change.
-2. **Warm-case delivery**, mirroring Priority 4 exactly: when a session is
-   already connected (`SessionRegistry.is_connected`), a proactive message
-   that passes the boundary policy is actually deliverable through the
-   existing WS connection via the intent gate (extending `Notification`
-   or a similar new path); the cold case (no connected session) remains
-   explicitly out of reach, for the same already-disclosed reason as
-   Priority 1/4. **Cost:** touches `communication-engine`'s delivery path
-   again, a second time this phase (on top of Fork A's `DigitalTwinPort`).
-   **Benefit:** genuinely, fully end-to-end verifiable for the warm case,
-   with no hardware/companion-client fabrication — the same asymmetry the
-   2D-C closure document highlighted for Priority 3/4 as achievable without
-   compromise.
-
-**Recommendation:** **Option 2**, using the exact warm-case-only precedent
-Priority 4 already established and the 2D-C closure document already
-validated as sound engineering discipline (its own §14 asymmetry note).
-This is the one place this document recommends *more* scope than the
-minimum, specifically because doing so costs nothing new architecturally
-(the precedent and the connection-registry mechanism already exist) and
-produces a genuinely verifiable feature rather than a policy nobody can
-observe working.
-
----
-
-## 11. Does anything here reopen a Phase 2D-A/B/C decision?
-
-**No.** Checked explicitly, per instruction #11:
-
-- ADR-030's boundary is preserved exactly (§9).
-- Priority 3's synchronous-RPC design (Fork #1 of the closure document) is
-  not touched — this phase adds a *new* synchronous RPC following the same
-  precedent, not a change to the existing reasoning loop.
-- Priority 4's `StartListeningSignal`/warm-case pattern is *reused*, not
-  altered.
-- Priority 5's channel-based verbosity-only scope is unaffected —
-  `digital_twin.preferences.get`/`personality.memory.update` operate on the
-  same `verbosity`/`technical_depth` fields Priority 5 already established
-  boundaries for, without changing those boundaries.
-- Priority 6's real-infra verification discipline is extended (a new
-  engine added to the same matrix, §12), not changed.
-- The stale `ResponseShapingDirective`/task-tracker items the user
-  previously told me not to reopen remain untouched.
-
-No concrete blocker was found that would require reopening any of the
-above.
+`update_memory_profile` (already exists, already correct — Priority 6)
+writes to the existing `memory_profile` table. No migration needed.
 
 ---
 
 ## 12. Failure and degraded-mode behavior
 
-Following the exact pattern every prior integration in this codebase uses
-(Doc 22 Principle 3 — silence is a choice, never an outage symptom):
+Extends §12 of the prior revision with Fork E's new integration points:
 
-- **`digital-twin-engine` unreachable when `communication-engine` calls
-  `digital_twin.preferences.get`** (Fork A, if chosen): same
-  `TimeoutError` → degraded-default pattern `resolve_response_shaping()`
-  already implements for `personality.style.select` — falls back to
-  whatever `personality.style.select`'s own resolved value already is
-  (which, per Fork A Option 3, already reflects the last-known digital-twin
-  state via the async path), never blocks delivery.
-- **`personality-engine` unreachable when `digital-twin-engine` publishes
-  `personality.memory.update`**: this is fire-and-forget pub/sub, not a
-  request needing a reply — the standard outbox-retry semantics every
-  other publish in this codebase already has apply unchanged; no new
-  failure mode.
-- **`communication-engine` unreachable when `digital-twin-engine` tries to
-  learn from a session**: `digital-twin-engine`'s subscription simply
-  never fires for that session; no crash, no partial state (mirrors
-  perception-engine's own "no event published, sensor marked failed, no
-  partial signal" discipline, closure doc §3.6).
-- **Malformed/missing evidence in an enriched `CommunicationSessionCompletedPayload`**
-  (Fork B): all new fields are optional — a `None` list means "no evidence
-  this session," which `digital-twin-engine`'s Preference Evolution logic
-  must treat as "no update," never as "user has no preferences" (avoiding
-  exactly the false-negative-as-fact failure Bible Part 16 warns against).
-
----
-
-## 13. Observability
-
-Reuses the existing, established pattern with zero new observability
-primitives needed: every RPC call gets `correlation_id` propagation
-(already mandatory per every existing port's signature); every domain
-decision (a preference change, a trust-metric update, a proactive-boundary
-allow/deny) gets an append-only trace row, mirroring
-`ConversationDecisionTrace`'s exact shape and Doc 22's explainability
-principle — the user should be able to see *why* NOVA now responds more
-tersely to them, not just that it does. `nova-observability`'s existing
-OTel wiring (used identically by all ten current engines) applies
-unchanged.
+- **Reasoning-engine unreachable/times out when correction-judgment
+  context is included**: identical to the existing, already-implemented
+  fallback (`conversation_orchestration.py`'s existing `TimeoutError`
+  handling) — `is_correction` simply absent from the reply; no
+  `memory_annotations` entry is built; the turn still delivers normally.
+  Never blocks delivery.
+- **Model call inside `generate_hypotheses` fails**: existing
+  `HypothesisGenerationError` handling (`pipeline.py`'s existing Failure
+  Recovery step) applies unchanged — a failed hypothesis generation
+  already degrades the whole reasoning process; `is_correction` is simply
+  never computed for that turn, same as any other hypothesis-generation
+  failure.
+- **`get_last_outbound_turn()` returns `None`** (first turn of a session,
+  no prior NOVA utterance exists yet): `prior_nova_utterance` stays
+  `None`; reasoning-engine's prompt omits the `prior_response` component
+  entirely; no correction judgment is even attempted — correctly, since
+  there is nothing to correct yet.
+- **Digital-twin-engine unreachable when `communication-engine` calls
+  `digital_twin.preferences.get`**: identical `TimeoutError` → degraded-
+  default pattern already established for `personality.style.select`
+  (§12 of the prior revision, unchanged).
+- **No connected session for a proactive message** (§10.2 step 4): no-op,
+  not a retry loop, not an error — the same "no signal is better than a
+  wrong one" discipline this codebase already applies elsewhere
+  (perception-engine's own orchestration failure handling, closure doc §3.6).
 
 ---
 
-## 14. Testing strategy
+## 13. Security and consent boundaries
 
-Two-tier convention unchanged (ADR-033): fast unit/contract tests against
-fakes for every new function (default tier); `real_infra`-marked tests for
-the new Postgres schema/migration and the real event round-trip, following
-`personality-engine`'s/`perception-engine`'s own `test_repository_real_postgres.py`
-pattern exactly.
+Unchanged from the prior revision's §9, with one addition: the correction
+signal is derived from content the user already sent and NOVA already
+said — no new data collection, no new consent surface. It is a
+*re-classification* of existing conversation content already stored in
+`ConversationMemory` under the exact category scheme
+(`decisions`/`preferences`/`corrections`/`feedback`) this project approved
+in Phase 2D-C. Reasoning-engine already has access to `objective_text`
+(the full turn content) for every request regardless of this feature —
+adding `prior_nova_utterance` does not expose it to anything it couldn't
+already see.
 
-**New fakes needed in `nova-testkit`**: `FakeDigitalTwinPort` (mirrors
-`FakePerceptionSignalSource`'s precedent).
-
-**Specific new test classes:**
-- Preference Evolution discipline test (Bible Part 16's own requirement,
-  named explicitly in the existing roadmap's Phase 2D testing strategy): a
-  single contradicting data point must never flip a stored preference —
-  this is a **named acceptance criterion already in `ENGINEERING_ROADMAP.md`**,
-  not a new invention.
-- Degraded-mode tests for every failure mode in §12.
-- Contract round-trip tests for the enriched `CommunicationSessionCompletedPayload`
-  and both existing digital-twin payloads (mirrors every prior
-  `test_*_events.py` file in `nova-contracts/tests/`).
-- Warm-case proactive-delivery integration test (Fork D, if Option 2), the
-  same shape as Priority 4's own `StartListeningSignal` integration test.
+Bible Part 16's "User Control" (view/modify/delete/export/pause/reset)
+remains a genuine scope item for `digital-twin-engine`'s own API (§7.1) —
+unchanged from the prior revision's assessment that this is required, not
+optional, given this is the first engine storing a model of the user's own
+communication patterns.
 
 ---
 
-## 15. Real-infrastructure verification requirements
+## 14. Observability and decision traces
+
+- Every new RPC (`digital_twin.preferences.get`,
+  `reasoning.reason.request`'s widened payload) carries `correlation_id`
+  end-to-end, per existing convention.
+- **New `ConversationDecisionTrace.decision_type` value**: the existing
+  `Literal["addressee_fusion", "interruption_recovery", "silence",
+  "listening_activation"]` (`domain/models.py:180-182`) gains
+  `"correction_detected"` — one row per `is_correction=True` verdict,
+  recording the trace_id linking back to reasoning-engine's own
+  `ReasoningTrace` (Doc 22's explainability principle: the user should be
+  able to see why NOVA now treats them as having corrected it, not just
+  that it does).
+- Digital-twin-engine's own preference/trust-metric changes get their own
+  append-only trace rows (§11.1's `preference_evolution_history`), per
+  Bible Part 16's own explicit requirement.
+
+---
+
+## 15. Testing strategy
+
+Two-tier convention unchanged (ADR-033).
+
+**New unit/contract tests:**
+- `hypothesis_generation.generate_hypotheses`'s extended prompt/parsing:
+  verify the `prior_response` component is included only when
+  `prior_nova_utterance` is supplied; verify `is_correction` parsing
+  against fixed example model outputs covering **every excluded case from
+  §5.1 explicitly** (uncertainty, disagreement, clarification request,
+  self-correction) asserting each yields `is_correction=False`, plus at
+  least one genuine-correction fixture asserting `True`.
+- `conversation_orchestration.py`: `is_correction=True` produces the
+  correct `memory_annotations` entry passed to `deliver_content_to_session`;
+  `is_correction=False`/`None` produces none.
+- `get_last_outbound_turn()`: returns `None` for a session with no prior
+  outbound turn; returns the correct turn otherwise.
+- `CommunicationSessionCompletedPayload` round-trip with the new fields
+  (mirrors every existing `test_*_events.py` pattern).
+- Digital-twin-engine's own domain logic: Preference Evolution's
+  single-data-point-never-flips-a-preference discipline (already a named
+  acceptance criterion in `ENGINEERING_ROADMAP.md`); correction-frequency
+  calculation against fixture session data; proactive-boundary policy
+  allow/deny logic.
+- `FakeDigitalTwinPort`/`FakeReasoningPort` extensions in `nova-testkit`
+  (the latter already exists per Priority 3 — gains `is_correction` to its
+  fake's configurable response).
+
+**New integration tests:**
+- Full path: fake reasoning port configured to return `is_correction=True`
+  → real turn-handling orchestration → real `ConversationMemory.corrections`
+  populated → session close → enriched event payload carries it.
+- Warm-case proactive delivery: a connected fake session + an allowed
+  proactive suggestion → delivered through the real intent gate, personality-
+  validated, same shape as every other intent-gate delivery test already in
+  this codebase.
+- Cold-case: no connected session → no delivery attempted, no error raised.
+
+---
+
+## 16. Real-infrastructure verification
 
 `digital-twin-engine` needs its own `tests/integration/test_repository_real_postgres.py`
-and a new matrix entry in `.github/workflows/real-infra-checks.yml`
-(currently 4 packages: `nova-testkit`, `communication-engine`,
-`personality-engine`, `perception-engine` — this phase adds a 5th). Given
-this session's own Priority 6 experience, the concrete recommendation is:
-**write these tests as part of the engine's own build, but do not consider
-Phase 2D-D "done" until they have an actual green execution on
-GitHub Actions** — the same standard just enforced for Priority 6, not a
-lower bar for a new engine.
+(new Alembic-migrated schema, real singleton/append-only constraints —
+mirroring every prior engine's own real-Postgres test shape) and a new
+entry in `.github/workflows/real-infra-checks.yml`'s matrix (currently 4
+packages, becomes 5). Per this session's own Priority 6 experience, the
+concrete standard is: **write these tests as part of the build, but do not
+consider any part of this phase "done" until it has an actual green
+execution on GitHub Actions** — not a lower bar than Priority 6 was just
+held to.
+
+No new real-infra tests are needed for `reasoning-engine`,
+`communication-engine`, or `personality-engine`'s own changes beyond what
+already exists — none of the additive fields change persistence behavior
+those engines' existing real-Postgres suites already cover (schema is
+unchanged for all three).
 
 ---
 
-## 16. Technical debt discovered during this research (flagged separately, per instruction #10 — not expanded into this phase's scope)
+## 17. Migration / backward-compatibility considerations
 
-- Memory Engine's long-disclosed, still-unwired subscription to
-  `communication.session.completed` (§4.4, Fork B's Option 3). Not a hard
-  2D-D blocker (Fork B Option 1 avoids needing it), but genuinely adjacent
-  and worth its own tracked item.
-- The outbox-worker-as-a-deployed-process gap remains open for every engine
-  except perception-engine (Priority 1's fix was scoped to that engine
-  only, by explicit prior instruction). `digital-twin-engine` should be
-  built with its worker deployed from day one (§9) rather than adding to
-  this gap, but the existing gap for the other 9 engines is unrelated to
-  this phase and not proposed for fixing here.
-- `DigitalTwinPreferencesGetReplyPayload.preferences: dict[str, Any]` is
-  untyped (§7.1) — worth a typed sub-model when the real TDD is written,
-  not a blocker for this research document.
+- Every contract change (§7.3) is additive and optional — zero-downtime,
+  no consumer breakage, per ADR-024, consistent with every prior contract
+  change in this project.
+- `digital-twin-engine`'s own schema is brand new — no migration-compatibility
+  concern (nothing to migrate from).
+- `communication-engine`'s new repository method is additive (a new query,
+  not a schema change) — no migration.
+- No coordinated same-release requirement exists this phase, unlike
+  Priority 2's breaking `PerceptionAddresseeSignalCandidatePayload` change
+  — every payload here stays backward-compatible on its own.
 
 ---
 
-## 17. Recommended implementation order
+## 18. Explicit non-goals
 
-1. **Fork B's decision**, then the `CommunicationSessionCompletedPayload`
-   enrichment (`nova-contracts` + `communication-engine`'s one publish call
-   site) — small, additive, unblocks everything downstream.
-2. **`digital-twin-engine`'s domain layer** (Communication Profile,
-   Preference Evolution with its evidence discipline, Habit Detection
-   slice, trust metric scoped per Fork C, proactive-boundary policy) —
-   buildable and fully unit-testable against fakes before any other engine
-   changes.
-3. **`digital-twin-engine`'s repository/API/events/main.py scaffold**,
-   following perception-engine's template (§5) — including its own outbox
-   worker service in `docker-compose.local.yml` from the start.
-4. **`personality-engine`'s new subscription** (small, independent, can
-   happen in parallel with step 3).
-5. **`communication-engine`'s `DigitalTwinPort`**, wired per Fork A's
-   resolution, into `resolve_response_shaping()`.
-6. **Fork D's warm-case delivery wiring** (if approved), last, since it is
-   the one item that touches `communication-engine`'s delivery path a
-   second time and benefits from steps 1-5 already being stable.
-7. **Real-infrastructure verification** (§15) — write alongside each step,
-   confirm on GitHub Actions before declaring the phase done, per Priority
-   6's own precedent.
+Restated and extended from the prior revision's §2/§9.3, §3.2 boundary:
+
+- The other nine Bible Part 16 domains (goals, projects, hardware,
+  software, skills, knowledge, productivity, general workflow) — Phase 4.
+- Clarification-question acceptance and proactive-suggestion
+  acceptance/dismissal as trust-metric inputs — deferred, not fabricated
+  (Fork C).
+- Cold-case proactive delivery — blocked on a companion-client transport
+  that doesn't exist anywhere in this repository (Fork D).
+- Any heuristic inside communication-engine for inferring corrections from
+  timing, rephrasing, or textual similarity — explicitly forbidden by
+  instruction, not merely deprioritized.
+- Wiring Memory Engine's own unwired `communication.session.completed`
+  subscription — separate, tracked debt (Fork B).
+- Any change to `PersonalContextClient`/`PersonalContextPort`
+  (executive-cognition-engine's and reasoning-engine's existing "honest
+  placeholder for the future Digital Twin Engine") — confirmed, on
+  inspection, to model an entirely different data shape (goals, project_id,
+  device, task — Phase 4's domains), not Communication Profile. Out of
+  scope, not adjacent debt worth flagging further.
+- Any autonomy-level or execution-trust capability — Phase 4,
+  `autonomy-engine`.
 
 ---
 
-## 18. Summary — verified / contract-verified / unverified, applied to this proposal itself
+## 19. Verification classification (per instruction)
 
-This document proposes no code; the table below is a forward statement of
-what each piece's verification status *would be* once built, so the
-eventual TDD and Gate Review are checked against the same bar Priority 6
-was:
-
-| Integration | Expected classification once built |
+| Behavior | Classification |
 |---|---|
-| `digital-twin-engine`'s own Postgres repository | Fully verified once `real_infra`-tested (§15) |
-| `personality.memory.update` publish → personality-engine consumption | Fully verified — both sides already exist or are simple, real, in-process code; no external client needed |
-| `communication.session.completed` (enriched) → digital-twin-engine consumption | Fully verified, same reasoning |
-| `digital_twin.preferences.get` RPC (Fork A) | Fully verified — both sides run in-process in this monorepo, no hardware dependency |
-| Fork D warm-case delivery | Fully verified — no companion client needed, mirrors Priority 4's own already-verified precedent |
-| Fork D cold case | Not applicable — explicitly out of reach, inherited limitation |
-| Trust-development metric (Fork C, scoped) | Contract/fake verified for the shipped input; the other two inputs remain absent, not partially-fake-verified — they simply don't exist yet |
+| `hypothesis_generation.py`'s existing model call mechanics | Fully verified (read directly, current session) |
+| `deliver_content_to_session()`'s existing `memory_annotations` handling | Fully verified (read directly, current session) |
+| `communication.intent.deliver.request`'s existing warm/cold handling | Fully verified (read directly, current session) |
+| `StartListeningSignal`'s exact shape (referenced as precedent, not reused directly — see §10) | Fully verified (read directly, current session) |
+| `ReasoningRequestPayload`/`ReasoningReplyPayload` current shape | Fully verified (read directly, current session) |
+| Memory Engine's non-subscription to `communication.session.completed` | Fully verified (read directly, current session) |
+| `is_correction` semantic distinction (§5.1) actually holding up against real model output | **Unverified until built and real-infra tested** — the definition is precise, but whether a real LLM reliably respects it is an empirical question §15's fixture tests exist to answer, not something this document can verify in advance |
+| Fork A's field-split avoiding conflicting values in practice | Contract verified once built (no runtime data exists yet to contradict it) |
+| Correction-frequency metric's usefulness as an actual trust signal | **Intentionally out of scope to verify** — this phase ships the mechanism per Bible Part 16's own "requires consistent evidence" discipline; whether the resulting metric is *good* is an empirical question for after real usage accumulates, not a Phase 2D-D acceptance criterion |
+| Everything else in §15/§16's planned test suites | Will be fake/test-verified pre-implementation, fully verified once real-infra-tested (§16), exactly per every prior phase's own discipline |
 
 ---
 
-## 19. What this document is not
+## 20. Risks and mitigations
 
-This is not an approved Technical Design Document. It does not specify
-exact API request/response shapes, exact Alembic column types, or exact
-handler function signatures — that level of detail belongs in the TDD this
-document's approval would authorize, following the same
-Design → Implementation → Testing → Architecture Review → Gate Review →
-Metrics → Approval sequence every prior phase used. No implementation
-begins until the user reviews this document and its four forks and gives
-explicit approval.
+1. **The LLM-based correction judgment could be unreliable in practice**
+   (over- or under-triggering). *Mitigation:* §15's fixture-based test
+   suite covering every named exclusion explicitly; the metric is already
+   scoped as partial and disclosed (Fork C), so a noisy signal degrades
+   gracefully into "a somewhat noisy partial metric," not a false claim
+   of precision.
+2. **Widening `ReasoningRequestPayload`'s prompt with `prior_nova_utterance`
+   could affect hypothesis-generation quality/latency for unrelated
+   reasoning calls.** *Mitigation:* the field is optional and additive;
+   non-communication-engine callers (a future Planning Engine, per that
+   payload's own docstring) simply never populate it, and the prompt
+   component is only appended when present.
+3. **`digital-twin-engine` becomes a new synchronous failure point in the
+   response pipeline** (Fork A's direct RPC). *Mitigation:* §12's
+   degraded-mode fallback, identical in shape to every other synchronous
+   dependency this codebase already has; called selectively (not on every
+   turn), per Master Blueprint §13.2.
+4. **Fork D's warm-case delivery, despite reusing existing infrastructure,
+   is still a new *caller* of a path that has never had a real caller
+   before** — latent bugs in `make_intent_deliver_handler` could surface
+   for the first time. *Mitigation:* §15's integration tests exercise this
+   path with real assertions, not just contract shape; this is exactly the
+   kind of "genuinely new caller of old code" risk Priority 6 already
+   demonstrated real value in catching (the two genuine bugs that pass
+   found), so the same rigor is applied here before any claim of
+   correctness.
+5. **Scope crept to include `reasoning-engine`** (Fork E). *Mitigation:*
+   already explicitly approved, narrowly scoped (one field in, one field
+   out, one existing call extended), and documented here precisely so its
+   boundary doesn't quietly widen further during implementation.
+
+---
+
+## 21. Implementation order (revised for Fork E)
+
+1. **`nova-contracts` changes** (§7.3) — all four additive payload changes,
+   in one pass, with their own contract round-trip tests.
+2. **`reasoning-engine`**: extend `hypothesis_generation.py`'s prompt
+   construction and output parsing (§5.3); thread `is_correction` through
+   `pipeline.py` to the reply. Fully testable in isolation against fixture
+   model outputs before any other component changes.
+3. **`communication-engine`, correction-signal transport**:
+   `get_last_outbound_turn()` (§5.2); `conversation_orchestration.py`
+   passes `prior_nova_utterance` in, builds `memory_annotations` from
+   `is_correction` on the way out (§5.4-5.5). Testable against a
+   `FakeReasoningPort` before digital-twin-engine exists.
+4. **`CommunicationSessionCompletedPayload` enrichment** (§6) —
+   `session_lifecycle.py`'s one publish call site.
+5. **`digital-twin-engine`'s domain layer** (Communication Profile,
+   Preference Evolution, correction-frequency metric, proactive-boundary
+   policy) — buildable and fully unit-testable against fakes, independent
+   of steps 2-4 having real counterparts (uses `nova-testkit` fakes).
+6. **`digital-twin-engine`'s scaffold** (repository/API/events/main.py,
+   own outbox worker in `docker-compose.local.yml` from day one, per
+   Priority 1's precedent) — mirrors `perception-engine`'s template.
+7. **`personality-engine`'s new subscription** — small, independent, can
+   happen any time after step 1.
+8. **`communication-engine`'s `DigitalTwinPort`** (Fork A) — wired into
+   `resolve_response_shaping()`.
+9. **Fork D's warm-case delivery**: the `user_id → connected session_id`
+   lookup (§10.2) + digital-twin-engine's own call to
+   `communication.intent.deliver.request`.
+10. **Real-infrastructure verification** (§16) — written alongside each
+    step, confirmed on GitHub Actions before declaring the phase done.
+
+**Rationale for reordering ahead of the prior revision's plan:** Fork E's
+correction signal is now a genuine cross-engine dependency chain
+(reasoning → communication → eventual digital-twin consumption), so it
+moves earlier, before digital-twin-engine itself, so that by the time
+digital-twin-engine's own domain layer is built, the evidence it will
+consume is already flowing and independently tested — not built against a
+hypothetical shape.
+
+---
+
+## 22. Expected files/components affected (complete list)
+
+**New:**
+- `services/digital-twin-engine/` (full engine, mirroring `perception-engine`'s
+  file layout — `api/`, `clients/`, `config.py`, `domain/`, `events/`,
+  `main.py`, `observability.py`, `repository/`, `workers/`, `tests/`,
+  `alembic/`, `Dockerfile`, `pyproject.toml`, `README.md`).
+- `packages/nova-testkit/src/nova_testkit/`: `FakeDigitalTwinPort` (and
+  `FakeReasoningPort` extension for `is_correction`).
+
+**Modified:**
+- `packages/nova-contracts/src/nova_contracts/events/reasoning.py` (2 new
+  fields).
+- `packages/nova-contracts/src/nova_contracts/events/communication.py`
+  (4 new fields).
+- `services/reasoning-engine/src/nova_reasoning_engine/domain/hypothesis_generation.py`,
+  `domain/pipeline.py`, `domain/models.py` (new field on internal request/
+  result types).
+- `services/communication-engine/src/nova_communication_engine/domain/ports.py`
+  (`DigitalTwinPort`, `ReasoningOutcomeResult.is_correction`,
+  `CommunicationRepository.get_last_outbound_turn`), `domain/models.py`
+  (`ConversationDecisionTrace.decision_type` new literal value),
+  `domain/response_shaping.py` (Fork A wiring), `conversation_orchestration.py`
+  (§5.5), `session_lifecycle.py` (§6), `clients/digital_twin_client.py` (new),
+  `session_registry.py` (§10.2's lookup), `repository/postgres_communication_repository.py`
+  (new query implementation).
+- `services/personality-engine/src/nova_personality_engine/events/subscribed.py`,
+  `events/handlers.py` (new subscription).
+- `infra/docker/docker-compose.local.yml` (new `digital-twin-engine` +
+  `digital-twin-engine-worker` services).
+- `.github/workflows/real-infra-checks.yml` (new matrix entry).
+- `docs/roadmap/ENGINEERING_ROADMAP.md` (Phase 2D-D status line, once
+  implemented — not part of this design pass).
+
+**Not modified:** every other engine and package in the monorepo.
+
+---
+
+## 23. What this document is not
+
+This TDD specifies exact contract fields, exact integration points, and
+exact call chains, but does not specify Alembic column-level types, exact
+FastAPI request/response model field names, or exact prompt wording for
+reasoning-engine's extended instruction — that remains implementation-time
+detail within the boundaries this document sets. No implementation begins
+until the user reviews this document and gives explicit approval.
