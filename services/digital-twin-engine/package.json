@@ -1,0 +1,10 @@
+{
+  "name": "@nova/digital-twin-engine",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "lint": "uv run --package digital-twin-engine ruff check . && uv run --package digital-twin-engine mypy src",
+    "test": "uv run --package digital-twin-engine pytest -m \"not real_infra\" --cov=nova_digital_twin_engine.domain",
+    "build": "echo 'digital-twin-engine: no build step yet (Phase 2D-D Step 5 -- domain layer only; container image arrives in Step 6)'"
+  }
+}

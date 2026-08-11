@@ -1,0 +1,24 @@
+[project]
+name = "digital-twin-engine"
+version = "0.1.0"
+description = "The Digital Twin Engine (Bible Part 16, minimal Phase 2D-D slice) -- Communication Profile, conversation-scoped Preference Evolution/Habit Detection, a correction-frequency trust metric, and a proactive-communication boundary policy (docs/design/phase-2d/06-personal-companion.md, ADR-030)."
+requires-python = ">=3.12"
+dependencies = [
+    "pydantic>=2.9",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/nova_digital_twin_engine"]
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+]
