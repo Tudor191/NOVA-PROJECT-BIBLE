@@ -1,20 +1,16 @@
 # Phase 2D-C Closure — Priority 6 Gate Review: real-infrastructure fixes
 
-**Status: NOT complete — 33/34 confirmed passing; the 34th fix is pushed and
-awaiting its first real-infrastructure execution.** The scheduled nightly
-`real-infra-checks.yml` run (`31359464265`, 2026-08-10T05:42:47Z, against
-commit `cce5626`) executed and was inspected (§4). The `personality-engine`
-fix is **confirmed correct on real Postgres**:
-`test_update_memory_profile_persists_and_advances_updated_at` now passes.
-`nova-testkit`'s `test_real_request_reply` failed in that run for a distinct,
-more precisely diagnosed root cause than originally documented in the
-proposal — a second occurrence of the same envelope/payload conflation
-defect, at the test's `.request()` call site rather than its `serve()`
-handler (§4.2). That second occurrence has now been fixed (§8, commit
-`42ca8f2`) and fully locally verified; `workflow_dispatch` remains blocked by
-the same 403 (§4, re-confirmed, no workaround attempted), so this fix's real
-Postgres/NATS confirmation is pending the next nightly `schedule` firing.
-**Priority 6 will not be marked complete until that run shows 34/34.**
+**Status: COMPLETE — 34/34 real_infra tests confirmed passing on real
+GitHub Actions infrastructure.** The scheduled nightly `real-infra-checks.yml`
+run (`31461343807`, 2026-08-11T05:20:55Z, against commit `9a81238`) executed
+and was inspected in full (§10) — every job's actual test output, not just
+job status. All four matrix jobs passed for real: `communication-engine`
+(11/11), `perception-engine` (7/7), `personality-engine` (5/5, including the
+previously-failing `update_memory_profile` test), and `nova-testkit` (11/11,
+including `test_real_request_reply`, with the Pydantic `ValidationError`
+confirmed absent from the log). Both root-caused defects from this priority
+(§2.1, §8) are now proven fixed against real Postgres, real NATS, and every
+other real backing store this suite exercises — not merely locally plausible.
 
 ---
 
@@ -328,35 +324,108 @@ attempted. The fix is pushed to `claude/new-session-e1cseg`
 next nightly `schedule` firing will pick it up automatically, exactly as
 happened for the first fix (§4).
 
-## 10. Remaining limitations
+## 10. The confirming run — full evidence, not just job status
 
-- The second fix has full local static and fast-tier verification but **no
-  real-infrastructure execution evidence yet** — this is the one open item
-  before Priority 6 can close.
-- This session still cannot run either real_infra suite locally, and still
-  cannot dispatch `real-infra-checks.yml` manually (§9). Confirmation depends
-  on the next nightly `schedule` firing, or a manual dispatch by someone with
-  sufficient repository access.
-- Run-to-run stability has two data points so far (runs `31296349533` and
-  `31359464265`), both clean through the full container lifecycle with no
-  ordering or isolation anomalies. A third data point (the run confirming
-  this fix) will add further evidence.
+The nightly `schedule` trigger fired again on its own the following night, no
+dispatch needed: run `31461343807`, `run_number: 3`, `event: "schedule"`,
+`created_at: 2026-08-11T05:20:55Z`, against `head_sha: 9a81238` (the second
+fix's Gate Review commit, itself built on `42ca8f2`). All four jobs'
+top-level `conclusion` read `"success"` — but per instruction, that summary
+alone was not treated as sufficient; every job's full `pytest` output was
+pulled and read.
 
-## 11. Compliance with this phase's constraints
+**`nova-testkit`** (job `93685276497`):
+
+```
+tests/test_nats.py::test_real_publish_and_subscribe PASSED
+tests/test_nats.py::test_real_request_reply PASSED
+tests/test_nats.py::test_durable_stream_retains_messages_until_pulled PASSED
+tests/test_neo4j.py::test_real_node_and_relationship_creation_and_traversal PASSED
+tests/test_neo4j.py::test_detach_delete_isolates_each_test PASSED
+tests/test_postgres.py::test_real_insert_and_select_round_trip PASSED
+tests/test_postgres.py::test_real_unique_constraint_is_enforced PASSED
+tests/test_postgres.py::test_transaction_rollback_isolates_each_test PASSED
+tests/test_redis.py::test_real_set_and_get_round_trip PASSED
+tests/test_redis.py::test_real_ttl_expiry PASSED
+tests/test_redis.py::test_flushdb_isolates_each_test PASSED
+11 passed, 14 deselected, 2 warnings in 35.53s
+```
+
+`test_real_request_reply` passes explicitly, and the log contains no
+`ValidationError`, no `TimeoutError`, and no `pydantic_core` traceback
+anywhere — the exact failure mode from both prior runs (§1, §4.2) is
+genuinely gone, not merely absent from a truncated summary.
+
+**`personality-engine`** (job `93685276546`):
+
+```
+tests/integration/test_repository_real_postgres.py::test_get_core_identity_returns_the_real_migration_seeded_row PASSED
+tests/integration/test_repository_real_postgres.py::test_get_memory_profile_returns_the_real_migration_seeded_default PASSED
+tests/integration/test_repository_real_postgres.py::test_update_memory_profile_persists_and_advances_updated_at PASSED
+tests/integration/test_repository_real_postgres.py::test_record_validation_audit_persists_a_real_row PASSED
+tests/integration/test_repository_real_postgres.py::test_core_identity_singleton_check_constraint_is_enforced PASSED
+5 passed, 66 deselected, 2 warnings in 12.71s
+```
+
+`test_update_memory_profile_persists_and_advances_updated_at` passes again,
+with no `MissingGreenlet` anywhere in the log — the §2.1 fix's second
+consecutive real-Postgres confirmation.
+
+**`communication-engine`** (job `93685276534`): `11 passed, 135 deselected,
+2 warnings in 18.38s` — unchanged, untouched by any fix in this priority.
+
+**`perception-engine`** (job `93685276532`): `7 passed, 127 deselected,
+2 warnings in 10.59s` — unchanged, untouched by any fix in this priority.
+
+| Package | Expected | Actual | Confirmed via |
+|---|---|---|---|
+| `communication-engine` | 11/11 | **11/11** | Full log, unchanged from runs 1–2 |
+| `perception-engine` | 7/7 | **7/7** | Full log, unchanged from runs 1–2 |
+| `personality-engine` | 5/5 | **5/5** | Full log; the specific fixed test named and PASSED |
+| `nova-testkit` | 11/11 | **11/11** | Full log; the specific fixed test named and PASSED, no ValidationError present |
+| **Total** | **34/34** | **34/34** | |
+
+## 11. Remaining limitations
+
+- This session's own inability to reach a Docker daemon, or to dispatch
+  `real-infra-checks.yml` directly (§4, §9), remain true as general facts
+  about this environment — but neither blocked obtaining this result, since
+  the nightly `schedule` trigger provided it without either capability.
+- Run-to-run stability now has three data points (runs `31296349533`,
+  `31359464265`, `31461343807`), all clean through the full container
+  lifecycle (start, migrate/seed, test, teardown) with no ordering or
+  isolation anomalies observed in any of them.
+- No other limitation is open. Both defects this priority set out to fix are
+  confirmed fixed against real infrastructure.
+
+## 12. Compliance with this phase's constraints
 
 No real_infra test was weakened, skipped, reclassified, or converted to a
-fake-backed test. No test assertion was loosened. No production code, no
-`InMemoryEventBus`, and no shared `RequestHandler` contract was touched by
-either fix. No CI workflow file was modified. No GitHub permission was
-changed (both 403s were reported, not routed around). Phase 2D-D was not
-started. No other Phase 2D-C priority was touched. The stale task-tracker
-entries were not updated, consistent with no explicit process requirement to
-do so. `git diff` was reviewed in full before each commit and contained
-exactly the intended files each time.
+fake-backed test, at any point across this priority. No test assertion was
+loosened. No production code, no `InMemoryEventBus`, and no shared
+`RequestHandler` contract was touched by either fix. No CI workflow file was
+modified. No GitHub permission was changed (every `workflow_dispatch` 403 was
+reported, never routed around). Phase 2D-D was not started. No other Phase
+2D-C priority was touched. The stale task-tracker entries were not updated,
+consistent with no explicit process requirement to do so. `git diff` was
+reviewed in full before every commit and contained exactly the intended
+files each time. No additional cleanup was performed alongside this closure.
 
-**Priority 6 remains open.** 33 of 34 real_infra tests have a confirmed
-passing real-infrastructure execution; the 34th (`nova-testkit::test_real_request_reply`)
-has a fix that is implemented, approved, and fully locally verified, but not
-yet confirmed against real NATS. Priority 6 will be marked complete only once
-a `real-infra-checks.yml` run against commit `42ca8f2` (or later) shows
-34/34, and Phase 2D-D will not begin until then.
+**Priority 6 is complete.** All 34 real_infra tests across
+`communication-engine`, `perception-engine`, `personality-engine`, and
+`nova-testkit` have a confirmed passing execution on real GitHub Actions
+infrastructure (run `31461343807`), verified from actual test output, not
+job-status summaries alone. The two defects this priority found and fixed:
+
+1. `personality-engine`'s `PostgresPersonalityRepository.update_memory_profile`
+   read an expired `onupdate=func.now()` column outside SQLAlchemy's async
+   greenlet-bridged context, raising `MissingGreenlet` on real Postgres —
+   fixed with `await session.refresh(row)`, the same pattern already used by
+   every other engine's repository layer.
+2. `nova-testkit`'s `test_real_request_reply` conflated a full `EventEnvelope`
+   with a plain payload `BaseModel` at two independent call sites (the
+   `serve()` handler, then the `.request()` call) — both fixed by passing and
+   returning the test's own `_Echo` payload model instead of the envelope.
+
+Phase 2D-D has not been started and will not begin until the user reviews
+this closure and gives explicit approval.
