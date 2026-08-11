@@ -11,6 +11,7 @@ import pytest
 from nova_communication_engine.domain import session_lifecycle
 from nova_communication_engine.domain.models import (
     ChannelType,
+    ConversationMemory,
     ConversationSession,
     ConversationState,
 )
@@ -134,6 +135,32 @@ async def test_close_session_from_waiting_publishes_completed_with_turn_count() 
     completed_events = [e for e in repo.outbox if e.subject == "communication.session.completed"]
     assert len(completed_events) == 1
     assert completed_events[0].payload["turn_count"] == 0
+
+
+async def test_close_session_publishes_the_session_s_conversation_memory() -> None:
+    """Phase 2D-D (docs/design/phase-2d/06-personal-companion.md Sec6, Fork
+    B) -- the already-loaded ConversationMemory, not a fresh read; digital-
+    twin-engine's own learning input."""
+    session = _session(ConversationState.WAITING).model_copy(
+        update={
+            "conversation_memory": ConversationMemory(
+                corrections=["It's Tuesday, not Wednesday."],
+                preferences=["Prefers concise responses."],
+                feedback=["That was helpful."],
+                decisions=["Proceed with option B."],
+            )
+        }
+    )
+    repo = await _seeded_repo(session)
+    await session_lifecycle.close_session(session=session, repository=repo, correlation_id=uuid4())
+
+    completed_events = [e for e in repo.outbox if e.subject == "communication.session.completed"]
+    assert len(completed_events) == 1
+    payload = completed_events[0].payload
+    assert payload["corrections"] == ["It's Tuesday, not Wednesday."]
+    assert payload["preferences"] == ["Prefers concise responses."]
+    assert payload["feedback"] == ["That was helpful."]
+    assert payload["decisions"] == ["Proceed with option B."]
 
 
 async def test_pause_and_resume_round_trip() -> None:

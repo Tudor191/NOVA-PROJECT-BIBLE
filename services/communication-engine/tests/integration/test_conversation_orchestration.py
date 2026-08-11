@@ -35,6 +35,7 @@ from nova_communication_engine.conversation_orchestration import (
     handle_conversation_turn,
     maybe_activate_listening,
 )
+from nova_communication_engine.domain import session_lifecycle
 from nova_communication_engine.domain.models import (
     ChannelType,
     ConversationSession,
@@ -391,6 +392,55 @@ async def test_is_correction_none_records_neither_a_correction_nor_a_trace(
         assert updated is not None
         assert updated.conversation_memory.corrections == []
         assert not any(t.decision_type == "correction_detected" for t in repository.decision_traces)
+
+
+async def test_full_path_correction_survives_to_the_enriched_session_completed_event(
+    monkeypatch,  # type: ignore[no-untyped-def]
+) -> None:
+    """Phase 2D-D Sec15's "New integration tests" -- fake reasoning port
+    returns `is_correction=True`, real turn-handling orchestration populates
+    `ConversationMemory.corrections`, and closing the session carries it
+    onto the enriched `communication.session.completed` payload (Sec6, Fork
+    B)."""
+    monkeypatch.setenv("EVENT_BUS_BACKEND", "in_memory")
+    repository = FakeCommunicationRepository()
+    reasoning_port = FakeReasoningPort(
+        result=ReasoningOutcomeResult(
+            outcome="decided", content="Got it, updating that.", is_correction=True
+        )
+    )
+    app = _make_app(repository=repository, reasoning_port=reasoning_port)
+
+    async with app.router.lifespan_context(app):
+        session = await repository.create_session(_thinking_session())
+        adapter = FakeChannelAdapter()
+        app.state.session_registry.register(session.session_id, adapter)
+
+        outcome = await handle_conversation_turn(
+            app,
+            session_id=session.session_id,
+            user_id=session.user_id,
+            content="It's actually Wednesday, not Tuesday.",
+            correlation_id=session.session_id,
+        )
+        assert outcome is not None
+        assert outcome.delivered is True
+
+        waiting_session = await repository.get_session(session.session_id)
+        assert waiting_session is not None
+        assert waiting_session.state == ConversationState.WAITING
+
+        await session_lifecycle.close_session(
+            session=waiting_session, repository=repository, correlation_id=uuid4()
+        )
+
+        completed_events = [
+            e for e in repository.outbox if e.subject == "communication.session.completed"
+        ]
+        assert len(completed_events) == 1
+        assert completed_events[0].payload["corrections"] == [
+            "It's actually Wednesday, not Tuesday."
+        ]
 
 
 async def test_personality_hard_stop_rejects_delivery(

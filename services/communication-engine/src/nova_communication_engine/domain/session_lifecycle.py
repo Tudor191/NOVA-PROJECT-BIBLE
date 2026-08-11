@@ -239,6 +239,13 @@ async def close_session(
                 objective=updated.objective,
                 turn_count=len(updated.turns),
                 closed_at=closed_at,
+                # Phase 2D-D (docs/design/phase-2d/06-personal-companion.md
+                # Sec6, Fork B) -- already-loaded ConversationMemory, no new
+                # read required; digital-twin-engine's own learning input.
+                corrections=updated.conversation_memory.corrections,
+                preferences=updated.conversation_memory.preferences,
+                feedback=updated.conversation_memory.feedback,
+                decisions=updated.conversation_memory.decisions,
             ).model_dump(mode="json"),
             correlation_id=correlation_id,
         )
