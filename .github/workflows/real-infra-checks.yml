@@ -55,6 +55,8 @@ jobs:
             path: services/personality-engine
           - package: perception-engine
             path: services/perception-engine
+          - package: digital-twin-engine
+            path: services/digital-twin-engine
     steps:
       - uses: actions/checkout@v4
 

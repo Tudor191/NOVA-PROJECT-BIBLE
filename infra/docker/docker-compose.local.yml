@@ -442,6 +442,57 @@ services:
       redis:
         condition: service_healthy
 
+  digital-twin-engine:
+    build:
+      context: ../..
+      dockerfile: services/digital-twin-engine/Dockerfile
+    restart: unless-stopped
+    environment:
+      EVENT_BUS_BACKEND: nats
+      NATS_URL: nats://nats:4222
+      NOVA_ENGINE_NAME: digital-twin-engine
+      DIGITAL_TWIN_ENGINE_POSTGRES_DSN: postgresql+asyncpg://${POSTGRES_USER:-nova}:${POSTGRES_PASSWORD:-nova_dev_password}@postgres:5432/${POSTGRES_DB:-nova}
+      DIGITAL_TWIN_ENGINE_REDIS_URL: redis://redis:6379/0
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+    ports:
+      - "8010:8000"
+    depends_on:
+      nats:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # Priority 1's precedent (docs/design/phase-2d/
+  # 05-conversation-intelligence-closure.md Sec3.5), applied from this
+  # engine's first commit (Phase 2D-D Step 6) rather than retrofitted later
+  # -- the outbox worker is deployed from day one even though nothing
+  # enqueues onto it yet (Fork F; `events/published.py`'s own module
+  # docstring).
+  digital-twin-engine-worker:
+    build:
+      context: ../..
+      dockerfile: services/digital-twin-engine/Dockerfile
+    command: ["arq", "nova_digital_twin_engine.workers.WorkerSettings"]
+    restart: unless-stopped
+    healthcheck:
+      disable: true
+    environment:
+      EVENT_BUS_BACKEND: nats
+      NATS_URL: nats://nats:4222
+      NOVA_ENGINE_NAME: digital-twin-engine
+      DIGITAL_TWIN_ENGINE_POSTGRES_DSN: postgresql+asyncpg://${POSTGRES_USER:-nova}:${POSTGRES_PASSWORD:-nova_dev_password}@postgres:5432/${POSTGRES_DB:-nova}
+      DIGITAL_TWIN_ENGINE_REDIS_URL: redis://redis:6379/0
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+    depends_on:
+      nats:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
 volumes:
   postgres-data:
   neo4j-data:

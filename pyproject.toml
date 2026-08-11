@@ -84,6 +84,7 @@ root_packages = [
     "nova_personality_engine",
     "nova_communication_engine",
     "nova_perception_engine",
+    "nova_digital_twin_engine",
     "nova_testkit",
     "nova_service_kit",
 ]
@@ -103,6 +104,7 @@ modules = [
     "nova_personality_engine",
     "nova_communication_engine",
     "nova_perception_engine",
+    "nova_digital_twin_engine",
 ]
 
 [[tool.importlinter.contracts]]
@@ -119,6 +121,7 @@ source_modules = [
     "nova_personality_engine",
     "nova_communication_engine",
     "nova_perception_engine",
+    "nova_digital_twin_engine",
 ]
 forbidden_modules = [
     "nats",
@@ -140,6 +143,7 @@ source_modules = [
     "nova_personality_engine",
     "nova_communication_engine",
     "nova_perception_engine",
+    "nova_digital_twin_engine",
 ]
 forbidden_modules = [
     "neo4j",
@@ -162,6 +166,7 @@ source_modules = [
     "nova_personality_engine",
     "nova_communication_engine",
     "nova_perception_engine",
+    "nova_digital_twin_engine",
 ]
 forbidden_modules = [
     "anthropic",
@@ -198,6 +203,7 @@ forbidden_modules = [
     "nova_personality_engine",
     "nova_communication_engine",
     "nova_perception_engine",
+    "nova_digital_twin_engine",
 ]
 
 # ADR-034 (docs/architecture/adr/ADR-034-shared-infrastructure-packages-carry-
@@ -223,4 +229,5 @@ forbidden_modules = [
     "nova_personality_engine",
     "nova_communication_engine",
     "nova_perception_engine",
+    "nova_digital_twin_engine",
 ]

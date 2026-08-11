@@ -62,6 +62,7 @@ jobs:
           - personality-engine
           - communication-engine
           - perception-engine
+          - digital-twin-engine
     steps:
       - uses: actions/checkout@v4
 
