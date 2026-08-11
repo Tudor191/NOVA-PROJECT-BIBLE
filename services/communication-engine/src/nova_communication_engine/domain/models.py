@@ -178,7 +178,11 @@ class ConversationDecisionTrace(BaseModel):
     """`None` for a pre-session addressee check (no session exists yet to
     attach to until/unless the fusion outcome is `HIGH`)."""
     decision_type: Literal[
-        "addressee_fusion", "interruption_recovery", "silence", "listening_activation"
+        "addressee_fusion",
+        "interruption_recovery",
+        "silence",
+        "listening_activation",
+        "correction_detected",
     ]
     inputs: dict[str, Any]
     confidence: float | None = None

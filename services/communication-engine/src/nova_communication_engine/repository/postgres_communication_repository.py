@@ -184,6 +184,20 @@ class PostgresCommunicationRepository:
             await db_session.refresh(orm)
             return _turn_to_domain(orm)
 
+    async def get_last_outbound_turn(self, session_id: UUID) -> ConversationTurn | None:
+        async with self._session_factory() as db_session:
+            stmt = (
+                select(ConversationTurnORM)
+                .where(
+                    ConversationTurnORM.session_id == session_id,
+                    ConversationTurnORM.direction == TurnDirection.OUTBOUND.value,
+                )
+                .order_by(ConversationTurnORM.created_at.desc())
+                .limit(1)
+            )
+            row = (await db_session.execute(stmt)).scalar_one_or_none()
+            return _turn_to_domain(row) if row is not None else None
+
     async def list_non_terminal_sessions(self) -> list[ConversationSession]:
         async with self._session_factory() as db_session:
             stmt = (

@@ -39,6 +39,8 @@ from nova_communication_engine.domain.models import (
     ChannelType,
     ConversationSession,
     ConversationState,
+    ConversationTurn,
+    TurnDirection,
 )
 from nova_communication_engine.domain.ports import ReasoningOutcomeResult, ValidationOutcome
 from nova_communication_engine.main import create_app
@@ -126,7 +128,7 @@ async def test_successful_reasoning_result_is_delivered_through_the_intent_gate(
         assert outcome.delivered is True
         assert adapter.delivered[0].content == "The build finished."
         assert reasoning_port.reason_calls == [
-            ("How did the build go?", session.user_id, session.session_id)
+            ("How did the build go?", session.user_id, session.session_id, None)
         ]
         updated = await repository.get_session(session.session_id)
         assert updated is not None
@@ -211,6 +213,184 @@ async def test_a_decided_outcome_with_no_content_is_treated_as_malformed(
 
         assert outcome is not None
         assert adapter.delivered[0].content == FALLBACK_CONTENT
+
+
+# Phase 2D-D (docs/design/phase-2d/06-personal-companion.md Sec5) -- the
+# correction signal: `get_last_outbound_turn` sources `prior_nova_utterance`
+# for the reasoning call, and `is_correction=True` on the reply produces a
+# `corrections` memory annotation plus a `correction_detected` decision
+# trace. This engine only transports/stores reasoning-engine's own verdict
+# (instruction #6); it never computes one itself.
+
+
+async def test_prior_nova_utterance_is_sourced_from_the_last_outbound_turn(
+    monkeypatch,  # type: ignore[no-untyped-def]
+) -> None:
+    monkeypatch.setenv("EVENT_BUS_BACKEND", "in_memory")
+    repository = FakeCommunicationRepository()
+    reasoning_port = FakeReasoningPort(
+        result=ReasoningOutcomeResult(outcome="decided", content="OK.")
+    )
+    app = _make_app(repository=repository, reasoning_port=reasoning_port)
+
+    async with app.router.lifespan_context(app):
+        session = await repository.create_session(_thinking_session())
+        await repository.append_turn(
+            ConversationTurn(
+                session_id=session.session_id,
+                direction=TurnDirection.OUTBOUND,
+                content="The meeting is on Tuesday.",
+                channel=ChannelType.TEXT,
+            )
+        )
+        adapter = FakeChannelAdapter()
+        app.state.session_registry.register(session.session_id, adapter)
+
+        await handle_conversation_turn(
+            app,
+            session_id=session.session_id,
+            user_id=session.user_id,
+            content="It's actually Wednesday.",
+            correlation_id=session.session_id,
+        )
+
+        assert reasoning_port.reason_calls == [
+            (
+                "It's actually Wednesday.",
+                session.user_id,
+                session.session_id,
+                "The meeting is on Tuesday.",
+            )
+        ]
+
+
+async def test_no_prior_outbound_turn_sends_no_prior_nova_utterance(
+    monkeypatch,  # type: ignore[no-untyped-def]
+) -> None:
+    monkeypatch.setenv("EVENT_BUS_BACKEND", "in_memory")
+    repository = FakeCommunicationRepository()
+    reasoning_port = FakeReasoningPort(
+        result=ReasoningOutcomeResult(outcome="decided", content="OK.")
+    )
+    app = _make_app(repository=repository, reasoning_port=reasoning_port)
+
+    async with app.router.lifespan_context(app):
+        session = await repository.create_session(_thinking_session())
+        adapter = FakeChannelAdapter()
+        app.state.session_registry.register(session.session_id, adapter)
+
+        await handle_conversation_turn(
+            app,
+            session_id=session.session_id,
+            user_id=session.user_id,
+            content="Hello?",
+            correlation_id=session.session_id,
+        )
+
+        assert reasoning_port.reason_calls[0][3] is None
+
+
+async def test_is_correction_true_records_a_correction_and_a_decision_trace(
+    monkeypatch,  # type: ignore[no-untyped-def]
+) -> None:
+    monkeypatch.setenv("EVENT_BUS_BACKEND", "in_memory")
+    repository = FakeCommunicationRepository()
+    reasoning_process_id = uuid4()
+    trace_id = uuid4()
+    reasoning_port = FakeReasoningPort(
+        result=ReasoningOutcomeResult(
+            outcome="decided",
+            content="Got it, updating that.",
+            is_correction=True,
+            reasoning_process_id=reasoning_process_id,
+            trace_id=trace_id,
+        )
+    )
+    app = _make_app(repository=repository, reasoning_port=reasoning_port)
+
+    async with app.router.lifespan_context(app):
+        session = await repository.create_session(_thinking_session())
+        adapter = FakeChannelAdapter()
+        app.state.session_registry.register(session.session_id, adapter)
+
+        await handle_conversation_turn(
+            app,
+            session_id=session.session_id,
+            user_id=session.user_id,
+            content="It's actually Wednesday, not Tuesday.",
+            correlation_id=session.session_id,
+        )
+
+        updated = await repository.get_session(session.session_id)
+        assert updated is not None
+        assert updated.conversation_memory.corrections == ["It's actually Wednesday, not Tuesday."]
+
+        traces = [t for t in repository.decision_traces if t.decision_type == "correction_detected"]
+        assert len(traces) == 1
+        assert traces[0].session_id == session.session_id
+        assert traces[0].outcome == "corrected"
+        assert traces[0].inputs["reasoning_process_id"] == str(reasoning_process_id)
+        assert traces[0].inputs["reasoning_trace_id"] == str(trace_id)
+
+
+async def test_is_correction_false_records_neither_a_correction_nor_a_trace(
+    monkeypatch,  # type: ignore[no-untyped-def]
+) -> None:
+    monkeypatch.setenv("EVENT_BUS_BACKEND", "in_memory")
+    repository = FakeCommunicationRepository()
+    reasoning_port = FakeReasoningPort(
+        result=ReasoningOutcomeResult(outcome="decided", content="Sure.", is_correction=False)
+    )
+    app = _make_app(repository=repository, reasoning_port=reasoning_port)
+
+    async with app.router.lifespan_context(app):
+        session = await repository.create_session(_thinking_session())
+        adapter = FakeChannelAdapter()
+        app.state.session_registry.register(session.session_id, adapter)
+
+        await handle_conversation_turn(
+            app,
+            session_id=session.session_id,
+            user_id=session.user_id,
+            content="Maybe it's Wednesday?",
+            correlation_id=session.session_id,
+        )
+
+        updated = await repository.get_session(session.session_id)
+        assert updated is not None
+        assert updated.conversation_memory.corrections == []
+        assert not any(t.decision_type == "correction_detected" for t in repository.decision_traces)
+
+
+async def test_is_correction_none_records_neither_a_correction_nor_a_trace(
+    monkeypatch,  # type: ignore[no-untyped-def]
+) -> None:
+    monkeypatch.setenv("EVENT_BUS_BACKEND", "in_memory")
+    repository = FakeCommunicationRepository()
+    # `is_correction` defaults to `None` -- no `prior_nova_utterance` was
+    # ever sent, or reasoning-engine attempted no judgment.
+    reasoning_port = FakeReasoningPort(
+        result=ReasoningOutcomeResult(outcome="decided", content="Sure.")
+    )
+    app = _make_app(repository=repository, reasoning_port=reasoning_port)
+
+    async with app.router.lifespan_context(app):
+        session = await repository.create_session(_thinking_session())
+        adapter = FakeChannelAdapter()
+        app.state.session_registry.register(session.session_id, adapter)
+
+        await handle_conversation_turn(
+            app,
+            session_id=session.session_id,
+            user_id=session.user_id,
+            content="Hello?",
+            correlation_id=session.session_id,
+        )
+
+        updated = await repository.get_session(session.session_id)
+        assert updated is not None
+        assert updated.conversation_memory.corrections == []
+        assert not any(t.decision_type == "correction_detected" for t in repository.decision_traces)
 
 
 async def test_personality_hard_stop_rejects_delivery(

@@ -80,9 +80,13 @@ async def handle_conversation_turn(
     reasoning returns (e.g. it was closed while this ran in the
     background) -- there is nothing left to deliver to."""
     state = app.state
+    prior_turn = await state.repository.get_last_outbound_turn(session_id)
     try:
         result = await state.reasoning_port.reason(
-            objective_text=content, user_id=user_id, correlation_id=correlation_id
+            objective_text=content,
+            user_id=user_id,
+            correlation_id=correlation_id,
+            prior_nova_utterance=prior_turn.content if prior_turn is not None else None,
         )
     except TimeoutError:
         result = None
@@ -106,12 +110,39 @@ async def handle_conversation_turn(
         )
         return None
 
+    # Phase 2D-D (docs/design/phase-2d/06-personal-companion.md Sec5.4):
+    # reasoning-engine already made the evidence-based judgment -- this
+    # engine only transports and stores it (instruction #6), it never
+    # infers a correction itself. `content` here is the *current* turn's
+    # text, the correction itself, not `response_content` (NOVA's reply).
+    memory_annotations: list[dict[str, str]] | None = None
+    if result is not None and result.is_correction:
+        memory_annotations = [{"category": "corrections", "text": content}]
+        trace_inputs: dict[str, object] = {"user_id": str(user_id)}
+        if result.reasoning_process_id is not None:
+            trace_inputs["reasoning_process_id"] = str(result.reasoning_process_id)
+        if result.trace_id is not None:
+            trace_inputs["reasoning_trace_id"] = str(result.trace_id)
+        await state.repository.create_decision_trace(
+            ConversationDecisionTrace(
+                session_id=session_id,
+                decision_type="correction_detected",
+                inputs=trace_inputs,
+                outcome="corrected",
+                reason=(
+                    "reasoning-engine judged this turn as substantively "
+                    "correcting a statement NOVA previously made."
+                ),
+            )
+        )
+
     return await deliver_content_to_session(
         app,
         session=session,
         content=response_content,
         confidence_tier=confidence_tier,
         correlation_id=correlation_id,
+        memory_annotations=memory_annotations,
     )
 
 

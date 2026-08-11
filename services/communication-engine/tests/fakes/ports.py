@@ -112,12 +112,17 @@ class FakeReasoningPort:
         self.result = result or ReasoningOutcomeResult(outcome="decided", content="Hello!")
         self.raise_timeout = raise_timeout
         self.hold = hold
-        self.reason_calls: list[tuple[str, UUID, UUID | None]] = []
+        self.reason_calls: list[tuple[str, UUID, UUID | None, str | None]] = []
 
     async def reason(
-        self, *, objective_text: str, user_id: UUID, correlation_id: UUID | None = None
+        self,
+        *,
+        objective_text: str,
+        user_id: UUID,
+        correlation_id: UUID | None = None,
+        prior_nova_utterance: str | None = None,
     ) -> ReasoningOutcomeResult:
-        self.reason_calls.append((objective_text, user_id, correlation_id))
+        self.reason_calls.append((objective_text, user_id, correlation_id, prior_nova_utterance))
         if self.hold is not None:
             await self.hold.wait()
         if self.raise_timeout:

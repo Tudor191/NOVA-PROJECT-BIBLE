@@ -122,6 +122,20 @@ class ReasoningOutcomeResult(BaseModel):
     confidence_score: float | None = None
     reasoning_process_id: UUID | None = None
     error: str | None = None
+    is_correction: bool | None = None
+    """Phase 2D-D Sec5.1 -- reasoning-engine's own evidence-based verdict on
+    whether this turn corrects something NOVA previously said, carried
+    through unchanged from `ReasoningReplyPayload.is_correction`. `None`
+    means no judgment was attempted (no `prior_nova_utterance` was sent, or
+    the process failed before hypothesis generation ran) -- never coerced
+    to `False`. This engine only transports this value; it never computes
+    it (instruction #6)."""
+    trace_id: UUID | None = None
+    """Phase 2D-D Sec14 -- carried through from `ReasoningReplyPayload.
+    trace_id` so a `correction_detected` decision trace can link back to
+    reasoning-engine's own `ReasoningTrace` (Doc 22's explainability
+    principle: the user should be able to see *why* NOVA now treats them as
+    having corrected it, not just that it does)."""
 
 
 @runtime_checkable
@@ -141,7 +155,12 @@ class ReasoningPort(Protocol):
     translation."""
 
     async def reason(
-        self, *, objective_text: str, user_id: UUID, correlation_id: UUID | None = None
+        self,
+        *,
+        objective_text: str,
+        user_id: UUID,
+        correlation_id: UUID | None = None,
+        prior_nova_utterance: str | None = None,
     ) -> ReasoningOutcomeResult: ...
 
 
@@ -264,6 +283,15 @@ class CommunicationRepository(Protocol):
     ) -> ConversationSession:
         """Design doc Sec5.1 -- `content=None` clears it (resumed or
         explicitly dropped)."""
+        ...
+
+    async def get_last_outbound_turn(self, session_id: UUID) -> ConversationTurn | None:
+        """Phase 2D-D (docs/design/phase-2d/06-personal-companion.md Sec5.2)
+        -- the session's most recent NOVA-authored turn, if any. Feeds
+        `prior_nova_utterance` on the `reasoning.reason.request` call so
+        reasoning-engine can judge whether the current turn corrects it;
+        `None` when the session has no outbound turn yet (e.g. its very
+        first turn)."""
         ...
 
     async def set_pending_questions(

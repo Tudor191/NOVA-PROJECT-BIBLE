@@ -115,6 +115,60 @@ async def test_append_turn_persists_and_is_returned_by_get_session(
     assert fetched.turns[0].content == "hello"
 
 
+async def test_get_last_outbound_turn_returns_none_with_no_outbound_turn(
+    repository: PostgresCommunicationRepository,
+) -> None:
+    session = await repository.create_session(
+        ConversationSession(user_id=uuid4(), channel=ChannelType.TEXT, device_id=uuid4())
+    )
+    await repository.append_turn(
+        ConversationTurn(
+            session_id=session.session_id,
+            direction=TurnDirection.INBOUND,
+            content="hello",
+            channel=ChannelType.TEXT,
+        )
+    )
+
+    assert await repository.get_last_outbound_turn(session.session_id) is None
+
+
+async def test_get_last_outbound_turn_returns_the_most_recent_one(
+    repository: PostgresCommunicationRepository,
+) -> None:
+    session = await repository.create_session(
+        ConversationSession(user_id=uuid4(), channel=ChannelType.TEXT, device_id=uuid4())
+    )
+    await repository.append_turn(
+        ConversationTurn(
+            session_id=session.session_id,
+            direction=TurnDirection.OUTBOUND,
+            content="The meeting is on Tuesday.",
+            channel=ChannelType.TEXT,
+        )
+    )
+    await repository.append_turn(
+        ConversationTurn(
+            session_id=session.session_id,
+            direction=TurnDirection.INBOUND,
+            content="Got it.",
+            channel=ChannelType.TEXT,
+        )
+    )
+    await repository.append_turn(
+        ConversationTurn(
+            session_id=session.session_id,
+            direction=TurnDirection.OUTBOUND,
+            content="Anything else?",
+            channel=ChannelType.TEXT,
+        )
+    )
+
+    last = await repository.get_last_outbound_turn(session.session_id)
+    assert last is not None
+    assert last.content == "Anything else?"
+
+
 async def test_append_turn_enforces_the_real_foreign_key_to_session(
     repository: PostgresCommunicationRepository,
 ) -> None:

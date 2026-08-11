@@ -31,7 +31,12 @@ class ReasoningClient:
         self._timeout_ms = timeout_ms
 
     async def reason(
-        self, *, objective_text: str, user_id: UUID, correlation_id: UUID | None = None
+        self,
+        *,
+        objective_text: str,
+        user_id: UUID,
+        correlation_id: UUID | None = None,
+        prior_nova_utterance: str | None = None,
     ) -> ReasoningOutcomeResult:
         reply = await self._event_publisher.request(
             "reasoning.reason.request",
@@ -40,6 +45,7 @@ class ReasoningClient:
                 user_id=user_id,
                 requesting_engine=SOURCE_ENGINE,
                 correlation_id=correlation_id or uuid4(),
+                prior_nova_utterance=prior_nova_utterance,
             ),
             source_engine=SOURCE_ENGINE,
             correlation_id=correlation_id,
@@ -52,4 +58,6 @@ class ReasoningClient:
             confidence_score=parsed.confidence_score,
             reasoning_process_id=parsed.reasoning_process_id,
             error=parsed.error,
+            is_correction=parsed.is_correction,
+            trace_id=parsed.trace_id,
         )

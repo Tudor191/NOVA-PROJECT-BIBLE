@@ -18,6 +18,7 @@ from nova_communication_engine.domain.models import (
     ConversationState,
     ConversationTurn,
     Notification,
+    TurnDirection,
 )
 from nova_communication_engine.domain.ports import OutboxEvent, OutboxRow
 
@@ -64,6 +65,13 @@ class FakeCommunicationRepository:
         if outbox_event is not None:
             self.outbox.append(outbox_event)
         return turn
+
+    async def get_last_outbound_turn(self, session_id: UUID) -> ConversationTurn | None:
+        session = self.sessions.get(session_id)
+        if session is None:
+            return None
+        outbound = [t for t in session.turns if t.direction is TurnDirection.OUTBOUND]
+        return outbound[-1] if outbound else None
 
     async def list_non_terminal_sessions(self) -> list[ConversationSession]:
         return [s for s in self.sessions.values() if s.state is not ConversationState.COMPLETED]
