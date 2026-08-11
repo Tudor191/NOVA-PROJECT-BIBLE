@@ -37,6 +37,7 @@ from nova_personality_engine.config import Settings
 from nova_personality_engine.domain.models import MemoryProfile
 from nova_personality_engine.domain.ports import PersonalityRepository
 from nova_personality_engine.events.handlers import (
+    make_memory_update_handler,
     make_style_select_handler,
     make_validate_response_handler,
 )
@@ -93,6 +94,7 @@ def create_app(
             make_style_select_handler(app),
             source_engine="personality-engine",
         )
+        await bus.subscribe("personality.memory.update", make_memory_update_handler(app))
 
         app.state.settings = settings
         app.state.repository = repo
