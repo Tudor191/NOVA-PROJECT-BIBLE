@@ -1,6 +1,7 @@
-"""Fake implementations of this engine's four upstream ports
+"""Fake implementations of this engine's five upstream ports
 (`domain.ports.PersonalityPort`, `ModelOrchestrationPort`, `WorldModelPort`,
-`ReasoningPort`) -- deterministic, in-memory, configurable per test."""
+`ReasoningPort`, `DigitalTwinPort`) -- deterministic, in-memory, configurable
+per test."""
 
 from __future__ import annotations
 
@@ -8,6 +9,7 @@ import asyncio
 from uuid import UUID
 
 from nova_communication_engine.domain.ports import (
+    PreferenceSelection,
     ReasoningOutcomeResult,
     StyleSelection,
     ValidationOutcome,
@@ -128,3 +130,23 @@ class FakeReasoningPort:
         if self.raise_timeout:
             raise TimeoutError("reasoning.reason.request timed out")
         return self.result
+
+
+class FakeDigitalTwinPort:
+    def __init__(
+        self,
+        *,
+        preferences: PreferenceSelection | None = None,
+        raise_timeout: bool = False,
+    ) -> None:
+        self.preferences = preferences
+        self.raise_timeout = raise_timeout
+        self.get_preferences_calls: list[UUID] = []
+
+    async def get_preferences(
+        self, *, user_id: UUID, correlation_id: UUID | None = None
+    ) -> PreferenceSelection | None:
+        self.get_preferences_calls.append(user_id)
+        if self.raise_timeout:
+            raise TimeoutError("digital_twin.preferences.get timed out")
+        return self.preferences

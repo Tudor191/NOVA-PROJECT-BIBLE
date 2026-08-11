@@ -2,12 +2,18 @@
 (docs/design/phase-2d/01-communication-engine.md Sec1, Sec5). `domain/` may
 only import this module, `domain/models.py`, and other `domain/` modules --
 never FastAPI, SQLAlchemy, `nova_eventbus_sdk`, or (per ADR-020) any LLM/AI
-provider SDK directly. No `DigitalTwinPort`/`PerceptionPort` exists this
-phase (design doc Sec0.6) -- their wire contracts are forward-declared in
-`nova-contracts` for future use, but nothing here calls them yet, so no
-Python port exists to abstract a call this document's own runtime never
-makes.
-"""
+provider SDK directly. No `PerceptionPort` exists this phase (design doc
+Sec0.6) -- its wire contract is forward-declared in `nova-contracts` for
+future use, but nothing here calls it yet, so no Python port exists to
+abstract a call this document's own runtime never makes.
+
+`DigitalTwinPort` (Phase 2D-D docs/design/phase-2d/06-personal-companion.md
+Sec7.2, Fork A) is new this phase: `digital-twin-engine` now really serves
+`digital_twin.preferences.get.request`, so a real Python port exists to
+abstract the call -- unlike `PersonalityPort`, it is optional and narrow
+(Fork A's field split: only `conversation_pacing`/`habit_timing_hint`,
+never the five fields `personality-engine`'s own `StyleSelection` already
+covers)."""
 
 from __future__ import annotations
 
@@ -32,11 +38,13 @@ from nova_communication_engine.domain.models import (
 __all__ = [
     "ChannelAdapter",
     "CommunicationRepository",
+    "DigitalTwinPort",
     "EventPublisher",
     "ModelOrchestrationPort",
     "OutboxEvent",
     "OutboxRow",
     "PersonalityPort",
+    "PreferenceSelection",
     "ReasoningOutcomeResult",
     "ReasoningPort",
     "StyleSelection",
@@ -103,6 +111,37 @@ class PersonalityPort(Protocol):
         channel: str | None,
         correlation_id: UUID | None = None,
     ) -> StyleSelection: ...
+
+
+class PreferenceSelection(BaseModel):
+    """Phase 2D-D Sec7.2, Fork A -- only the two fields `personality-engine`'s
+    own `StyleSelection` does not already cover (`digital-twin-engine` also
+    learns verbosity/technical_depth/terminology_preference, but those are
+    published to `personality-engine` via `personality.memory.update`
+    instead, per Fork A's field split; this port never carries them, to
+    avoid two conflicting paths for the same data)."""
+
+    conversation_pacing: str | None
+    habit_timing_hint: str | None
+
+
+@runtime_checkable
+class DigitalTwinPort(Protocol):
+    """Phase 2D-D Sec7.2 -- the `digital_twin.preferences.get.request` RPC,
+    following the exact `PersonalityPort`/`WorldModelPort` pattern. Unlike
+    `PersonalityPort`, this dependency is optional and not called on every
+    turn (Master Blueprint Sec13.2's low-latency tie-break rule; Sec7.2's
+    own instruction that this is called only when pacing/timing data is
+    actually consulted). Implemented by `clients/digital_twin_client.py`.
+
+    A `None` result means either the RPC timed out or `digital-twin-engine`
+    itself replied with no stored preferences yet (new user, nothing learned)
+    -- callers treat both the same way: fall back to no pacing/timing hint,
+    never raise."""
+
+    async def get_preferences(
+        self, *, user_id: UUID, correlation_id: UUID | None = None
+    ) -> PreferenceSelection | None: ...
 
 
 class ReasoningOutcomeResult(BaseModel):

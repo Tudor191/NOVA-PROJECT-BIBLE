@@ -7,12 +7,18 @@ content-source engine to honor (Sec0.7's own disclosed finding: no such
 consumer exists in this codebase yet, so this directive currently has no
 observable effect on delivered text).
 
-`digital_twin.preferences.get` is deliberately never called this phase
-(Sec0.10) -- `personality-engine`'s existing static-default Personality
-Memory is the sole preference source until Phase 2D-D's `digital-twin-engine`
-exists; calling an RPC nothing serves would add a guaranteed-timeout hop to
-every turn, violating Master Blueprint Sec13.2's low-latency tie-break rule
-for zero benefit.
+`digital_twin.preferences.get` (Phase 2D-D docs/design/phase-2d/
+06-personal-companion.md Sec7.2, Fork A) is now optionally called -- only
+when a caller supplies both `digital_twin_port` and `user_id`, mirroring
+`domain.ports.DigitalTwinPort`'s own documented "not on every turn"
+contract (Master Blueprint Sec13.2's low-latency tie-break rule). No
+production call site passes these yet (the same pre-existing, disclosed gap
+`resolve_response_shaping` itself already has -- Sec0.7's finding above),
+so this stays default-off plumbing in production this phase, same as
+`digital-twin-engine`'s own `CommunicationProfile` fields (Fork F).
+`personality-engine`'s existing static-default Personality Memory remains
+the sole *style* source regardless -- Fork A never duplicates
+verbosity/technical_depth/terminology_preference here.
 
 `personality-engine`'s own `channel` parameter to `personality.style.select`
 is documented but currently inert (confirmed by direct code inspection this
@@ -27,7 +33,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from uuid import UUID
 
-from nova_communication_engine.domain.ports import PersonalityPort
+from nova_communication_engine.domain.ports import DigitalTwinPort, PersonalityPort
 
 __all__ = ["ResponseShapingResult", "derive_situation_hint", "resolve_response_shaping"]
 
@@ -65,6 +71,14 @@ class ResponseShapingResult:
     degraded: bool
     """`True` when `personality.style.select` was unreachable and Sec13's
     documented minimal-safe default was used instead."""
+    conversation_pacing: str | None = None
+    habit_timing_hint: str | None = None
+    """Phase 2D-D Sec7.2, Fork A -- `None` whenever `digital_twin_port` was
+    not supplied (the default), the RPC timed out, or `digital-twin-engine`
+    had no stored preferences yet. A digital-twin timeout never flips
+    `degraded` -- that flag stays scoped to the load-bearing
+    `personality-engine` call, per this port's own documented "supplementary,
+    never required" contract."""
 
 
 async def resolve_response_shaping(
@@ -73,6 +87,8 @@ async def resolve_response_shaping(
     channel: str,
     situation_hint: str | None,
     correlation_id: UUID | None = None,
+    digital_twin_port: DigitalTwinPort | None = None,
+    user_id: UUID | None = None,
 ) -> ResponseShapingResult:
     try:
         selection = await personality_port.select_style(
@@ -86,10 +102,26 @@ async def resolve_response_shaping(
             situation_hint=situation_hint,
             degraded=True,
         )
+
+    conversation_pacing: str | None = None
+    habit_timing_hint: str | None = None
+    if digital_twin_port is not None and user_id is not None:
+        try:
+            preferences = await digital_twin_port.get_preferences(
+                user_id=user_id, correlation_id=correlation_id
+            )
+        except TimeoutError:
+            preferences = None
+        if preferences is not None:
+            conversation_pacing = preferences.conversation_pacing
+            habit_timing_hint = preferences.habit_timing_hint
+
     return ResponseShapingResult(
         style=selection.style,
         verbosity=selection.verbosity,
         technical_depth=selection.technical_depth,
         situation_hint=situation_hint,
         degraded=False,
+        conversation_pacing=conversation_pacing,
+        habit_timing_hint=habit_timing_hint,
     )

@@ -21,8 +21,10 @@ same service, it does not replace it). Concretely:
   `deliver_intent` ever calls a `ChannelAdapter.deliver`.
 - **Every response passes through `personality-engine` before delivery
   (§0.5, §7 step 2).** A real, load-bearing synchronous dependency from day
-  one -- unlike `digital-twin-engine`/`perception-engine` (§0.6), which are
-  deferred, forward-declared ports this document's own runtime never calls.
+  one -- unlike `digital-twin-engine` (Phase 2D-D `DigitalTwinPort`,
+  supplementary and optional: no production call site supplies it yet, see
+  §Known Limitations below) or `perception-engine` (§0.6, still a deferred,
+  forward-declared port this document's own runtime never calls).
 - **Speech never touches a Whisper/Piper SDK directly (§0.3, ADR-020).**
   `ai_model.transcribe`/`ai_model.synthesize` are both non-streaming RPCs --
   `EventBus.request()` cannot carry a stream (ADR-004) -- so perceived
@@ -124,15 +126,19 @@ doc §14's own single-instance-per-session admission for this phase).
 | Publishes | `communication.session.state_changed` | On every state transition -- the Live Communication Dashboard's data source |
 | Publishes | `communication.session.completed` | On session close -- Memory Engine's intended (not yet wired) archival trigger |
 | Publishes | `communication.turn.received` | Every inbound turn -- for Reasoning Engine to subscribe to |
-| Requests (outbound) | `personality.validate_response.request`, `personality.style.select.request`, `ai_model.transcribe.request`, `ai_model.synthesize.request`, `world_model.context.request` | this engine as the *calling* side of each upstream port |
+| Requests (outbound) | `personality.validate_response.request`, `personality.style.select.request`, `ai_model.transcribe.request`, `ai_model.synthesize.request`, `world_model.context.request`, `reasoning.reason.request`, `digital_twin.preferences.get.request` | this engine as the *calling* side of each upstream port |
 
-The five outbound `*.request` subjects live in `events/published.py`, not
+The seven outbound `*.request` subjects live in `events/published.py`, not
 `subscribed.py` -- `BoundEventBus.request()` checks the *publishable*
 allow-list even though the subject grammatically looks like something this
 engine "receives a reply to," the same convention every prior engine's own
-`events/published.py` follows. `digital_twin.preferences.get.request`/
-`.reply` are defined in `nova-contracts` (ADR-024) but not wired into either
-allow-list -- design doc §0.6: no 2D-A code path calls them yet.
+`events/published.py` follows. `digital_twin.preferences.get.request`
+(Phase 2D-D §7.2) is wired -- `DigitalTwinClient` is a real, tested
+`domain.ports.DigitalTwinPort` implementation, constructed by `create_app`
+like every other port -- but it is not load-bearing on any hot path:
+`domain.response_shaping.resolve_response_shaping` only calls it when a
+caller supplies both `digital_twin_port` and `user_id`, and no production
+call site does that yet (see §Known Limitations).
 
 ## Owned APIs
 
@@ -252,3 +258,13 @@ across `src/`; `lint-imports` 4/4 contracts kept.
 - **`Notification` delivery is recording-only this phase (§10, §12).** No
   push-notification channel integration exists yet -- `delivered_at` is
   never populated by any code path.
+- **(Phase 2D-D) `DigitalTwinPort`/`DigitalTwinClient` exist and are fully
+  tested against the real wire contract, but no production call site
+  supplies `resolve_response_shaping`'s optional `digital_twin_port`/
+  `user_id` arguments yet.** `conversation_pacing`/`habit_timing_hint` stay
+  `None` in every real response-shaping result this phase -- the same
+  pre-existing gap `resolve_response_shaping`'s own module docstring already
+  discloses for `personality-engine`'s directive consumer (no such consumer
+  exists in this codebase yet either). Wiring a real caller is out of this
+  phase's approved scope (docs/design/phase-2d/06-personal-companion.md
+  Sec7.2).

@@ -4,9 +4,10 @@ phase-2d/01-communication-engine.md Sec11. See ADR-004
 
 Two categories: the four domain events this engine is the source of truth
 for (`communication.session.*`, `communication.turn.received`), dispatched
-by `repository/outbox_dispatcher.py`; and the six outbound RPC `*.request`
+by `repository/outbox_dispatcher.py`; and the seven outbound RPC `*.request`
 subjects this engine calls as a client (`personality.*`, `ai_model.*`,
-`world_model.context.request`, `reasoning.reason.request`) --
+`world_model.context.request`, `reasoning.reason.request`,
+`digital_twin.preferences.get.request`) --
 `BoundEventBus.request()` checks the *publishable* allow-list even though
 the subject grammatically looks like something this engine "receives a
 reply to," the same convention every prior engine's own
@@ -18,6 +19,14 @@ documents this explicitly).
 communication-engine-to-reasoning-engine leg of the conversation loop,
 closed via the same synchronous request/reply pattern as every other
 outbound RPC on this list, not a new event-driven mechanism.
+
+`digital_twin.preferences.get.request` (Phase 2D-D docs/design/phase-2d/
+06-personal-companion.md Sec7.2) -- listed here per this file's own
+established convention (`BoundEventBus.request()` checks the caller's
+*publishable* list, not a served-RPC list) even though, per
+`domain/response_shaping.py`'s own docstring, no production call currently
+supplies the optional `digital_twin_port`/`user_id` arguments that would
+actually trigger it this phase.
 """
 
 from __future__ import annotations
@@ -34,5 +43,6 @@ PUBLISHABLE_SUBJECTS: frozenset[str] = frozenset(
         "ai_model.synthesize.request",
         "world_model.context.request",
         "reasoning.reason.request",
+        "digital_twin.preferences.get.request",
     }
 )

@@ -52,3 +52,10 @@ class Settings(BaseSettings):
     lookup or a single transcription/synthesis call, reasoning-engine's own
     pipeline may itself call memory/knowledge/world-model/ai-model before
     returning."""
+
+    communication_engine_digital_twin_rpc_timeout_ms: int = 2000
+    """Phase 2D-D docs/design/phase-2d/06-personal-companion.md Sec7.2 --
+    how long `domain.response_shaping.resolve_response_shaping` waits on
+    `digital_twin.preferences.get.request` before degrading
+    `conversation_pacing`/`habit_timing_hint` to `None`. A simple lookup RPC,
+    the same shape as `communication_engine_personality_rpc_timeout_ms`."""

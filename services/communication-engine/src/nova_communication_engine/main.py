@@ -1,14 +1,22 @@
 """communication-engine's FastAPI entrypoint -- wires `CommunicationRepository`,
-the four upstream ports (`PersonalityPort`, `ModelOrchestrationPort`,
-`WorldModelPort`, `ReasoningPort`), the `SessionRegistry`, and the Event Bus
-to their concrete implementations; registers the three served RPCs declared
-in `events/subscribed.py`; and runs design doc Sec3.5's restart recovery
-pass at startup.
+the five upstream ports (`PersonalityPort`, `ModelOrchestrationPort`,
+`WorldModelPort`, `ReasoningPort`, `DigitalTwinPort`), the `SessionRegistry`,
+and the Event Bus to their concrete implementations; registers the three
+served RPCs declared in `events/subscribed.py`; and runs design doc Sec3.5's
+restart recovery pass at startup.
 
 `ReasoningPort` (docs/design/phase-2d/05-conversation-intelligence-closure.md
-Sec5, Priority 3) is the newest of the four -- closes the previously-unwired
-communication-engine <-> reasoning-engine conversation loop via the same
-synchronous-RPC-client pattern the other three already establish.
+Sec5, Priority 3) closes the previously-unwired communication-engine <->
+reasoning-engine conversation loop via the same synchronous-RPC-client
+pattern the other ports already establish.
+
+`DigitalTwinPort` (Phase 2D-D docs/design/phase-2d/06-personal-companion.md
+Sec7.2) is the newest -- unlike the other four, it is not load-bearing on
+any hot path this phase: it is always constructed and exposed on
+`app.state`, but `domain.response_shaping.resolve_response_shaping` only
+calls it when a caller supplies both `digital_twin_port` and `user_id`,
+which no production call site does yet (the same pre-existing gap that
+function's own module docstring already discloses).
 
 `create_app` accepts each port as an optional override so tests can inject
 fakes without needing real Postgres/a real Event Bus RPC round trip reachable
@@ -35,6 +43,7 @@ from nova_communication_engine.config import Settings
 from nova_communication_engine.domain import session_lifecycle
 from nova_communication_engine.domain.ports import (
     CommunicationRepository,
+    DigitalTwinPort,
     ModelOrchestrationPort,
     PersonalityPort,
     ReasoningPort,
@@ -65,6 +74,7 @@ def create_app(
     model_orchestration_port: ModelOrchestrationPort | None = None,
     world_model_port: WorldModelPort | None = None,
     reasoning_port: ReasoningPort | None = None,
+    digital_twin_port: DigitalTwinPort | None = None,
 ) -> FastAPI:
     settings = settings or Settings()
     configure_observability("communication-engine", log_level=settings.log_level)
@@ -129,6 +139,14 @@ def create_app(
                 bus, timeout_ms=settings.communication_engine_reasoning_rpc_timeout_ms
             )
 
+        digital_twin = digital_twin_port
+        if digital_twin is None:
+            from nova_communication_engine.clients.digital_twin_client import DigitalTwinClient
+
+            digital_twin = DigitalTwinClient(
+                bus, timeout_ms=settings.communication_engine_digital_twin_rpc_timeout_ms
+            )
+
         await bus.connect()
         await bus.serve(
             "communication.intent.deliver.request",
@@ -155,6 +173,7 @@ def create_app(
         app.state.model_orchestration_port = model_orchestration
         app.state.world_model_port = world_model
         app.state.reasoning_port = reasoning
+        app.state.digital_twin_port = digital_twin
         app.state.session_registry = SessionRegistry()
         app.state.bus = bus
         app.state.metrics = metrics
