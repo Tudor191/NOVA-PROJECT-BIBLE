@@ -13,7 +13,7 @@ always carries its full `turns` list.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, MetaData, Text, func
 from sqlalchemy.dialects.postgresql import JSONB
@@ -69,7 +69,23 @@ class ConversationTurnORM(Base):
     content: Mapped[str] = mapped_column(Text, nullable=False)
     channel: Mapped[str] = mapped_column(Text, nullable=False)
     personality_validated: Mapped[bool | None] = mapped_column(nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC), server_default=func.now()
+    )
+    """Phase 2D-D Step 10 fix -- a real GitHub Actions real-infra run caught
+    `get_last_outbound_turn()` (Sec5.2) returning the wrong turn when two
+    `append_turn` calls land within the same Postgres transaction-start-time
+    tick: `server_default=func.now()` resolves to the *transaction's* start
+    time, not the statement's, so rapid sequential inserts (each its own
+    transaction, but issued back-to-back with no intervening real-world
+    delay) can tie. A Python-side `default`, evaluated at ORM-object
+    construction time -- after the real network round trip of the *previous*
+    `append_turn` call's own commit has already returned -- cannot tie the
+    same way. `server_default` is kept as a DB-level fallback for any
+    non-ORM insert path; this also fixes the same latent tie risk in
+    `ConversationSessionORM.turns`'s own `order_by="ConversationTurnORM.
+    created_at"` relationship ordering, pre-existing since Phase 2D-A and
+    never previously real-infra-tested under back-to-back inserts."""
 
     session: Mapped[ConversationSessionORM] = relationship(back_populates="turns")
 
