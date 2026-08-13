@@ -175,8 +175,13 @@ class ProactiveSuggestion(BaseModel):
 class ProactiveDeliveryRecord(BaseModel):
     """One row per proactive message this engine has already delivered --
     `proactive_boundary.evaluate_proactive_suggestion`'s own frequency-limit
-    check counts these within the policy's configured window."""
+    check counts these within the policy's configured window. `user_id`
+    (Phase 2D-D Step 9, Sec10.2) is required here -- unlike `ProactiveSuggestion`,
+    which is never persisted, this type is the one Fork D actually stores
+    and queries per user, mirroring every other stored/history model in
+    this module (`HabitSignal`, `TrustMetricHistoryEntry`, etc.)."""
 
+    user_id: UUID
     topic: str
     delivered_at: datetime
 

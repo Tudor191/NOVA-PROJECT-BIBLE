@@ -1,6 +1,7 @@
 """Real-Postgres verification of `PostgresDigitalTwinRepository` -- real
-schema (via this engine's own Alembic migration `0001_initial_schema.py`),
-real INSERT/SELECT/UPDATE round trips, mirroring every prior engine's own
+schema (via this engine's own Alembic migration chain,
+`0001_initial_schema.py` + `0002_proactive_delivery.py`), real
+INSERT/SELECT/UPDATE round trips, mirroring every prior engine's own
 `test_repository_real_postgres.py` convention.
 
 `@pytest.mark.real_infra`: excluded from the default `pytest`/`turbo run
@@ -24,6 +25,7 @@ from nova_digital_twin_engine.domain.models import (
     HabitSignal,
     PreferenceEvolutionEntry,
     ProactiveBoundaryPolicy,
+    ProactiveDeliveryRecord,
     TrustMetric,
     TrustMetricHistoryEntry,
 )
@@ -160,6 +162,30 @@ async def test_proactive_boundary_policy_round_trips_and_upserts(
     fetched = await repository.get_proactive_boundary_policy(user_id)
     assert fetched is not None
     assert fetched.max_per_topic_per_window == {"deploy": 2}
+
+
+async def test_proactive_delivery_record_persists_and_lists_recent_by_window(
+    repository: PostgresDigitalTwinRepository,
+) -> None:
+    user_id = uuid4()
+    assert await repository.list_recent_proactive_deliveries(
+        user_id, since=datetime(2026, 1, 1, tzinfo=UTC)
+    ) == []
+
+    stale = ProactiveDeliveryRecord(
+        user_id=user_id, topic="deploy", delivered_at=datetime(2026, 1, 1, tzinfo=UTC)
+    )
+    recent = ProactiveDeliveryRecord(
+        user_id=user_id, topic="deploy", delivered_at=datetime(2026, 8, 1, tzinfo=UTC)
+    )
+    await repository.record_proactive_delivery(stale)
+    await repository.record_proactive_delivery(recent)
+
+    within_window = await repository.list_recent_proactive_deliveries(
+        user_id, since=datetime(2026, 6, 1, tzinfo=UTC)
+    )
+    assert len(within_window) == 1
+    assert within_window[0].delivered_at == recent.delivered_at
 
 
 async def test_outbox_enqueue_list_and_mark_dispatched_round_trip(

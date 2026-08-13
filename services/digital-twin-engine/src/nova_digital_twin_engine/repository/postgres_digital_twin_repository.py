@@ -10,6 +10,7 @@ last write that actually completed.
 
 from __future__ import annotations
 
+from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import func, select, update
@@ -21,6 +22,7 @@ from nova_digital_twin_engine.domain.models import (
     HabitSignal,
     PreferenceEvolutionEntry,
     ProactiveBoundaryPolicy,
+    ProactiveDeliveryRecord,
     TrustMetric,
     TrustMetricHistoryEntry,
 )
@@ -32,6 +34,7 @@ from nova_digital_twin_engine.repository.models import (
     OutboxEventORM,
     PreferenceEvolutionHistoryORM,
     ProactiveBoundaryPolicyORM,
+    ProactiveDeliveryRecordORM,
     TrustMetricHistoryORM,
     TrustMetricORM,
 )
@@ -117,6 +120,12 @@ def _policy_to_domain(row: ProactiveBoundaryPolicyORM) -> ProactiveBoundaryPolic
         enabled=row.enabled,
         max_per_topic_per_window=dict(row.max_per_topic_per_window),
         window_hours=row.window_hours,
+    )
+
+
+def _delivery_record_to_domain(row: ProactiveDeliveryRecordORM) -> ProactiveDeliveryRecord:
+    return ProactiveDeliveryRecord(
+        user_id=row.user_id, topic=row.topic, delivered_at=row.delivered_at
     )
 
 
@@ -277,6 +286,29 @@ class PostgresDigitalTwinRepository:
             await session.flush()
             await session.refresh(row)
             return _policy_to_domain(row)
+
+    async def record_proactive_delivery(
+        self, record: ProactiveDeliveryRecord
+    ) -> ProactiveDeliveryRecord:
+        async with self._session_factory() as session, session.begin():
+            row = ProactiveDeliveryRecordORM(
+                user_id=record.user_id, topic=record.topic, delivered_at=record.delivered_at
+            )
+            session.add(row)
+            await session.flush()
+            await session.refresh(row)
+            return _delivery_record_to_domain(row)
+
+    async def list_recent_proactive_deliveries(
+        self, user_id: UUID, *, since: datetime
+    ) -> list[ProactiveDeliveryRecord]:
+        async with self._session_factory() as session:
+            stmt = select(ProactiveDeliveryRecordORM).where(
+                ProactiveDeliveryRecordORM.user_id == user_id,
+                ProactiveDeliveryRecordORM.delivered_at >= since,
+            )
+            rows = (await session.execute(stmt)).scalars().all()
+            return [_delivery_record_to_domain(row) for row in rows]
 
     async def enqueue_outbox(self, event: OutboxEvent) -> UUID:
         async with self._session_factory() as session, session.begin():

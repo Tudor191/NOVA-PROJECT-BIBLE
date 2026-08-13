@@ -27,6 +27,8 @@ from nova_contracts import (
     CommunicationSessionCreatedPayload,
     CommunicationSessionCreateReplyPayload,
     CommunicationSessionCreateRequestPayload,
+    CommunicationSessionLookupByUserReplyPayload,
+    CommunicationSessionLookupByUserRequestPayload,
     CommunicationSessionStateChangedPayload,
     CommunicationTurnReceivedPayload,
     ConsolidationCompletedPayload,
@@ -167,6 +169,8 @@ MODELS: list[type[BaseModel]] = [
     CommunicationSessionStateChangedPayload,
     CommunicationSessionCompletedPayload,
     CommunicationTurnReceivedPayload,
+    CommunicationSessionLookupByUserRequestPayload,
+    CommunicationSessionLookupByUserReplyPayload,
     DigitalTwinPreferencesGetRequestPayload,
     DigitalTwinPreferencesGetReplyPayload,
 ]

@@ -12,7 +12,17 @@ per-session evidence to compute that average from; the TDD itself names the
 exact window size "an implementation-time parameter, not an architectural
 fork," and storing the evidence a window is computed over is the same kind
 of implementation-time necessity.
-"""
+
+`proactive_delivery_record`'s persistence (Phase 2D-D Step 9, Sec10.2, Fork
+D) is the same kind of implementation-time necessity: `domain/
+proactive_boundary.py::evaluate_proactive_suggestion`'s own frequency-limit
+check needs genuine, per-user delivery history to compute against, not a
+fabricated or empty list.
+
+`CommunicationPort` (Sec10.2, Fork D) is this engine's first synchronous
+upstream RPC caller -- `EventPublisher` below was declared for symmetry
+with every other engine's `domain/ports.py` since Phase 2D-D Step 5/6, but
+had no real caller until now."""
 
 from __future__ import annotations
 
@@ -29,11 +39,18 @@ from nova_digital_twin_engine.domain.models import (
     HabitSignal,
     PreferenceEvolutionEntry,
     ProactiveBoundaryPolicy,
+    ProactiveDeliveryRecord,
     TrustMetric,
     TrustMetricHistoryEntry,
 )
 
-__all__ = ["DigitalTwinRepository", "EventPublisher", "OutboxEvent", "OutboxRow"]
+__all__ = [
+    "CommunicationPort",
+    "DigitalTwinRepository",
+    "EventPublisher",
+    "OutboxEvent",
+    "OutboxRow",
+]
 
 
 class OutboxEvent(BaseModel):
@@ -60,8 +77,9 @@ class OutboxRow(BaseModel):
 class DigitalTwinRepository(Protocol):
     """Persistence port for the `digital_twin` schema (Sec11.1):
     `communication_profile`, `preference_evolution_history`, `habit_signal`,
-    `completed_session_evidence`, `trust_metric` (+ history), and
-    `proactive_boundary_policy`, plus the transactional outbox."""
+    `completed_session_evidence`, `trust_metric` (+ history),
+    `proactive_boundary_policy`, `proactive_delivery_record` (Step 9), plus
+    the transactional outbox."""
 
     async def get_communication_profile(self, user_id: UUID) -> CommunicationProfile | None:
         """`None` when no row exists yet -- the caller (API/event handler)
@@ -117,6 +135,19 @@ class DigitalTwinRepository(Protocol):
         self, policy: ProactiveBoundaryPolicy
     ) -> ProactiveBoundaryPolicy: ...
 
+    async def record_proactive_delivery(
+        self, record: ProactiveDeliveryRecord
+    ) -> ProactiveDeliveryRecord: ...
+
+    async def list_recent_proactive_deliveries(
+        self, user_id: UUID, *, since: datetime
+    ) -> list[ProactiveDeliveryRecord]:
+        """`proactive_boundary.evaluate_proactive_suggestion`'s own
+        `recent_deliveries` input (Sec10.1) -- scoped to `since` (the
+        policy's own configured window) so this port never returns
+        unbounded history."""
+        ...
+
     async def enqueue_outbox(self, event: OutboxEvent) -> UUID: ...
 
     async def list_dispatch_ready(self, *, limit: int = 100) -> list[OutboxRow]: ...
@@ -127,8 +158,8 @@ class DigitalTwinRepository(Protocol):
 @runtime_checkable
 class EventPublisher(Protocol):
     """Declared for symmetry with every other engine's `domain/ports.py` --
-    unused by `domain/` itself this phase (no synchronous upstream RPC call
-    exists yet; Fork D's Step 9 is the first)."""
+    now genuinely used: `clients/communication_client.py` (Fork D, Step 9)
+    is the first real caller."""
 
     async def request(
         self,
@@ -139,3 +170,36 @@ class EventPublisher(Protocol):
         correlation_id: UUID | None = None,
         timeout_ms: int = 2000,
     ) -> EventEnvelope: ...
+
+
+@runtime_checkable
+class CommunicationPort(Protocol):
+    """Phase 2D-D Sec10.2, Fork D -- this engine's own first synchronous
+    upstream RPC caller. `get_connected_session` answers "does this user
+    have a currently-connected session, and if so, which one" (the new,
+    small `communication.session.lookup_by_user.request` RPC);
+    `deliver_intent` reuses the existing, already-tested `communication.
+    intent.deliver.request` gate (ADR-005) -- no new delivery mechanism,
+    per Sec1.1's own "Fork D's warm-case delivery needs no new
+    communication-engine delivery mechanism either" finding. Implemented by
+    `clients/communication_client.py`.
+
+    `TimeoutError` propagates uncaught from both methods, mirroring every
+    other client's documented convention in this project --
+    `proactive_delivery.attempt_proactive_delivery` is the one place that
+    catches it and treats a timeout the same as "not deliverable right
+    now," never a crash."""
+
+    async def get_connected_session(
+        self, *, user_id: UUID, correlation_id: UUID | None = None
+    ) -> UUID | None: ...
+
+    async def deliver_intent(
+        self, *, session_id: UUID, content: str, correlation_id: UUID | None = None
+    ) -> bool:
+        """`True` only when `CommunicationIntentDeliverReplyPayload.
+        delivered` is `True` -- a personality rejection or channel-level
+        failure both return `False`, and this engine's own rate-limit
+        bookkeeping (`ProactiveDeliveryRecord`) only counts an actual
+        delivery, never a mere attempt."""
+        ...

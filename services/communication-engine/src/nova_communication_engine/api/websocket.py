@@ -70,7 +70,7 @@ async def session_websocket(websocket: WebSocket, session_id: UUID) -> None:
     else:
         adapter = TextChannelAdapter(websocket)
 
-    state.session_registry.register(session_id, adapter)
+    state.session_registry.register(session_id, adapter, user_id=session.user_id)
 
     silence_ms = state.settings.communication_engine_vad_end_of_utterance_silence_ms
     vad_config = TransportVadConfig(end_of_utterance_silence_ms=silence_ms)

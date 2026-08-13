@@ -46,7 +46,8 @@ directly by `domain/trust_metric.py`.
 |---|---|---|
 | Subscribed | `communication.session.completed` | Records `CompletedSessionEvidence` + a structural `HabitSignal`, recomputes the correction-frequency trust metric over the configured rolling window. |
 | Subscribed (RPC) | `digital_twin.preferences.get.request` | Serves this engine's own pacing/habit-timing fields (Fork A's field split -- never verbosity/technical_depth/terminology, which stay on the `personality.memory.update` path). |
-| Published | *(none yet)* | `personality.memory.update` and `communication.intent.deliver.request` are both approved capabilities (Sec7.1) with no real call site this phase -- see `events/published.py`'s module docstring. |
+| Requests (outbound) | `communication.session.lookup_by_user.request`, `communication.intent.deliver.request` | Fork D, Step 9 -- `CommunicationClient` (`clients/communication_client.py`), this engine's first synchronous upstream RPC caller; called by `proactive_delivery.attempt_proactive_delivery` (no production trigger source exists yet -- see Known limitations). |
+| Published | *(personality.memory.update only, still dormant)* | `personality.memory.update` remains an approved capability (Sec7.1) with no real call site -- awaits an approved evidence source (Fork F). |
 
 ## Owned APIs
 
@@ -60,12 +61,13 @@ convention.
 - `GET`/`PATCH /v1/digital-twin/proactive-policy` -- not itself named in Sec7.1's bullet list, but a necessary completion of Bible Part 16's "User Control": without a way to configure `max_per_topic_per_window`, Fork D's warm-case delivery (Step 9) could never actually deliver anything (`domain/proactive_boundary.py`'s fail-closed discipline denies any unconfigured topic).
 - `GET /internal/health`, `GET /internal/readiness`, `GET /internal/metrics` -- unprefixed ops/probe surface.
 
-## Known limitations (Phase 2D-D Step 6 scope)
+## Known limitations (Phase 2D-D)
 
-- **The five `CommunicationProfile` learned fields ship at static defaults** -- see above.
-- **Fork D's warm-case proactive delivery is not yet wired** -- this engine's own publish side (`communication.intent.deliver.request`) and the `user_id -> connected session_id` lookup are Step 9's scope.
+- **The five `CommunicationProfile` learned fields ship at static defaults** -- see above (unchanged since Step 6).
+- **(Step 9) Fork D's warm-case proactive delivery is real and fully tested, but has no production trigger.** `proactive_delivery.attempt_proactive_delivery` composes the boundary policy (`domain/proactive_boundary.py`), the new `communication.session.lookup_by_user.request` lookup, and the existing `communication.intent.deliver.request` gate -- all real, wire-tested calls. Nothing in this codebase yet proposes a `ProactiveSuggestion` (no scheduler or reminder source exists anywhere this phase) -- calling this function is the one missing piece, and it is out of this phase's approved scope (docs/design/phase-2d/06-personal-companion.md Sec10 names only the policy and the delivery mechanism, not a trigger).
+- **Cold-case proactive delivery is not proposed to be closed** (Sec10.3) -- no companion-client transport exists anywhere in this repository; a user with no currently-connected session cannot receive a proactive message this phase, under any design.
 - **`personality.memory.update` publishing is dormant** -- the outbox/worker infrastructure is wired from day one (Priority 1's precedent), but nothing enqueues onto it yet.
-- **Real-Postgres verification of `PostgresDigitalTwinRepository` is pending** -- no Docker-capable environment has been available this session (tracked alongside the same open item for personality-engine, communication-engine, and perception-engine).
+- **Real-Postgres verification of `PostgresDigitalTwinRepository` is pending** -- no Docker-capable environment has been available this session (tracked alongside the same open item for personality-engine, communication-engine, and perception-engine). `tests/integration/test_repository_real_postgres.py` includes `test_proactive_delivery_record_persists_and_lists_recent_by_window` as of Step 9, written but not locally executed.
 
 ## Testing
 

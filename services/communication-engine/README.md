@@ -122,6 +122,7 @@ doc §14's own single-instance-per-session admission for this phase).
 | Serves | `communication.intent.deliver.request` / reply | The ADR-005 gate -- `CommunicationIntentDeliverRequestPayload` / `ReplyPayload` |
 | Serves | `communication.session.create.request` / reply | `CommunicationSessionCreateRequestPayload` / `ReplyPayload` |
 | Serves | `communication.session.close.request` / reply | `CommunicationSessionCloseRequestPayload` / `ReplyPayload` |
+| Serves | `communication.session.lookup_by_user.request` / reply | Phase 2D-D §10.2, Fork D -- `SessionRegistry`'s new `user_id -> connected session_id` lookup; `session_id=None` when the user has no currently-connected session (`CommunicationSessionLookupByUserRequestPayload` / `ReplyPayload`) |
 | Publishes | `communication.session.created` | On every `POST /v1/communication/sessions` (or the equivalent RPC) |
 | Publishes | `communication.session.state_changed` | On every state transition -- the Live Communication Dashboard's data source |
 | Publishes | `communication.session.completed` | On session close -- Memory Engine's intended (not yet wired) archival trigger |

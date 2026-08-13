@@ -1,12 +1,12 @@
 """SQLAlchemy ORM models -- the `digital_twin` Postgres schema, exactly as
 specified in docs/design/phase-2d/06-personal-companion.md Sec11.1 (plus
-`completed_session_evidence`, an implementation-time addition --
-`domain/ports.py`'s own module docstring explains why -- and the
-transactional outbox table every prior publishing engine's own initial
-migration adds). `Base.metadata` is what Alembic's `env.py` autogenerates
-migrations against; `alembic/versions/0001_initial_schema.py` is
-hand-written to match this file precisely, the same convention as every
-prior engine.
+`completed_session_evidence` and `proactive_delivery_record`, both
+implementation-time additions -- `domain/ports.py`'s own module docstring
+explains why -- and the transactional outbox table every prior publishing
+engine's own initial migration adds). `Base.metadata` is what Alembic's
+`env.py` autogenerates migrations against; `alembic/versions/
+0001_initial_schema.py` and `0002_proactive_delivery.py` are hand-written
+to match this file precisely, the same convention as every prior engine.
 """
 
 from __future__ import annotations
@@ -117,6 +117,22 @@ class ProactiveBoundaryPolicyORM(Base):
     enabled: Mapped[bool] = mapped_column(nullable=False, default=True)
     max_per_topic_per_window: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
     window_hours: Mapped[int] = mapped_column(Integer, nullable=False, default=24)
+
+
+class ProactiveDeliveryRecordORM(Base):
+    """Phase 2D-D Step 9 (Sec10.2, Fork D) -- `domain/ports.py`'s own module
+    docstring explains why this table exists beyond Sec11.1's named list:
+    `domain/proactive_boundary.py::evaluate_proactive_suggestion`'s
+    frequency-limit check needs genuine, per-user delivery history."""
+
+    __tablename__ = "proactive_delivery_record"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
+    topic: Mapped[str] = mapped_column(Text, nullable=False)
+    delivered_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
 class OutboxEventORM(Base):

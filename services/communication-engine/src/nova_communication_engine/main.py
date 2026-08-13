@@ -54,6 +54,7 @@ from nova_communication_engine.events.handlers import (
     make_intent_deliver_handler,
     make_session_close_handler,
     make_session_create_handler,
+    make_session_lookup_by_user_handler,
 )
 from nova_communication_engine.events.published import PUBLISHABLE_SUBJECTS
 from nova_communication_engine.events.subscribed import SUBSCRIBABLE_SUBJECTS
@@ -161,6 +162,11 @@ def create_app(
         await bus.serve(
             "communication.session.close.request",
             make_session_close_handler(app),
+            source_engine="communication-engine",
+        )
+        await bus.serve(
+            "communication.session.lookup_by_user.request",
+            make_session_lookup_by_user_handler(app),
             source_engine="communication-engine",
         )
         await bus.subscribe(

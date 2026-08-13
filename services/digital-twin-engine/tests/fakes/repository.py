@@ -14,6 +14,7 @@ from nova_digital_twin_engine.domain.models import (
     HabitSignal,
     PreferenceEvolutionEntry,
     ProactiveBoundaryPolicy,
+    ProactiveDeliveryRecord,
     TrustMetric,
     TrustMetricHistoryEntry,
 )
@@ -29,6 +30,7 @@ class FakeDigitalTwinRepository:
         self.trust_metrics: dict[UUID, TrustMetric] = {}
         self.trust_metric_history: list[TrustMetricHistoryEntry] = []
         self.proactive_policies: dict[UUID, ProactiveBoundaryPolicy] = {}
+        self.proactive_deliveries: list[ProactiveDeliveryRecord] = []
         self.outbox: list[OutboxEvent] = []
         self._dispatched: set[int] = set()
 
@@ -87,6 +89,21 @@ class FakeDigitalTwinRepository:
     ) -> ProactiveBoundaryPolicy:
         self.proactive_policies[policy.user_id] = policy
         return policy
+
+    async def record_proactive_delivery(
+        self, record: ProactiveDeliveryRecord
+    ) -> ProactiveDeliveryRecord:
+        self.proactive_deliveries.append(record)
+        return record
+
+    async def list_recent_proactive_deliveries(
+        self, user_id: UUID, *, since: datetime
+    ) -> list[ProactiveDeliveryRecord]:
+        return [
+            record
+            for record in self.proactive_deliveries
+            if record.user_id == user_id and record.delivered_at >= since
+        ]
 
     async def enqueue_outbox(self, event: OutboxEvent) -> UUID:
         self.outbox.append(event)

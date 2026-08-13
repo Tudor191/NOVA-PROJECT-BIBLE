@@ -45,7 +45,9 @@ def test_within_the_configured_limit_is_allowed() -> None:
         policy=policy,
         suggestion=ProactiveSuggestion(topic="deploy", content="Your build finished."),
         recent_deliveries=[
-            ProactiveDeliveryRecord(topic="deploy", delivered_at=_NOW - timedelta(hours=1))
+            ProactiveDeliveryRecord(
+                user_id=uuid4(), topic="deploy", delivered_at=_NOW - timedelta(hours=1)
+            )
         ],
         now=_NOW,
     )
@@ -55,8 +57,12 @@ def test_within_the_configured_limit_is_allowed() -> None:
 def test_at_the_configured_limit_is_denied() -> None:
     policy = ProactiveBoundaryPolicy(user_id=uuid4(), max_per_topic_per_window={"deploy": 2})
     recent = [
-        ProactiveDeliveryRecord(topic="deploy", delivered_at=_NOW - timedelta(hours=1)),
-        ProactiveDeliveryRecord(topic="deploy", delivered_at=_NOW - timedelta(hours=2)),
+        ProactiveDeliveryRecord(
+            user_id=uuid4(), topic="deploy", delivered_at=_NOW - timedelta(hours=1)
+        ),
+        ProactiveDeliveryRecord(
+            user_id=uuid4(), topic="deploy", delivered_at=_NOW - timedelta(hours=2)
+        ),
     ]
     decision = proactive_boundary.evaluate_proactive_suggestion(
         policy=policy,
@@ -72,7 +78,9 @@ def test_deliveries_outside_the_window_do_not_count() -> None:
     policy = ProactiveBoundaryPolicy(
         user_id=uuid4(), max_per_topic_per_window={"deploy": 1}, window_hours=24
     )
-    stale = ProactiveDeliveryRecord(topic="deploy", delivered_at=_NOW - timedelta(hours=48))
+    stale = ProactiveDeliveryRecord(
+        user_id=uuid4(), topic="deploy", delivered_at=_NOW - timedelta(hours=48)
+    )
     decision = proactive_boundary.evaluate_proactive_suggestion(
         policy=policy,
         suggestion=ProactiveSuggestion(topic="deploy", content="Your build finished."),
@@ -84,7 +92,9 @@ def test_deliveries_outside_the_window_do_not_count() -> None:
 
 def test_deliveries_for_a_different_topic_do_not_count() -> None:
     policy = ProactiveBoundaryPolicy(user_id=uuid4(), max_per_topic_per_window={"deploy": 1})
-    other_topic = ProactiveDeliveryRecord(topic="calendar", delivered_at=_NOW - timedelta(hours=1))
+    other_topic = ProactiveDeliveryRecord(
+        user_id=uuid4(), topic="calendar", delivered_at=_NOW - timedelta(hours=1)
+    )
     decision = proactive_boundary.evaluate_proactive_suggestion(
         policy=policy,
         suggestion=ProactiveSuggestion(topic="deploy", content="Your build finished."),

@@ -150,6 +150,31 @@ class CommunicationSessionCloseReplyPayload(BaseModel):
     schema_version: int = 1
 
 
+# --- communication.session.lookup_by_user (Phase 2D-D Sec10.2, Fork D) ------
+
+
+@register_payload("communication.session.lookup_by_user.request")
+class CommunicationSessionLookupByUserRequestPayload(BaseModel):
+    """Fork D's own "small, new capability": does this user have a
+    currently-connected session, and if so, which one. Scoped to exactly
+    one connected session per user, per `SessionRegistry`'s own
+    single-concurrent-session-per-instance assumption (ADR-025) -- not a
+    general multi-session index."""
+
+    user_id: UUID
+    schema_version: int = 1
+
+
+@register_payload("communication.session.lookup_by_user.reply")
+class CommunicationSessionLookupByUserReplyPayload(BaseModel):
+    user_id: UUID
+    session_id: UUID | None = None
+    """`None` when the user has no currently-connected session -- the cold
+    case (Sec10.3): the caller attempts no delivery, rather than treating
+    this as an error."""
+    schema_version: int = 1
+
+
 # --- Published events (Sec11) -------------------------------------------------
 
 

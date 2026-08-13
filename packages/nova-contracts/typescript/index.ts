@@ -70,5 +70,7 @@ export * from "./CommunicationSessionCreatedPayload";
 export * from "./CommunicationSessionStateChangedPayload";
 export * from "./CommunicationSessionCompletedPayload";
 export * from "./CommunicationTurnReceivedPayload";
+export * from "./CommunicationSessionLookupByUserRequestPayload";
+export * from "./CommunicationSessionLookupByUserReplyPayload";
 export * from "./DigitalTwinPreferencesGetRequestPayload";
 export * from "./DigitalTwinPreferencesGetReplyPayload";

@@ -25,6 +25,18 @@ also attempts to activate a live listening session on a `high` outcome, via
 imported inside `handle()` below, not at module scope: `conversation_
 orchestration` itself imports `deliver_content_to_session` from this same
 module, so a top-level import here would be circular.
+
+`make_session_lookup_by_user_handler` (Phase 2D-D docs/design/phase-2d/
+06-personal-companion.md Sec10.2, Fork D) is a different, more general
+lookup than `maybe_activate_listening`'s own `user_id` resolution above:
+that function narrows to voice-channel, `Idle`/`Waiting` sessions only (the
+"safe to start listening" question); this one answers "is any session for
+this user currently connected at all" via `SessionRegistry`'s own
+connect-time-populated map, with no channel or FSM-state filtering --
+warm-case proactive delivery (Sec10.2 step 2) reuses the existing
+`communication.intent.deliver.request` gate for the actual delivery
+decision, so this lookup only needs to answer "is there a live channel to
+target."
 """
 
 from __future__ import annotations
@@ -40,6 +52,8 @@ from nova_contracts import (
     CommunicationSessionCloseRequestPayload,
     CommunicationSessionCreateReplyPayload,
     CommunicationSessionCreateRequestPayload,
+    CommunicationSessionLookupByUserReplyPayload,
+    CommunicationSessionLookupByUserRequestPayload,
     EventEnvelope,
     PerceptionAddresseeSignalCandidatePayload,
 )
@@ -61,6 +75,7 @@ __all__ = [
     "make_intent_deliver_handler",
     "make_session_close_handler",
     "make_session_create_handler",
+    "make_session_lookup_by_user_handler",
 ]
 
 
@@ -222,6 +237,18 @@ def make_session_close_handler(app: FastAPI):  # type: ignore[no-untyped-def]
         assert updated.closed_at is not None
         return CommunicationSessionCloseReplyPayload(
             session_id=updated.session_id, state=updated.state, closed_at=updated.closed_at
+        )
+
+    return handle
+
+
+def make_session_lookup_by_user_handler(app: FastAPI):  # type: ignore[no-untyped-def]
+    async def handle(envelope: EventEnvelope) -> CommunicationSessionLookupByUserReplyPayload:
+        state = app.state
+        payload = CommunicationSessionLookupByUserRequestPayload.model_validate(envelope.payload)
+        session_id = state.session_registry.get_connected_session_id(payload.user_id)
+        return CommunicationSessionLookupByUserReplyPayload(
+            user_id=payload.user_id, session_id=session_id
         )
 
     return handle

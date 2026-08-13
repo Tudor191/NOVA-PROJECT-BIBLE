@@ -84,7 +84,9 @@ def test_proactive_boundary_policy_defaults() -> None:
 def test_proactive_suggestion_and_delivery_record_round_trip() -> None:
     suggestion = ProactiveSuggestion(topic="deploy", content="Your build finished.")
     assert suggestion.topic == "deploy"
-    delivery = ProactiveDeliveryRecord(topic="deploy", delivered_at=datetime.now(UTC))
+    delivery = ProactiveDeliveryRecord(
+        user_id=uuid4(), topic="deploy", delivered_at=datetime.now(UTC)
+    )
     assert delivery.topic == "deploy"
 
 

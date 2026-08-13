@@ -8,6 +8,8 @@ from nova_contracts import (
     CommunicationIntentDeliverRequestPayload,
     CommunicationSessionCompletedPayload,
     CommunicationSessionCreateRequestPayload,
+    CommunicationSessionLookupByUserReplyPayload,
+    CommunicationSessionLookupByUserRequestPayload,
     CommunicationSessionStateChangedPayload,
     CommunicationTurnReceivedPayload,
     ConversationState,
@@ -31,6 +33,8 @@ def test_all_communication_subjects_are_registered() -> None:
         "communication.session.state_changed",
         "communication.session.completed",
         "communication.turn.received",
+        "communication.session.lookup_by_user.request",
+        "communication.session.lookup_by_user.reply",
         "digital_twin.preferences.get.request",
         "digital_twin.preferences.get.reply",
     ):
@@ -147,3 +151,19 @@ def test_turn_received_round_trip() -> None:
 def test_digital_twin_preferences_reply_is_optional_and_unused_this_phase() -> None:
     reply = DigitalTwinPreferencesGetReplyPayload(user_id=uuid4())
     assert reply.preferences is None
+
+
+def test_session_lookup_by_user_request_round_trip() -> None:
+    request = CommunicationSessionLookupByUserRequestPayload(user_id=uuid4())
+    assert request.schema_version == 1
+
+
+def test_session_lookup_by_user_reply_defaults_to_no_connected_session() -> None:
+    reply = CommunicationSessionLookupByUserReplyPayload(user_id=uuid4())
+    assert reply.session_id is None
+
+
+def test_session_lookup_by_user_reply_carries_the_connected_session_id() -> None:
+    session_id = uuid4()
+    reply = CommunicationSessionLookupByUserReplyPayload(user_id=uuid4(), session_id=session_id)
+    assert reply.session_id == session_id

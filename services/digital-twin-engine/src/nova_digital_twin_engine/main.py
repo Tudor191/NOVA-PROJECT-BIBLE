@@ -1,21 +1,25 @@
-"""digital-twin-engine's FastAPI entrypoint -- wires `DigitalTwinRepository`
-and the Event Bus to their concrete implementations, and registers
-`communication.session.completed` (subscribe) and `digital_twin.
-preferences.get.request` (serve), the two Event-Bus subjects declared in
-`events/subscribed.py` (docs/design/phase-2d/06-personal-companion.md
-Sec7.1).
+"""digital-twin-engine's FastAPI entrypoint -- wires `DigitalTwinRepository`,
+`CommunicationPort`, and the Event Bus to their concrete implementations,
+and registers `communication.session.completed` (subscribe) and
+`digital_twin.preferences.get.request` (serve), the two Event-Bus subjects
+declared in `events/subscribed.py` (docs/design/phase-2d/
+06-personal-companion.md Sec7.1).
 
-Publishes nothing yet (`events/published.py`'s own module docstring) --
-`personality.memory.update` awaits an approved evidence source (Fork F) and
-`communication.intent.deliver.request` is Step 9's own scope -- but the
-outbox/worker infrastructure is wired from day one regardless (Priority 1's
+Publishes two real subjects as of Step 9 (`events/published.py`'s own
+module docstring) -- `communication.intent.deliver.request`/`communication.
+session.lookup_by_user.request`, via `CommunicationClient` -- but nothing
+in this codebase yet triggers `proactive_delivery.attempt_proactive_
+delivery`, the one function that calls them (no scheduler/trigger source
+exists, out of this phase's scope). `personality.memory.update` still
+awaits an approved evidence source (Fork F). The outbox/worker
+infrastructure has been wired from day one regardless (Priority 1's
 precedent, docs/design/phase-2d/05-conversation-intelligence-closure.md
-Sec3.5), so Step 9 only has to enqueue into an already-running dispatch
-loop, not build one.
+Sec3.5).
 
-`create_app` accepts `repository` as an optional override so tests can
-inject a fake without needing real Postgres reachable -- real infra is only
-constructed when it isn't supplied (mirrors every other engine's `main.py`).
+`create_app` accepts `repository`/`communication_port` as optional
+overrides so tests can inject fakes without needing real Postgres/a real
+Event Bus RPC round trip reachable -- real infra is only constructed for
+whichever isn't supplied (mirrors every other engine's `main.py`).
 """
 
 from __future__ import annotations
@@ -33,7 +37,7 @@ from nova_digital_twin_engine.api.preferences import router as preferences_route
 from nova_digital_twin_engine.api.proactive_policy import router as proactive_policy_router
 from nova_digital_twin_engine.api.profile import router as profile_router
 from nova_digital_twin_engine.config import Settings
-from nova_digital_twin_engine.domain.ports import DigitalTwinRepository
+from nova_digital_twin_engine.domain.ports import CommunicationPort, DigitalTwinRepository
 from nova_digital_twin_engine.events.handlers import (
     make_preferences_get_handler,
     make_session_completed_handler,
@@ -52,6 +56,7 @@ def create_app(
     settings: Settings | None = None,
     *,
     repository: DigitalTwinRepository | None = None,
+    communication_port: CommunicationPort | None = None,
 ) -> FastAPI:
     settings = settings or Settings()
     configure_observability("digital-twin-engine", log_level=settings.log_level)
@@ -80,8 +85,17 @@ def create_app(
             session_factory = create_session_factory(engine)
             repo = PostgresDigitalTwinRepository(session_factory)
 
+        communication = communication_port
+        if communication is None:
+            from nova_digital_twin_engine.clients.communication_client import CommunicationClient
+
+            communication = CommunicationClient(
+                bus, timeout_ms=settings.digital_twin_engine_communication_rpc_timeout_ms
+            )
+
         app.state.settings = settings
         app.state.repository = repo
+        app.state.communication_port = communication
         app.state.bus = bus
         app.state.metrics = metrics
 
