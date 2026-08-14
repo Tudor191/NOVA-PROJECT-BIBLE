@@ -277,7 +277,11 @@ async def run(
             decision=decision,
             trace=result_trace,
             outbox_event=_completed_outbox_event(
-                process, confidence.composite, outcome, duration_ms
+                process,
+                confidence.composite,
+                outcome,
+                duration_ms,
+                alternatives[0].description if alternatives else None,
             ),
         )
         return decision, result_trace, alternatives[0] if alternatives else None
@@ -511,7 +515,9 @@ async def run(
         process=process,
         decision=decision,
         trace=result_trace,
-        outbox_event=_completed_outbox_event(process, confidence.composite, outcome, duration_ms),
+        outbox_event=_completed_outbox_event(
+            process, confidence.composite, outcome, duration_ms, chosen.description
+        ),
     )
     return decision, result_trace, chosen
 
@@ -587,10 +593,22 @@ async def _fail(
 
 
 def _completed_outbox_event(
-    process: ReasoningProcess, confidence_score: float, outcome: str, execution_duration_ms: float
+    process: ReasoningProcess,
+    confidence_score: float,
+    outcome: str,
+    execution_duration_ms: float,
+    chosen_description: str | None,
 ) -> OutboxEvent:
     """§19, §23: published for every terminal outcome that produced a
-    decision -- `decided` or `degraded` alike."""
+    decision -- `decided` or `degraded` alike.
+
+    `objective_text`/`chosen_description` (Phase 3B Fork 3B-4,
+    docs/design/phase-3/10-3b-4-resolution-and-preimplementation-verification.md
+    §16) are sourced directly from this pipeline's own already-computed
+    state -- `process.objective_text` (persisted, always populated) and the
+    caller's own chosen `Alternative.description` -- never reconstructed,
+    inferred, or heuristically generated here or by any downstream
+    consumer."""
     return OutboxEvent(
         subject="reasoning.process.completed",
         payload=ReasoningProcessCompletedPayload(
@@ -603,6 +621,8 @@ def _completed_outbox_event(
             confidence_score=confidence_score,
             execution_duration_ms=execution_duration_ms,
             outcome=outcome,
+            objective_text=process.objective_text,
+            chosen_description=chosen_description,
         ).model_dump(mode="json"),
         correlation_id=process.correlation_id,
     )

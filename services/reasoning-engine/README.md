@@ -291,6 +291,31 @@ across `src/`; 84% statement coverage (`--cov=nova_reasoning_engine`).
   full nested chain; `ReasoningTrace.multistep_recursion_exhausted` marks a
   chain that hit the depth cap before resolving. See
   `docs/roadmap/architecture-reviews/phase-3a-gate-review.md`.
+- **`reasoning.process.completed`'s `objective_text`/`chosen_description`
+  carry no privacy classification (Phase 3B Fork 3B-4, deferred by explicit
+  decision).** These two fields (added so `planning-engine` can seed
+  decomposition without a synchronous read-back call -- see
+  `docs/design/phase-3/10-3b-4-resolution-and-preimplementation-verification.md`
+  §8/§10/§16) are user-content-derived and can plausibly be
+  privacy-sensitive. `PrivacyLevel` (`nova_contracts.events.memory`) already
+  exists and is accepted as a `pipeline.run()` parameter
+  (`privacy_hint: PrivacyLevel = PrivacyLevel.INTERNAL`), but it is not a
+  field on `ReasoningProcess`/`Decision`/`ReasoningTrace`, is not exposed on
+  `ReasoningRequestPayload`, and is not read anywhere in `api/reason.py` or
+  `events/handlers.py` -- every reasoning process reachable through the
+  real API/event surface today silently runs at the `INTERNAL` default,
+  with no real caller able to set it higher. This bounds today's practical
+  risk but does not resolve it. **Recorded follow-up requirement, not
+  implemented here per explicit instruction:** before any objective above
+  `PrivacyLevel.INTERNAL` is allowed to flow through
+  `reasoning.process.completed` in production, `privacy_hint` must become a
+  real, propagated field on `ReasoningProcess` and `ReasoningRequestPayload`
+  (and, most likely, on this payload itself), with downstream consumers
+  (starting with `planning-engine`) making their own policy decision based
+  on it -- the same "the engine that receives the signal decides what to do
+  with it" pattern ADR-032 already establishes for identity confidence. No
+  placeholder privacy mechanism was added to this codebase merely to
+  satisfy this concern.
 - **Constraint Evaluation's hard gate is currently a documented no-op.**
   `domain/constraint_evaluator._violates` always returns `False` -- Phase 2B
   has no per-alternative structured cost/privacy/time/resource metadata to

@@ -78,7 +78,7 @@ frontend's Reasoning panel can render it live (Part 8 "Reasoning Visualization" 
 machine's actual transitions).
 
 Confidence output (Part 8 "Confidence Estimation") is a first-class field on every
-`reasoning.result` event: `{value: float, tier: "verified"|"likely"|"needs_validation"|"insufficient", evidence: [...]}`,
+`reasoning.process.completed` event (`confidence_score: float`, `nova_contracts.events.reasoning.ReasoningProcessCompletedPayload`),
 consumed downstream by Autonomy Engine's Confidence Gating (Part 14) and by
 Communication Engine to decide how hedged the final response should sound (Part 17
 "Confidence Expression").

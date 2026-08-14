@@ -41,7 +41,7 @@ verified → connected → applied → expert → strategic`. Each node carries 
 `layer` (this stage) and its own `confidence` score — the two are tracked
 independently. Advancement through the stages is driven by real signals:
 corroboration events, graph connections (relationship discovery), and usage
-signals from `reasoning.result` events. Knowledge never regresses to an earlier
+signals from `reasoning.process.completed` events. Knowledge never regresses to an earlier
 stage — advancement is monotonic, unlike Memory Engine's importance score, which
 can both rise and decay.
 
