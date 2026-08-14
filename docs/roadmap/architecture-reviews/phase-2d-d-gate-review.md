@@ -1,20 +1,17 @@
 # Phase 2D-D — Personal Companion: Gate Review
 
-**Status: 9 of 10 steps fully verified against real infrastructure; Step 10's
-own bug-fix confirmation is the one open item, pending the next scheduled
-`real-infra-checks.yml` run** (this session's GitHub integration lacks
-`actions:write`, so `workflow_dispatch` returns `403 Resource not accessible
-by integration` — identical, already-documented blocker to the one recorded
-in `phase-2d-c-closure-priority-6-gate-review.md` §4/§9; the nightly
-`schedule` trigger is the only path to a fresh run, exactly as it was for
-that priority). Every other verification tier named in the authorizing
-instruction — fake/contract-backed tests, import-linter, coverage gates
-with a negative control, docker-compose validation, TypeScript codegen, and
-one prior real-infra run's evidence — is complete and recorded below.
+**Status: fully verified against real infrastructure. All 10 steps,
+including Step 10's own bug-fix, are now confirmed.** The nightly
+`real-infra-checks.yml` `schedule` firing at `2026-08-14T05:44:39Z` (run
+`31773971026`, against commit `e4ea5c0` — a descendant of the Step 10 fix
+commit `812faf0`) ran all 5 jobs to completion with **conclusion:
+success** across every one. Every verification tier named in the
+authorizing instruction — fake/contract-backed tests, import-linter,
+coverage gates with a negative control, docker-compose validation,
+TypeScript codegen, and now real-infrastructure confirmation of the
+Step 10 fix — is complete and recorded below.
 
-**Do not treat Phase 2D-D as fully closed until §6's open item is
-resolved.** This document will be updated in place once the next nightly
-`real-infra-checks.yml` run confirms the Step 10 fix.
+**Phase 2D-D is closed.**
 
 ---
 
@@ -210,7 +207,7 @@ configured 85% gate).
 
 ---
 
-## 6. Real-infrastructure verification — the open item
+## 6. Real-infrastructure verification — confirmed
 
 ### 6.1 What is already confirmed against real GitHub Actions infrastructure
 
@@ -264,28 +261,89 @@ Phase 2D-D's approved scope (the TDD's own Sec2: "Does not touch"). **Recorded
 here as a follow-up recommendation for a future, separately-scoped pass** —
 not fixed in this phase.
 
-### 6.3 Why confirmation is pending, not obtained
+### 6.3 Confirmation obtained — full job output
 
 `workflow_dispatch` was attempted against `real-infra-checks.yml` on
-`claude/new-session-e1cseg` and returned:
+`claude/new-session-e1cseg` during Step 10 and returned:
 
 ```
 POST /repos/Tudor191/NOVA-PROJECT-BIBLE/actions/workflows/real-infra-checks.yml/dispatches
 → 403 Resource not accessible by integration
 ```
 
-This is the identical, already-documented blocker recorded in
-`phase-2d-c-closure-priority-6-gate-review.md` §4 and §9 — this session's
-GitHub integration lacks `actions:write`. Per that same precedent's explicit
-instruction, no permission workaround was attempted. The fix is pushed to
-`claude/new-session-e1cseg` (commit `812faf0`); the next nightly `schedule`
-firing (`cron: "17 4 * * *"`, roughly 24h after the run inspected in §6.1)
-will pick it up automatically, exactly as it did for both of Priority 6's
-own fixes.
+the identical, already-documented blocker recorded in
+`phase-2d-c-closure-priority-6-gate-review.md` §4 and §9 (this session's
+GitHub integration lacks `actions:write`). Per that same precedent's
+explicit instruction, no permission workaround was attempted — confirmation
+was obtained from the next nightly `schedule` firing instead, exactly as it
+was for both of Priority 6's own fixes.
 
-**This document will be updated with the confirming run's full job output
-once it fires** — following the exact same "read every job's actual pytest
-output, not just job status" discipline Priority 6 established.
+**Run `31773971026`** (`real-infra-checks.yml`, `schedule` trigger,
+`2026-08-14T05:44:39Z`, against commit `e4ea5c0` — the Phase 3 TDD-prep
+commit, a descendant of both the Step 10 fix `812faf0` and this Gate
+Review's own original commit `d57db18`) — **conclusion: success**, all 5
+jobs, following the exact same "read every job's actual pytest output, not
+just job status" discipline established in §6.1 and by Priority 6:
+
+| Job | Result |
+|---|---|
+| `communication-engine` | **success** — `13 passed, 157 deselected, 2 warnings in 11.26s` |
+| `digital-twin-engine` | **success** — `9 passed, 50 deselected, 2 warnings in 8.70s` |
+| `personality-engine` | **success** |
+| `perception-engine` | **success** |
+| `nova-testkit` | **success** |
+
+**`communication-engine`'s full real-infra suite, verbatim, all 13
+selected tests:**
+
+```
+tests/integration/test_repository_real_postgres.py::test_create_and_get_session_round_trips_through_real_postgres PASSED
+tests/integration/test_repository_real_postgres.py::test_update_session_state_persists_and_advances_updated_at PASSED
+tests/integration/test_repository_real_postgres.py::test_append_turn_persists_and_is_returned_by_get_session PASSED
+tests/integration/test_repository_real_postgres.py::test_get_last_outbound_turn_returns_none_with_no_outbound_turn PASSED
+tests/integration/test_repository_real_postgres.py::test_get_last_outbound_turn_returns_the_most_recent_one PASSED
+tests/integration/test_repository_real_postgres.py::test_append_turn_enforces_the_real_foreign_key_to_session PASSED
+tests/integration/test_repository_real_postgres.py::test_create_notification_persists PASSED
+tests/integration/test_repository_real_postgres.py::test_outbox_enqueue_list_and_mark_dispatched_round_trip PASSED
+tests/integration/test_repository_real_postgres.py::test_conversation_memory_round_trips_through_real_postgres PASSED
+tests/integration/test_repository_real_postgres.py::test_interrupted_content_round_trips_and_clears PASSED
+tests/integration/test_repository_real_postgres.py::test_dnd_override_round_trips PASSED
+tests/integration/test_repository_real_postgres.py::test_pending_questions_round_trips PASSED
+tests/integration/test_repository_real_postgres.py::test_decision_trace_persists_with_no_session_foreign_key_requirement PASSED
+
+=============== 13 passed, 157 deselected, 2 warnings in 11.26s ================
+```
+
+**`test_get_last_outbound_turn_returns_the_most_recent_one` — the exact
+test that failed in run `31671523896` against pre-fix commit `cd44be0` —
+now PASSES against real Postgres.** The Step 10 root cause (Postgres
+`server_default=func.now()` resolving to transaction-start time, causing
+back-to-back `append_turn()` calls to tie) is confirmed fixed by the
+Python-side `default=lambda: datetime.now(UTC)` (commit `812faf0`).
+
+**`digital-twin-engine`'s full real-infra suite, verbatim, all 9 selected
+tests:**
+
+```
+tests/integration/test_repository_real_postgres.py::test_communication_profile_round_trips_and_upserts PASSED
+tests/integration/test_repository_real_postgres.py::test_preference_evolution_entry_persists PASSED
+tests/integration/test_repository_real_postgres.py::test_habit_signal_persists PASSED
+tests/integration/test_repository_real_postgres.py::test_completed_session_evidence_round_trips_and_lists_recent PASSED
+tests/integration/test_repository_real_postgres.py::test_trust_metric_round_trips_and_upserts PASSED
+tests/integration/test_repository_real_postgres.py::test_trust_metric_history_entry_persists PASSED
+tests/integration/test_repository_real_postgres.py::test_proactive_boundary_policy_round_trips_and_upserts PASSED
+tests/integration/test_repository_real_postgres.py::test_proactive_delivery_record_persists_and_lists_recent_by_window PASSED
+tests/integration/test_repository_real_postgres.py::test_outbox_enqueue_list_and_mark_dispatched_round_trip PASSED
+
+================= 9 passed, 50 deselected, 2 warnings in 8.70s =================
+```
+
+**`test_proactive_delivery_record_persists_and_lists_recent_by_window`
+(Step 9's own addition, migration `0002_proactive_delivery.py`, never
+previously real-infra-run) now PASSES against real Postgres** — Fork D's
+warm-case proactive delivery schema is confirmed correct against real
+infrastructure, closing the one item §6.1/§7 previously listed as
+genuinely unverified.
 
 ---
 
@@ -319,26 +377,25 @@ with negative control, import-linter, docker-compose, TS codegen):
   real orchestration -> real `ConversationMemory.corrections` -> real
   session close -> enriched event payload (Step 3/4).
 
-**Real-infra verified** (§6.1):
+**Real-infra verified** (§6.1, §6.3):
 - `digital-twin-engine`'s entire Postgres schema (migrations `0001` +
-  `0002`), confirmed via a real GitHub Actions run against commit `cd44be0`.
+  `0002`, including the `proactive_delivery_record` table and Step 9's
+  `test_proactive_delivery_record_persists_and_lists_recent_by_window`),
+  confirmed via two real GitHub Actions runs (`31671523896` against
+  `cd44be0`, `31773971026` against `e4ea5c0`).
+- `communication-engine`'s entire real-Postgres suite, including the
+  Step 10 timestamp-tie fix (`test_get_last_outbound_turn_returns_the_most_recent_one`),
+  confirmed via run `31773971026` against commit `e4ea5c0` (§6.3).
 - `personality-engine`, `perception-engine`, `nova-testkit`'s own real-infra
-  suites, confirmed the same run (unchanged by this phase, still green).
+  suites, confirmed both runs (unchanged by this phase, still green).
 
-**Genuinely unverified until the pending run confirms** (§6.3):
-- The Step 10 timestamp-tie fix itself, against real Postgres.
-- `communication-engine`'s real-Postgres suite as a whole, post-fix.
-- `digital-twin-engine`'s new `0002_proactive_delivery.py` migration and
-  `proactive_delivery_record` table specifically (Step 9's own addition,
-  built after the one real-infra run this phase has evidence from) — the
-  domain logic and repository methods are contract-fake verified (§ above),
-  but no real-Postgres run has executed against this exact schema version
-  yet. The written real-infra test
-  (`test_proactive_delivery_record_persists_and_lists_recent_by_window`)
-  will be confirmed in the same pending run.
+**Nothing in this phase remains genuinely unverified.** Every item
+previously listed here — the Step 10 fix itself, `communication-engine`'s
+full real-Postgres suite post-fix, and `digital-twin-engine`'s
+`proactive_delivery_record` schema — is now real-infra verified per §6.3.
 
-**Do not describe Fork D's warm-case delivery, or the Step 10 fix, as
-end-to-end real-infra verified until §6.3 resolves.**
+Fork D's warm-case delivery and the Step 10 fix are both now confirmed
+end-to-end real-infra verified.
 
 ---
 
@@ -361,8 +418,8 @@ end-to-end real-infra verified until §6.3 resolves.**
 - **The systemic `server_default=func.now()`-only timestamp pattern**
   (§6.2) exists unfixed in five other engines' repositories, outside this
   phase's scope. Flagged as a follow-up recommendation.
-- **Step 10's real-infra confirmation is pending** (§6.3) — the single open
-  item before this phase can be called fully verified.
+- **Step 10's real-infra confirmation is obtained** (§6.3) — no longer an
+  open item.
 - **Real-Postgres verification of `personality-engine`, `communication-engine`,
   and `perception-engine`'s repo layers via a local Docker daemon** remains
   the same standing, session-environment limitation recorded since Phase
@@ -373,9 +430,7 @@ end-to-end real-infra verified until §6.3 resolves.**
 
 ## 9. Recommendation
 
-**Conditionally complete.** All 10 implementation steps are built, tested,
-and documented; 9 of 10 have real-infrastructure confirmation; the 10th
-(the Step 10 bug fix) has a pushed fix awaiting its first real-infra run.
-No further code changes are anticipated — this is a confirmation-only gate,
-not an implementation gap. Recommend treating Phase 2D-D as **gated on §6.3**
-rather than reopening any of the 10 steps' own scope.
+**Complete.** All 10 implementation steps are built, tested, documented,
+and now have real-infrastructure confirmation — including Step 10's own
+bug fix, confirmed by real GitHub Actions run `31773971026` (§6.3). No
+further code changes are required. **Phase 2D-D is formally closed.**
