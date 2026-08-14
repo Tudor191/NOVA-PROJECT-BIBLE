@@ -18,7 +18,7 @@ from nova_reasoning_engine.domain.models import (
     ReasoningTrace,
 )
 
-__all__ = ["build_trace", "world_model_entities"]
+__all__ = ["build_trace", "chain_depth", "world_model_entities"]
 
 
 def world_model_entities(context: ContextBundle) -> list[str]:
@@ -49,6 +49,7 @@ def build_trace(
     final_decision_explanation: str,
     outcome: ReasoningOutcome,
     steps: list[ReasoningTrace] | None = None,
+    multistep_recursion_exhausted: bool = False,
 ) -> ReasoningTrace:
     """§19, in full. `steps` is populated only for multi-step processes
     (§11)."""
@@ -72,4 +73,15 @@ def build_trace(
         final_decision_explanation=final_decision_explanation,
         steps=steps or [],
         outcome=outcome,
+        multistep_recursion_exhausted=multistep_recursion_exhausted,
     )
+
+
+def chain_depth(trace: ReasoningTrace) -> int:
+    """Phase 3A -- number of Multi-step recursion levels below `trace` (0
+    if it never recursed). `steps` holds at most one entry per level (one
+    sub-question derived per recursion step, §11), so the chain is always
+    linear -- `trace.steps[0]` is safe whenever `steps` is non-empty."""
+    if not trace.steps:
+        return 0
+    return 1 + chain_depth(trace.steps[0])

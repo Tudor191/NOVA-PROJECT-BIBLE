@@ -278,13 +278,19 @@ across `src/`; 84% statement coverage (`--cov=nova_reasoning_engine`).
   accepted as an explicit, caller-supplied parameter on `ReasoningRequest`
   instead (§7.1). ADR-026's own Future Implications names this migration
   path explicitly.
-- **Multi-step mode runs a single pipeline pass, not yet a recursive chain.**
-  §11 specifies recursion with a hard depth cap (`MultiStepConfig.max_depth`,
-  each step its own `ReasoningProcess` row linked via `parent_process_id`,
-  aggregate confidence as the *minimum* across the chain). `modes/
-  multi_step.py`'s `ModeConfig` is wired and selectable, but `pipeline.run`
-  does not yet detect an unresolved sub-question mid-analysis and recurse --
-  named and scoped, not stubbed with fake chaining behavior.
+- **Multi-step mode's recursion trigger is real (Phase 3A).** §11's design --
+  a hard depth cap (`MultiStepConfig.max_step_depth`, default 3), each step
+  its own `ReasoningProcess` row linked via `parent_process_id`, aggregate
+  confidence as the chain *minimum*, never an average -- is implemented in
+  `pipeline.run()` itself (internal self-recursion: the caller sees one RPC
+  round trip regardless of chain depth). Trigger condition: `mode is
+  MULTI_STEP` and `confidence.composite < verify_threshold` and
+  `depth < config.max_step_depth`; the sub-question is derived from the
+  chosen alternative's weakest supporting-evidence gap (a pure structural
+  formatter, never a new model call). `ReasoningTrace.steps` carries the
+  full nested chain; `ReasoningTrace.multistep_recursion_exhausted` marks a
+  chain that hit the depth cap before resolving. See
+  `docs/roadmap/architecture-reviews/phase-3a-gate-review.md`.
 - **Constraint Evaluation's hard gate is currently a documented no-op.**
   `domain/constraint_evaluator._violates` always returns `False` -- Phase 2B
   has no per-alternative structured cost/privacy/time/resource metadata to

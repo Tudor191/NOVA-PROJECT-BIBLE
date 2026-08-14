@@ -348,6 +348,17 @@ class ReasoningTrace(BaseModel):
     final_decision_explanation: str
     steps: list[ReasoningTrace] = Field(default_factory=list)  # §11
     outcome: ReasoningOutcome
+    multistep_recursion_exhausted: bool = False
+    """Phase 3A -- `True` when this trace (or a descendant in `steps`) hit
+    `MultiStepConfig.max_step_depth` while its own confidence was still
+    below `verify_threshold`, so no further recursion was attempted.
+    Domain-only (never published on the Event Bus): `observability.py`'s
+    own module docstring is explicit that `domain/` may never import it,
+    so this field is how the one internal fact the recursion-exhausted
+    metric needs crosses that boundary -- the API/event layer reads it off
+    the already-returned trace, the same way `reasoning_requests_total` is
+    already derived from `trace.outcome` today, rather than a new
+    injected-callback mechanism."""
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     schema_version: int = 1  # ADR-024
 

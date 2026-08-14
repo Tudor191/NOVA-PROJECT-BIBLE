@@ -17,6 +17,7 @@ from nova_contracts import EventEnvelope, ReasoningReplyPayload, ReasoningReques
 
 from nova_reasoning_engine.domain import modes, pipeline
 from nova_reasoning_engine.domain.models import Constraint, Goal, ReasoningRequest
+from nova_reasoning_engine.observability import record_multistep_recursion_metrics
 
 __all__ = ["make_reason_request_handler"]
 
@@ -67,6 +68,7 @@ def make_reason_request_handler(app: FastAPI):  # type: ignore[no-untyped-def]
                 error=str(exc),
             )
 
+        record_multistep_recursion_metrics(trace, state.metrics)
         return ReasoningReplyPayload(
             reasoning_process_id=trace.reasoning_process_id,
             decision_id=decision.id,

@@ -20,6 +20,7 @@ from nova_contracts import ReasoningReplyPayload, ReasoningRequestPayload
 
 from nova_reasoning_engine.domain import modes, pipeline
 from nova_reasoning_engine.domain.models import Constraint, Goal, ReasoningRequest
+from nova_reasoning_engine.observability import record_multistep_recursion_metrics
 
 router = APIRouter(prefix="/v1/reasoning", tags=["reason"])
 
@@ -70,6 +71,7 @@ async def reason(body: ReasoningRequestPayload, request: Request) -> ReasoningRe
     state.metrics.reasoning_request_duration_seconds.record(
         trace.execution_duration_ms / 1000, {"reasoning_mode": trace.reasoning_mode.value}
     )
+    record_multistep_recursion_metrics(trace, state.metrics)
 
     return ReasoningReplyPayload(
         reasoning_process_id=trace.reasoning_process_id,
@@ -114,6 +116,7 @@ async def reason_stream(body: ReasoningRequestPayload, request: Request) -> Stre
                 return
             state.metrics.reasoning_requests_total.add(1, {"outcome": trace.outcome})
             state.metrics.confidence_score.record(decision.confidence_score)
+            record_multistep_recursion_metrics(trace, state.metrics)
             reply = ReasoningReplyPayload(
                 reasoning_process_id=trace.reasoning_process_id,
                 decision_id=decision.id,

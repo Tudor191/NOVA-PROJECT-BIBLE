@@ -16,6 +16,9 @@ from dataclasses import dataclass
 from nova_observability import get_meter
 from opentelemetry.metrics import Counter, Histogram
 
+from nova_reasoning_engine.domain.models import ReasoningMode, ReasoningTrace
+from nova_reasoning_engine.domain.trace import chain_depth
+
 
 @dataclass(frozen=True)
 class ReasoningEngineMetrics:
@@ -45,6 +48,21 @@ class ReasoningEngineMetrics:
 
     outbox_dispatched_total: Counter
     """Labeled by `subject`."""
+
+    reasoning_multistep_recursion_triggered_total: Counter
+    """Phase 3A (§11): incremented once per recursion step taken across a
+    Multi-step chain -- derived from `trace.chain_depth()` after `run()`
+    returns, the same "read the aggregate off the returned trace/decision"
+    pattern `reasoning_requests_total` above already uses."""
+
+    reasoning_multistep_recursion_depth: Histogram
+    """Phase 3A: final chain depth reached per completed Multi-step process
+    (0 = never recursed)."""
+
+    reasoning_multistep_recursion_exhausted_total: Counter
+    """Phase 3A: incremented when a Multi-step chain hit `MultiStepConfig.
+    max_step_depth` while still below `verify_threshold`, so no further
+    recursion was attempted (`ReasoningTrace.multistep_recursion_exhausted`)."""
 
 
 def create_metrics() -> ReasoningEngineMetrics:
@@ -91,4 +109,37 @@ def create_metrics() -> ReasoningEngineMetrics:
             "reasoning_engine_outbox_dispatched_total",
             description="Outbox events dispatched to the Event Bus, labeled by subject.",
         ),
+        reasoning_multistep_recursion_triggered_total=meter.create_counter(
+            "reasoning_engine_multistep_recursion_triggered_total",
+            description="Multi-step recursion steps taken across all reasoning processes.",
+        ),
+        reasoning_multistep_recursion_depth=meter.create_histogram(
+            "reasoning_engine_multistep_recursion_depth",
+            description="Final Multi-step recursion chain depth reached per completed process.",
+        ),
+        reasoning_multistep_recursion_exhausted_total=meter.create_counter(
+            "reasoning_engine_multistep_recursion_exhausted_total",
+            description=(
+                "Multi-step chains that hit max_step_depth while still below "
+                "verify_threshold, so recursion could not continue."
+            ),
+        ),
     )
+
+
+def record_multistep_recursion_metrics(
+    trace: ReasoningTrace, metrics: ReasoningEngineMetrics
+) -> None:
+    """Phase 3A (§11): called once per completed top-level `pipeline.run()`
+    invocation, from `api/reason.py` and `events/handlers.py` -- never from
+    `domain/`, which may not import this module. A no-op for any non-Multi-step
+    trace or one that never recursed, the same "derive from the returned
+    trace" shape `reasoning_requests_total`'s own call sites already use."""
+    if trace.reasoning_mode is not ReasoningMode.MULTI_STEP:
+        return
+    depth_reached = chain_depth(trace)
+    metrics.reasoning_multistep_recursion_depth.record(depth_reached)
+    if depth_reached:
+        metrics.reasoning_multistep_recursion_triggered_total.add(depth_reached)
+    if trace.multistep_recursion_exhausted:
+        metrics.reasoning_multistep_recursion_exhausted_total.add(1)

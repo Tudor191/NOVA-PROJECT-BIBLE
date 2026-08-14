@@ -118,6 +118,27 @@ async def _resolve_reactive(
     return decision, [alternative], [], {}
 
 
+def _derive_sub_question(chosen: Alternative, evidence_by_id: dict[UUID, Evidence]) -> str:
+    """Multi-step mode's recursion trigger (§11, Phase 3A): derives the next
+    sub-question from the chosen alternative's weakest supporting-evidence
+    gap -- a pure string formatter over structural signals the pipeline has
+    already computed (`Alternative.supporting_evidence_ids`, `Evidence.
+    weight`), never a new model call. The identical non-model-invoking
+    discipline `_self_evaluation_gap_penalty` below and
+    `communication-engine`'s own `clarification.py` formatters already
+    established for this codebase."""
+    supporting = [
+        evidence_by_id[eid] for eid in chosen.supporting_evidence_ids if eid in evidence_by_id
+    ]
+    if not supporting:
+        return f"What evidence supports or refutes: {chosen.description}?"
+    weakest = min(supporting, key=lambda e: e.weight)
+    return (
+        f"Resolve the weakest support for '{chosen.description}': its {weakest.source} "
+        f"evidence ({weakest.source_ref}) has low confidence (weight={weakest.weight:.2f})."
+    )
+
+
 def _self_evaluation_gap_penalty(
     *, evidence_count: int, alternative_count: int, alternatives_below_minimum: bool
 ) -> float:
@@ -151,6 +172,7 @@ async def run(
     verify_threshold: float = DEFAULT_VERIFY_THRESHOLD,
     override_threshold: float = DEFAULT_OVERRIDE_THRESHOLD,
     on_stage: Callable[[str], Awaitable[None]] | None = None,
+    depth: int = 0,
 ) -> tuple[Decision, ReasoningTrace, Alternative | None]:
     """Runs the full fourteen-step cognitive pipeline for one `ReasoningRequest`
     and returns its `Decision`, `ReasoningTrace`, and the chosen `Alternative`
@@ -161,7 +183,15 @@ async def run(
 
     `on_stage`, when supplied, is awaited with each lifecycle status (§5) as
     it is reached -- `api/reason.py`'s `/reason/stream` endpoint (§21) uses
-    this for genuine real-time "visible progress," not polling."""
+    this for genuine real-time "visible progress," not polling.
+
+    `depth` (Phase 3A, §11) is internal-only -- it is never a field on
+    `ReasoningRequest`/`ReasoningRequestPayload` and no external caller
+    (`api/reason.py`, `events/handlers.py`) ever passes it. `run()` sets it
+    on its own recursive self-call when Multi-step mode's recursion trigger
+    fires (below); it exists purely to enforce `MultiStepConfig.max_step_
+    depth`'s hard recursion cap and is always `0` for any request that
+    entered the pipeline from outside this module."""
     start = time.monotonic()
 
     # Step: Understand intent.
@@ -373,6 +403,55 @@ async def run(
         penalized = max(0.0, confidence.composite - config.default_confidence_penalty)
         confidence = confidence.model_copy(update={"composite": penalized})
 
+    # Step: Multi-step recursion trigger (§11, Phase 3A). Inserted ahead of the
+    # existing verify/override threshold branching below so that branching
+    # always runs against the post-recursion (possibly chain-minimum-aggregated)
+    # confidence -- recursion never invents new degraded/decided semantics, it
+    # only ever adjusts `confidence` before the pipeline's own existing,
+    # unmodified threshold logic decides the outcome.
+    steps: list[ReasoningTrace] = []
+    multistep_recursion_exhausted = False
+    if mode is ReasoningMode.MULTI_STEP and confidence.composite < verify_threshold:
+        if depth < config.max_step_depth:
+            # `prior_nova_utterance` is intentionally omitted (stays `None`) --
+            # an internally-derived sub-question is never itself a correction
+            # judgment, keeping Phase 2D-D's correction lineage (`is_correction`)
+            # and this recursion lineage (`parent_process_id`) provably
+            # distinct (never both set on the same process).
+            child_request = ReasoningRequest(
+                objective_text=_derive_sub_question(chosen, evidence_by_id),
+                user_id=request.user_id,
+                requesting_engine=request.requesting_engine,
+                correlation_id=request.correlation_id,
+                reasoning_mode_hint=ReasoningMode.MULTI_STEP,
+                reasoning_level_hint=request.reasoning_level_hint,
+                goals=request.goals,
+                constraints=request.constraints,
+                parent_process_id=process.id,
+            )
+            child_decision, child_trace, _child_alt = await run(
+                child_request,
+                memory_port=memory_port,
+                knowledge_port=knowledge_port,
+                world_model_port=world_model_port,
+                personal_context_port=personal_context_port,
+                goals_port=goals_port,
+                model_port=model_port,
+                repository=repository,
+                privacy_hint=privacy_hint,
+                verify_threshold=verify_threshold,
+                override_threshold=override_threshold,
+                on_stage=on_stage,
+                depth=depth + 1,
+            )
+            steps = [child_trace]
+            multistep_recursion_exhausted = child_trace.multistep_recursion_exhausted
+            confidence = confidence.model_copy(
+                update={"composite": min(confidence.composite, child_decision.confidence_score)}
+            )
+        else:
+            multistep_recursion_exhausted = True
+
     if confidence.composite >= verify_threshold:
         status = "decided"
         outcome = "decided"
@@ -425,6 +504,8 @@ async def run(
         alternatives_rejected=explanation.rejected_reasons,
         final_decision_explanation=explanation.chosen_reason,
         outcome=outcome,  # type: ignore[arg-type]
+        steps=steps,
+        multistep_recursion_exhausted=multistep_recursion_exhausted,
     )
     await repository.finalize(
         process=process,
