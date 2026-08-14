@@ -50,6 +50,7 @@ uv run lint-imports                      # verify ADR-004 / ADR-006 boundaries
 docker compose -f infra/docker/docker-compose.local.yml up -d   # full local stack
 ```
 
+
 ## Status
 
 **Phase 0 (Platform Bootstrap) implemented and passing CI locally.** `nova-core` boots
