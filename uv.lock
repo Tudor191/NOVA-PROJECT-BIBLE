@@ -25,6 +25,7 @@ members = [
     "nova-vectorstore-sdk",
     "perception-engine",
     "personality-engine",
+    "planning-engine",
     "reasoning-engine",
     "world-model-engine",
 ]
@@ -2158,6 +2159,45 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/5e/2a/63b574101850e7f7b306ddbdb02cb294380d37948140eecd468fae392b54/pip-requirements-parser-32.0.1.tar.gz", hash = "sha256:b4fa3a7a0be38243123cf9d1f3518da10c51bdb165a2b2985566247f9155a7d3", size = 209359, upload-time = "2022-12-21T15:25:22.732Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/54/d0/d04f1d1e064ac901439699ee097f58688caadea42498ec9c4b4ad2ef84ab/pip_requirements_parser-32.0.1-py3-none-any.whl", hash = "sha256:4659bc2a667783e7a15d190f6fccf8b2486685b6dba4c19c3876314769c57526", size = 35648, upload-time = "2022-12-21T15:25:21.046Z" },
+]
+
+[[package]]
+name = "planning-engine"
+version = "0.1.0"
+source = { editable = "services/planning-engine" }
+dependencies = [
+    { name = "fastapi" },
+    { name = "nova-contracts" },
+    { name = "nova-eventbus-sdk" },
+    { name = "nova-observability" },
+    { name = "pydantic-settings" },
+    { name = "uvicorn", extra = ["standard"] },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "httpx" },
+    { name = "nova-testkit" },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "fastapi", specifier = ">=0.115" },
+    { name = "nova-contracts", editable = "packages/nova-contracts" },
+    { name = "nova-eventbus-sdk", editable = "packages/nova-eventbus-sdk" },
+    { name = "nova-observability", editable = "packages/nova-observability" },
+    { name = "pydantic-settings", specifier = ">=2.6" },
+    { name = "uvicorn", extras = ["standard"], specifier = ">=0.32" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "httpx", specifier = ">=0.27" },
+    { name = "nova-testkit", editable = "packages/nova-testkit" },
+    { name = "pytest", specifier = ">=8.3" },
+    { name = "pytest-asyncio", specifier = ">=0.24" },
 ]
 
 [[package]]
