@@ -118,9 +118,56 @@ def test_reasoning_process_completed_round_trip() -> None:
         confidence_score=0.75,
         execution_duration_ms=120.5,
         outcome=ReasoningOutcome.DECIDED,
+        objective_text="find the best next action",
+        chosen_description="escalate to the on-call engineer",
     )
     assert completed.reasoning_mode is ReasoningMode.ANALYTICAL
+    assert completed.objective_text == "find the best next action"
+    assert completed.chosen_description == "escalate to the on-call engineer"
     assert completed.schema_version == 1
+
+
+def test_reasoning_process_completed_requires_objective_text() -> None:
+    """Fork 3B-4 (docs/design/phase-3/10-3b-4-resolution-and-preimplementation-verification.md
+    §4, §16) -- `objective_text` is what `planning-engine` seeds a `TaskGraph`
+    from; it is always populated by the one real publisher
+    (`reasoning-engine`'s `_completed_outbox_event`), so it is a required
+    field here, not an optional one with a silently-empty default."""
+    with pytest.raises(ValidationError):
+        ReasoningProcessCompletedPayload(
+            reasoning_process_id=uuid4(),
+            correlation_id=uuid4(),
+            requesting_engine="world-model-engine",
+            user_id=uuid4(),
+            reasoning_mode=ReasoningMode.ANALYTICAL,
+            reasoning_level=2,
+            confidence_score=0.75,
+            execution_duration_ms=120.5,
+            outcome=ReasoningOutcome.DECIDED,
+        )
+
+
+def test_reasoning_process_completed_chosen_description_defaults_to_none() -> None:
+    """`chosen_description` is optional at the contract level -- both current
+    reasoning-engine publish sites always populate a real value in practice
+    (see `ReasoningProcessCompletedPayload.chosen_description`'s own
+    docstring), but the type itself stays defensive, mirroring
+    `ReasoningReplyPayload.chosen_description`'s already-established
+    optionality -- confirmed representable here without `objective_text`
+    also being optional."""
+    completed = ReasoningProcessCompletedPayload(
+        reasoning_process_id=uuid4(),
+        correlation_id=uuid4(),
+        requesting_engine="world-model-engine",
+        user_id=uuid4(),
+        reasoning_mode=ReasoningMode.REACTIVE,
+        reasoning_level=1,
+        confidence_score=0.5,
+        execution_duration_ms=12.0,
+        outcome=ReasoningOutcome.DECIDED,
+        objective_text="acknowledge the user's greeting",
+    )
+    assert completed.chosen_description is None
 
 
 def test_reasoning_process_failed_carries_stage_and_action() -> None:

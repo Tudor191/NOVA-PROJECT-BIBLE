@@ -166,6 +166,32 @@ class ReasoningProcessCompletedPayload(BaseModel):
     confidence_score: float
     execution_duration_ms: float
     outcome: ReasoningOutcome
+    objective_text: str
+    """Phase 3B Fork 3B-4 (docs/design/phase-3/
+    10-3b-4-resolution-and-preimplementation-verification.md §4, §15-16) --
+    carried verbatim from `ReasoningProcess.objective_text` so
+    a downstream consumer (`planning-engine`) can seed decomposition without
+    a synchronous read-back call, keeping this edge additive and
+    event-driven rather than introducing a new RPC. Additive per ADR-024 --
+    no `schema_version` bump. **Potentially privacy-sensitive**
+    (user-content-derived): `PrivacyLevel` propagation on this payload was
+    considered and explicitly deferred, not silently added -- see this
+    engine's README "Known limitations" for the recorded follow-up
+    requirement before any objective above `PrivacyLevel.INTERNAL` (today's
+    hardcoded default; no real caller can set it higher yet) is allowed to
+    flow through this path in production."""
+    chosen_description: str | None = None
+    """Same rationale and privacy note as `objective_text` above -- the
+    chosen alternative's own `description`. Both of this payload's current
+    publish sites (`domain/pipeline.py`'s Reactive and main paths) always
+    populate a real value in practice -- `_resolve_reactive` always
+    constructs exactly one `Alternative`, and the main path only reaches
+    `_completed_outbox_event` after confirming at least one eligible
+    alternative exists. Optional here, not because either path leaves it
+    unset today, but to mirror `ReasoningReplyPayload.chosen_description`'s
+    already-established shape (which genuinely can be `None`, for
+    `abandoned`/`failed` outcomes never reaching a chosen alternative) and
+    to stay defensive against a future call site that might."""
     schema_version: int = 1
 
 

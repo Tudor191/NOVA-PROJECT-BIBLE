@@ -23,6 +23,8 @@ export type ExecutionDurationMs = number;
  * Design doc §5's four terminal lifecycle states.
  */
 export type ReasoningOutcome = "decided" | "degraded" | "failed" | "abandoned";
+export type ObjectiveText = string;
+export type ChosenDescription = string | null;
 export type SchemaVersion = number;
 
 /**
@@ -40,6 +42,8 @@ export interface ReasoningProcessCompletedPayload {
   confidence_score: ConfidenceScore;
   execution_duration_ms: ExecutionDurationMs;
   outcome: ReasoningOutcome;
+  objective_text: ObjectiveText;
+  chosen_description?: ChosenDescription;
   schema_version?: SchemaVersion;
   [k: string]: unknown;
 }

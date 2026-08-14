@@ -52,7 +52,7 @@ async def test_reactive_mode_short_circuits_without_a_model_call() -> None:
         requesting_engine="test",
         reasoning_mode_hint=ReasoningMode.REACTIVE,
     )
-    decision, trace, _chosen = await pipeline.run(request, **ports)
+    decision, trace, chosen = await pipeline.run(request, **ports)
 
     assert decision.confidence_score == pytest.approx(0.9)
     assert trace.reasoning_mode is ReasoningMode.REACTIVE
@@ -65,6 +65,13 @@ async def test_reactive_mode_short_circuits_without_a_model_call() -> None:
     assert stored_process.completed_at is not None
     assert len(repository.outbox) == 1
     assert repository.outbox[0].subject == "reasoning.process.completed"
+    # Fork 3B-4: objective_text/chosen_description must survive onto the
+    # published payload, sourced from the real pipeline state, not
+    # reconstructed downstream.
+    published = repository.outbox[0].payload
+    assert published["objective_text"] == "what is the capital of France?"
+    assert chosen is not None
+    assert published["chosen_description"] == chosen.description
 
 
 async def test_analytical_mode_produces_a_decided_decision() -> None:
@@ -86,7 +93,7 @@ async def test_analytical_mode_produces_a_decided_decision() -> None:
         requesting_engine="test",
         reasoning_mode_hint=ReasoningMode.ANALYTICAL,
     )
-    decision, trace, _chosen = await pipeline.run(request, **ports)
+    decision, trace, chosen = await pipeline.run(request, **ports)
 
     assert trace.reasoning_mode is ReasoningMode.ANALYTICAL
     assert trace.outcome in {"decided", "degraded"}
@@ -101,6 +108,13 @@ async def test_analytical_mode_produces_a_decided_decision() -> None:
     assert stored_process.completed_at is not None
     assert len(repository.outbox) == 1
     assert repository.outbox[0].subject == "reasoning.process.completed"
+    # Fork 3B-4: same guarantee as the Reactive-mode test above, for the
+    # main (hypothesis-generating) path's own `_completed_outbox_event`
+    # call site.
+    published = repository.outbox[0].payload
+    assert published["objective_text"] == "candidate explanation for the bug"
+    assert chosen is not None
+    assert published["chosen_description"] == chosen.description
 
 
 async def test_hypothesis_generation_failure_produces_a_failed_trace() -> None:

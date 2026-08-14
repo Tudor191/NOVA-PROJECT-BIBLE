@@ -13,7 +13,11 @@ supporting Dynamic Replanning by mutation — per
 `ENGINEERING_ROADMAP.md:509`, doc 06 §3, and Bible Part 9.
 
 **Dependencies.** `reasoning-engine` (existing, Phase 2B —
-`reasoning.result` is the input `planning-engine` consumes) and
+`reasoning.process.completed` is the input `planning-engine` consumes;
+corrected from this TDD's original, nonexistent `reasoning.result`
+reference — see `docs/design/phase-3/09-3b-preimplementation-verification.md`
+§1 and `10-3b-4-resolution-and-preimplementation-verification.md` for the
+full investigation) and
 `communication-engine` (existing, Phase 2D-A — consumes
 `planning.task_graph.created` if it chooses to notify the user; see §6).
 **Does not depend on `capability-engine`, `action-engine`, or `agent-os`
@@ -25,8 +29,10 @@ manually)."*
 
 ## 1. Existing capability vs. what's being built
 
-**Existing:** `reasoning-engine` already publishes `reasoning.result`
-(`nova_contracts.events.reasoning`, Phase 2B); `communication-engine`
+**Existing:** `reasoning-engine` already publishes `reasoning.process.completed`
+(`nova_contracts.events.reasoning.ReasoningProcessCompletedPayload`, Phase 2B,
+additively enriched with `objective_text`/`chosen_description` for this TDD's
+own purposes per Fork 3B-4's resolution); `communication-engine`
 already owns the only legal `communication.intent.*` gate (ADR-005). No
 part of `planning-engine` itself exists — confirmed by directory listing
 (`services/` contains no `planning-engine`) and by `nova-contracts`
@@ -208,11 +214,15 @@ already-enforced behavior.
 
 ### 6.1 Subscribed
 
-- **`reasoning.result`** (existing payload, Phase 2B) — triggers
-  decomposition: `planning-engine` consumes a completed, sufficiently-
-  confident reasoning result and produces or mutates a `TaskGraph`.
-  Exact confidence threshold for triggering decomposition vs. discarding
-  a low-confidence result is a TDD-implementation-time parameter (not an
+- **`reasoning.process.completed`** (existing payload, Phase 2B, additively
+  enriched with `objective_text`/`chosen_description` per Fork 3B-4 —
+  corrected from this TDD's original, nonexistent `reasoning.result`
+  reference) — triggers decomposition: `planning-engine` consumes a
+  completed, sufficiently-confident reasoning result (`objective_text`
+  seeds `TaskGraph.root_objective`; `chosen_description` shapes the first
+  decomposition pass) and produces or mutates a `TaskGraph`. Exact
+  confidence threshold for triggering decomposition vs. discarding a
+  low-confidence result is a TDD-implementation-time parameter (not an
   architectural fork — mirrors the "implementation-time parameter, not a
   fork" precedent already established for `completed_session_evidence`
   and the proactive-delivery window size in Phase 2D-D).
@@ -287,7 +297,7 @@ constant. **Flagged for approval**, not silently assumed.
 
 | Condition | Behavior |
 |---|---|
-| `reasoning.result` below the decomposition confidence threshold (Fork 3B-3) | No `TaskGraph` created; no error — mirrors the existing "no action" pattern for below-threshold signals elsewhere in this codebase. |
+| `reasoning.process.completed` below the decomposition confidence threshold (Fork 3B-3) | No `TaskGraph` created; no error — mirrors the existing "no action" pattern for below-threshold signals elsewhere in this codebase. |
 | `MemoryPort`/`KnowledgePort` timeout during decomposition | Decomposition proceeds with whatever context was retrieved before the timeout — degrades, never blocks indefinitely (same discipline as every existing port timeout handler in this codebase). |
 | `planning.decompose.request` for a subtree that cannot be further decomposed | Replies with the original node unchanged and a structured "already minimal" reason — never a silent no-op reply indistinguishable from success. |
 | Postgres unavailable at `task_graph`/`task_node` write time | Standard per-engine failure mode — the request fails loudly (not silently degraded), consistent with every other engine's persistence-layer error handling; Task Graph correctness (never partially/incorrectly persisted) is a hard requirement given restart-survival depends on it (`ENGINEERING_ROADMAP.md:545`). |
@@ -343,7 +353,7 @@ import-linter contracts extended per §11).
 
 ## 12. Testing strategy
 
-**Unit (fake-backed):** decomposition logic (given a `reasoning.result`,
+**Unit (fake-backed):** decomposition logic (given a `reasoning.process.completed`,
 produces a structurally valid `TaskGraph` — no cycles, `critical_path`
 computed correctly for a scripted dependency shape, per
 `ENGINEERING_ROADMAP.md:535`'s own structural-verification framing).
@@ -371,7 +381,7 @@ TDD 3E.
 
 ## 13. Acceptance criteria
 
-1. A scripted `reasoning.result` at or above the decomposition-confidence
+1. A scripted `reasoning.process.completed` at or above the decomposition-confidence
    threshold (Fork 3B-3) produces a structurally valid `TaskGraph` — no
    cycles, `critical_path` non-empty for any graph with more than one
    node.
