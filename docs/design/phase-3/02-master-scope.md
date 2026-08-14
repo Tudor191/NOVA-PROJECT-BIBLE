@@ -12,16 +12,22 @@ but making their conclusions actionable.
 
 ## 1. The three-part boundary
 
-### 1.1 Phase 2D-D (must close first)
+### 1.1 Phase 2D-D — closed
 
-Status: **not yet formally closed.** Reconfirmed immediately before writing
-this document — the most recent `real-infra-checks.yml` run
-(`31671523896`, 2026-08-13T05:47:18Z) is still against pre-fix commit
-`cd44be0`; no run has fired against `812faf0` (the fix), `d57db18` (the
-Gate Review), or any later commit. Per standing discipline and the user's
-explicit reiteration this turn: **no Phase 3 implementation — including
-`3-P` (§1.2) — is authorized until real-infrastructure evidence confirms
-the fix and the Gate Review is updated accordingly.**
+Status: **formally closed.** Confirmed via real GitHub Actions run
+`31773971026` (`real-infra-checks.yml`, `schedule` trigger,
+2026-08-14T05:44:39Z, against commit `e4ea5c0`) — all 5 real-infra jobs
+succeeded, including `communication-engine`'s
+`test_get_last_outbound_turn_returns_the_most_recent_one` (the Step 10
+timestamp-tie fix, `812faf0`) and `digital-twin-engine`'s
+`test_proactive_delivery_record_persists_and_lists_recent_by_window`
+(Step 9's addition, confirmed for the first time). Full job output
+recorded in `docs/roadmap/architecture-reviews/phase-2d-d-gate-review.md`
+§6.3, which now reads "Complete" (§9 of that document).
+
+**The dependency boundary this section names is now satisfied.** Phase 3
+implementation is authorized to begin once the user reviews and approves
+this TDD package — this document package itself remains design-only.
 
 ### 1.2 `3-P` — Gateway & Web-Client Prerequisite (new, explicit, bounded)
 
@@ -99,7 +105,7 @@ Unchanged from the user's specified structure:
 
 ```mermaid
 flowchart TB
-    P2DD["Phase 2D-D\n(must close first — real-infra pending)"]
+    P2DD["Phase 2D-D — closed\n(real-infra confirmed, run 31773971026)"]
 
     P2DD --> PRE1["3-P.1\nAPI Gateway + WS Gateway +\nbase web-client shell +\nConversation panel + presence indicator\n(depends ONLY on already-existing engines)"]
 
