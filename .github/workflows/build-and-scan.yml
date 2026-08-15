@@ -48,6 +48,7 @@ jobs:
   build-and-scan:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false # TEMP diagnostic: unblock verification, will revert
       matrix:
         # One entry per services/<name>/Dockerfile. Add a line here whenever
         # tools/scaffold-engine.py creates a new engine.
