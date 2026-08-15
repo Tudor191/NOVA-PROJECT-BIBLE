@@ -10,6 +10,7 @@ COPY packages/nova-observability/pyproject.toml packages/nova-observability/pypr
 COPY packages/nova-vectorstore-sdk/pyproject.toml packages/nova-vectorstore-sdk/pyproject.toml
 COPY packages/nova-graphstore-sdk/pyproject.toml packages/nova-graphstore-sdk/pyproject.toml
 COPY packages/nova-embeddings-sdk/pyproject.toml packages/nova-embeddings-sdk/pyproject.toml
+COPY packages/nova-service-kit/pyproject.toml packages/nova-service-kit/pyproject.toml
 COPY services/knowledge-engine/pyproject.toml services/knowledge-engine/pyproject.toml
 
 COPY packages/nova-contracts packages/nova-contracts
@@ -18,6 +19,7 @@ COPY packages/nova-observability packages/nova-observability
 COPY packages/nova-vectorstore-sdk packages/nova-vectorstore-sdk
 COPY packages/nova-graphstore-sdk packages/nova-graphstore-sdk
 COPY packages/nova-embeddings-sdk packages/nova-embeddings-sdk
+COPY packages/nova-service-kit packages/nova-service-kit
 COPY services/knowledge-engine services/knowledge-engine
 
 RUN uv sync --frozen --no-dev --package knowledge-engine

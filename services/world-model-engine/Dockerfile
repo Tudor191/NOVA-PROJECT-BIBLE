@@ -8,12 +8,14 @@ COPY packages/nova-contracts/pyproject.toml packages/nova-contracts/pyproject.to
 COPY packages/nova-eventbus-sdk/pyproject.toml packages/nova-eventbus-sdk/pyproject.toml
 COPY packages/nova-observability/pyproject.toml packages/nova-observability/pyproject.toml
 COPY packages/nova-graphstore-sdk/pyproject.toml packages/nova-graphstore-sdk/pyproject.toml
+COPY packages/nova-service-kit/pyproject.toml packages/nova-service-kit/pyproject.toml
 COPY services/world-model-engine/pyproject.toml services/world-model-engine/pyproject.toml
 
 COPY packages/nova-contracts packages/nova-contracts
 COPY packages/nova-eventbus-sdk packages/nova-eventbus-sdk
 COPY packages/nova-observability packages/nova-observability
 COPY packages/nova-graphstore-sdk packages/nova-graphstore-sdk
+COPY packages/nova-service-kit packages/nova-service-kit
 COPY services/world-model-engine services/world-model-engine
 
 RUN uv sync --frozen --no-dev --package world-model-engine
