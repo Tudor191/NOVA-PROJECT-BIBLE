@@ -81,7 +81,7 @@ jobs:
           cache-to: type=gha,mode=max,scope=${{ matrix.service }}
 
       - name: Scan ${{ matrix.service }} image
-        uses: aquasecurity/trivy-action@0.24.0
+        uses: aquasecurity/trivy-action@v0.34.0
         with:
           image-ref: nova-${{ matrix.service }}:${{ github.sha }}
           severity: CRITICAL,HIGH
