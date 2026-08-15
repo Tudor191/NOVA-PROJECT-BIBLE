@@ -6,6 +6,13 @@ Phase 3B's multi-PR implementation — not the whole of Phase 3B. No event
 subscription, persistence, API, or decomposition logic exists yet; those
 are later, separately scoped and separately reviewed PRs.
 
+**Post-initial-review update (commit `41122e2`):** an independent review
+pass (requested separately from the original implementation) found and
+fixed a real defect — duplicate `TaskNode.id` handling — and corrected an
+inaccurate coverage claim in this document's original version. See §3a
+and §6 below for the full evidence trail. Both issues are now resolved;
+this status reflects the corrected, post-fix state.
+
 ---
 
 ## 0. Scope executed
@@ -100,6 +107,70 @@ Locked in with a regression test
 documented, so a future change re-adding one requires an explicit,
 reviewed decision rather than a silent contract drift.
 
+## 3a. Independent review finding: duplicate `TaskNode.id` handling (fixed)
+
+An independent review pass of this PR (requested separately, after the
+original implementation) checked graph invariants against an edge case the
+original implementation did not consider: what happens if `TaskGraph.nodes`
+contains two `TaskNode`s sharing the same `id`. Nothing at the Pydantic
+level prevents this — `nodes` is a plain `list[TaskNode]`, not a set or a
+dict keyed by `id`.
+
+**The defect:** `find_cycle`, `find_dangling_dependencies`, and
+`compute_critical_path` each build `by_id = {node.id: node for node in
+nodes}` — a dict comprehension that silently keeps only the *last* node
+sharing an `id` and drops the rest. A duplicate `id` would have silently
+corrupted every one of these checks (wrong cycle detection, wrong dangling
+report, wrong critical path) with no error and no signal to the caller.
+
+**The fix (commit `41122e2`):**
+- Added `find_duplicate_ids(nodes) -> list[UUID]`, a pure function
+  reporting which `id`s appear more than once.
+- Wired it into `compute_critical_path` as the **first** check, ahead of
+  cycle and dangling-dependency detection — both of those would themselves
+  misreport against a graph with duplicates, since they use the identical
+  `by_id` pattern.
+- Added docstring caveats to `find_cycle`/`find_dangling_dependencies`
+  stating they assume no duplicate `id`s and directing callers to
+  `find_duplicate_ids` first.
+- Added 3 new tests: duplicate detection with a shared ID, empty-result on
+  a well-formed graph, and `compute_critical_path` raising `ValueError`
+  (not silently picking a winner) on a duplicate.
+
+This was found and fixed during review, not flagged by a failing test —
+no test in the original PR exercised this input at all.
+
+## 3b. Independent review finding: inaccurate coverage claim (corrected)
+
+The original version of this document (§6, before this correction)
+reported "100%" domain coverage. That figure was produced by running
+`pytest --cov=nova_planning_engine.domain` **without**
+`--cov-report=term-missing`, which happened to render a summary table
+without visible Branch/BrPart columns — easy to mistake for "no missed
+branches" when the columns simply weren't shown.
+
+Root `pyproject.toml`'s `[tool.coverage.run] branch = true` means the
+gate-enforced metric (`fail_under = 85`) is genuinely **branch** coverage,
+not statement coverage. Re-running the identical command with
+`--cov-report=term-missing` (and confirmed again on a second, fresh run)
+showed the true original figure was **98.50%**, not 100% —
+`task_graph.py` had 2 uncovered partial branches (`54->47`, `61->60`),
+both inside `find_cycle`'s DFS `visit()` function.
+
+**Root cause:** every original test graph listed dependencies before their
+dependents (already topologically ordered), so `find_cycle`'s DFS never
+needed to recurse into a second still-white sibling dependency from
+within one `visit()` call, and its top-level loop never encountered a
+node a prior root's recursion had already colored black.
+
+**The fix:** added
+`test_cycle_and_critical_path_detection_do_not_depend_on_topological_listing_order`,
+constructing a graph with a join node listed *before* the two dependencies
+it references (`[join, short, long_branch]`) — this exercises exactly the
+missing branches. Re-verified after the fix: 35/35 tests passing,
+genuinely 100% statement **and** branch coverage (`task_graph.py`: 86
+stmts/40 branches, 0 missed — see corrected §6).
+
 ## 4. Exact files changed
 
 | File | Change |
@@ -112,18 +183,22 @@ reviewed decision rather than a silent contract drift.
 
 ## 5. Tests
 
-30 tests in `services/planning-engine` (`tests/unit/test_models.py`,
+35 tests in `services/planning-engine` (`tests/unit/test_models.py`,
 `tests/unit/test_task_graph.py`, plus the scaffold's own
 `tests/integration/test_health.py`), covering: required/optional field
 validation, `Estimate`/`RiskLevel` behavior, the WBS-field-presence and
 WBS-field-absence regression tests above, deterministic node-insertion
 ordering, JSON round-trip serialization, cross-package `RiskLevel`
 consumption (simulating action-engine's own future usage without importing
-`nova_planning_engine`), cycle detection (direct and indirect cycles),
-dangling-dependency detection, and critical-path computation (single node,
-linear chain, branch-preference by effort, deterministic tie-breaking,
-raising instead of hanging on a cycle). Plus 2 new contract tests in
-`nova-contracts` for `RiskLevel`.
+`nova_planning_engine`), cycle detection (direct, indirect, and
+self-referencing cycles), duplicate-node-`id` detection and rejection
+(§3a), dangling-dependency detection, critical-path computation (single
+node, linear chain, branch-preference by effort, deterministic
+tie-breaking, raising instead of hanging on a cycle, raising instead of
+silently picking a winner on a duplicate `id`), and detection/computation
+correctness when nodes are listed out of topological order (§3b). Plus 2
+new contract tests in `nova-contracts` for `RiskLevel`. (Original PR: 30
+tests; +5 added during independent review, §3a/§3b.)
 
 ## 6. Verification results
 
@@ -131,8 +206,8 @@ raising instead of hanging on a cycle). Plus 2 new contract tests in
 |---|---|---|
 | ruff + mypy, `planning-engine` | Clean, 13 source files | Fully verified |
 | ruff + mypy, `nova-contracts` | Clean, 16 source files | Fully verified |
-| `planning-engine` test suite | 30/30 passed | Fully verified |
-| `planning-engine` domain coverage | 100% (`domain/models.py`, `domain/task_graph.py`) vs. 85% gate | Fully verified |
+| `planning-engine` test suite | 35/35 passed (30 original + 5 from independent review, §3a/§3b) | Fully verified |
+| `planning-engine` domain coverage | 100% statement **and** branch (`domain/models.py`: 24 stmts/0 branches; `domain/task_graph.py`: 86 stmts/40 branches, 0 missed) vs. 85% branch-coverage gate — corrected from an inaccurate original "100%" claim that was actually 98.50% branch coverage under statement-only reporting; see §3b for the full correction | Fully verified (re-verified with `--cov-report=term-missing` after the fix, not assumed) |
 | `nova-contracts` test suite | 86/86 passed (84 prior + 2 new) | Fully verified |
 | Full monorepo test suite | 20/20 packages, all green | Fully verified |
 | Full monorepo lint | 20/20 packages, all green | Fully verified |
@@ -140,11 +215,51 @@ raising instead of hanging on a cycle). Plus 2 new contract tests in
 | `docker-compose config` | Valid, unmodified by this PR (no service block yet — no API/persistence to serve) | Fully verified |
 | TypeScript codegen | Correctly unaffected — `RiskLevel` isn't referenced by any registered payload yet, so it does not yet appear in generated TypeScript; will appear automatically once a payload embeds it | Fully verified (confirmed no drift, not merely assumed) |
 | Real-infrastructure | **Not applicable.** This PR introduces no persistence, no new Event Bus subject, no cross-process integration — nothing for a real-infra test to exercise. | Genuinely not applicable, not deferred |
+| `checks` (pr-checks.yml, ruff/mypy/pytest gate) — GitHub Actions | Passed on PR #2 | Real-infrastructure-verified |
+| `build-and-scan.yml` — GitHub Actions | **Fails on this PR — but pre-existing, unrelated to PR #2. See §6a.** | Documented, not fixed in this PR (correctly out of scope) |
 
 **No contract/fake-verified, local-integration-verified, or genuinely
 unverified items in this PR's own scope** — everything this PR touches is
 either a pure domain function (fully unit-tested) or a scaffold-generated
 stub not yet exercised by any real caller.
+
+## 6a. Pre-existing, unrelated CI infrastructure failure (`build-and-scan.yml`)
+
+Investigated as part of this PR's review, per explicit instruction not to
+merge without first classifying the visible CI red X. Three
+`build-and-scan` matrix jobs show `failure`
+(`world-model-engine`, `communication-engine`, `nova-core`); eight more
+show `cancelled`.
+
+**Root cause:** `.github/workflows/build-and-scan.yml:84` pins
+`uses: aquasecurity/trivy-action@0.24.0` in the `Scan ${{ matrix.service }}
+image` step, identically across all 11 matrix entries (`planning-engine`
+is correctly not yet in this matrix — deliberately deferred, no container
+to scan). That version tag is no longer resolvable by GitHub's
+action-resolution service (`Unable to resolve action
+'aquasecurity/trivy-action@0.24.0', unable to find version '0.24.0'`) — an
+external Marketplace-action issue, failing before checkout or any real
+build/scan step runs (~2s job duration).
+
+**Fail-fast:** the `strategy:` block has no `fail-fast: false` override,
+so the default `fail-fast: true` cancels the other 8 matrix jobs
+automatically the instant the first 3 fail — those cancellations are not
+independent failures.
+
+**Confirmed pre-existing, not introduced by this PR or by PR #1:** this
+repo's entire `build-and-scan.yml` run history is 3 runs, and all 3 fail
+identically — including the very first run ever executed (a push to
+`main` at commit `3b6d9a3`, before any Phase 3B PR existed).
+`.github/workflows/build-and-scan.yml` is untouched by this PR's diff, and
+`communication-engine`/`nova-core`/`world-model-engine` are not part of
+the Phase 3B change path.
+
+**Not fixed here, by design:** fixing this requires editing
+`.github/workflows/build-and-scan.yml` (re-pinning `trivy-action` to a
+resolvable version, and optionally adding `fail-fast: false` for better
+diagnosability) — out of scope for a planning-engine domain-foundation PR.
+Tracked as a separate, pre-existing infrastructure defect requiring its
+own dedicated fix.
 
 ## 7. Known limitations (of this PR's scope, not defects)
 
