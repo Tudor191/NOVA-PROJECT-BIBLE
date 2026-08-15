@@ -33,7 +33,7 @@ from nova_communication_engine.config import Settings
 from nova_communication_engine.domain.models import ConversationState
 from nova_communication_engine.main import create_app
 from nova_contracts.events.perception import GazeDirection
-from nova_testkit import FakePerceptionSignalSource
+from nova_testkit import FakePerceptionSignalSource, wait_until
 
 from tests.fakes.ports import (
     FakeModelOrchestrationPort,
@@ -110,12 +110,27 @@ def test_server_triggered_listening_activates_without_a_client_trigger_start(
                 )
             )
 
-            # Give the receive loop's own silence-poll tick (every
-            # _SILENCE_POLL_INTERVAL_S) a chance to observe and consume the
-            # StartListeningSignal *before* any audio is sent -- otherwise
-            # this single AUDIO_CHUNK frame could race ahead of the poll and
-            # arrive while `turn_active` is still False.
-            time.sleep(_SILENCE_POLL_INTERVAL_S * 3)
+            # Deterministically wait for the receive loop's own silence-poll
+            # tick to observe and consume the StartListeningSignal *before*
+            # any audio is sent -- otherwise this single AUDIO_CHUNK frame
+            # could race ahead of the poll and arrive while `turn_active` is
+            # still False (dropped silently, since the receive loop only
+            # checks the signal on its own asyncio.wait_for timeout branch,
+            # which a successfully-received frame bypasses entirely).
+            # `InMemoryEventBus.publish()` awaits every subscriber handler
+            # in-line (no `create_task` anywhere in the addressee-signal ->
+            # `maybe_activate_listening` -> `StartListeningSignal.trigger()`
+            # chain), so the signal is already set by the time portal.call
+            # above returns -- the first wait_until below resolves
+            # immediately in practice. The second wait_until is what this
+            # depends on: it does not resolve until the connection's own
+            # receive-loop *task* gets its next scheduler turn and consumes
+            # (clears) the signal, which a fixed sleep can only guess at and
+            # previously raced under CI's parallel-test CPU contention.
+            signal = app.state.session_registry.get_start_listening_signal(UUID(session_id))
+            assert signal is not None
+            client.portal.call(lambda: wait_until(signal.is_set))
+            client.portal.call(lambda: wait_until(lambda: not signal.is_set()))
 
             websocket.send_bytes(b"\x01" * 32)  # never preceded by a client trigger_start
 
