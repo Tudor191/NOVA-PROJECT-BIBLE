@@ -87,3 +87,12 @@ jobs:
           severity: CRITICAL,HIGH
           exit-code: "1"
           ignore-unfixed: true
+          # trivy-action@v0.34.0's own baked-in default Trivy binary
+          # (v0.69.1) no longer has a downloadable release asset (its
+          # release was pulled from aquasecurity/trivy's release list --
+          # confirmed via a direct 404 on the Linux-64bit asset -- while
+          # the git tag itself still resolves, which is why setup-trivy
+          # finds the tag but then fails to install it). Pin explicitly
+          # to the next release with a confirmed, intact Linux-64bit
+          # asset instead of relying on the action's own mutable default.
+          version: v0.69.3
