@@ -7,6 +7,7 @@ from nova_planning_engine.domain.task_graph import (
     compute_critical_path,
     find_cycle,
     find_dangling_dependencies,
+    find_duplicate_ids,
     has_cycle,
 )
 
@@ -161,6 +162,95 @@ def test_compute_critical_path_raises_on_dangling_dependency() -> None:
     node = _node("orphaned", depends_on=[uuid4()])
     with pytest.raises(ValueError, match="dangling"):
         compute_critical_path([node])
+
+
+def test_find_duplicate_ids_reports_a_shared_id_once() -> None:
+    """A `TaskGraph.nodes` list is a plain `list[TaskNode]` -- nothing at
+    the Pydantic level stops two nodes from sharing an `id`. Every function
+    in this module keys a `dict` by `node.id`, which would otherwise
+    silently drop one of the duplicates rather than surface the error."""
+    shared_id = uuid4()
+    first = TaskNode(
+        id=shared_id,
+        objective="first",
+        estimated_effort=Estimate(effort_hours=1.0, confidence=0.8),
+        risk=RiskLevel.LOW,
+    )
+    second = TaskNode(
+        id=shared_id,
+        objective="second",
+        estimated_effort=Estimate(effort_hours=2.0, confidence=0.8),
+        risk=RiskLevel.LOW,
+    )
+
+    assert find_duplicate_ids([first, second]) == [shared_id]
+
+
+def test_find_duplicate_ids_reports_empty_for_a_well_formed_graph() -> None:
+    a, b = _node("a"), _node("b")
+    assert find_duplicate_ids([a, b]) == []
+
+
+def test_compute_critical_path_raises_on_duplicate_node_ids() -> None:
+    """Proves the duplicate is rejected outright, not silently resolved by
+    keeping whichever node happens to win the `dict`-keyed-by-`id` race --
+    the second node's much larger `effort_hours` (99.0) would silently and
+    non-deterministically change the reported critical path length if this
+    were merely ignored rather than raised."""
+    shared_id = uuid4()
+    first = TaskNode(
+        id=shared_id,
+        objective="first",
+        estimated_effort=Estimate(effort_hours=1.0, confidence=0.8),
+        risk=RiskLevel.LOW,
+    )
+    second = TaskNode(
+        id=shared_id,
+        objective="second",
+        estimated_effort=Estimate(effort_hours=99.0, confidence=0.8),
+        risk=RiskLevel.LOW,
+    )
+
+    with pytest.raises(ValueError, match="duplicate"):
+        compute_critical_path([first, second])
+
+
+def test_find_cycle_detects_a_node_that_depends_on_itself() -> None:
+    """A degenerate one-node cycle -- `depends_on` containing the node's own
+    `id`. Not merely a hypothetical: nothing at the Pydantic level forbids
+    it, so the algorithm must reject it explicitly."""
+    self_id = uuid4()
+    node = TaskNode(
+        id=self_id,
+        objective="depends on itself",
+        depends_on=[self_id],
+        estimated_effort=Estimate(effort_hours=1.0, confidence=0.8),
+        risk=RiskLevel.LOW,
+    )
+
+    assert has_cycle([node]) is True
+    cycle = find_cycle([node])
+    assert cycle is not None
+    assert set(cycle) == {self_id}
+
+
+def test_cycle_and_critical_path_detection_do_not_depend_on_topological_listing_order() -> None:
+    """`nodes` is never required to be pre-sorted into dependency order --
+    a join node listed *before* the dependencies it references must be
+    detected and traversed correctly by walking into still-unvisited
+    (white) dependencies from within a single DFS call, not only by
+    relying on the top-level loop having already visited them as roots
+    first. This is the shape every prior cycle/critical-path test in this
+    file happened not to exercise (every earlier test lists dependencies
+    before their dependents)."""
+    short = _node("short prep", effort_hours=1.0)
+    long_branch = _node("long prep", effort_hours=10.0)
+    join = _node("integrate", depends_on=[short.id, long_branch.id], effort_hours=2.0)
+
+    reordered = [join, short, long_branch]
+
+    assert has_cycle(reordered) is False
+    assert compute_critical_path(reordered) == [long_branch.id, join.id]
 
 
 def test_parent_child_relationship_is_expressed_through_depends_on() -> None:

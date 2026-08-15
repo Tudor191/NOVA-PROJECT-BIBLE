@@ -12,6 +12,14 @@ event (decomposition orchestration -- a later, event-consumption PR's job)
 and mutating a persisted graph in place (the persistence-layer PR's job).
 This module is only concerned with the graph as a structure: is it valid,
 and what is its critical path.
+
+Known, accepted limitation: `find_cycle`/`compute_critical_path` use plain
+Python recursion (one stack frame per DFS/longest-path level), matching
+`reasoning-engine`'s own Phase 3A Multi-step recursion (bounded depth, not
+converted to an iterative form) -- fine at planning-engine's realistic
+scale (dozens to low hundreds of `TaskNode`s per graph), not proven safe
+against an adversarially deep chain. Revisit if a real graph ever
+approaches Python's recursion limit.
 """
 
 from __future__ import annotations
@@ -24,8 +32,26 @@ __all__ = [
     "compute_critical_path",
     "find_cycle",
     "find_dangling_dependencies",
+    "find_duplicate_ids",
     "has_cycle",
 ]
+
+
+def find_duplicate_ids(nodes: list[TaskNode]) -> list[UUID]:
+    """The subset of `nodes`' own `id`s that appear more than once, in
+    first-duplicate-encountered order. Empty list when every `id` is unique.
+    Load-bearing for every other function here: `find_cycle`,
+    `find_dangling_dependencies`, and `compute_critical_path` all key a
+    `dict` by `node.id`, which silently drops all but the last node sharing
+    an `id` -- this function is what lets a caller detect that condition
+    explicitly instead of it corrupting every other check silently."""
+    seen: set[UUID] = set()
+    duplicates: list[UUID] = []
+    for node in nodes:
+        if node.id in seen and node.id not in duplicates:
+            duplicates.append(node.id)
+        seen.add(node.id)
+    return duplicates
 
 
 def find_cycle(nodes: list[TaskNode]) -> list[UUID] | None:
@@ -35,7 +61,10 @@ def find_cycle(nodes: list[TaskNode]) -> list[UUID] | None:
     order it walks `nodes`, so the same node set always reports the same
     cycle, not merely *a* cycle. Ignores dangling references (a `depends_on`
     ID with no matching node) -- `find_dangling_dependencies` reports those
-    separately."""
+    separately. Assumes `nodes` has no duplicate `id`s -- call
+    `find_duplicate_ids` first if that is not already guaranteed; this
+    function keys a `dict` by `node.id` and silently drops all but the last
+    node sharing one, the same way every other function here does."""
     by_id = {node.id: node for node in nodes}
     white, grey, black = 0, 1, 2
     color: dict[UUID, int] = dict.fromkeys(by_id, white)
@@ -72,7 +101,8 @@ def has_cycle(nodes: list[TaskNode]) -> bool:
 def find_dangling_dependencies(nodes: list[TaskNode]) -> dict[UUID, list[UUID]]:
     """Node ID -> the subset of its own `depends_on` entries that do not
     correspond to any other node in `nodes`. Empty dict when every
-    dependency resolves within the same graph."""
+    dependency resolves within the same graph. Assumes `nodes` has no
+    duplicate `id`s -- see `find_cycle`'s identical caveat."""
     by_id = {node.id: node for node in nodes}
     dangling: dict[UUID, list[UUID]] = {}
     for node in nodes:
@@ -87,12 +117,18 @@ def compute_critical_path(nodes: list[TaskNode]) -> list[UUID]:
     chain through the DAG `nodes`' `depends_on` edges describe -- standard
     longest-path-in-a-DAG dynamic programming (TDD 3B §12's own framing: "no
     invention needed beyond implementing it"). Raises `ValueError` if `nodes`
-    contains a cycle or a dangling `depends_on` reference -- a critical path
-    is undefined for either. Deterministic: ties are always broken toward
-    the earliest-indexed node in `nodes`, so the same graph always reports
-    the same path, not merely *a* longest one. `[]` for an empty graph."""
+    contains a duplicate `id`, a cycle, or a dangling `depends_on` reference
+    -- a critical path is undefined for any of the three (duplicate `id`s
+    are checked first: every check below keys a `dict` by `node.id` and
+    would silently misreport against a graph that has one). Deterministic:
+    ties are always broken toward the earliest-indexed node in `nodes`, so
+    the same graph always reports the same path, not merely *a* longest
+    one. `[]` for an empty graph."""
     if not nodes:
         return []
+    duplicates = find_duplicate_ids(nodes)
+    if duplicates:
+        raise ValueError(f"cannot compute a critical path: duplicate node ids ({duplicates})")
     cycle = find_cycle(nodes)
     if cycle is not None:
         raise ValueError(f"cannot compute a critical path: cycle detected ({cycle})")
