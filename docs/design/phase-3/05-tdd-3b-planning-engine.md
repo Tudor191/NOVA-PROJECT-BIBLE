@@ -1,6 +1,13 @@
 # TDD 3B — `planning-engine`
 
-**Status: design only, awaiting approval. No production code authorized.**
+**Status: partially implemented.** Domain foundation (§2: `TaskNode`/
+`TaskGraph`/`Estimate`/`RiskLevel`, graph invariants, critical-path
+computation) shipped in PR #2. Objective Decomposition (§6.1's
+`reasoning.process.completed` -> `TaskGraph` path, via the
+`ModelOrchestrationPort` added to §3) shipped in the decomposition-
+orchestration unit that follows PR #2. Persistence (§4), the API surface
+(§5), `planning.task_graph.created`/`planning.decompose.request` (§6.2),
+and the `agent_os.task.completed` subscription (§6.1) remain unbuilt.
 
 ---
 
@@ -152,6 +159,20 @@ calling engine's own `domain/ports.py`, never centralized):
   "Memory -.consulted by.-> Planning" edge.
 - **`KnowledgePort`** — same pattern, `knowledge.retrieve.request`/`.reply`,
   per doc 10's "Knowledge -.consulted by.-> Planning" edge.
+- **`ModelOrchestrationPort`** (added post-approval, per
+  `docs/design/phase-3/11-3b-decomposition-architecture-research.md` §6/§13
+  and the decomposition-orchestration Gate Review) — ADR-020's sole legal
+  channel to any model, a thin Protocol wrapping `ai_model.generate.request`.
+  Used only by `domain/decomposition.py` (Objective Decomposition, §6.1) to
+  turn `objective_text`/`chosen_description` into a structured `TaskGraph`
+  proposal via the tool-calling mechanism `nova_contracts.events.
+  ai_model_orchestration` already defines — the identical pattern
+  `reasoning-engine`'s own `ModelOrchestrationPort`/`ModelOrchestrationClient`
+  already establishes for Hypothesis Generation. Not a new architectural
+  fork: this TDD's original text left the decomposition mechanism
+  unspecified (Fork 3B-4-adjacent); the research pass resolved it as
+  LLM-backed decomposition through this already-approved channel, not an
+  invented heuristic or placeholder.
 
 **No `GoalsPort` consumer role** — `planning-engine` is the future real
 backing for `GoalsPort` (ADR-026), not a caller of it.
@@ -299,6 +320,7 @@ constant. **Flagged for approval**, not silently assumed.
 |---|---|
 | `reasoning.process.completed` below the decomposition confidence threshold (Fork 3B-3) | No `TaskGraph` created; no error — mirrors the existing "no action" pattern for below-threshold signals elsewhere in this codebase. |
 | `MemoryPort`/`KnowledgePort` timeout during decomposition | Decomposition proceeds with whatever context was retrieved before the timeout — degrades, never blocks indefinitely (same discipline as every existing port timeout handler in this codebase). |
+| `ModelOrchestrationPort.generate` times out, returns `finish_reason == "error"`, or returns no/malformed structured `propose_task_graph` tool call, or the resulting nodes fail PR #2's structural checks (duplicate IDs, cycle, dangling dependencies) | No `TaskGraph` produced for this `reasoning.process.completed`; the event is logged and metriced as a failed decomposition attempt (labeled by a stable `reason`) and considered handled — never raised as an unhandled exception, which would trigger NATS JetStream redelivery of an event whose failure is not transient (mirrors `reasoning-engine`'s own `HypothesisGenerationError` handling). |
 | `planning.decompose.request` for a subtree that cannot be further decomposed | Replies with the original node unchanged and a structured "already minimal" reason — never a silent no-op reply indistinguishable from success. |
 | Postgres unavailable at `task_graph`/`task_node` write time | Standard per-engine failure mode — the request fails loudly (not silently degraded), consistent with every other engine's persistence-layer error handling; Task Graph correctness (never partially/incorrectly persisted) is a hard requirement given restart-survival depends on it (`ENGINEERING_ROADMAP.md:545`). |
 
