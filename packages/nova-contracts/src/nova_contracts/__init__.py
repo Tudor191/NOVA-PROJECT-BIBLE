@@ -43,6 +43,16 @@ from nova_contracts.events.ai_model_orchestration import (
     WakePhraseDetectReplyPayload,
     WakePhraseDetectRequestPayload,
 )
+from nova_contracts.events.capability import (
+    Capability,
+    CapabilityHandle,
+    CapabilityHealthStatus,
+    CapabilityInvokeOutcome,
+    CapabilityInvokeReplyPayload,
+    CapabilityInvokeRequestPayload,
+    CapabilityResolveReplyPayload,
+    CapabilityResolveRequestPayload,
+)
 from nova_contracts.events.communication import (
     ChannelType,
     CommunicationIntentDeliverReplyPayload,
@@ -180,6 +190,14 @@ __all__ = [
     "AttentionState",
     "BudgetExceededPayload",
     "BudgetScope",
+    "Capability",
+    "CapabilityHandle",
+    "CapabilityHealthStatus",
+    "CapabilityInvokeOutcome",
+    "CapabilityInvokeReplyPayload",
+    "CapabilityInvokeRequestPayload",
+    "CapabilityResolveReplyPayload",
+    "CapabilityResolveRequestPayload",
     "ChannelType",
     "CognitivePriorityScore",
     "CommunicationIntentDeliverReplyPayload",
