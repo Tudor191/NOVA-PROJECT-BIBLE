@@ -9,6 +9,7 @@ resolution-markers = [
 [manifest]
 members = [
     "ai-model-orchestration-engine",
+    "capability-engine",
     "communication-engine",
     "digital-twin-engine",
     "executive-cognition-engine",
@@ -278,6 +279,55 @@ wheels = [
 [package.optional-dependencies]
 filecache = [
     { name = "filelock" },
+]
+
+[[package]]
+name = "capability-engine"
+version = "0.1.0"
+source = { editable = "services/capability-engine" }
+dependencies = [
+    { name = "alembic" },
+    { name = "asyncpg" },
+    { name = "fastapi" },
+    { name = "httpx" },
+    { name = "nova-contracts" },
+    { name = "nova-eventbus-sdk" },
+    { name = "nova-observability" },
+    { name = "nova-service-kit" },
+    { name = "pydantic-settings" },
+    { name = "sqlalchemy", extra = ["asyncio"] },
+    { name = "uvicorn", extra = ["standard"] },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "httpx" },
+    { name = "nova-testkit" },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "alembic", specifier = ">=1.13" },
+    { name = "asyncpg", specifier = ">=0.29" },
+    { name = "fastapi", specifier = ">=0.115" },
+    { name = "httpx", specifier = ">=0.27" },
+    { name = "nova-contracts", editable = "packages/nova-contracts" },
+    { name = "nova-eventbus-sdk", editable = "packages/nova-eventbus-sdk" },
+    { name = "nova-observability", editable = "packages/nova-observability" },
+    { name = "nova-service-kit", editable = "packages/nova-service-kit" },
+    { name = "pydantic-settings", specifier = ">=2.6" },
+    { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0" },
+    { name = "uvicorn", extras = ["standard"], specifier = ">=0.32" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "httpx", specifier = ">=0.27" },
+    { name = "nova-testkit", editable = "packages/nova-testkit" },
+    { name = "pytest", specifier = ">=8.3" },
+    { name = "pytest-asyncio", specifier = ">=0.24" },
 ]
 
 [[package]]
