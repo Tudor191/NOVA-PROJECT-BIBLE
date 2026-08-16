@@ -63,6 +63,7 @@ jobs:
           - communication-engine
           - perception-engine
           - digital-twin-engine
+          - capability-engine
     steps:
       - uses: actions/checkout@v4
 
