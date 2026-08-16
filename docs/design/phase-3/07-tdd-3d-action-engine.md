@@ -2,12 +2,23 @@
 
 **Status: design only, awaiting approval. No production code authorized.**
 
+**Reconciliation pass (post-`phase-3c-research`, still design-only):**
+Fork 3C-1/3D-1 (adapter ownership, §2) is **RESOLVED as Option A** —
+`action-engine` defines its own `CapabilityPort`, `capability-engine`
+owns and executes every adapter. The rollback/snapshot coordination
+consequence §2 originally flagged is **RESOLVED as Option B** —
+`action-engine` owns rollback entirely itself; `capability-engine`'s
+adapters gain no new primitive. See TDD 3C §4 for the full resolution
+record; only the consequences for this document are applied below (§2,
+§14).
+
 ---
 
 ## 0. Scope and dependencies
 
 **Scope.** Action Object Model, validation/risk pipeline, terminal +
-filesystem + git adapters (pending Fork 3C-1/3D-1), rollback for
+filesystem + git adapters (per Fork 3C-1/3D-1's resolution, §2 —
+`capability-engine`-owned, `action-engine`-consumed), rollback for
 reversible actions, Action Queue, and the Phase-3-owned approval loop
 (Fork E2's resolution) — per `ENGINEERING_ROADMAP.md:515` and Bible Part
 12.
@@ -33,28 +44,61 @@ self-contained, per Fork E2's already-approved resolution.
 
 ---
 
-## 2. Fork 3C-1/3D-1 resolution required before implementation
+## 2. Fork 3C-1/3D-1 — RESOLVED: Option A, made concrete
 
-This TDD's own adapter design depends on TDD 3C's Fork 3C-1 being
-resolved first. **Recommendation (shared with TDD 3C): `action-engine`
-defines its own `CapabilityPort`** (own Protocol in
-`domain/ports.py`, own client, mirroring the `GoalsPort`/`DigitalTwinPort`
-convention) and invokes `capability-engine`'s already-registered git/
-filesystem/terminal capabilities rather than reimplementing adapter
-logic — `action-engine`'s own contribution is the risk/approval/
-rollback/audit wrapper, not a second "how to run git."
+This TDD's own adapter design depended on TDD 3C's Fork 3C-1 being
+resolved first — it now is. **Resolved (shared with TDD 3C, ratified in
+the reconciliation pass): `action-engine` defines its own `CapabilityPort`**
+(own Protocol in `domain/ports.py`, own client, mirroring the
+`GoalsPort`/`DigitalTwinPort` convention) and invokes
+`capability-engine`'s already-registered git/filesystem/terminal/HTTP
+capabilities rather than reimplementing adapter logic — `action-engine`'s
+own contribution is the risk/approval/rollback/audit wrapper, not a
+second "how to run git."
 
-**A concrete coordination consequence, disclosed here rather than
-invented silently:** `action-engine`'s Rollback Strategy (§4) requires
-some destructive filesystem/terminal operations to be reversible (Bible's
-*"execution without recovery is unacceptable,"* `part-12-action-engine.md:287`).
-If Fork 3C-1 resolves to Option A (shared adapters), `capability-engine`'s
-filesystem adapter must support a pre-operation snapshot/backup primitive
-for destructive calls — a requirement on TDD 3C's own adapter design that
-TDD 3C's document (§3) does not currently specify, since it was written
-before this dependency was traced. **This must be reconciled between the
-two TDDs before either begins implementation** — flagged explicitly, not
-silently assumed resolved.
+**Made precise during the reconciliation pass (TDD 3C §4 carries the full
+reasoning; only the consequences for this document are restated here):**
+ADR-004 forbids a raw HTTP call from `action-engine` into
+`capability-engine`'s REST surface, so `CapabilityPort`'s client is an
+event-bus request/reply RPC, mirroring the existing
+`ai_model.generate.request` pattern — and `capability-engine`'s own
+process is therefore the actual executor of every adapter operation (the
+real `git`/filesystem/terminal/`http` call happens inside
+`capability-engine`, not here). This TDD's own §6 stage 5/6 mapping,
+below, already described this shape correctly (*"resolve... invoke the
+capability's adapter"*); the reconciliation pass confirms and names the
+two RPC touchpoints explicitly — illustratively `capability.resolve.request`
+(stage 5) and `capability.invoke.request` (stage 6), exact shapes deferred
+to implementation time (TDD 3C §11).
+
+**Not yet precise, flagged for this TDD's own implementation-time work
+(not a Fork 3C-1 question, no competing architecture, nothing to approve
+here):** the `Action` model (§3.1) has no field that unambiguously names
+*which* `Capability`/adapter a given `Action` targets — `execution_target: str`
+is the closest candidate but its exact semantics for capability-selection
+are not spelled out. Needs tightening before this TDD's own
+implementation begins.
+
+**The rollback/snapshot coordination consequence — RESOLVED: Option B.**
+`action-engine`'s Rollback Strategy (§4) requires some destructive
+filesystem/terminal operations to be reversible (Bible's *"execution
+without recovery is unacceptable,"* `part-12-action-engine.md:287`). This
+document originally flagged that, if Fork 3C-1 resolved to Option A,
+`capability-engine`'s filesystem adapter might need a pre-operation
+snapshot/backup primitive — and that this needed reconciliation between
+the two TDDs before either began implementation. **Resolved (reconciliation
+pass, ratified in TDD 3C §4 Fork 3C-3): `action-engine` owns rollback
+entirely itself.** Given the RPC-executor architecture just made precise
+above, `action-engine` has no direct filesystem access of its own to a
+target resource — it captures pre-state the only way it architecturally
+can: by invoking `capability-engine`'s existing, already-scoped,
+non-destructive read/list operation (the same `capability.invoke.request`
+RPC, targeting a read first) before issuing the destructive call, then
+restoring the same way on failure. **`capability-engine`'s adapter
+interface gains no new primitive** — this document's own `RollbackStrategy`
+model (§3.1) is unaffected; only the *mechanism* behind `"restore_file"`
+is now concrete. No new architectural problem was found in resolving this
+as Option B; it is reported, not worked around.
 
 ---
 
@@ -354,8 +398,10 @@ lands, verified against real timing (not a fake clock).
 5. A forced mid-execution failure triggers the configured
    `RollbackStrategy` and restores prior state (roadmap's own rollback
    test, `ENGINEERING_ROADMAP.md:539`).
-6. Fork 3C-1/3D-1's coordination consequence (§2) is reconciled with TDD
-   3C before either implementation begins.
+6. **Updated, reconciliation pass:** Fork 3C-1/3D-1 and its rollback/
+   snapshot coordination consequence (§2) are **resolved** — this
+   criterion is satisfied; no reconciliation remains outstanding between
+   this TDD and TDD 3C on adapter ownership or rollback ownership.
 
 ---
 
