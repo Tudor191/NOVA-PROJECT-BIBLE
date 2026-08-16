@@ -228,14 +228,27 @@ disclosed, not hidden behind an inflated coverage number.
 | `test_events_reasoning_completed.py`'s 4 integration tests | Real `create_app()`, real (in-memory) `EventBus`, real subject-matching dispatch; only the model-orchestration boundary is faked (`FakeModelOrchestrationPort`) | Local integration verified |
 | The structured `ai_model.generate.request`/`.reply` round trip via a real `ai-model-orchestration-engine` process and a real provider | Not exercised — every test above fakes the model-orchestration boundary, matching every prior engine's own precedent (a real provider call is never exercised in this repo's test suite anywhere) | Contract/fake verified only |
 | `reasoning.process.completed` -> `planning-engine` over real NATS JetStream (consumer groups, redelivery, durable stream semantics) | Not exercised. `nova-testkit`'s `nats_event_bus` fixture exists (STEP 2.8) but is not used by *any* engine in this codebase for a subject-subscription proof yet — confirmed by repo-wide grep before deciding not to build that pattern for the first time inside this narrowly-scoped PR. What the in-memory `EventBus` test *does* prove: the same `EventBus` Protocol NATS implements, subject-pattern matching, and handler dispatch are all correct — it does not prove anything about JetStream redelivery, consumer-group load balancing, or durable-stream persistence | Genuinely unverified (explicitly, not silently assumed) |
-| GitHub Actions — `PR Checks` | See §10 below, filled in after push | Real-infrastructure verified (pending push) |
-| GitHub Actions — `Build & Scan` | See §10 below | Real-infrastructure verified (pending push) |
-| GitHub Actions — `Real-Infrastructure Checks` | See §10 below | Real-infrastructure verified (pending push) |
+| GitHub Actions — `PR Checks` | `success`, run [31918753085](https://github.com/Tudor191/NOVA-PROJECT-BIBLE/actions/runs/31918753085) | Real-infrastructure verified |
+| GitHub Actions — `Build & Scan` | `success`, run [31918751521](https://github.com/Tudor191/NOVA-PROJECT-BIBLE/actions/runs/31918751521) | Real-infrastructure verified |
+| GitHub Actions — `Real-Infrastructure Checks` | `success`, run [31918752447](https://github.com/Tudor191/NOVA-PROJECT-BIBLE/actions/runs/31918752447) | Real-infrastructure verified |
 
-## 10. GitHub Actions (filled in after push — see final report)
+## 10. GitHub Actions (confirmed after push, PR #7, head `1bf948d`)
 
-Not claimed here in advance of the actual run. See the accompanying final
-report for the exact workflow run IDs, conclusions, and job-level detail.
+| Workflow | Run ID | Conclusion |
+|---|---|---|
+| `PR Checks` (`pr-checks.yml`) | [31918753085](https://github.com/Tudor191/NOVA-PROJECT-BIBLE/actions/runs/31918753085) | `success` |
+| `Build & Scan` (`build-and-scan.yml`) | [31918751521](https://github.com/Tudor191/NOVA-PROJECT-BIBLE/actions/runs/31918751521) | `success` |
+| `Real-Infrastructure Checks` (`real-infra-checks.yml`) | [31918752447](https://github.com/Tudor191/NOVA-PROJECT-BIBLE/actions/runs/31918752447) | `success` |
+
+All 18 individual check runs across the three workflows completed with
+`conclusion: success` (`dependency-audit`, `checks`, 11 `build-and-scan`
+matrix jobs, 5 `real-infra` matrix jobs) — confirmed via
+`pull_request_read(method="get_check_runs")`, not assumed from the
+top-level workflow status alone. `planning-engine` has no container image
+yet (no `build-and-scan` matrix entry — by design, no persistence/API to
+containerize meaningfully differently than the existing scaffold) and no
+`real-infra` matrix entry of its own (no Postgres/Redis/Neo4j-backed
+repository exists in this PR). PR #7's `mergeable_state` is `clean`.
 
 ## 11. Known limitations (of this PR's scope, not defects)
 
