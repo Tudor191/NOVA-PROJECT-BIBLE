@@ -2,17 +2,16 @@
 
 **Status: design only, awaiting approval. No production code authorized.**
 
-**Reconciliation pass (post-`phase-3c-research`, still design-only):** Fork
-3C-1/3D-1 (adapter ownership) is **RESOLVED as Option A** — see §4.
-Fork 3C-3 (rollback/snapshot ownership) is **RESOLVED as Option B** — see
-§4. Fork 3C-4 (installation idempotency) is **RESOLVED as Option B** —
-see §4. **Fork 3C-2 (`AgentContext.granted_capabilities` population)
-remains OPEN** — a recommendation is offered in §4 but requires explicit
-approval before either `3C` or `3E` implementation depends on it. Several
-citation-precision and disclosure gaps found during this pass are
-corrected in place below (§2.2, §2.3, §3, §7, §14). See
-`docs/design/phase-3/12-3c-architecture-research.md` for the full
-research trail this reconciliation pass is based on.
+**Reconciliation pass (post-`phase-3c-research`, still design-only):** All
+four Phase 3C architectural forks are now **RESOLVED and approved**. Fork
+3C-1/3D-1 (adapter ownership): **Option A.** Fork 3C-2
+(`AgentContext.granted_capabilities` population): **Option C, declared-intent
+only** — approved; see §4. Fork 3C-3 (rollback/snapshot ownership):
+**Option B.** Fork 3C-4 (installation idempotency): **Option B.** See §4
+for the full record of each. Several citation-precision and disclosure
+gaps found during this pass are corrected in place below (§2.2, §2.3,
+§3, §7, §14). See `docs/design/phase-3/12-3c-architecture-research.md`
+for the full research trail this reconciliation pass is based on.
 
 ---
 
@@ -286,49 +285,49 @@ constraint.
 
 ---
 
-### Fork 3C-2 — `AgentContext.granted_capabilities` population mechanism — **OPEN, recommendation offered, NOT resolved**
+### Fork 3C-2 — `AgentContext.granted_capabilities` population mechanism — **RESOLVED: Option C, declared-intent only — approved**
 
 Full 14-point analysis in `docs/design/phase-3/12-3c-architecture-research.md`
-§22 (Fork 3C-2). Re-investigated this pass against fresh reads of this
-TDD and TDD 3E in full: **TDD 3E's Kernel Scheduler dispatch sequence
-(§4 there) never mentions `capability-engine` or `granted_capabilities`
-anywhere — confirmed again by exhaustive grep, zero matches.** TDD 3E's
-own citation of `01-tdd-preparation-and-fork-resolutions.md` §5.5 "Fact 4"
-for the `inprocess`-backend/`AgentContext`-as-live-object reasoning is
-**also unsupported** (§5.5 contains no "Fact 4" enumeration and never
-mentions `AgentContext` — the same class of citation error already found
-in this TDD's own §2.2, now also found in TDD 3E; not corrected in TDD 3E
-by this pass, since Fork 3C-2 itself remains open and this pass does not
-touch TDD 3E beyond what its own resolution strictly requires).
+§22 (Fork 3C-2). Re-investigated during the reconciliation pass against
+fresh reads of this TDD and TDD 3E in full: TDD 3E's Kernel Scheduler
+dispatch sequence (§4 there) never mentioned `capability-engine` or
+`granted_capabilities` anywhere — confirmed by exhaustive grep, zero
+matches. TDD 3E's own citation of
+`01-tdd-preparation-and-fork-resolutions.md` §5.5 "Fact 4" for the
+`inprocess`-backend/`AgentContext`-as-live-object reasoning was also
+unsupported (§5.5 contains no "Fact 4" enumeration and never mentions
+`AgentContext` — the same class of citation error already found in this
+TDD's own §2.2, also found in TDD 3E).
 
 **Options**, reproduced from the research document:
 - **A.** `agent-os`'s Kernel Scheduler queries `capability-engine`
   eagerly, at dispatch time, before the agent instance starts.
 - **B.** Capability grants are static, declared in the Agent Package
   manifest, resolved once at agent-*install* time.
-- **C.** `AgentContext.granted_capabilities` holds only declared-intent
-  identifiers; the only live, authoritative resolution stays exactly
-  where it already is today — `action-engine`'s stage 5.
+- **C (resolved, approved).** `AgentContext.granted_capabilities` holds
+  only declared-intent identifiers; the only live, authoritative
+  resolution stays exactly where it already is today — `action-engine`'s
+  stage 5.
 
-**Recommendation offered this pass (not a decision): Option C.** The
-Fork 3C-1 resolution above newly clarifies that `action-engine` already
-performs a **live, per-invocation** RPC resolution + `health_status`
-check against `capability-engine` at stage 5, for every action,
-regardless of what `AgentContext.granted_capabilities` contains. Given
-that, an eager dispatch-time resolution (Option A) or an install-time
-snapshot (Option B) would both be a second, redundant resolution path
-that stage 5's live check makes strictly necessary anyway (a stale
-Option-A/B grant does not save stage 5's own check, and does not prevent
-stage 5 from being the actual gate) — while Option C's shape,
-"`AgentContext.granted_capabilities` as declared intent, `action-engine`'s
-stage 5 as the single live authority," introduces no redundant resolution
-path and requires no new `capability-engine` query surface at all (only
-the two RPCs already required by Fork 3C-1's resolution). **This
-recommendation is offered for consideration, not applied — Fork 3C-2
-remains OPEN.** Per explicit instruction, this fork is not silently
-resolved: TDD 3E's own text is unchanged by this pass, and Phase 3C/3E
-implementation must not proceed on this specific point until the user
-approves a resolution.
+**RESOLVED: Option C, approved by explicit user decision.** The
+architectural rule, stated plainly per the approval's own terms:
+`action-engine`'s stage 5 (TDD 3D §6) remains the **sole live authority**
+for capability authorization/checking at execution time.
+`AgentContext.granted_capabilities` **must not become a second, competing
+source of truth** — no synchronization mechanism, population mechanism,
+registry cache, event subscription, or additional authority is introduced
+for this field by this resolution, and none is required: the Fork 3C-1
+resolution above already established that `action-engine` performs a
+live, per-invocation RPC resolution + `health_status` check regardless of
+what this field contains, so an eager dispatch-time query (Option A) or
+an install-time snapshot (Option B) would only add a second, redundant
+resolution path that stage 5's own check makes unnecessary. If the field
+remains useful as declared-intent/contextual information for future
+`agent-os` work, that is a separate, later, undecided design question —
+not resolved and not invented here. **No new architectural principle or
+ADR is introduced by this resolution.** See TDD 3E §4 for the strictly
+necessary note recording this decision's consequence for the Kernel
+Scheduler.
 
 ---
 
@@ -455,13 +454,13 @@ dimension requested:
 
 - **`CapabilityPort` is not defined by `capability-engine` itself** (it
   is the engine being called, not a caller) — it is defined by
-  `action-engine` (TDD 3D, per Fork 3C-1/3D-1's resolution, §4 —
-  **resolved**, no longer pending) and **potentially** by `agent-os/kernel`
-  (TDD 3E, for populating `AgentContext.granted_capabilities`) — this
-  second clause remains a genuine "potentially": Fork 3C-2 (§4) is still
-  open, and a recommendation offered there (Option C) would mean
-  `agent-os/kernel` never needs its own `CapabilityPort` at all. Not
-  resolved by this pass.
+  `action-engine` (TDD 3D, per Fork 3C-1/3D-1's resolution, §4). **Updated
+  (reconciliation pass, Fork 3C-2 resolved as Option C, §4): `agent-os/kernel`
+  does not need its own `CapabilityPort`** — `action-engine`'s stage 5
+  remains the sole live authority for capability resolution, and
+  `AgentContext.granted_capabilities` is populated with no runtime
+  mechanism (declared-intent only, if populated at all). `CapabilityPort`
+  has exactly one caller in Phase 3: `action-engine`.
 - No new upstream port needed for `capability-engine` itself — the
   installation pipeline's "Permission Review" stage surfaces to a human
   via the existing `communication.intent.deliver.request` gate (same
@@ -671,16 +670,14 @@ enforcement.
    own *"every installation should be reversible"* requirement,
    `part-15-capability-engine.md:275`).
 4. Registry state survives a real-Postgres restart simulation unchanged.
-5. **Updated, reconciliation pass:** Fork 3C-1/3D-1 (adapter ownership)
-   and Fork 3C-3 (rollback/snapshot ownership) are **resolved** (§4) —
-   this criterion is satisfied; the coordination consequence TDD 3D's §2
-   originally flagged is reconciled by Fork 3C-3's resolution (Option B:
-   `action-engine` owns rollback, no new capability-engine primitive
-   required). **Fork 3C-2 (`AgentContext.granted_capabilities`
-   population) remains open** and must be resolved by the user before
-   any `agent-os`/`3E` implementation depends on the answer — not a
-   blocker for `3C`'s or `3D`'s own implementation, since neither's
-   acceptance criteria above depend on it.
+5. **Updated, reconciliation pass:** all four Phase 3C architectural
+   forks are **resolved and approved** (§4) — Fork 3C-1/3D-1 (Option A),
+   Fork 3C-2 (Option C), Fork 3C-3 (Option B), Fork 3C-4 (Option B). This
+   criterion is satisfied for all of `3C`, `3D`, and `3E`: the
+   coordination consequence TDD 3D's §2 originally flagged is reconciled
+   by Fork 3C-3's resolution, and Fork 3C-2's resolution means no
+   `agent-os`/`3E` implementation dependency on this decision remains
+   either. No architectural fork blocks `3C`'s implementation start.
 
 ---
 
