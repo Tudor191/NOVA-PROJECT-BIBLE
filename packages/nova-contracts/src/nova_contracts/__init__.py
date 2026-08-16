@@ -135,6 +135,7 @@ from nova_contracts.events.personality import (
     ViolationCheckFamily,
     ViolationRecordPayload,
 )
+from nova_contracts.events.planning import RiskLevel
 from nova_contracts.events.reasoning import (
     ConstraintKind,
     ConstraintPayload,
@@ -293,6 +294,7 @@ __all__ = [
     "RequestFailedPayload",
     "RequestOutcome",
     "ResponseShapingDirectivePayload",
+    "RiskLevel",
     "ShortTermMemoryCreatedPayload",
     "SynthesizeReplyPayload",
     "SynthesizeRequestPayload",
