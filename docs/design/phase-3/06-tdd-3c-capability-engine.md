@@ -125,11 +125,11 @@ after resolving Fork 3C-1 (§4) as Option A — the full `Capability` record
 is resolved live, per invocation, by `capability-engine` itself (§4's
 resolved architecture), so `CapabilityHandle` never needs to carry more
 than enough to identify and address a granted capability. It is also
-independent of how Fork 3C-2 (§4, still open) resolves: whichever entity
-populates `AgentContext.granted_capabilities`, and whenever it does so,
-the field's own shape does not need to change — only the population
-mechanism is undecided, not the type. **Ratified**, no longer flagged as
-merely proposed.
+correct under Fork 3C-2's own resolution (§4, Option C, declared-intent
+only): the field's shape is unaffected by that decision either way — the
+type stays exactly as proposed here regardless of whether or how
+`AgentContext.granted_capabilities` is ever populated. **Ratified**, no
+longer flagged as merely proposed.
 
 ### 2.3 Capability lifecycle and Installation Pipeline — Bible Part 15, implemented literally
 
