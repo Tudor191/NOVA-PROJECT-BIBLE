@@ -171,6 +171,7 @@ source_modules = [
     "nova_communication_engine",
     "nova_perception_engine",
     "nova_digital_twin_engine",
+    "nova_planning_engine",
 ]
 forbidden_modules = [
     "anthropic",

@@ -4,6 +4,6 @@ from __future__ import annotations
 
 SUBSCRIBABLE_SUBJECTS: frozenset[str] = frozenset(
     {
-        # TODO: e.g. "perception.*.observed",
+        "reasoning.process.completed",
     }
 )
