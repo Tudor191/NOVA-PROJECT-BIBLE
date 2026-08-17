@@ -1,6 +1,6 @@
 # Phase 3D Research & Implementation Plan — `action-engine`
 
-**Status: research and planning only. No production code authorized by this document.**
+**Status: research and planning complete. Three implementation-time decisions APPROVED (§5). No production code authorized by this document — implementation happens in a separate PR.**
 
 **Baseline.** `phase-3b-planning-domain` @ `a943b0abec6b12d84d0cc7e52e3ba4dccee88c98` (post PR #9 and PR #11 — Project Health system and the resolved Phase 3C/3D/3E documentation are both canonical as of this baseline). This document does not re-litigate any decision already marked RESOLVED in `06-tdd-3c-capability-engine.md` or `07-tdd-3d-action-engine.md` — those documents' fork resolutions are treated as authoritative throughout.
 
@@ -8,7 +8,7 @@
 
 ## 0. Scope of this document
 
-Per the requesting instruction, this is a research-and-planning pass only: read the finalized TDD 3D and all relevant TDD 3C documentation and research, read the Project Health baseline, inspect the existing `capability-engine` implementation and its RPC/contract surface, inspect existing architecture/shared-package/testing/CI/Docker conventions, verify every Phase 3D→3C dependency against actual repository state (not assumed from documentation), identify remaining ambiguities without silently resolving anything that requires the user's architectural judgment, and produce a detailed implementation plan. No application code is included in this PR.
+Research-and-planning pass, now finalized with the three decisions in §5 approved by the user. No application code is included in this PR. This revision incorporates: (a) the approved decisions with rationale and consequences recorded explicitly, (b) a correction to TDD 3C's stale claim about the capability RPCs being undefined (companion change to `06-tdd-3c-capability-engine.md` in this same PR, additive-only, no re-design), (c) exact, source-verified contract/handler/test-pattern detail action-engine will consume, (d) the complete file/module list, test plan, CI/Docker requirements, and Project Health update requirements for the implementation PR that follows this one.
 
 ---
 
@@ -16,11 +16,11 @@ Per the requesting instruction, this is a research-and-planning pass only: read 
 
 | Document | Length | Status found |
 |---|---|---|
-| `docs/design/phase-3/07-tdd-3d-action-engine.md` | 417 lines | Design only, awaiting approval. Reconciliation pass complete — Fork 3C-1/3D-1 and its rollback consequence both marked RESOLVED. |
-| `docs/design/phase-3/06-tdd-3c-capability-engine.md` | 741 lines | Design only, awaiting approval. All four Phase 3C forks RESOLVED and approved (§4). |
+| `docs/design/phase-3/07-tdd-3d-action-engine.md` | 417 lines | Design only, awaiting approval. Reconciliation pass complete — Fork 3C-1/3D-1 and its rollback consequence both marked RESOLVED. Re-read in full for this revision; no changes needed to this document itself (the three approved decisions extend it, they don't contradict it). |
+| `docs/design/phase-3/06-tdd-3c-capability-engine.md` | 741 lines | Design only, awaiting approval. All four Phase 3C forks RESOLVED and approved (§4). **This revision adds a small, additive correction note to §4/§11** — see §4 below. |
 | `docs/design/phase-3/12-3c-architecture-research.md` | 1,673 lines | The research trail both reconciliation passes above are based on. §18/§19 specifically trace Phase 3D's and Phase 3E's dependencies on Phase 3C. |
-| `docs/design/phase-3/11-3b-decomposition-architecture-research.md` | 514 lines | Not Phase-3D-relevant in substance (Phase 3B decomposition orchestration); read for completeness per the standing instruction to treat all Phase 3 research as in scope. |
-| `docs/bible/part-12-action-engine.md` | 697 lines | Source-of-truth for the Action Object Model and Action Principle lifecycle; spot-verified against TDD 3D's citations (see §3 below). |
+| `docs/design/phase-3/11-3b-decomposition-architecture-research.md` | 514 lines | Not Phase-3D-relevant in substance; read for completeness. |
+| `docs/bible/part-12-action-engine.md` | 697 lines | Source-of-truth for the Action Object Model and Action Principle lifecycle; spot-verified against TDD 3D's citations (§3 below). |
 | `docs/project-health/` (all 14 files) | — | Read in full; baseline established in §2. |
 | `docs/roadmap/ENGINEERING_ROADMAP.md` (Phase 3 section, lines 505-550) | — | Cross-checked against TDD 3D's own dependency/sequencing claims. |
 
@@ -29,244 +29,349 @@ Per the requesting instruction, this is a research-and-planning pass only: read 
 ## 2. Project Health baseline for Phase 3D
 
 - `docs/project-health/` is canonical (merged via PR #9): `README.md`, `project-health-master.md`, and 12 per-phase snapshot files.
-- **SLOC methodology remains explicitly unresolved.** `project-health-master.md` §2's open choice — Option A (restore `scc`) vs. Option B (formally adopt `cloc`) — is unchanged. This document does not decide it, does not measure any Phase-3D SLOC figure (there is no Phase 3D code yet), and does not silently continue either historical series.
-- **Current classification: `ACTIVE BUT NOT REPORTED`**, unchanged. The SAD 15 §10 Project Metrics requirement remains standing policy, not rescinded, still absent from the last several phase reports.
-- **A stale field was found, not corrected here (documentation-only, read-mostly turn for this file):** `docs/project-health/phase-3c.md` field 17 ("Documentation health") still records the pre-PR#11 documentation-sync gap as open. That gap closed when PR #11 merged the resolved TDD 3C/3D/research documents into canonical. Per the Project Health system's own contract (`README.md`: "written once, extended only by that phase's own author"), this document does not retroactively edit `phase-3c.md` — flagging it as a one-line correction worth making explicitly, either alongside Phase 3D's own eventual `phase-3d.md` or as a small separate documentation fix, at the user's discretion.
-- **Phase 3D will need its own `docs/project-health/phase-3d.md`** (23-field standard shape) at the close of implementation, per the standing update contract in `README.md`. Not created by this document — no implementation exists yet to snapshot.
+- **SLOC methodology remains explicitly unresolved.** `project-health-master.md` §2's open choice — Option A (restore `scc`) vs. Option B (formally adopt `cloc`) — is unchanged. Not decided by this document; no Phase-3D SLOC figure exists yet (no code).
+- **Current classification: `ACTIVE BUT NOT REPORTED`**, unchanged.
+- **Stale field, not corrected here:** `docs/project-health/phase-3c.md` field 17 still records the pre-PR#11 documentation-sync gap as open; it closed with PR #11. Left as-is per the Project Health system's "written once" contract — flagged for a future one-line correction, at the user's discretion.
+- **`docs/project-health/phase-3d.md` required at implementation completion** — see §9 for the exact 23-field content plan.
 
 ---
 
 ## 3. Fidelity check: TDD 3D and TDD 3C against Bible Part 12/15
 
 Spot-verified directly against source, not taken on the TDDs' own word:
-
-- The 12-stage Action Principle lifecycle (Bible `part-12-action-engine.md:43-93`) matches TDD 3D §6's stage-by-stage mapping exactly — confirmed by direct read of both.
-- The Safety Layers example list (Bible `part-12-action-engine.md:453-471`: delete files, format storage, system shutdown, credential modification, production deployment, financial transactions) matches TDD 3D §4's citation exactly.
-- TDD 3C §2.2's `AgentContext.granted_capabilities` citation was itself corrected during TDD 3C's own reconciliation pass (originally cited line 136, corrected to line 135) — verified this correction is now consistent in the canonical document.
+- The 12-stage Action Principle lifecycle (Bible `part-12-action-engine.md:43-93`) matches TDD 3D §6's mapping exactly.
+- The Safety Layers example list (`part-12-action-engine.md:453-471`) matches TDD 3D §4's citation exactly.
 - No new fidelity issues found beyond what TDD 3C/3D's own reconciliation passes already disclosed.
 
 ---
 
-## 4. Phase 3D → Phase 3C dependency verification (against actual repository state, not documentation claims)
+## 4. Phase 3D → Phase 3C dependency verification, with exact current contract surface
 
-This is the most consequential finding of this research pass.
+### 4.1 The documentation-precision gap, and its correction
 
-### 4.1 What TDD 3C/3D's text claims
+TDD 3C §4/§11 describes `capability.resolve.request`/`.reply` and `capability.invoke.request`/`.reply` as "illustrative... exact subject names and payload field shapes are implementation-time work, not fixed here." **This is stale.** These RPCs are implemented, tested, and shipped on canonical, using exactly the illustrative names TDD 3C proposed. Per the user's explicit instruction: **this is not redesigned.** `capability.resolve.request`/`capability.invoke.request` are treated as the existing, canonical, unmodified server contract (except for the single additive field in §5.1). A short, additive correction note is added to `06-tdd-3c-capability-engine.md` §4 and §11 in this same PR — following this project's own established convention (used throughout TDD 3C's own reconciliation pass) of appending a dated correction rather than silently rewriting the original text. The note reads, verbatim, as it will appear in that document:
 
-TDD 3C §4 (Fork 3C-1/3D-1 resolution) and §11 describe `capability.resolve.request`/`.reply` and `capability.invoke.request`/`.reply` as "illustrative" — *"exact subject names and payload field shapes are implementation-time work, not fixed here."*
+> **Correction, Phase 3D research pass (this note, not a re-opening of Fork 3C-1/3D-1):** the RPC subjects and payloads described above as "illustrative... not fixed here" were, in fact, implemented and tested during Phase 3C's own implementation (PR #8) — see `nova_contracts.events.capability` and `services/capability-engine/src/nova_capability_engine/main.py`'s `_make_resolve_request_handler`/`_make_invoke_request_handler`. The illustrative names match exactly what shipped. Phase 3D's `action-engine` implements the consumer side against this existing, canonical server contract — it does not redesign it.
 
-### 4.2 What the repository actually contains
+### 4.2 The existing server contract, exact and verified (re-read directly for this revision, not from memory)
 
-**These RPCs are already fully implemented, tested, and TypeScript-codegen'd on the canonical branch.** Verified directly:
+**`packages/nova-contracts/src/nova_contracts/events/capability.py`** — exact current content:
 
-- `packages/nova-contracts/src/nova_contracts/events/capability.py` defines `Capability`, `CapabilityHandle` (entities) and four `@register_payload`-decorated RPC payloads — `CapabilityResolveRequestPayload`/`CapabilityResolveReplyPayload`, `CapabilityInvokeRequestPayload`/`CapabilityInvokeReplyPayload` — every one `schema_version: int = 1` per ADR-024.
-- `services/capability-engine/src/nova_capability_engine/main.py` serves both subjects: `bus.serve("capability.resolve.request", ...)` and `bus.serve("capability.invoke.request", ...)`, registered in `events/subscribed.py`'s `SUBSCRIBABLE_SUBJECTS`.
-- `services/capability-engine/tests/integration/test_events_capability_resolve_and_invoke.py` round-trips both RPCs against a real in-memory Event Bus, using a second `BoundEventBus` explicitly documented as standing in for *"the kind of external caller (`action-engine`'s future `CapabilityPort`/client)."*
-- TypeScript types for all four payloads already exist under `packages/nova-contracts/typescript/`.
-- The illustrative subject names TDD 3D used (`capability.resolve.request`/`capability.invoke.request`) are the exact names actually shipped — no naming conflict, no redesign required.
+```python
+CapabilityHealthStatus = Literal["unknown", "healthy", "degraded", "unhealthy"]
+CapabilityInvokeOutcome = Literal["success", "failure", "sandbox_violation"]
 
-### 4.3 Consequence for Phase 3D's scope
+class Capability(BaseModel):
+    id: UUID
+    name: str
+    description: str
+    category: str
+    version: str
+    dependencies: list[str] = Field(default_factory=list)
+    required_permissions: list[str]
+    required_resources: list[str] = Field(default_factory=list)
+    input_schema: dict
+    output_schema: dict
+    execution_adapter: str
+    health_status: CapabilityHealthStatus
+    installed_at: datetime
 
-**Phase 3D does not need to co-design or implement these RPCs.** They exist, are tested, and are stable. Phase 3D's actual remaining work against this dependency is narrower than TDD 3D's own text implies: implement the **consumer side only** — a `CapabilityPort` Protocol (owned by `action-engine`, per Fork 3C-1/3D-1's resolution) plus a concrete client calling the already-shipped server contract. This is a documentation-precision finding, not an architectural fork — there is no competing design; the code has already settled the question TDD 3C's text still describes as open.
+class CapabilityHandle(BaseModel):
+    capability_id: UUID
+    name: str
+    execution_adapter: str
 
-### 4.4 Other dependencies verified
+@register_payload("capability.resolve.request")
+class CapabilityResolveRequestPayload(BaseModel):
+    capability_id: UUID
+    requesting_engine: str
+    correlation_id: UUID
+    schema_version: int = 1
 
-| Dependency | TDD 3D's claim | Repository state | Verified |
-|---|---|---|---|
-| `capability-engine`'s `health_status`/`execution_adapter` fields | Gate execution / select invocation mechanism | Both fields present on `Capability` exactly as specified in TDD 3C §2.1, confirmed in `nova_contracts.events.capability.Capability` | ✅ |
-| `communication.intent.deliver.request` gate | Approval-loop human-notification step | Exists, served in `services/communication-engine/src/nova_communication_engine/events/handlers.py` (`make_intent_deliver_handler`), payload shape includes `rejection_reason` distinguishing personality hard-stop from channel/session failure | ✅ |
-| `world_model.context.request` / `present_identities` | ADR-032 identity-confidence signal | RPC exists and is served (`world-model-engine`, highest-QPS RPC in the codebase, p95 < 20ms budget); `present_identities: list[PresentIdentityPayload]` field exists on `ContextReplyPayload` | ✅, but see §5.3 below — **zero existing consumers** |
-| `RiskLevel` reuse (Bible Part 14 scale) | TDD 3D §3.1 reuses it "from TDD 3B" | Actually lives in `nova_contracts.events.planning.RiskLevel` (a `StrEnum`), not `entities.py` — already consumed by `planning-engine`'s `TaskNode.risk`, a real, working precedent for a second engine (`action-engine`) importing it the same way | ✅, location corrected from TDD 3D's imprecise phrasing |
-| `GoalsPort`/`DigitalTwinPort` per-consumer convention (cited as precedent for `CapabilityPort`) | Each consuming engine defines its own Protocol independently | Confirmed: `GoalsPort` is independently, byte-identically defined in both `reasoning-engine/.../domain/ports.py:106` and `executive-cognition-engine/.../domain/ports.py:83` — genuinely separate class definitions, zero shared import. `DigitalTwinPort` is defined in the consumer (`communication-engine/.../domain/ports.py:129`), not the provider. | ✅ real, working precedent |
-| `FakeCommunicationPort` testing precedent (TDD 3D §13 cites "`digital-twin-engine`'s exact Fork D precedent") | Per-engine fake port test doubles | `services/capability-engine/tests/fakes/communication_port.py` is a complete, working example (34 lines) already in this exact codebase — a closer, more recent precedent than digital-twin-engine's original. Confirmed: `nova-testkit` itself ships only infrastructure fakes (`FakeModelGateway`, `FakePerceptionSignalSource`, etc.), never per-port fakes — those live per-engine, as `capability-engine`'s own does. | ✅ |
+@register_payload("capability.resolve.reply")
+class CapabilityResolveReplyPayload(BaseModel):
+    found: bool
+    capability: Capability | None = None
+    schema_version: int = 1
 
-**No Phase 3D→3C dependency was found broken, missing, or contradicted.** Every dependency TDD 3D names is real and verifiable in the current codebase; the one drift found (§4.2-4.3) makes Phase 3D's job *smaller*, not harder.
+@register_payload("capability.invoke.request")
+class CapabilityInvokeRequestPayload(BaseModel):
+    capability_id: UUID
+    operation: str
+    parameters: dict = Field(default_factory=dict)
+    requesting_engine: str
+    correlation_id: UUID
+    schema_version: int = 1
+
+@register_payload("capability.invoke.reply")
+class CapabilityInvokeReplyPayload(BaseModel):
+    outcome: CapabilityInvokeOutcome        # "success" | "failure" | "sandbox_violation"
+    result: dict | None = None
+    error: str | None = None                 # set only when outcome != "success"
+    schema_version: int = 1
+```
+
+**`services/capability-engine/src/nova_capability_engine/events/subscribed.py`** — exact:
+```python
+SUBSCRIBABLE_SUBJECTS: frozenset[str] = frozenset({
+    "capability.resolve.request",
+    "capability.invoke.request",
+})
+```
+
+**`services/capability-engine/src/nova_capability_engine/main.py`** — exact handler bodies (re-read directly for this revision):
+```python
+def _make_resolve_request_handler(app: FastAPI):
+    async def handle(envelope: EventEnvelope) -> CapabilityResolveReplyPayload:
+        state = app.state
+        payload = CapabilityResolveRequestPayload.model_validate(envelope.payload)
+        capability = await state.repository.find_by_id(payload.capability_id)
+        return CapabilityResolveReplyPayload(found=capability is not None, capability=capability)
+    return handle
+
+def _make_invoke_request_handler(app: FastAPI):
+    async def handle(envelope: EventEnvelope) -> CapabilityInvokeReplyPayload:
+        state = app.state
+        payload = CapabilityInvokeRequestPayload.model_validate(envelope.payload)
+        capability = await state.repository.find_by_id(payload.capability_id)
+        if capability is None:
+            return CapabilityInvokeReplyPayload(outcome="failure", error="capability not found")
+        adapter = state.adapters.get(capability.execution_adapter)
+        if adapter is None:
+            return CapabilityInvokeReplyPayload(outcome="failure", error=f"no adapter registered for {capability.execution_adapter!r}")
+        try:
+            result = await adapter.invoke(payload.operation, payload.parameters, required_resources=capability.required_resources)
+        except SandboxViolation as exc:
+            return CapabilityInvokeReplyPayload(outcome="sandbox_violation", error=str(exc))
+        except Exception as exc:
+            return CapabilityInvokeReplyPayload(outcome="failure", error=str(exc))
+        # ... metrics recorded via state.metrics.{invocation_total,invocation_duration_ms,sandbox_violation_blocked_total}
+    return handle
+```
+Both registered via `await bus.serve("capability.resolve.request", _make_resolve_request_handler(app), source_engine="capability-engine")` and the equivalent `.invoke.request` call in `main.py`'s lifespan.
+
+**TypeScript codegen** — confirmed present: `packages/nova-contracts/typescript/CapabilityResolveRequestPayload.ts`, `CapabilityResolveReplyPayload.ts`, `CapabilityInvokeRequestPayload.ts`, `CapabilityInvokeReplyPayload.ts`.
+
+**Existing integration-test pattern to mirror** — `services/capability-engine/tests/integration/test_events_capability_resolve_and_invoke.py`: stands up a real in-memory `BoundEventBus`, uses a **second** `BoundEventBus` instance as the calling side (explicitly documented in that file as standing in for action-engine's future client), sends a real `CapabilityResolveRequestPayload`/`CapabilityInvokeRequestPayload` via `.request(...)`, asserts on the typed reply. Action-engine's own integration tests for `CapabilityPort` will follow this exact "second bus" shape (also the same pattern TDD 3D §5 already specifies for testing `action.execute` itself, since no real caller exists until Phase 3E).
+
+**Event-bus behavior confirmed** (`nova_eventbus_sdk.BoundEventBus`): `.request(subject, payload, *, source_engine, correlation_id=None, timeout_ms=2000)` checks the subject against the caller's own `PUBLISHABLE_SUBJECTS` allow-list before sending; `.serve(subject, handler, source_engine=...)` checks against `SUBSCRIBABLE_SUBJECTS`. `action-engine`'s own `events/published.py` will need `capability.resolve.request` and `capability.invoke.request` (plus `communication.intent.deliver.request`, `world_model.context.request`) in its allow-list before any of these calls will be permitted — this is a required, not optional, file.
+
+### 4.3 Consequence for Phase 3D's implementation scope
+
+Confirmed unchanged from the prior revision: Phase 3D implements the **consumer side only** — `action-engine`'s own `CapabilityPort` Protocol plus a concrete client calling the contract shown in §4.2 above, unmodified except for §5.1's single additive field.
+
+### 4.4 Other dependencies verified (unchanged from prior revision, re-confirmed)
+
+| Dependency | Repository state | Verified |
+|---|---|---|
+| `capability-engine`'s `health_status`/`execution_adapter` fields | Present on `Capability` exactly as shown in §4.2 | ✅ |
+| `communication.intent.deliver.request` gate | Served in `services/communication-engine/src/nova_communication_engine/events/handlers.py` (`make_intent_deliver_handler`); reply carries `rejection_reason` distinguishing personality hard-stop from channel/session failure | ✅ |
+| `world_model.context.request` / `present_identities` | Served in `world-model-engine`; `present_identities: list[PresentIdentityPayload]` on `ContextReplyPayload` | ✅, zero existing consumers (§5.4) |
+| `RiskLevel` reuse | Lives in `nova_contracts.events.planning.RiskLevel` (`StrEnum`), already consumed by `planning-engine`'s `TaskNode.risk` | ✅ |
+| `GoalsPort`/`DigitalTwinPort` per-consumer convention | `GoalsPort` independently defined in `reasoning-engine` and `executive-cognition-engine`; `DigitalTwinPort` defined in the consumer (`communication-engine`) | ✅ real precedent for `CapabilityPort` |
+| `FakeCommunicationPort` precedent | `services/capability-engine/tests/fakes/communication_port.py`, 34 lines, complete | ✅ |
+
+**No Phase 3D→3C dependency was found broken, missing, or contradicted.**
 
 ---
 
-## 5. Ambiguities, gaps, and inconsistencies found — none silently resolved
+## 5. Approved decisions
 
-Per the explicit instruction not to choose silently between architectural alternatives: everything below is either (a) reported as a finding requiring no decision, (b) a precision gap with one clearly-best precedented answer, proposed and flagged for approval (the same disclosure discipline TDD 3D itself already used for `RetryPolicy`/`RollbackStrategy`/`IdentityConfidencePolicy`), or (c) explicitly escalated as needing your architectural judgment. **Nothing in category (c) was found in this pass** — see §5.6.
+The three decisions proposed in the prior revision of this document are **approved by the user**, effective this revision. Each is recorded below with its rationale and its concrete consequences for the implementation plan in §6-§9. These are now binding for the implementation PR, in the same sense TDD 3C's RESOLVED forks are binding — not re-opened without a fresh architectural reason.
 
-### 5.1 Gap A — `execution_target: str` semantics
+### 5.1 APPROVED — `execution_target` semantics
 
-TDD 3D §2 itself flags this: `execution_target` is "the closest candidate" for naming which `Capability` an `Action` targets, but "its exact semantics for capability-selection are not spelled out." The existing, already-shipped `CapabilityResolveRequestPayload` requires a `capability_id: UUID` — but nothing in the current architecture gives an `Action`'s caller (an agent, eventually via Phase 3E's Supervisor) a way to know a capability's UUID in advance; UUIDs are Postgres-generated at install time, not stable, predictable identifiers a static agent configuration could reasonably hardcode.
+**Decision.** `Action.execution_target: str` holds the target capability's stable `name` field (e.g. `"git"`, `"filesystem"`, `"terminal"`, `"http"`), not its `capability_id: UUID`. Resolution against the existing `capability.resolve.request` RPC (§4.2) is via a **backward-compatible additive extension**: `CapabilityResolveRequestPayload` gains `name: str | None = None`, alongside the existing `capability_id: UUID | None` (also loosened from required to optional). `capability-engine`'s existing resolve handler is extended to accept either field and resolve by whichever is provided (exactly one required — validated at the payload level, e.g. a Pydantic `model_validator`).
 
-**Proposed (flagged for approval, not decided):** `execution_target` holds the capability's stable `name` field (e.g. `"git"`, `"filesystem"`) — human/agent-legible, matching how an agent would naturally declare intent ("I want to run git"). Resolve it by extending the **existing** `CapabilityResolveRequestPayload` additively — `name: str | None = None` alongside the existing `capability_id: UUID | None` — which is a pure field addition, never a version bump under ADR-024's own stated rule ("adding a field to an existing payload is never a version bump"). This requires a small, backward-compatible change to `capability-engine`'s existing resolve handler (accept either field, require exactly one), not a new RPC pair and not a re-opening of Fork 3C-1.
+**Rationale.** A capability's `capability_id` is Postgres-generated at install time — nothing in the current architecture gives an `Action`'s caller (an agent, eventually via Phase 3E's Supervisor) a way to know it in advance. `name` is the stable, human/agent-legible identifier that already exists on `Capability` and that an agent would naturally declare intent against ("run git"). ADR-024 explicitly states "adding a field to an existing payload is never a version bump" — this is the smallest correct extension, not a new RPC pair, and does not reopen Fork 3C-1/3D-1's ownership resolution.
 
-### 5.2 Gap B — stage 2 ("Validate") vs. stage 5 ("Prepare Resources"): whose `input_schema`?
+**Consequences.**
+- `packages/nova-contracts/src/nova_contracts/events/capability.py`: `CapabilityResolveRequestPayload.capability_id` becomes `UUID | None = None`; new `name: str | None = None`; add a model-level validator requiring exactly one of the two to be set.
+- `services/capability-engine/src/nova_capability_engine/main.py`'s `_make_resolve_request_handler`: branch on which field is set — `repository.find_by_id(capability_id)` (existing path, unchanged) or a new `repository.find_by_name(name)` (new repository method, small addition to `services/capability-engine/src/nova_capability_engine/domain/ports.py`'s `CapabilityRepository` Protocol and its `PostgresCapabilityRepository`/`FakeCapabilityRepository` implementations).
+- No change to `capability.invoke.request` — it already takes `capability_id: UUID` (obtained from the prior resolve reply's `Capability.id`), which is correct and unaffected.
+- `capability-engine`'s own existing contract test (`tests/contract/test_capability_payloads.py`) needs one new round-trip case for the by-name request shape; its existing by-id round-trip case is unaffected (the field is now optional, not removed).
 
-TDD 3D §6 stage 2 says "schema/parameter validation against `input_schema`" without stating whose — `Action.parameters`'s own schema, or the target `Capability.input_schema`? The pipeline ordering makes the latter reading structurally awkward as written, since the `Capability` isn't resolved until stage 5. This exact gap is independently named in `12-3c-architecture-research.md` §18 as "recorded here as a heads-up for Phase 3D's own future pre-implementation research" — explicitly **not** elevated to a Phase 3C fork there, since its resolution doesn't require `capability-engine`'s own architecture to change.
+### 5.2 APPROVED — Validate-stage schema ownership
 
-**Proposed (flagged for approval, not decided):** split what "Validate" (stage 2) checks. Stage 2 validates only the `Action` object's own structural shape — handled automatically by Pydantic at RPC-payload parse time, nothing bespoke needed. Deep parameter validation against the resolved `Capability.input_schema` moves to stage 5 ("Prepare Resources"), immediately after resolution, when the schema to validate against actually exists.
+**Decision.** Stage 2 ("Validate") performs **structural validation of the `Action` object only** — automatic via Pydantic at RPC-payload parse time (`ActionExecuteRequestPayload.model_validate(...)`), nothing bespoke. Deep parameter-shape validation of `Action.parameters` against the target `Capability.input_schema` happens at stage 5 ("Prepare Resources"), immediately after `CapabilityPort.resolve()` returns the `Capability` and its `input_schema` is known.
 
-### 5.3 Gap C — `action.execute` idempotency (a real omission, not previously flagged anywhere)
+**Rationale.** The `Capability` — and therefore its `input_schema` — does not exist to action-engine until stage 5's resolution completes; validating against it at stage 2 is not merely premature but structurally impossible without either resolving early (out of lifecycle order) or duplicating capability-specific schema knowledge inside action-engine (explicitly rejected by the user's instruction: "do not duplicate capability-specific validation inside action-engine"). Splitting validation this way keeps `capability-engine` the sole owner of what a valid `parameters` shape looks like for its own capabilities — action-engine only ever validates against a schema it received from capability-engine, never one it invented locally.
 
-TDD 3D specifies no idempotency behavior at all for the `action.execute` RPC — unlike `capability-engine`'s own, already-resolved Fork 3C-4 precedent for `POST /v1/capabilities/install`. A network-level retry of `action.execute` for the same logical action, without any idempotency guard, could re-execute a destructive filesystem/terminal operation twice.
+**Consequences.**
+- `action-engine`'s `domain/pipeline.py`: stage 2 implementation is effectively a no-op beyond payload parsing (Pydantic already did the structural check) — no dedicated "stage 2 validator" module needed.
+- Stage 5's implementation performs `jsonschema`-style validation (or equivalent) of `Action.parameters` against the resolved `Capability.input_schema` dict, immediately before proceeding to stage 6 (Execute). A validation failure at this point is a distinct, named outcome (`status="failed"`, not `status="denied"` — this is a parameter-shape failure, not an approval-loop denial) reported via `action.result`.
+- No new dependency on `capability-engine`'s own code — action-engine validates using the `input_schema` dict it already receives on the `Capability` entity from `capability.resolve.reply` (§4.2), never a direct import or duplication of capability-engine's own schema definitions.
 
-**Proposed (flagged for approval, not decided):** mirror Fork 3C-4's exact resolved pattern — natural-key idempotency on `Action.id` (already a UUID field on the model). A second `action.execute` for an `Action.id` already in a terminal state (`completed`/`failed`/`rolled_back`/`denied`) returns the existing recorded result rather than re-executing.
+### 5.3 APPROVED — `action.execute` idempotency
 
-### 5.4 Finding — `IdentityPort` has zero existing precedent to reuse
+**Decision.** Natural-key idempotency on `Action.id` (already the model's UUID primary key), mirroring Fork 3C-4's exact resolved pattern for `POST /v1/capabilities/install`. A second `action.execute` request for an `Action.id` already present in the `action` table in a terminal state (`completed`, `failed`, `rolled_back`, `denied`) returns the existing recorded `ActionResultPayload` without re-executing, re-invoking capabilities, or re-triggering the approval loop.
 
-`world_model.context.request`'s `present_identities` field exists and is served, but repo-wide grep confirms no current engine (`ai-model-orchestration-engine`, `communication-engine`, `executive-cognition-engine`, `reasoning-engine` — the four current callers of this RPC) reads that field; every existing `WorldModelClient`/`WorldModelPort` only touches the flat context fields. `action-engine`'s `IdentityPort` would be the **first** consumer of `present_identities` anywhere in the codebase. Not a fork — TDD 3D §7's proposed shape (`IdentityConfidencePolicy`, fail-closed default) is sound and precedented by `ProactiveBoundaryPolicy`'s identical absent-policy-fails-closed idiom — but flagged as a fact worth knowing: there is no existing consumer code to imitate structurally beyond the general Port/Client convention already covered in §4.4.
+**Rationale.** TDD 3D specifies no idempotency behavior at all for `action.execute`, unlike capability-engine's own already-resolved Fork 3C-4 precedent for its structurally analogous mutating, retry-prone `POST /v1/capabilities/install` endpoint. Without a guard, a network-level retry of `action.execute` (the caller times out and resends, believing the first attempt was lost) could re-execute a destructive filesystem/terminal operation a second time — a real correctness and safety gap, not a hypothetical one, given this engine's entire purpose is executing potentially-destructive operations. Fork 3C-4's exact resolved mechanism (existence check on a natural key, no bespoke idempotency-key framework, no duplicate side effects) is directly reusable here with `Action.id` playing the role `(name, version)` plays for capabilities.
 
-### 5.5 Finding — a pre-existing, unrelated CI gap worth not repeating
-
-`.github/workflows/build-and-scan.yml`'s matrix is missing `planning-engine` entirely, despite it existing in the codebase and being registered in the import-linter's `root_packages`. This is a pre-existing gap, unrelated to and not caused by Phase 3D — flagged only so a new `action-engine` matrix entry doesn't get added correctly while this pre-existing omission is overlooked as though it weren't there. Not fixed by this document (out of scope for a research pass); worth a one-line follow-up whenever convenient.
-
-### 5.6 No genuine architectural fork found
-
-Every one of Phase 3C's four forks (3C-1/3D-1, 3C-2, 3C-3, 3C-4) is resolved, internally consistent, and re-verified against fresh reads of both TDDs in this pass — no contradiction found. The three gaps above (§5.1-5.3) are precision gaps with one clearly-best, precedented answer each, not competing architectures with a genuine tradeoff — the same class of gap already handled by proposing `RetryPolicy`/`RollbackStrategy`/`IdentityConfidencePolicy` in TDD 3D's own existing text. **Nothing in this research pass requires a stop-and-choose-between-options decision from the user.** What does require the user's approval is simply ratifying the three proposals above before they become authoritative — the same gate every prior new type in this TDD package has already passed through.
+**Consequences.**
+- `action` table (repository layer): before starting stage 1 ("Receive Request") of a fresh `action.execute` invocation, check whether `Action.id` already exists with a terminal `status`. If so, short-circuit: return the stored `action_execution_history`'s recorded outcome as the `ActionResultPayload`, skip every subsequent stage (2 through 12) entirely — including the approval loop, which must not re-fire for an idempotent replay.
+- Unlike Fork 3C-4 (a Postgres `UNIQUE (name, version)` constraint catching a concurrent-insert race), `Action.id` is already the primary key, so the natural-key check here is a straightforward existence read, not a constraint-violation-catch pattern — no schema change beyond what §6.5's persistence design (unchanged from the prior revision) already specifies.
+- A request for an `Action.id` that exists but is **not yet terminal** (e.g. mid-execution, or `approval_required`) is a distinct case from the terminal-state short-circuit above — it must not silently re-execute *or* silently no-op; the correct behavior (reject as a conflicting concurrent request vs. return current in-flight status) is an implementation-time detail for stage 1's handler, not re-opened as a fork here since both sub-options are small, non-architectural, and don't affect any other component.
+- Dedicated idempotency test required (§8.4).
 
 ---
 
-## 6. Implementation plan
-
-### 6.1 Architecture
+## 6. Architecture (unchanged in substance from the prior revision, restated with §5's decisions folded in)
 
 ```
 action-engine (NEW, leaf service — nothing depends on it yet; Phase 3E's Kernel Scheduler will add an edge into it later)
-  ├─ requires ──▶ capability-engine    [capability.resolve.request/.reply (extended, §5.1), capability.invoke.request/.reply]  — EXISTS, tested
-  ├─ requires ──▶ communication-engine [communication.intent.deliver.request/.reply]                                          — EXISTS, tested
-  ├─ requires ──▶ world-model-engine   [world_model.context.request/.reply → present_identities]                              — EXISTS, tested, first-ever consumer
-  ├─ imports ───▶ nova_contracts.events.planning.RiskLevel                                                                    — EXISTS, reused by planning-engine
-  ├─ imports ───▶ nova_eventbus_sdk.BoundEventBus.request() / .serve()                                                        — EXISTS, standard pattern
-  ├─ imports ───▶ nova_service_kit (health router, engine+session factory, dispatch_ready_events)                             — EXISTS, standard pattern
-  └─ serves ────  action.execute  (no real caller until Phase 3E's Kernel Scheduler)
+  ├─ requires ──▶ capability-engine    [capability.resolve.request/.reply (EXTENDED per §5.1), capability.invoke.request/.reply (UNCHANGED)]  — EXISTS, tested
+  ├─ requires ──▶ communication-engine [communication.intent.deliver.request/.reply]                                                            — EXISTS, tested
+  ├─ requires ──▶ world-model-engine   [world_model.context.request/.reply → present_identities]                                                — EXISTS, tested, first-ever consumer
+  ├─ imports ───▶ nova_contracts.events.planning.RiskLevel                                                                                      — EXISTS, reused by planning-engine
+  ├─ imports ───▶ nova_eventbus_sdk.BoundEventBus.request() / .serve()                                                                          — EXISTS, standard pattern
+  ├─ imports ───▶ nova_service_kit (health router, engine+session factory, dispatch_ready_events)                                               — EXISTS, standard pattern
+  └─ serves ────  action.execute  (idempotent on Action.id per §5.3; no real caller until Phase 3E)
 ```
 
-### 6.2 Components and responsibilities
+---
+
+## 7. Components and responsibilities
 
 | Component | Responsibility |
 |---|---|
 | `domain/models.py` | `Action`, `RetryPolicy`, `RollbackStrategy`, `PendingApproval`, `IdentityConfidencePolicy` |
-| `domain/pipeline.py` | The 12-stage Action Principle lifecycle, orchestrating ports |
-| `domain/ports.py` | `CapabilityPort`, `CommunicationPort`, `IdentityPort` Protocols — each independently defined here, never imported from another engine, per the confirmed-real `GoalsPort`/`DigitalTwinPort` per-consumer convention |
-| `clients/capability_client.py` | Concrete `CapabilityPort` implementation — `capability.resolve.request`/`capability.invoke.request` RPC calls |
-| `clients/communication_client.py` | Concrete `CommunicationPort` implementation — mirrors `capability-engine`'s own `CommunicationClient` (§4.4) |
-| `clients/identity_client.py` | Concrete `IdentityPort` implementation — `world_model.context.request`, reads `present_identities` |
+| `domain/pipeline.py` | The 12-stage Action Principle lifecycle; stage 2 structural-only (§5.2), stage 5 deep validation + capability resolution + idempotency short-circuit (§5.3) |
+| `domain/ports.py` | `CapabilityPort`, `CommunicationPort`, `IdentityPort` Protocols — each independently defined here, per the `GoalsPort`/`DigitalTwinPort` per-consumer convention |
+| `clients/capability_client.py` | Concrete `CapabilityPort` — calls `capability.resolve.request` (by `name`, per §5.1) and `capability.invoke.request` (unchanged) |
+| `clients/communication_client.py` | Concrete `CommunicationPort` — mirrors `capability-engine`'s own `CommunicationClient` |
+| `clients/identity_client.py` | Concrete `IdentityPort` — `world_model.context.request`, reads `present_identities` |
 | `api/approvals.py` | Stopgap `POST /v1/action/approvals/{id}/decide` |
-| `events/subscribed.py` | Serves `action.execute` |
-| `events/published.py` | Publishes `action.result`, `action.approval.requested`, `action.approval.decided` |
-| `repository/` | SQLAlchemy models + Alembic migration for the 4 tables (§6.5) |
-
-### 6.3 Contracts and interfaces
-
-- **New:** `nova_contracts.events.action` — `Action`, `RetryPolicy`, `RollbackStrategy` (entities); `ActionExecuteRequestPayload`/`ActionResultPayload`; `ActionApprovalRequestedPayload`/`ActionApprovalDecidedPayload`. All `schema_version: int = 1` per ADR-024. **Explicitly not defined:** `autonomy.approval.requested`/`.decision.made` — reserved for Phase 4 per Fork E2.
-- **Additive change to an existing contract:** `CapabilityResolveRequestPayload` gains optional `name: str | None` (§5.1) — a small, backward-compatible change to `capability-engine`'s own resolve handler, not a re-implementation of anything RESOLVED.
-
-### 6.4 RPC/API surface
-
-```
-action.execute (served, no real caller until 3E)
-  → CapabilityPort.resolve(name=execution_target)         [capability.resolve.request/.reply, extended per §5.1]
-  → [if risk == "critical"] action.approval.requested → communication.intent.deliver.request/.reply → action.approval.decided
-  → CapabilityPort.invoke(capability_id, operation, parameters)   [capability.invoke.request/.reply, EXISTING, unmodified]
-  → [on destructive-op failure] rollback: CapabilityPort.invoke(read op) captures pre-state → restore via same RPC
-  → action.result (published)
-
-IdentityPort.check(user_id) → world_model.context.request/.reply → present_identities → ADR-032 confidence gate
-
-Stopgap REST: POST /v1/action/approvals/{id}/decide  (body: {approved: bool, reason: str | None})
-```
-
-### 6.5 Database requirements
-
-New `action` Postgres schema (TDD 3D §8, unchanged by this research):
-- `action` — the `Action` model.
-- `pending_approval` — the approval-loop state machine record.
-- `action_execution_history` — append-only, mirrors `capability_installation_event`'s precedent (audit trail, "Store Experience" stage).
-- `identity_confidence_policy` — per-user, per-risk-tier threshold configuration.
-- **Per §5.3's proposal:** `action.id` (already the primary key) is the natural-key idempotency guard for `action.execute` retries — no separate idempotency table needed, mirroring Fork 3C-4's `UNIQUE (name, version)` mechanism exactly (a uniqueness/existence check on an existing key, not a bespoke idempotency-key framework).
-
-### 6.6 Action execution model
-
-The 12-stage Action Principle lifecycle (Bible `part-12-action-engine.md:43-93`, TDD 3D §6, fidelity-checked in §3 above): Receive Request → Validate (structural only, per §5.2) → Check Permissions (ADR-032, §7 of TDD 3D) → Estimate Risk → Prepare Resources (capability resolution + deep parameter validation, per §5.2) → Execute (blocked pending approval if `risk="critical"`) → Monitor Progress (timeout) → Detect Errors → Recover if Necessary (rollback) → Verify Result → Report Outcome → Store Experience.
-
-### 6.7 `CapabilityPort` integration
-
-Per Fork 3C-1/3D-1's resolution (Option A, RESOLVED): `action-engine` defines its own `CapabilityPort` Protocol; `capability-engine`'s process is the sole executor of every adapter call. Concretely, against the **already-shipped** RPCs (§4.2): resolve by name (§5.1's extension) at stage 5, confirm `health_status == "healthy"` before proceeding, invoke via `capability.invoke.request` at stage 6. No new capability on `capability-engine`'s adapter interface is required — confirmed by Fork 3C-3's own resolution (§6.8 below).
-
-### 6.8 Rollback ownership and `RollbackStrategy`
-
-Per Fork 3C-3's resolution (Option B, RESOLVED): `action-engine` owns rollback entirely, outside `capability-engine`. Mechanism: capture pre-state via `capability-engine`'s existing, already-scoped, non-destructive read/list operation (the same `capability.invoke.request` RPC, targeting a read first) before issuing a destructive call; restore via the same mechanism on failure. `RollbackStrategy.kind: Literal["restore_file", "undo_configuration", "restart_service", "manual"]` (TDD 3D §3.1) is unaffected by this research — only the *mechanism* behind `"restore_file"` was made concrete during TDD 3C/3D's own reconciliation pass, not revisited here.
-
-### 6.9 Error handling
-
-Per TDD 3D §10's table (unchanged, re-verified sound): capability-unhealthy fails fast at stage 5 (never attempts execution against a known-unhealthy adapter); approval timeout denies, never auto-approves (fail-closed); `IdentityPort` timeout is treated as zero confidence (fail-closed, never silently bypasses the gate); mid-execution failure triggers the configured `RollbackStrategy`, with rollback failure recorded distinctly from the original execution failure; Postgres-unavailable is standard loud-failure, consistent with every other engine.
-
-### 6.10 Validation
-
-Two-stage, per §5.2's proposal: structural validation of the `Action` object at stage 2 (automatic via Pydantic at RPC-payload parse time); deep parameter-shape validation against the resolved `Capability.input_schema` at stage 5, once the schema is actually known.
-
-### 6.11 Security considerations
-
-- ADR-032 (identity-confidence as authorization signal) — binding, cited by name. Requires a **configurable threshold per risk tier** (point 2 of the ADR's decision), never one global hardcoded value; `action-engine` never performs identity recognition itself (point 3) — pure consumption of `perception-engine`'s (via World Model's) already-scored signal.
-- `required_permissions` — locally enforced (no `nova-auth` yet), same reasoning already established for `capability-engine` (TDD 3C §10).
-- The approval loop itself is a second, orthogonal safety layer for critical-risk actions, independent of the identity-confidence gate.
-- `action.approval.*` is a new, Phase-3-owned namespace, never `autonomy.approval.*` (reserved for Phase 4, per Fork E2) — this namespace boundary must be a **tested** property (TDD 3D §13), not just a documented one.
-
-### 6.12 Testing strategy
-
-Per TDD 3D §13, re-verified sound and now made concrete against real precedent (§4.4):
-- **Unit (fake-backed):** risk classification; approval-loop state machine; ADR-032 gate (confidence above/below threshold per risk tier, absent-policy fail-closed case); rollback-invocation per `RollbackStrategy.kind`. Fake ports (`FakeCapabilityPort`, `FakeCommunicationPort`, `FakeIdentityPort`) live in `action-engine`'s own `tests/fakes/`, mirroring `capability-engine`'s own `tests/fakes/communication_port.py` exactly — not a shared `nova-testkit` type.
-- **Contract:** all new payload round-trips; a dedicated, direct assertion (not just an absence check) that `ActionApprovalRequestedPayload`'s subject is `action.approval.requested`, never `autonomy.approval.requested`.
-- **Integration:** `action.execute` served correctly via the established "second `BoundEventBus`" pattern (no real caller exists until 3E); full approval-loop round trip against a fake `CommunicationPort`.
-- **Real-infrastructure:** real end-to-end approval round trip (real Postgres for `pending_approval`, real `communication-engine` call); a real, scripted Critical-risk filesystem delete blocked pending approval, verified against real timing, not a fake clock.
-
-### 6.13 CI requirements
-
-- `.github/workflows/build-and-scan.yml` — one new matrix line, `action-engine`, following the exact pattern already used for all 12 current engines (per-service `docker/build-push-action@v6` build + `aquasecurity/trivy-action@v0.34.0` scan, `severity: CRITICAL,HIGH`, `exit-code: "1"`, `ignore-unfixed: true`).
-- `real-infra-checks.yml` — must explicitly include `action-engine` in its own matrix. `capability-engine`'s own gate review caught exactly this gap mid-review (a first "green" run that had not actually covered the new engine) — worth checking for proactively this time.
-- import-linter (`pyproject.toml`): `nova_action_engine` added to `root_packages`; contracts 1 (ADR-004 independence), 2 (ADR-006 no message broker), 3 (ADR-007 no graph DB) are auto-registered by `tools/scaffold-engine.py` if the engine is scaffolded as `action-engine`. Contract 6 (ADR-034, nova-service-kit boundary) requires a **manual** addition — confirmed not auto-registered by the script. Contract 4 (ADR-020, no LLM SDK) requires a **manual judgment call** — `action-engine` should be added to `source_modules` (forbidden from importing an LLM SDK directly), consistent with every engine except `ai-model-orchestration-engine`. Contract 5 (ADR-033, nova-testkit boundary) is already stale relative to `planning-engine`/`capability-engine` — a pre-existing gap, not Phase 3D's to fix, noted so it isn't mistaken for something this phase caused.
-
-### 6.14 Docker/runtime requirements
-
-- New `services/action-engine/Dockerfile`, following the standard scaffold pattern, including the CVE-2026-53615 `apt-get update && apt-get upgrade -y` line already present in all 12 other engines' Dockerfiles (must not be omitted for a newly-scaffolded engine).
-- `infra/docker/docker-compose.local.yml` — new service block, next free host port **8012** (following `capability-engine`'s `8011`), `depends_on: nats` (healthy) at minimum; whether `action-engine` needs its own Postgres schema (`depends_on: postgres`) follows directly from §6.5's persistence requirements — yes, it does own 4 tables, so `depends_on: postgres` (healthy) is required, mirroring every other stateful engine's compose entry.
-
-### 6.15 Project Health metrics to record
-
-At Phase 3D's completion (not now — no implementation exists to measure): `docs/project-health/phase-3d.md`, 23-field standard shape, citing the eventual Gate Review by line number. SLOC figure only if measured with an explicitly disclosed tool/scope (per §2's still-open methodology question) — never silently continuing either historical series. `project-health-master.md`'s summary table gains a Phase 3D row and, if the SLOC methodology question is resolved as part of this work, §2's history section is extended accordingly (not decided by this document).
-
-### 6.16 Documentation updates required at implementation time
-
-- `docs/design/phase-3/07-tdd-3d-action-engine.md` — correct the stale claim that the capability RPCs are undefined (§4.2-4.3 above); reconcile the acceptance-criterion wording inconsistency already found in `12-3c-architecture-research.md` §18 (TDD 3C's own criterion 5 says the Fork 3C-1/3D-1 gate blocks only "action-engine implementation"; TDD 3D's own criterion 6 says "before either implementation begins" — cosmetic now since the gate is already resolved, but worth reconciling for future readers).
-- `docs/project-health/phase-3c.md` field 17 — optional, one-line correction noting the documentation-sync gap it records is now closed (§2 above).
-
-### 6.17 Implementation order (proposed sequence, not yet executed)
-
-1. `nova_contracts.events.action` additions + the §5.1 additive extension to `CapabilityResolveRequestPayload` (small, backward-compatible touch to `capability-engine`'s existing handler).
-2. Scaffold `services/action-engine` via `tools/scaffold-engine.py`.
-3. Domain layer: `Action`/`RetryPolicy`/`RollbackStrategy` models, risk classification, the 12-stage pipeline skeleton.
-4. Ports + clients: `CapabilityPort`, `CommunicationPort`, `IdentityPort` and their concrete implementations.
-5. Approval loop: `PendingApproval` persistence, `action.approval.*` events, the stopgap decide-endpoint.
-6. Rollback mechanism (read-before-write via `CapabilityPort`).
-7. ADR-032 gate (`IdentityConfidencePolicy`, fail-closed default).
-8. Persistence layer: SQLAlchemy models + Alembic migration, all 4 tables.
-9. `action.execute` RPC handler, served, tested via the "second `BoundEventBus`" pattern.
-10. Observability wiring (the 6 metrics named in TDD 3D §9, unchanged by this research).
-11. Infra wiring: docker-compose entry, `build-and-scan.yml` + `real-infra-checks.yml` matrix entries, import-linter registration (§6.13).
-12. Full test suite (unit/contract/integration/real-infra), §6.12.
-13. Gate Review + README + `docs/project-health/phase-3d.md`.
-
-### 6.18 Acceptance criteria
-
-Per TDD 3D §14, re-verified sound, restated here as the plan's own Definition of Done:
-1. A deliberately risky action (Bible's own example: deleting a file) is blocked pending approval and proceeds only after approval.
-2. An approval timeout denies, never auto-approves.
-3. `action.approval.*` subjects are never confused with `autonomy.approval.*` — tested, not just documented.
-4. ADR-032's identity-confidence gate correctly blocks a low-confidence-identity execution attempt for at least one Critical-risk action, with per-risk-tier configurability exercised (not just a single global threshold).
-5. A forced mid-execution failure triggers the configured `RollbackStrategy` and restores prior state.
-6. **Added by this research pass:** the three proposed resolutions in §5.1-5.3 (execution_target semantics, validation-stage split, `action.execute` idempotency) are explicitly approved before implementation begins on the affected pipeline stages.
-7. Full local verification suite green (ruff, mypy, pytest, import-linter, docker-compose config, TypeScript codegen consistency) and real GitHub Actions CI green across every matrix job including `action-engine`, mirroring `capability-engine`'s own verification bar exactly.
+| `events/subscribed.py` | `SUBSCRIBABLE_SUBJECTS = frozenset({"action.execute"})` |
+| `events/published.py` | `PUBLISHABLE_SUBJECTS = frozenset({"capability.resolve.request", "capability.invoke.request", "communication.intent.deliver.request", "world_model.context.request", "action.result", "action.approval.requested", "action.approval.decided"})` |
+| `repository/` | SQLAlchemy models + Alembic migration for the 4 tables (§6.5 of the prior revision, unchanged) — plus the terminal-state existence check for §5.3 |
 
 ---
 
-## 7. Summary
+## 8. Exact files/modules the implementation PR will create or modify
 
-- **Readiness: READY, pending approval of §5.1-5.3.** No genuine architectural fork blocks implementation start (§5.6) — all four Phase 3C forks remain resolved and were re-verified consistent in this pass.
-- **Files that would change at implementation time:** `packages/nova-contracts/src/nova_contracts/events/capability.py` (§5.1's additive field); `services/capability-engine/src/nova_capability_engine/events/subscribed.py` and its resolve handler (accept resolve-by-name); root `pyproject.toml` (import-linter registration); `infra/docker/docker-compose.local.yml`; `.github/workflows/build-and-scan.yml` and `real-infra-checks.yml`.
-- **New files/directories:** `packages/nova-contracts/src/nova_contracts/events/action.py`; the full `services/action-engine/` scaffold; `docs/project-health/phase-3d.md` (at completion).
-- **Proposed branch for implementation:** `phase-3d-action-engine`, from `phase-3b-planning-domain`, mirroring `phase-3c-capability-engine`'s naming and branch-from-canonical convention.
-- **Proposed PR structure:** one PR against `phase-3b-planning-domain`, mirroring PR #8's shape (single PR covering the whole of Phase 3D's authorized scope) — unless the user prefers the §5.1 contract extension to land and merge independently first, as a small precursor PR.
+### 8.1 New files (packages/contracts)
+- `packages/nova-contracts/src/nova_contracts/events/action.py` — `Action`, `RetryPolicy`, `RollbackStrategy` (entities); `ActionExecuteRequestPayload`/`ActionResultPayload`; `ActionApprovalRequestedPayload`/`ActionApprovalDecidedPayload`. All `schema_version: int = 1`.
+
+### 8.2 Modified files (existing contracts and capability-engine, per §5.1)
+- `packages/nova-contracts/src/nova_contracts/events/capability.py` — `CapabilityResolveRequestPayload.capability_id` → `UUID | None`; add `name: str | None`; add exactly-one-of validator.
+- `services/capability-engine/src/nova_capability_engine/main.py` — `_make_resolve_request_handler` branches on `capability_id`/`name`.
+- `services/capability-engine/src/nova_capability_engine/domain/ports.py` — `CapabilityRepository` Protocol gains `find_by_name`.
+- `services/capability-engine/src/nova_capability_engine/repository/postgres_capability_repository.py` and `tests/fakes/repository.py` — implement `find_by_name`.
+- `services/capability-engine/tests/contract/test_capability_payloads.py` — new by-name round-trip case.
+- `packages/nova-contracts/typescript/CapabilityResolveRequestPayload.ts` — regenerated (additive field, TS codegen must be re-run, consistency re-checked per this project's standing verification step).
+
+### 8.3 New service scaffold — `services/action-engine/`
+```
+services/action-engine/
+  Dockerfile, README.md, alembic.ini, package.json, pyproject.toml
+  alembic/env.py, alembic/script.py.mako, alembic/versions/0001_initial_schema.py
+  src/nova_action_engine/
+    __init__.py, config.py, main.py, observability.py, py.typed
+    domain/   (__init__.py, models.py, pipeline.py, ports.py)
+    clients/  (__init__.py, capability_client.py, communication_client.py, identity_client.py)
+    api/      (__init__.py, health.py, approvals.py)
+    events/   (__init__.py, published.py, subscribed.py)
+    repository/ (__init__.py, models.py, postgres_action_repository.py)
+  tests/
+    unit/        (test_pipeline.py, test_risk_classification.py, test_approval_state_machine.py,
+                   test_adr032_gate.py, test_rollback.py)
+    contract/    (test_action_payloads.py)
+    integration/ (test_health.py, test_events_action_execute.py, test_approval_loop_round_trip.py,
+                  test_capability_client.py, test_communication_client.py, test_identity_client.py)
+    fakes/       (capability_port.py, communication_port.py, identity_port.py, repository.py)
+    real_infra/  (test_repository_real_postgres.py, test_approval_real_communication_engine.py,
+                  test_critical_risk_blocked_real_timing.py)
+```
+(Mirrors `capability-engine`'s own directory shape exactly — see the prior revision's §4 findings for that precedent.)
+
+### 8.4 Infra/CI files modified
+- `infra/docker/docker-compose.local.yml` — new `action-engine` service block, port `8012`, `depends_on: {nats, postgres}` (both healthy).
+- `.github/workflows/build-and-scan.yml` — one new matrix line, `action-engine`.
+- `.github/workflows/real-infra-checks.yml` — one new matrix line, `action-engine` (checked proactively per §5.5 of the prior revision's finding).
+- Root `pyproject.toml` — `nova_action_engine` added to `[tool.importlinter].root_packages`; contracts 1/2/3 auto-registered if scaffolded correctly; contract 6 (ADR-034) added manually; contract 4 (ADR-020) — `nova_action_engine` added to `source_modules` manually.
+
+### 8.5 Documentation files modified
+- `docs/design/phase-3/06-tdd-3c-capability-engine.md` — §4.1's correction note (this PR, not the implementation PR).
+- `docs/design/phase-3/07-tdd-3d-action-engine.md` — at implementation time, updated to reference §5's approved decisions concretely (e.g. `execution_target`'s exact resolved semantics) rather than leaving them as open proposals.
+- `docs/project-health/phase-3d.md` — new, at implementation completion (§9).
+- `docs/project-health/project-health-master.md` — new Phase 3D row.
+
+---
+
+## 9. Complete test plan
+
+| Tier | File | Coverage |
+|---|---|---|
+| Unit | `tests/unit/test_risk_classification.py` | `RiskLevel` classification for scripted parameter sets |
+| Unit | `tests/unit/test_approval_state_machine.py` | requested → approved/denied/timeout transitions; timeout defaults to denied (fail-closed) |
+| Unit | `tests/unit/test_adr032_gate.py` | confidence above/below threshold per risk tier; absent-policy fail-closed case; per-risk-tier configurability exercised (not one global threshold) |
+| Unit | `tests/unit/test_rollback.py` | rollback invocation per `RollbackStrategy.kind`, using `FakeCapabilityPort` |
+| Unit | `tests/unit/test_pipeline.py` | stage 2 structural-only validation (§5.2); stage 5 deep parameter validation against a fake-resolved `input_schema`; **idempotency short-circuit for a terminal-state `Action.id` (§5.3)**, including the distinct in-flight-vs-terminal case |
+| Contract | `tests/contract/test_action_payloads.py` | round-trips for `Action`, `RetryPolicy`, `RollbackStrategy`, `ActionExecuteRequestPayload`/`ActionResultPayload`, `ActionApprovalRequestedPayload`/`ActionApprovalDecidedPayload`; **direct assertion** `ActionApprovalRequestedPayload`'s registered subject is `"action.approval.requested"`, never `"autonomy.approval.requested"` |
+| Integration | `tests/integration/test_events_action_execute.py` | `action.execute` served correctly via the "second `BoundEventBus`" pattern (§4.2); **idempotency**: two `action.execute` calls for the same `Action.id` after the first reaches a terminal state produce one execution and two identical replies |
+| Integration | `tests/integration/test_approval_loop_round_trip.py` | full approval-loop round trip against `FakeCommunicationPort` (mirroring `capability-engine`'s own fake exactly): critical-risk action → `action.approval.requested` published → `communication.intent.deliver.request` called → decide-endpoint resolves → `action.approval.decided` published → execution proceeds or `status="denied"` |
+| Integration | `tests/integration/test_capability_client.py` | `CapabilityPort` client against a real in-memory bus paired with capability-engine's own served handlers (§4.2's pattern) — resolve-by-name (§5.1), invoke, and the read-before-write rollback-capture call |
+| Integration | `tests/integration/test_communication_client.py`, `test_identity_client.py` | Same "second bus" pattern for the other two ports |
+| Real-infra | `tests/real_infra/test_repository_real_postgres.py` | real Postgres round trip for all 4 tables; idempotency check surviving a real restart |
+| Real-infra | `tests/real_infra/test_approval_real_communication_engine.py` | real end-to-end approval round trip against a real `communication-engine` instance |
+| Real-infra | `tests/real_infra/test_critical_risk_blocked_real_timing.py` | scripted Critical-risk filesystem delete blocked pending approval, verified against real timing, not a fake clock — the named acceptance-criterion test from TDD 3D §14 |
+
+Fake ports (`tests/fakes/{capability_port,communication_port,identity_port}.py`) live in `action-engine`'s own `tests/fakes/`, mirroring `capability-engine`'s own `tests/fakes/communication_port.py` structurally (injectable failure modes, e.g. `raise_timeout`) — not a shared `nova-testkit` type, consistent with this project's confirmed convention.
+
+---
+
+## 10. CI and Docker/runtime requirements (final)
+
+- `build-and-scan.yml` — new `action-engine` matrix line, identical pattern to all 12 current engines (`docker/build-push-action@v6` + `aquasecurity/trivy-action@v0.34.0`, `severity: CRITICAL,HIGH`, `exit-code: "1"`, `ignore-unfixed: true`).
+- `real-infra-checks.yml` — new `action-engine` matrix line, checked explicitly before declaring CI green (capability-engine's own gate review caught exactly this omission mid-review; not repeating it).
+- `services/action-engine/Dockerfile` — standard scaffold pattern, including the CVE-2026-53615 `apt-get update && apt-get upgrade -y` line present in all 12 other engines' Dockerfiles.
+- `infra/docker/docker-compose.local.yml` — port `8012`, `depends_on: {nats: healthy, postgres: healthy}` (this engine owns 4 Postgres tables per §6.5 of the prior revision).
+- import-linter registration exactly as listed in §8.4.
+
+---
+
+## 11. Project Health update required for Phase 3D
+
+At implementation completion:
+- `docs/project-health/phase-3d.md` — the standard 23-field snapshot, citing the Phase 3D Gate Review by line number, following `phase-3c.md`'s exact shape as the most recent precedent.
+- `docs/project-health/project-health-master.md` — new Phase 3D row in the master timeline table; §2's SLOC-methodology-history section extended only if a figure is measured and only with its tool/scope explicitly disclosed (still not decided by this document).
+- Explicitly **not** measured or recorded by this research pass — no implementation exists yet.
+
+---
+
+## 12. Implementation order (final)
+
+1. `nova_contracts.events.action` additions + the §5.1 additive extension to `CapabilityResolveRequestPayload` and `capability-engine`'s resolve handler/repository (§8.2) — smallest, most foundational change, touches an existing shipped engine.
+2. Scaffold `services/action-engine` via `tools/scaffold-engine.py`.
+3. Domain layer: `Action`/`RetryPolicy`/`RollbackStrategy` models, risk classification, the 12-stage pipeline skeleton with §5.2's validation split and §5.3's idempotency short-circuit.
+4. Ports + clients: `CapabilityPort`, `CommunicationPort`, `IdentityPort`.
+5. Approval loop: `PendingApproval` persistence, `action.approval.*` events, the stopgap decide-endpoint.
+6. Rollback mechanism (read-before-write via `CapabilityPort`).
+7. ADR-032 gate (`IdentityConfidencePolicy`, fail-closed default).
+8. Persistence layer: SQLAlchemy models + Alembic migration, all 4 tables + the idempotency existence-check query.
+9. `action.execute` RPC handler, served, tested via the "second `BoundEventBus`" pattern, idempotent per §5.3.
+10. Observability wiring (6 metrics, TDD 3D §9, unchanged).
+11. Infra wiring per §10.
+12. Full test suite per §9.
+13. Gate Review + README + `docs/project-health/phase-3d.md` per §11.
+
+---
+
+## 13. Acceptance criteria (final)
+
+1. A deliberately risky action (Bible's own example: deleting a file) is blocked pending approval and proceeds only after approval.
+2. An approval timeout denies, never auto-approves.
+3. `action.approval.*` subjects are never confused with `autonomy.approval.*` — tested directly.
+4. ADR-032's identity-confidence gate correctly blocks a low-confidence-identity execution attempt for at least one Critical-risk action, with per-risk-tier configurability exercised.
+5. A forced mid-execution failure triggers the configured `RollbackStrategy` and restores prior state.
+6. `execution_target` resolves correctly by capability `name` against the extended `capability.resolve.request` RPC (§5.1), with a passing contract test for both the by-id and by-name request shapes.
+7. Stage 2/stage 5 validation split (§5.2) is implemented as specified — no capability-specific schema logic duplicated inside action-engine.
+8. `action.execute` idempotency (§5.3) is proven by a dedicated integration test: two calls for the same `Action.id` after terminal state produce exactly one execution and two identical replies, with no duplicate side effects and no duplicate approval-loop firing.
+9. Full local verification suite green (ruff, mypy, pytest, import-linter, docker-compose config, TypeScript codegen consistency — including the regenerated `CapabilityResolveRequestPayload.ts`) and real GitHub Actions CI green across every matrix job including `action-engine`, mirroring `capability-engine`'s own verification bar exactly.
+
+---
+
+## 14. Summary — what the next PR will implement
+
+Everything in §8 (exact files), §9 (exact tests), §10 (CI/Docker), §11 (Project Health), and §12 (order), against the three decisions approved in §5. No further architectural ambiguity remains open (§5.6 of the prior revision's finding — no fork — still stands; re-verified in this revision, nothing new surfaced). **Proposed branch:** `phase-3d-action-engine`, from `phase-3b-planning-domain`. **Proposed PR structure:** one PR against `phase-3b-planning-domain`, covering the whole of Phase 3D's authorized scope, mirroring PR #8's shape — unless the user prefers §8.2's `capability-engine` contract extension to land and merge as an independent precursor PR first, since it touches an already-shipped engine rather than being purely additive to a new one.
