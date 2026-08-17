@@ -128,7 +128,14 @@ async def test_get_result_returns_none_before_any_result_is_recorded(
 async def test_pending_approval_insert_find_and_decide_round_trips(
     repository: PostgresActionRepository,
 ) -> None:
-    action_id = uuid4()
+    # `pending_approval.action_id` carries a foreign key to `action.id`
+    # (0001_initial_schema.py) -- production code only ever calls
+    # `insert_pending_approval` after `insert(action)` has already run
+    # (`domain/pipeline.py::_run_approval_loop`), so the parent row must
+    # exist here too.
+    action = _action()
+    await repository.insert(action)
+    action_id = action.id
     now = datetime.now(UTC)
     await repository.insert_pending_approval(
         PendingApproval(action_id=action_id, risk="critical", requested_at=now)

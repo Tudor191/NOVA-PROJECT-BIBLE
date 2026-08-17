@@ -127,6 +127,12 @@ class PostgresActionRepository:
             row = await session.get(ActionORM, action_id)
             if row is None:
                 return None
+            if row.result is None and row.error is None:
+                # Ambiguous with a legitimately-recorded "no result, no
+                # error" terminal state (e.g. a denied action) -- harmless
+                # in the one call site (`_idempotent_reply_if_terminal`),
+                # which falls back to the same `(None, None)` regardless.
+                return None
             return dict(row.result) if row.result is not None else None, row.error
 
     async def insert_pending_approval(self, approval: PendingApproval) -> None:
