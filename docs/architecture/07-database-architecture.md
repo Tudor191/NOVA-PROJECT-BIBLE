@@ -30,7 +30,15 @@ migrations, different deployment topology.
 ## 2. Relational schema highlights (PostgreSQL)
 
 ```sql
--- capability-engine
+-- capability-engine (illustrative sketch, pre-TDD -- superseded by the
+-- detailed, phase-scoped schema in
+-- docs/design/phase-3/06-tdd-3c-capability-engine.md §6, which is
+-- authoritative for Phase 3C implementation; that TDD's `Capability`
+-- model deliberately excludes `confidence` (no learning/scoring
+-- mechanism exists in Phase 3) and uses `required_permissions: list[str]`
+-- rather than a singular `permissions` column, among other differences.
+-- The `UNIQUE (name, version)` constraint below is the one element this
+-- sketch and the TDD agree on and is carried forward as real precedent.)
 CREATE TABLE capability.capability (
     id UUID PRIMARY KEY,
     name TEXT NOT NULL,
