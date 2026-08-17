@@ -21,6 +21,7 @@ COPY services/ai-model-orchestration-engine services/ai-model-orchestration-engi
 RUN uv sync --frozen --no-dev --package ai-model-orchestration-engine
 
 FROM python:3.12-slim
+RUN apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/*
 RUN useradd --create-home --uid 1000 nova
 WORKDIR /app
 COPY --from=builder --chown=nova:nova /app /app
