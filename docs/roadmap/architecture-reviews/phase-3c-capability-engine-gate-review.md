@@ -1,11 +1,20 @@
 # Phase 3C — `capability-engine`: Gate Review
 
-**Status: implementation complete, locally verified. Covers the whole of
-Phase 3C's scope as authorized** (branch `phase-3c-capability-engine`,
-based directly on `phase-3b-planning-domain`) — a single PR, not split
-across multiple units. Real-infrastructure (Postgres) and Docker-build
-verification could not run in this environment (no reachable Docker
-daemon); see §9 for exactly what is and isn't verified.
+**Status: implementation complete, locally verified, real GitHub Actions
+CI green. Covers the whole of Phase 3C's scope as authorized** (branch
+`phase-3c-capability-engine`, based directly on `phase-3b-planning-domain`)
+— a single PR, not split across multiple units. Real-infrastructure
+(Postgres) and Docker-build verification could not run in this local
+environment (no reachable Docker daemon); real GitHub Actions CI supplied
+that verification instead — see §9 for exactly what ran where.
+
+**Post-initial-review correction:** PR #8's first CI run showed "Real
+-Infrastructure Checks" green, but that workflow's matrix did not include
+`capability-engine` at all — its "success" covered five other packages,
+not this engine's own real-Postgres tests. Fixed by adding a
+`capability-engine` matrix entry (`.github/workflows/real-infra-checks.yml`);
+§9 reflects the corrected, re-verified state, not the original
+misleading-green result.
 
 ---
 
