@@ -17,7 +17,15 @@ already exists and is already Gate-Reviewed. Zero dependency on `3A`-`3E`.
 **`3-P.2` scope.** The Planning panel (depends on `3B`) and the Agent
 Activity panel (depends on `3E`) — additive to `3-P.1`'s already-working
 shell. Can ship independently of each other, whenever their respective
-engine TDD completes.
+engine TDD completes. **Also additive, corrected during the Phase 3C
+reconciliation pass to match what §2/§5 already state:**
+`api-gateway`'s REST-forwarding automatically covers `capability-engine`'s
+(`3C`) stopgap `/v1/capabilities` surface once `3C` ships — this is
+endpoint-fronting only, not a dedicated web-client panel, since Phase 3
+ships no capability panel (`docs/design/phase-3/06-tdd-3c-capability-engine.md` §14
+Non-goals — no Visual Capability Center in Phase 3). This addition was
+previously omitted from this scope statement even though §2/§5 already
+described it, an internal inconsistency this pass corrects.
 
 ---
 

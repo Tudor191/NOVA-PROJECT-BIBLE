@@ -130,6 +130,21 @@ mechanism, per `docs/design/phase-2c/00-executive-cognition-engine.md`
 becomes real); (3) select `inprocess` (the only enabled backend); (4)
 dispatch as a supervised instance under the owning Supervisor.
 
+**Fork 3C-2 — RESOLVED: Option C, declared-intent only (approved; full
+resolution record in `docs/design/phase-3/06-tdd-3c-capability-engine.md` §4).**
+`action-engine`'s own stage 5 (TDD 3D §6) remains the sole live authority
+for capability resolution and `health_status` checking at execution
+time — unchanged by this resolution. The Kernel Scheduler's four-step
+dispatch loop above is exactly as specified: it does **not** query
+`capability-engine`, does not maintain a capability cache or registry
+subscription, and gains no new step for `AgentContext.granted_capabilities`.
+This field is not populated, synchronized, or otherwise given any runtime
+mechanism by this TDD — it remains available only as declared-intent
+context per doc 12's own (unchanged) field definition, never a second
+source of capability authorization. Whether or how it is ever populated
+is left as an undecided, separately-scoped future design question, not
+invented here.
+
 **Kernel persistence — new, since doc 12 names no persistence
 technology for the Kernel's own state** (confirmed by full-file grep,
 `01-tdd-preparation-and-fork-resolutions.md` §5.4). Proposed `agent_os`
