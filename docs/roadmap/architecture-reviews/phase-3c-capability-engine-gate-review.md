@@ -211,17 +211,17 @@ allow-lists in both directions.
 | import-linter | 6/6 contracts kept — `nova_capability_engine` correctly independent, and (ADR-020) forbidden from importing any AI-provider SDK | Fully verified |
 | `docker-compose config` | Valid with the new `capability-engine` service block | Fully verified (syntax only — no daemon reachable to actually start it) |
 | TypeScript codegen | 80 files generated, 4 new (`CapabilityInvokeReplyPayload`, `CapabilityInvokeRequestPayload`, `CapabilityResolveReplyPayload`, `CapabilityResolveRequestPayload`), `index.ts` updated | Fully verified |
-| Alembic migration | Hand-written, matches `repository/models.py` field-for-field; `run_alembic_upgrade` not executed against a real Postgres in this environment | Structurally verified, **not** real-infra-verified |
-| Real-Postgres persistence (`tests/integration/test_repository_real_postgres.py`) | 6 tests written (insert/find/list/delete/duplicate-rejection/installation-event), `@pytest.mark.real_infra` | **Written, genuinely unverified locally** — no Docker daemon reachable in this environment; will run under CI's real-infra job or a Docker-capable environment |
+| Alembic migration | Hand-written, matches `repository/models.py` field-for-field; executed for real by CI's `real-infra (capability-engine, ...)` job (`run_alembic_upgrade` against a real, throwaway `postgres:16-alpine` testcontainer) | Real-infrastructure-verified (GitHub Actions, run `32005017275`, job `95312607118`, green) |
+| Real-Postgres persistence (`tests/integration/test_repository_real_postgres.py`) | 6 tests (insert/find/list/delete/duplicate-rejection/installation-event), `@pytest.mark.real_infra` | **Real-infrastructure-verified** — not run locally (no Docker daemon in this environment) but run for real by CI after `.github/workflows/real-infra-checks.yml`'s matrix was corrected to include `capability-engine` (see the correction note above); passed |
 | Real sandbox-violation behavior | Real filesystem path-traversal, real disallowed-executable subprocess-start refusal, real git-subcommand refusal, real disallowed-host refusal — all exercised with actual OS calls (`tmp_path`, real `git`/`python3` subprocesses), never mocked, both at the unit-adapter level and through a full RPC round trip (`test_invoke_request_reports_a_real_sandbox_violation_for_an_out_of_scope_read`) | Fully verified |
 | Real Event Bus RPC round trips | `capability.resolve.request`/`capability.invoke.request` (server side, via a second in-memory caller `BoundEventBus`) and `communication.session.lookup_by_user.request`/`communication.intent.deliver.request` (client side, via a serving stand-in) — both directions exercised over the real in-memory Event Bus backend, not bypassed by dependency injection | Fully verified |
-| Docker build (`services/capability-engine/Dockerfile`) | Fixed a missing `nova-service-kit` copy step (same defect class as the prior `fix-dockerfiles-nova-service-kit` PR, predating this engine's existence) | **Fix applied, build itself genuinely unverified** — no Docker daemon reachable in this environment |
-| GitHub Actions CI | Not yet run — pending push and PR creation | Pending |
+| Docker build (`services/capability-engine/Dockerfile`) | Fixed a missing `nova-service-kit` copy step (same defect class as the prior `fix-dockerfiles-nova-service-kit` PR, predating this engine's existence) | Real-infrastructure-verified — CI's `build-and-scan (capability-engine)` job actually built the image (GitHub Actions, run `32005017282`, job `95312607250`, green); not built locally (no Docker daemon in this environment) |
+| GitHub Actions CI (all 3 workflows: PR Checks, Build & Scan, Real-Infrastructure Checks) | 20/20 check runs green on PR #8 at commit `6aee23d` (after the real-infra matrix correction) | Real-infrastructure-verified |
 
 **No contract/fake-only-verified items remain unclassified.** Every item
-above is either fully verified locally, structurally-verified-but-not-
-real-infra-verified (explicitly labeled), or genuinely unverified
-(explicitly labeled, with the reason).
+above is either fully verified locally, real-infrastructure-verified via
+CI (explicitly labeled, with the run/job reference), or (nothing in the
+final state) genuinely unverified.
 
 ## 10. Known limitations (of this PR's scope, not defects)
 
