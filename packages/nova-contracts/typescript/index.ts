@@ -78,3 +78,7 @@ export * from "./CapabilityResolveRequestPayload";
 export * from "./CapabilityResolveReplyPayload";
 export * from "./CapabilityInvokeRequestPayload";
 export * from "./CapabilityInvokeReplyPayload";
+export * from "./ActionExecuteRequestPayload";
+export * from "./ActionResultPayload";
+export * from "./ActionApprovalRequestedPayload";
+export * from "./ActionApprovalDecidedPayload";

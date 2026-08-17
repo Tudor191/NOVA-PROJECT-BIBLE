@@ -17,6 +17,10 @@ import sys
 from pathlib import Path
 
 from nova_contracts import (
+    ActionApprovalDecidedPayload,
+    ActionApprovalRequestedPayload,
+    ActionExecuteRequestPayload,
+    ActionResultPayload,
     AttentionShiftedPayload,
     BudgetExceededPayload,
     CapabilityInvokeReplyPayload,
@@ -181,6 +185,10 @@ MODELS: list[type[BaseModel]] = [
     CapabilityResolveReplyPayload,
     CapabilityInvokeRequestPayload,
     CapabilityInvokeReplyPayload,
+    ActionExecuteRequestPayload,
+    ActionResultPayload,
+    ActionApprovalRequestedPayload,
+    ActionApprovalDecidedPayload,
 ]
 
 PACKAGE_ROOT = Path(__file__).resolve().parent.parent

@@ -24,6 +24,7 @@ See `README.md` in this directory for what this system is, how it differs from a
 | [Phase 3B — Domain Foundation (PR #2)](phase-3b.md) | Complete, 1 real bug + 1 coverage-claim error fixed by independent post-review pass | NR | NR | NR | 35 | 100% (corrected from an inaccurate original 100% claim) | `checks` pass; `build-and-scan` pre-existing unrelated failure | N/A (no persistence yet) | 1 disclosed deviation from TDD 3B's own proposal |
 | [Phase 3B — Decomposition Orchestration (PR #7)](phase-3b.md) | Complete | NR | NR | NR | 57 | 99% branch | 3/3 workflows green, real GitHub Actions (18 check runs) | Partial — real NATS JetStream round trip explicitly unverified | **Documentation-sync gap identified**: its own cited research (`phase-3b-decomposition-research`, commit `654570d`) remains unmerged into the canonical lineage as of this record |
 | [Phase 3C](phase-3c.md) | Complete, merged (PR #8) | NR in the gate review itself | NR in the gate review itself | NR in the gate review itself | 59 passed, 6 deselected | 97% | 20/20 green, real GitHub Actions, re-confirmed live post-merge | Fully real-infra confirmed after a mid-review CI-matrix fix | **Known gap**: canonical `phase-3b-planning-domain`'s TDD 3C is the pre-decision version; the resolved version lives only on the unmerged `phase-3c-research` branch |
+| [Phase 3D](phase-3d.md) | Implementation complete, locally verified, **not yet merged** | NR | NR | NR | 47 passed, 8 deselected (action-engine); capability-engine/nova-contracts unaffected, re-verified 61 passed / 86 passed | 97% (action-engine domain); capability-engine domain unchanged at 97% | See `phase-3d.md` field 15 for the real GitHub Actions result | Real-Postgres tests written, deferred to CI (no local Docker daemon) | Two additive TDD 3C correction notes already landed via PR #12; one minor factual correction to PR #12 §5.4 found and disclosed this session |
 
 `NR` = Not reported in the source document. A blank methodology/scope cell is never inferred from a neighboring phase.
 
@@ -70,6 +71,7 @@ Individual, per-phase snapshot files, each citing its own source document by exa
 - [`phase-3a.md`](phase-3a.md)
 - [`phase-3b.md`](phase-3b.md) (covers both PR #2 — Domain Foundation — and PR #7 — Decomposition Orchestration — as two clearly separated sub-units, per their own separate Gate Reviews)
 - [`phase-3c.md`](phase-3c.md)
+- [`phase-3d.md`](phase-3d.md)
 
 The one-time [Project Health Review (August 2026)](../roadmap/architecture-reviews/project-health-review-2026-08.md) is referenced throughout this index but intentionally kept in its existing canonical location under `docs/roadmap/architecture-reviews/` rather than duplicated here — it is a comprehensive, cross-phase architecture audit, not a per-phase snapshot, and per SAD 15 §10 it is triggered by the 30,000/50,000 SLOC milestones rather than by phase boundaries.
 

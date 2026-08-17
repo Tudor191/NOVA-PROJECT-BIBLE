@@ -26,6 +26,12 @@ class FakeCapabilityRepository:
     async def find_by_id(self, capability_id: UUID) -> Capability | None:
         return self.capabilities.get(capability_id)
 
+    async def find_by_name(self, name: str) -> Capability | None:
+        matches = [c for c in self.capabilities.values() if c.name == name]
+        if not matches:
+            return None
+        return max(matches, key=lambda c: c.installed_at)
+
     async def list_all(self) -> list[Capability]:
         return list(self.capabilities.values())
 
