@@ -74,3 +74,7 @@ export * from "./CommunicationSessionLookupByUserRequestPayload";
 export * from "./CommunicationSessionLookupByUserReplyPayload";
 export * from "./DigitalTwinPreferencesGetRequestPayload";
 export * from "./DigitalTwinPreferencesGetReplyPayload";
+export * from "./CapabilityResolveRequestPayload";
+export * from "./CapabilityResolveReplyPayload";
+export * from "./CapabilityInvokeRequestPayload";
+export * from "./CapabilityInvokeReplyPayload";

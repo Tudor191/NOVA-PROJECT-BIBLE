@@ -493,6 +493,26 @@ services:
       redis:
         condition: service_healthy
 
+  capability-engine:
+    build:
+      context: ../..
+      dockerfile: services/capability-engine/Dockerfile
+    restart: unless-stopped
+    environment:
+      EVENT_BUS_BACKEND: nats
+      NATS_URL: nats://nats:4222
+      NOVA_ENGINE_NAME: capability-engine
+      CAPABILITY_ENGINE_POSTGRES_DSN: postgresql+asyncpg://${POSTGRES_USER:-nova}:${POSTGRES_PASSWORD:-nova_dev_password}@postgres:5432/${POSTGRES_DB:-nova}
+      CAPABILITY_ENGINE_SANDBOX_FILESYSTEM_ROOT: /workspace
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+    ports:
+      - "8011:8000"
+    depends_on:
+      nats:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+
 volumes:
   postgres-data:
   neo4j-data:

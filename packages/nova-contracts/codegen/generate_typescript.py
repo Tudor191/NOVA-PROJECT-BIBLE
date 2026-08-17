@@ -19,6 +19,10 @@ from pathlib import Path
 from nova_contracts import (
     AttentionShiftedPayload,
     BudgetExceededPayload,
+    CapabilityInvokeReplyPayload,
+    CapabilityInvokeRequestPayload,
+    CapabilityResolveReplyPayload,
+    CapabilityResolveRequestPayload,
     CommunicationIntentDeliverReplyPayload,
     CommunicationIntentDeliverRequestPayload,
     CommunicationSessionCloseReplyPayload,
@@ -173,6 +177,10 @@ MODELS: list[type[BaseModel]] = [
     CommunicationSessionLookupByUserReplyPayload,
     DigitalTwinPreferencesGetRequestPayload,
     DigitalTwinPreferencesGetReplyPayload,
+    CapabilityResolveRequestPayload,
+    CapabilityResolveReplyPayload,
+    CapabilityInvokeRequestPayload,
+    CapabilityInvokeReplyPayload,
 ]
 
 PACKAGE_ROOT = Path(__file__).resolve().parent.parent
