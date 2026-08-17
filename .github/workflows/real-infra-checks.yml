@@ -57,6 +57,8 @@ jobs:
             path: services/perception-engine
           - package: digital-twin-engine
             path: services/digital-twin-engine
+          - package: capability-engine
+            path: services/capability-engine
     steps:
       - uses: actions/checkout@v4
 
