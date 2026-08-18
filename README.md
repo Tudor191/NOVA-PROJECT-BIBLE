@@ -53,16 +53,17 @@ docker compose -f infra/docker/docker-compose.local.yml up -d   # full local sta
 
 ## Status
 
-**Phases 0 through 3C are implemented and merged; Phase 3D is implemented with CI
-green but not yet merged; Phase 3E has not started.** `nova-core` boots through its
+**Phases 0 through 3D are implemented and merged; Phase 3E has not
+started.** `nova-core` boots through its
 full 7-phase sequence, exposes `/internal/health`, `/internal/readiness`, and
 `/internal/metrics`, and publishes its heartbeat over the Event Bus — see
 [`docs/roadmap/ENGINEERING_ROADMAP.md`](docs/roadmap/ENGINEERING_ROADMAP.md#phase-0--platform-bootstrap)
-for Phase 0's full acceptance criteria. Twelve engines are implemented on the
+for Phase 0's full acceptance criteria. Thirteen engines are implemented on the
 canonical `phase-3b-planning-domain` branch (Memory, Knowledge, World Model, AI Model
 Orchestration, Reasoning, Executive Cognition, Communication, Personality,
-Perception, Digital Twin, Planning, Capability); `action-engine` (Phase 3D) is
-implemented and CI-green on the open, unmerged PR #13. See
+Perception, Digital Twin, Planning, Capability, Action); `action-engine`
+(Phase 3D) merged 2026-08-18 via PR #13 (squash commit
+`ac285bc3533fb24d0434d7675b8fc3af2db1d079`). See
 [`docs/project-health/project-health-master.md`](docs/project-health/project-health-master.md)
 for the full, per-phase longitudinal status record (tests, coverage, CI, real-infra,
 and documentation health for every completed phase) and each phase's own Gate

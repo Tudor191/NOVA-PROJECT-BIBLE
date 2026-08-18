@@ -16,7 +16,7 @@ A structured, chronological snapshot of the same handful of facts — code size,
 
 **Project Health = permanent, longitudinal project-health history.** A much narrower, standardized slice of the same information — the same 23 fields, every time — organized for reading *across* phases, not *within* one. It is built *from* Gate Reviews (and, where a Gate Review omits a field, explicitly says so), never the other way around; Project Health never overrides or corrects a Gate Review's own content.
 
-**The rule going forward: every completed Phase/Sub-Phase must update `docs/project-health/`, not just file its own Gate Review.** A phase is not fully closed until both exist.
+**The rule going forward: every completed Phase/Sub-Phase must update `docs/project-health/`, not just file its own Gate Review.** A phase is not fully closed until both exist — see [`definition-of-done.md`](definition-of-done.md) for the complete, ten-item phase-level completion checklist this rule is one part of.
 
 ## How historical records are represented
 
@@ -39,6 +39,16 @@ When two measurements exist but used different tools, different scope, or otherw
 ## How future phases must update this system
 
 When a Phase/Sub-Phase's Gate Review is written, its author also writes (or extends, for a multi-PR phase like 3B) that phase's own `docs/project-health/phase-N.md` file using the same 23-field shape, cites every value back to the Gate Review section it came from, and updates `project-health-master.md`'s summary table and, if the SLOC methodology changed again, its §2 history section. If a metric is unavailable for that phase, write "Not reported" or "Not measured" in that field — never omit the field silently, and never leave the table row blank without an explanation of why.
+
+## Definition of Done
+
+[`definition-of-done.md`](definition-of-done.md) is the permanent, standing
+phase-level completion checklist — Gate Review and Project Health record (this
+directory) are two of its ten items, alongside TDD/design-doc currency, roadmap and
+README status, reconciliation notes for historical corrections, tests/CI/Trivy/
+real-infrastructure evidence, final acceptance-criteria status, and a final
+merge-readiness review. Read it before declaring any future Phase or Sub-Phase
+complete.
 
 ## Source of truth
 

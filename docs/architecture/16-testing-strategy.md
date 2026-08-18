@@ -78,10 +78,11 @@ types are self-tested inside `nova-testkit`'s own `tests/`
 repository against real Postgres — closing the real-Postgres verification
 gap the Project Health Review (August 2026) identified for the first
 three of these. `action-engine` (Phase 3D) has the same test file
-implemented and passing in real GitHub Actions CI, but as of this writing
-still lives on the unmerged `phase-3d-action-engine` branch (PR #13) — not
-yet "adopted" in the sense of being present on this lineage's own default
-branch. Redis/Neo4j/NATS fixtures exist
+implemented and passing in real GitHub Actions CI; `phase-3d-action-engine`
+(PR #13) merged into `phase-3b-planning-domain` on 2026-08-18 (squash
+commit `ac285bc3533fb24d0434d7675b8fc3af2db1d079`), so this test file is
+now "adopted" in the sense of being present on this lineage's own
+canonical branch, alongside the other four. Redis/Neo4j/NATS fixtures exist
 and are self-tested but **not yet adopted by any engine's own repository
 tests** — that is tracked, sequenced future work
 (`docs/design/nova-testkit/technical-implementation-plan.md §11`), not an
