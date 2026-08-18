@@ -1,20 +1,26 @@
 # Phase 3D — `action-engine`: Gate Review
 
-**Status: implementation complete against TDD 3D §14 criteria 1–6, locally
-verified, real GitHub Actions CI green (22/22 at head `4db1294`). Not
+**Status: Go — all 7 of TDD 3D §14's acceptance criteria are met, locally
+verified, real GitHub Actions CI green (22/22 at head `046d459`). Not yet
 merged — PR #13 remains open against `phase-3b-planning-domain` per
-explicit standing instruction.** One acceptance criterion (§14 criterion
-7, added by this documentation pass) is **currently unmet**: deep
-`Capability.input_schema` validation at pipeline stage 5. See §14
-("Acceptance criteria") and §17 ("Final gate status") below — this Gate
-Review does not award an unqualified "Go" and does not silently mark
-Phase 3D fully complete.
+explicit standing instruction.** See §15 ("Acceptance criteria") and §17
+("Final gate status") below.
 
-This Gate Review was written as part of a dedicated Phase 3D documentation
-and project-state synchronization pass (2026-08-18), separate from and
-after the implementation pass that produced PR #13. It draws only on: the
-finalized TDD 3D (`docs/design/phase-3/07-tdd-3d-action-engine.md`), the
-approved research/plan (`docs/design/phase-3/13-3d-action-engine-research.md`,
+This Gate Review was first written (2026-08-18) as part of a dedicated
+Phase 3D documentation and project-state synchronization pass, separate
+from and after the implementation pass that produced PR #13's original
+commits. At that point six of seven criteria were met, and this document
+recorded a "Conditional" status pending the user's decision on the
+seventh (deep `Capability.input_schema` validation at stage 5). The user
+directed that gap to be closed via implementation; a same-day follow-up
+commit (`046d459`) did so, and this document was updated a second time,
+the same day, to reflect the resulting "Go." The original "Conditional"
+framing is preserved, not deleted, at §16 item 1 (struck through, with
+the resolution recorded alongside it) — this project's standing
+preserve-history convention.
+
+It draws only on: the finalized TDD 3D (`docs/design/phase-3/07-tdd-3d-action-engine.md`),
+the approved research/plan (`docs/design/phase-3/13-3d-action-engine-research.md`,
 PR #12, not yet merged into this lineage), PR #13's actual diff and CI
 history, and direct inspection of the implementation on the
 `phase-3d-action-engine` branch. No historical metric is estimated; where
@@ -60,14 +66,16 @@ resolve handler branches on which is set; `find_by_name` added to
 `Action.execution_target` through this new `name` path exclusively —
 never a raw `capability_id` guess.
 
-**§5.2 (stage-2/stage-5 validation split) — partially implemented, see §14:**
-stage 2 (`domain/pipeline.py`) checks only `parameters['operation']`
-presence — structural, not schema-level. Stage 5 (post-resolution,
-pre-invocation) does **not** perform schema validation of the resolved
-`Action.parameters` against `Capability.input_schema`; it proceeds
-directly to `CapabilityPort.invoke()`. This is the one approved decision
-not fully built — disclosed here, in TDD 3D §14 criterion 7, and in
-`docs/project-health/phase-3d.md` field 18, not silently marked done.
+**§5.2 (stage-2/stage-5 validation split) — fully implemented (closed
+2026-08-18, commit `046d459`; see §9a and §15 criterion 7):** stage 2
+(`domain/pipeline.py`) checks only `parameters['operation']` presence —
+structural, not schema-level. Stage 5 (post-resolution, pre-invocation)
+validates the resolved `Action.parameters` against `Capability.input_schema`
+via `domain/parameter_validation.py`, before proceeding to
+`CapabilityPort.invoke()`. This was, until the same-day follow-up commit
+noted here, the one approved decision not fully built — the gap was
+disclosed, not silently marked done, in TDD 3D §14 criterion 7 and
+`docs/project-health/phase-3d.md` field 18 before it was closed.
 
 **§5.3 (`Action.id` natural-key idempotency):** `insert()` on
 `PostgresActionRepository` translates a primary-key uniqueness violation
@@ -264,13 +272,38 @@ confidence threshold, per ADR-032 and TDD 3D §7.
 
 ---
 
+## 9a. Deep parameter validation (§5.2's stage-5 half, closed 2026-08-18)
+
+`domain/parameter_validation.py` (new, pure, framework-free, 100% test
+coverage): `validate_parameters(parameters, *, input_schema)` validates
+`Action.parameters` against the resolved `Capability.input_schema` via
+the `jsonschema` library — `input_schema` already carries genuine JSON
+Schema vocabulary (`type`/`properties`/`required`, unchanged from Phase
+3C's `builtin_capabilities.py`), so this is literal JSON Schema
+validation, not a bespoke reimplementation. Wired into `domain/pipeline.py`
+stage 5, immediately after capability resolution/health-check and before
+stage 6 (Execute) — matches §5.2's own "immediately before proceeding to
+stage 6" requirement exactly. A validation failure returns a single
+human-readable `str` error (matching every other stage-5 failure path)
+and is a distinct `status="failed"` outcome, never `status="denied"`, per
+§5.2's own "Consequences." A malformed `input_schema` (a
+`capability-engine`-side data-quality problem) is reported with a
+distinguishable message prefix from an invalid caller-supplied
+`parameters` dict. `jsonschema>=4.23` added to `action-engine`'s own
+dependencies; ships no `py.typed` marker, so a
+`[[tool.mypy.overrides]]` entry was added to root `pyproject.toml`,
+matching the existing `asyncpg`/`pgvector`/`testcontainers` precedent
+exactly — no new architectural pattern introduced.
+
+---
+
 ## 10. Testing and verification results
 
 | Check | Result | Classification |
 |---|---|---|
 | `action-engine` ruff + mypy (`src`) | Clean | Fully verified |
-| `action-engine` test suite (`-m "not real_infra"`) | 47/47 passed, 8 deselected | Fully verified |
-| `action-engine` domain coverage | 97% (`pipeline.py` 95%, `models.py`/`ports.py`/`risk.py` 100%) vs. 85% gate | Fully verified |
+| `action-engine` test suite (`-m "not real_infra"`) | 62/62 passed, 8 deselected (47 original + 15 new for stage-5 deep validation, commit `046d459`) | Fully verified |
+| `action-engine` domain coverage | 97% (`pipeline.py` 95%, `parameter_validation.py` 100%, `models.py`/`ports.py`/`risk.py` 100%) vs. 85% gate | Fully verified |
 | `capability-engine` regression (additive `name` field) | 61/61 passed, 6 deselected, domain coverage unchanged at 97% | Fully verified |
 | `nova-contracts` | 86/86 passed | Fully verified |
 | Full monorepo suite (`pnpm turbo run test --force`) | 22/22 packages successful | Fully verified |
@@ -280,8 +313,8 @@ confidence threshold, per ADR-032 and TDD 3D §7.
 | Alembic migration (`0001_initial_schema.py`) | Hand-written, matches `repository/models.py` field-for-field; executed for real by CI (`real-infra (action-engine, ...)`) | Real-infrastructure-verified |
 | Real-Postgres persistence (`tests/integration/test_repository_real_postgres.py`) | 8 tests (insert/find/duplicate-rejection/status+result round trip/`get_result` None-before-recorded/pending-approval round trip/execution-history insert/identity-confidence-policy round trip) | **Real-infrastructure-verified** — not run locally (no Docker daemon in this environment); run for real by CI, passed after one fix-forward commit (§4, §11) |
 | Docker build (`services/action-engine/Dockerfile`) | Built and Trivy-scanned by CI | Real-infrastructure-verified |
-| GitHub Actions CI (all 3 workflows) | 22/22 check runs green at head `4db1294` (re-confirmed live, 2026-08-18) | Real-infrastructure-verified |
-| Deep `Capability.input_schema` validation (§14 criterion 7) | Not implemented — no test exists because there is no behavior to test | **Genuinely unverified — because unbuilt, not because unverifiable** |
+| GitHub Actions CI (all 3 workflows) | **22/22 check runs green at head `046d459`** (confirmed live, 2026-08-18, after the deep-validation commit — real-Postgres and Docker/Trivy jobs included) | Real-infrastructure-verified |
+| Deep `Capability.input_schema` validation (§14 criterion 7) | **Implemented** (§9a) — 15 new tests, 100% coverage on `parameter_validation.py` | Fully verified, real GitHub Actions confirmed at head `046d459` |
 
 ---
 
@@ -317,8 +350,10 @@ unit tests structurally cannot.
   Phase 3's gateway/web-client prerequisite (still design-only, no
   production code authorized per
   `docs/design/phase-3/03-gateway-web-prerequisite.md` line 3) ships.
-- Deep `Capability.input_schema` validation at stage 5 is not implemented
-  — see §14, the central open item of this Gate Review.
+- Deep `Capability.input_schema` validation at stage 5 reports a single
+  human-readable string, not a structured multi-error list — matches
+  every other stage-5 failure's existing convention in this pipeline
+  (§9a), a deliberate scope choice, not a defect.
 
 ---
 
@@ -351,55 +386,60 @@ test, not just documented intent.
 | 4 | ADR-032 gate blocks a low-confidence-identity Critical-risk attempt, per-risk-tier configurability exercised | **Met** — tested directly |
 | 5 | Forced mid-execution failure triggers configured `RollbackStrategy`, restores prior state | **Met** — `restore_file` path tested |
 | 6 | Fork 3C-1/3D-1 and its rollback/snapshot consequence resolved, no outstanding TDD 3C/3D reconciliation | **Met** — resolved by Phase 3C, re-confirmed here |
-| 7 | Stage-2/stage-5 validation split (research doc §5.2) implemented as specified | **Not met** — stage 5 performs no schema validation of `Action.parameters` against the resolved `Capability.input_schema`. Added to TDD 3D §14 by this documentation pass (2026-08-18); not part of the original six criteria as first written, but required by the approved research document's own "final" acceptance criteria (§13 there). |
+| 7 | Stage-2/stage-5 validation split (research doc §5.2) implemented as specified | **Met** (2026-08-18, commit `046d459`) — stage 5 validates `Action.parameters` against the resolved `Capability.input_schema` via `jsonschema`, immediately before stage 6 (Execute); a failure is `status="failed"`, never `"denied"`. See §9a. Originally added "Not met" to TDD 3D §14 by this documentation pass (2026-08-18); closed the same day by a follow-up commit to PR #13. |
 
-**6 of 7 criteria met.** Criterion 7 is the sole gap, and it is a
-**required** item per the approved research decision, not an optional
-one — see §16.
+**7 of 7 criteria met.** No open acceptance-criteria gap remains.
 
 ---
 
 ## 16. Unresolved decisions requiring the user's approval
 
-1. **Deep `Capability.input_schema` validation (criterion 7 above).**
-   Three ways this can be resolved, none chosen by this pass:
-   - **(a)** Implement it now, in a follow-up commit to PR #13, before
-     merge — keeps Phase 3D's acceptance criteria fully met before it
-     closes.
-   - **(b)** Merge Phase 3D as-is with this criterion explicitly accepted
-     as a disclosed, deferred gap, tracked as follow-up work (a natural
-     candidate for early Phase 3E work, since `agent-os` will be the next
-     consumer of well-validated `Action.parameters`).
-   - **(c)** Treat it as a design/documentation gap requiring a small
-     follow-up design note (which JSON Schema-style validator, where it
-     lives, error-reporting shape) before implementation, separate from
-     the implementation-vs-not question.
-   This documentation pass does not choose between these — per the user's
-   own instruction, ambiguity here is reported, not resolved unilaterally,
-   and no application code was changed in this pass to implement (a).
+1. ~~**Deep `Capability.input_schema` validation (criterion 7 above).**~~
+   **Resolved (2026-08-18):** implemented via option (a) from the original
+   three offered here — a follow-up commit to PR #13 (`046d459`), before
+   merge. Kept struck through rather than deleted, per this project's
+   preserve-history convention: the original three-option framing (a:
+   implement now / b: merge with the gap accepted / c: treat as a design
+   gap needing a spec note first) is left visible below for the record.
+   - *(a)* Implement it now, in a follow-up commit to PR #13, before
+     merge — **this is what happened.**
+   - *(b)* Merge Phase 3D as-is with this criterion explicitly accepted
+     as a disclosed, deferred gap — not chosen.
+   - *(c)* Treat it as a design/documentation gap requiring a small
+     follow-up design note first — not chosen; the research document's
+     own §5.2 already specified enough (JSON Schema vocabulary, stage
+     placement, failure-status shape) to implement directly without a
+     separate design note.
 2. **SLOC methodology** (`scc` vs. `cloc`, `docs/project-health/project-health-master.md`
    §2) — pre-existing open decision, unaffected by Phase 3D, restated here
    only because Phase 3D's own SLOC fields are "Not reported" and any
-   future measurement will need this resolved first.
+   future measurement will need this resolved first. **Still open.**
 3. **`phase-3d-research`/PR #12 sync timing** — deliberately not merged
    into canonical lineage by this pass, consistent with the precedent PR
    #11 established (sync after the implementation PR merges, not before).
-   No action needed now; flagged so it isn't forgotten once PR #13 merges.
+   **Still open**, correctly deferred until PR #13 itself merges — not a
+   blocker for that merge decision.
+
+**Remaining decisions requiring the user's approval before Phase 3E
+begins:** whether/when to merge PR #13 and PR #14 (both still open, not
+merged by this pass — see §17), and the two still-open items (2, 3)
+above, neither of which blocks that merge decision.
 
 ---
 
 ## 17. Final gate status
 
-**Conditional.** Six of seven acceptance criteria are met, CI is fully
-green (22/22, real GitHub Actions, real-Postgres and Docker/Trivy
-included), and no regression was introduced in `capability-engine` or
-`nova-contracts`. This is **not** a "Go" in the unqualified sense Phase
-1/2A/2B/2C/3A/3C's own Gate Reviews used that word — the missing deep
-schema validation (§14 criterion 7) is a required item under the approved
-research decision, not a nice-to-have, and this Gate Review does not
-overstate it as complete. Phase 3D is ready for the user's review and
-explicit decision on §16 item 1 before either (a) further implementation
-work closes the gap, or (b) the gap is explicitly accepted and PR #13 is
-merged as-is. **No merge, no Phase 3E work, and no branch deletion has
-happened as part of this Gate Review or the documentation pass that
-produced it**, per standing instruction.
+**Go.** All seven acceptance criteria are met (§15), CI is fully green
+(22/22, real GitHub Actions, real-Postgres and Docker/Trivy included) at
+head `046d459` — confirmed live, 2026-08-18, after the deep-validation
+commit — and no regression was introduced in `capability-engine` or
+`nova-contracts` (§10, §13). This supersedes this document's own prior
+"Conditional" status (recorded above at §16 item 1, now resolved): the one
+gap that prevented an unqualified "Go" — deep `Capability.input_schema`
+validation at stage 5 — is closed. Phase 3D is implementation-complete and
+CI-green. **Not yet merged** — PR #13 and this documentation PR (#14)
+both remain open per explicit standing instruction; merging either, and
+starting Phase 3E, both require the user's explicit approval, not implied
+by this Gate Review reaching "Go." **No merge, no Phase 3E work, and no
+branch deletion has happened as part of this Gate Review or the closure
+pass that produced it.**

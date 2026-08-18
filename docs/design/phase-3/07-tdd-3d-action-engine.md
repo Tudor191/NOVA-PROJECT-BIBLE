@@ -424,6 +424,20 @@ lands, verified against real timing (not a fake clock).
    explicitly accepted, deferred follow-up is a decision left to the user
    — not resolved by this note.
 
+   **Follow-up, implemented (2026-08-18), PR #13 commit `046d459`:** the
+   gap described directly above is now closed. Stage 5 validates the
+   resolved `Action.parameters` against the resolved
+   `Capability.input_schema` via `domain/parameter_validation.py` (new,
+   pure, framework-free, 100% test coverage), using the `jsonschema`
+   library against `input_schema`'s own existing JSON Schema vocabulary
+   (`type`/`properties`/`required`, unchanged from Phase 3C). A validation
+   failure is `status="failed"` (never `"denied"`, per §5.2's own
+   "Consequences"). 15 new tests (11 unit against the validator directly,
+   4 pipeline-level proving the schema actually enforced is the one
+   `capability_port.resolve()` returns). Criterion 7 above is now **met**
+   — see the Phase 3D Gate Review's updated acceptance-criteria table and
+   final gate status for the complete picture.
+
 ---
 
 ## 15. Non-goals / explicitly deferred
