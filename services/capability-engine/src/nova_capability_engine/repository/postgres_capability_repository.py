@@ -17,7 +17,7 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 from nova_contracts import Capability
-from sqlalchemy import select
+from sqlalchemy import desc, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -61,6 +61,16 @@ class PostgresCapabilityRepository:
     async def find_by_id(self, capability_id: UUID) -> Capability | None:
         async with self._session_factory() as session:
             row = await session.get(CapabilityORM, capability_id)
+            return _to_domain(row) if row is not None else None
+
+    async def find_by_name(self, name: str) -> Capability | None:
+        async with self._session_factory() as session:
+            row = await session.scalar(
+                select(CapabilityORM)
+                .where(CapabilityORM.name == name)
+                .order_by(desc(CapabilityORM.installed_at))
+                .limit(1)
+            )
             return _to_domain(row) if row is not None else None
 
     async def list_all(self) -> list[Capability]:

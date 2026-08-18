@@ -45,6 +45,14 @@ ignore_missing_imports = true
 module = ["testcontainers.*"]
 ignore_missing_imports = true
 
+# jsonschema ships no py.typed marker either -- used only inside
+# action-engine's own domain/parameter_validation.py (Phase 3D's stage-5
+# deep Capability.input_schema validation, approved §5.2, implemented
+# 2026-08-18), never imported by any other engine's own src/.
+[[tool.mypy.overrides]]
+module = ["jsonschema.*"]
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 markers = [
@@ -89,6 +97,7 @@ root_packages = [
     "nova_service_kit",
     "nova_planning_engine",
     "nova_capability_engine",
+    "nova_action_engine",
 ]
 include_external_packages = true
 
@@ -109,6 +118,7 @@ modules = [
     "nova_digital_twin_engine",
     "nova_planning_engine",
     "nova_capability_engine",
+    "nova_action_engine",
 ]
 
 [[tool.importlinter.contracts]]
@@ -128,6 +138,7 @@ source_modules = [
     "nova_digital_twin_engine",
     "nova_planning_engine",
     "nova_capability_engine",
+    "nova_action_engine",
 ]
 forbidden_modules = [
     "nats",
@@ -152,6 +163,7 @@ source_modules = [
     "nova_digital_twin_engine",
     "nova_planning_engine",
     "nova_capability_engine",
+    "nova_action_engine",
 ]
 forbidden_modules = [
     "neo4j",
@@ -177,6 +189,7 @@ source_modules = [
     "nova_digital_twin_engine",
     "nova_planning_engine",
     "nova_capability_engine",
+    "nova_action_engine",
 ]
 forbidden_modules = [
     "anthropic",
@@ -242,4 +255,5 @@ forbidden_modules = [
     "nova_digital_twin_engine",
     "nova_planning_engine",
     "nova_capability_engine",
+    "nova_action_engine",
 ]

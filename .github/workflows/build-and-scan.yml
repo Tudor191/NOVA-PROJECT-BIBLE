@@ -64,6 +64,7 @@ jobs:
           - perception-engine
           - digital-twin-engine
           - capability-engine
+          - action-engine
     steps:
       - uses: actions/checkout@v4
 

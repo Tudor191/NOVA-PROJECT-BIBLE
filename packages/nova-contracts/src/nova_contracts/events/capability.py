@@ -26,7 +26,7 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from nova_contracts.registry import register_payload
 
@@ -88,12 +88,29 @@ class CapabilityHandle(BaseModel):
 class CapabilityResolveRequestPayload(BaseModel):
     """Action-Principle-lifecycle stage 5, "Prepare Resources"
     (docs/design/phase-3/07-tdd-3d-action-engine.md §6) -- resolve a
-    `Capability` by id and confirm `health_status`."""
+    `Capability` by id or by name and confirm `health_status`.
 
-    capability_id: UUID
+    **Additive extension, Phase 3D research pass, approved
+    (`docs/design/phase-3/13-3d-action-engine-research.md` §5.1):**
+    `name` was added alongside the original `capability_id` so
+    `action-engine` can resolve `Action.execution_target` (a stable
+    capability name, e.g. `"git"`) without needing to know a
+    Postgres-generated `capability_id` in advance. Per ADR-024, adding a
+    field to an existing payload is never a version bump -- the original
+    by-id resolution path (every existing caller) is unaffected. Exactly
+    one of `capability_id`/`name` must be set; validated below."""
+
+    capability_id: UUID | None = None
+    name: str | None = None
     requesting_engine: str
     correlation_id: UUID
     schema_version: int = 1
+
+    @model_validator(mode="after")
+    def _exactly_one_of_capability_id_or_name(self) -> CapabilityResolveRequestPayload:
+        if (self.capability_id is None) == (self.name is None):
+            raise ValueError("exactly one of capability_id or name must be set")
+        return self
 
 
 @register_payload("capability.resolve.reply")
