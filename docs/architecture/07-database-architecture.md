@@ -12,7 +12,7 @@ the Bible's requirements well.
 
 | Store | Owning engine(s) | Data |
 |---|---|---|
-| PostgreSQL | nova-core, capability-engine, autonomy-engine, planning-engine, agent-os-kernel, communication-engine | Service registry, capability registry, action ledger, policies, task graphs, agent registry, conversation sessions, permissions, audit log |
+| PostgreSQL | nova-core, capability-engine, action-engine, autonomy-engine, planning-engine, agent-os-kernel, communication-engine | Service registry, capability registry, action ledger, policies, task graphs, agent registry, conversation sessions, permissions, audit log |
 | PostgreSQL + pgvector | memory-engine, knowledge-engine | Long-term/semantic/episodic memory records + their embeddings; knowledge item text + embeddings |
 | Neo4j | knowledge-engine, world-model-engine | Knowledge Graph (Part 10), Digital Environment Graph / World Object Graph (Part 5, 18) |
 | Redis | memory-engine (working/short-term), cognitive-state-engine, ws-gateway (session/presence) | Working Memory, Active Thoughts, Attention layers, ephemeral caches, pub/sub side-channel |

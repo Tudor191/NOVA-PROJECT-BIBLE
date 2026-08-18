@@ -402,6 +402,41 @@ lands, verified against real timing (not a fake clock).
    snapshot coordination consequence (§2) are **resolved** — this
    criterion is satisfied; no reconciliation remains outstanding between
    this TDD and TDD 3C on adapter ownership or rollback ownership.
+7. **Added, Phase 3D documentation and project-state synchronization pass
+   (2026-08-18), not silently merged into the numbering above:** §6's own
+   stage-2 mapping in this TDD ("schema/parameter validation against
+   `input_schema`") predates the later, approved research pass in
+   `docs/design/phase-3/13-3d-action-engine-research.md` (PR #12, not yet
+   merged into this lineage as of this note). That research document's §5.2
+   ("APPROVED — Validate-stage schema ownership") splits validation across
+   two stages — stage 2 structural-only, deep `Capability.input_schema`
+   validation of resolved `Action.parameters` deferred to stage 5 — and its
+   §13 "Acceptance criteria (final)" criterion 7 requires that split to be
+   "implemented as specified." **As implemented in PR #13, stage 5's deep
+   schema validation is not yet built** — stage 2 remains structural-only
+   (`parameters['operation']` presence) and stage 5 proceeds directly to
+   capability invocation with no schema check against the resolved
+   `Capability.input_schema` in between. This is disclosed, not silently
+   skipped: see the Phase 3D Gate Review's own acceptance-criteria table
+   for the full analysis and the resulting gate status, and
+   `docs/project-health/phase-3d.md` field 18/21 for the project-health
+   record. Whether to treat this as a blocking gap for Phase 3D or an
+   explicitly accepted, deferred follow-up is a decision left to the user
+   — not resolved by this note.
+
+   **Follow-up, implemented (2026-08-18), PR #13 commit `046d459`:** the
+   gap described directly above is now closed. Stage 5 validates the
+   resolved `Action.parameters` against the resolved
+   `Capability.input_schema` via `domain/parameter_validation.py` (new,
+   pure, framework-free, 100% test coverage), using the `jsonschema`
+   library against `input_schema`'s own existing JSON Schema vocabulary
+   (`type`/`properties`/`required`, unchanged from Phase 3C). A validation
+   failure is `status="failed"` (never `"denied"`, per §5.2's own
+   "Consequences"). 15 new tests (11 unit against the validator directly,
+   4 pipeline-level proving the schema actually enforced is the one
+   `capability_port.resolve()` returns). Criterion 7 above is now **met**
+   — see the Phase 3D Gate Review's updated acceptance-criteria table and
+   final gate status for the complete picture.
 
 ---
 
