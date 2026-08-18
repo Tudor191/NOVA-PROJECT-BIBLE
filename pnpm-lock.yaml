@@ -26,15 +26,37 @@ importers:
 
   packages/nova-observability: {}
 
+  packages/nova-service-kit: {}
+
   packages/nova-testkit: {}
 
   packages/nova-vectorstore-sdk: {}
+
+  services/action-engine: {}
+
+  services/ai-model-orchestration-engine: {}
+
+  services/capability-engine: {}
+
+  services/communication-engine: {}
+
+  services/digital-twin-engine: {}
+
+  services/executive-cognition-engine: {}
 
   services/knowledge-engine: {}
 
   services/memory-engine: {}
 
   services/nova-core: {}
+
+  services/perception-engine: {}
+
+  services/personality-engine: {}
+
+  services/planning-engine: {}
+
+  services/reasoning-engine: {}
 
   services/world-model-engine: {}
 

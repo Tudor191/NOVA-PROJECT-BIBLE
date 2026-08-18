@@ -55,7 +55,14 @@ def _make_resolve_request_handler(app: FastAPI):  # type: ignore[no-untyped-def]
     async def handle(envelope: EventEnvelope) -> CapabilityResolveReplyPayload:
         state = app.state
         payload = CapabilityResolveRequestPayload.model_validate(envelope.payload)
-        capability = await state.repository.find_by_id(payload.capability_id)
+        # Additive extension (Phase 3D research pass, approved:
+        # docs/design/phase-3/13-3d-action-engine-research.md §5.1) --
+        # payload validation already guarantees exactly one of the two is set.
+        if payload.capability_id is not None:
+            capability = await state.repository.find_by_id(payload.capability_id)
+        else:
+            assert payload.name is not None
+            capability = await state.repository.find_by_name(payload.name)
         return CapabilityResolveReplyPayload(found=capability is not None, capability=capability)
 
     return handle
