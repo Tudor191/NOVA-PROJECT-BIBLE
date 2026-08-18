@@ -165,6 +165,92 @@ async def test_prepare_resources_fails_when_capability_unhealthy() -> None:
     assert harness.capability_port.invoke_calls == []
 
 
+async def test_prepare_resources_fails_deep_validation_when_required_field_missing() -> None:
+    """Approved decision §5.2's stage-5 half: `Action.parameters` is
+    deep-validated against the *resolved* `Capability.input_schema` --
+    proving the schema returned by `capability_port.resolve()` (standing
+    in for a real `capability.resolve.reply`) is actually the schema
+    enforced, not a locally-invented one."""
+    harness = _Harness()
+    strict_schema = {
+        "type": "object",
+        "properties": {
+            "operation": {"type": "string"},
+            "path": {"type": "string"},
+        },
+        "required": ["operation", "path"],
+    }
+    harness.capability_port.capabilities_by_name["filesystem"] = _capability(
+        input_schema=strict_schema
+    )
+    result = await harness.run(_request(parameters={"operation": "read"}))
+    assert result.status == "failed"
+    assert result.error is not None and "path" in result.error
+    # Never reaches stage 6 (Execute) -- a schema failure blocks invocation.
+    assert harness.capability_port.invoke_calls == []
+
+
+async def test_prepare_resources_fails_deep_validation_on_wrong_parameter_type() -> None:
+    harness = _Harness()
+    strict_schema = {
+        "type": "object",
+        "properties": {
+            "operation": {"type": "string"},
+            "recursive": {"type": "boolean"},
+        },
+        "required": ["operation"],
+    }
+    harness.capability_port.capabilities_by_name["filesystem"] = _capability(
+        input_schema=strict_schema
+    )
+    result = await harness.run(
+        _request(parameters={"operation": "list", "recursive": "yes"})
+    )
+    assert result.status == "failed"
+    assert result.error is not None and "recursive" in result.error
+    assert harness.capability_port.invoke_calls == []
+
+
+async def test_prepare_resources_deep_validation_passes_valid_parameters_through_to_execute() -> (
+    None
+):
+    harness = _Harness()
+    strict_schema = {
+        "type": "object",
+        "properties": {
+            "operation": {"type": "string"},
+            "path": {"type": "string"},
+        },
+        "required": ["operation", "path"],
+    }
+    capability = _capability(input_schema=strict_schema)
+    harness.capability_port.capabilities_by_name["filesystem"] = capability
+    harness.capability_port.queue_invoke_result(
+        capability.id, "read", ("success", {"content": "hello"}, None)
+    )
+    result = await harness.run(_request(parameters={"operation": "read", "path": "/tmp/note.txt"}))
+    assert result.status == "completed"
+    assert result.result == {"content": "hello"}
+
+
+async def test_deep_validation_failure_is_status_failed_never_denied() -> None:
+    """§5.2's own "Consequences": a parameter-shape failure is
+    `status="failed"`, never `status="denied"` -- denial is reserved for
+    the ADR-032 gate and the approval loop, both unrelated decisions."""
+    harness = _Harness()
+    strict_schema = {
+        "type": "object",
+        "properties": {"operation": {"type": "string"}},
+        "required": ["operation", "must_be_present"],
+    }
+    harness.capability_port.capabilities_by_name["filesystem"] = _capability(
+        input_schema=strict_schema
+    )
+    result = await harness.run(_request(parameters={"operation": "read"}))
+    assert result.status == "failed"
+    assert result.status != "denied"
+
+
 async def test_execution_target_resolves_by_capability_name() -> None:
     """Approved decision §5.1: `execution_target` is the target
     Capability's stable `name`, resolved via `CapabilityPort.resolve(name=...)`."""

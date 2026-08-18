@@ -47,6 +47,7 @@ from nova_contracts import (
 )
 
 from nova_action_engine.domain.models import PendingApproval
+from nova_action_engine.domain.parameter_validation import validate_parameters
 from nova_action_engine.domain.ports import (
     ActionAlreadyExistsError,
     ActionRepository,
@@ -262,6 +263,23 @@ async def execute_action(
             status="failed",
             error=f"capability {capability.name!r} is {capability.health_status}, not healthy",
         )
+
+    # --- Deep parameter validation (approved, §5.2's stage-5 half) --
+    # `Action.parameters` against the just-resolved `Capability.input_schema`.
+    # A validation failure is a distinct, named `status="failed"` outcome
+    # (never "denied" -- this is a parameter-shape failure, not an
+    # approval-loop decision), per §5.2's own "Consequences."
+    validation_error = validate_parameters(
+        request.parameters, input_schema=capability.input_schema
+    )
+    if validation_error is not None:
+        await repository.update_status(request.action_id, status="failed")
+        await _stage(ActionStage.PREPARE_RESOURCES, "failure", validation_error)
+        await repository.record_result(request.action_id, result=None, error=validation_error)
+        return ActionResultPayload(
+            action_id=request.action_id, status="failed", error=validation_error
+        )
+
     await _stage(ActionStage.PREPARE_RESOURCES, "success")
 
     # --- Stage 6: Execute -- invoke the capability's adapter. Rollback
