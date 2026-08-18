@@ -509,7 +509,7 @@ here):
 - **3B — Domain Foundation** (`planning-engine` Task Graph model, PR #2) — Complete, merged. [Gate Review](architecture-reviews/phase-3b-domain-foundation-gate-review.md).
 - **3B — Decomposition Orchestration** (PR #7) — Complete, merged. [Gate Review](architecture-reviews/phase-3b-decomposition-orchestration-gate-review.md).
 - **3C** (`capability-engine`) — Complete, merged (PR #8). [Gate Review](architecture-reviews/phase-3c-capability-engine-gate-review.md).
-- **3D** (`action-engine`) — Implementation complete against 6 of 7 acceptance criteria, CI green, PR #13 **open, not yet merged**. [Gate Review](architecture-reviews/phase-3d-action-engine-gate-review.md).
+- **3D** (`action-engine`) — Implementation complete against all 7 of 7 acceptance criteria, CI green, PR #13 **open, not yet merged**. [Gate Review](architecture-reviews/phase-3d-action-engine-gate-review.md).
 - **3E** (`agent-os` + first agents + supervisor) — **Not started.**
 - The gateway/web-client prerequisite (`docs/design/phase-3/03-gateway-web-prerequisite.md`) and `apps/web-client`'s Planning/Agent Activity panels remain **design-only**, no production code authorized yet.
 
