@@ -3,11 +3,11 @@
 **Status: Go — all 7 of TDD 3D §14's acceptance criteria are met, locally
 verified, real GitHub Actions CI green (22/22 at head `046d459`). PR #13
 merged into `phase-3b-planning-domain` 2026-08-18 as squash commit
-`ac285bc3533fb24d0434d7675b8fc3af2db1d079`, per the user's explicit
-merge approval — the documentation PR (#14) tracking this Gate Review
-remains open pending its own fresh CI verification and separate merge
-approval.** See §15 ("Acceptance criteria") and §17 ("Final gate status")
-below.
+`ac285bc3533fb24d0434d7675b8fc3af2db1d079`; the documentation PR (#14)
+tracking this Gate Review subsequently merged the same day as merge
+commit `e9ea3b8c6ae99c645e6eb41b98fbe34c55f8ec39`, both per the user's
+explicit, separately-given merge approvals.** See §15 ("Acceptance
+criteria") and §17 ("Final gate status") below.
 
 This Gate Review was first written (2026-08-18) as part of a dedicated
 Phase 3D documentation and project-state synchronization pass, separate
@@ -427,15 +427,16 @@ test, not just documented intent.
 3. **`phase-3d-research`/PR #12 sync timing** — deliberately not merged
    into canonical lineage by this pass, consistent with the precedent PR
    #11 established (sync after the implementation PR merges, not before).
-   PR #13 merged 2026-08-18 (squash commit `ac285bc3533fb24d0434d7675b8fc3af2db1d079`),
-   so this sync is now unblocked in principle, but it has **not** been
-   actioned — it remains **still open**, outside the scope of the merge
-   sequence that closed item 1 above.
+   Both PR #13 (2026-08-18, squash commit `ac285bc3533fb24d0434d7675b8fc3af2db1d079`)
+   and PR #14 (2026-08-18, merge commit `e9ea3b8c6ae99c645e6eb41b98fbe34c55f8ec39`)
+   have since merged, so this sync is now unblocked in principle, but it
+   has **not** been actioned — it remains **still open**.
 
 **Remaining decisions requiring the user's approval before Phase 3E
-begins:** PR #13 has merged (see §17); whether/when to merge PR #14 (its
-own separate, explicit approval, still pending — see §17), and the two
-still-open items (2, 3) above, neither of which blocks that decision.
+begins:** PR #13 and PR #14 have both merged (see §17); the two
+still-open items (2, 3) above, neither of which blocks Phase 3E on its
+own — Phase 3E itself still requires the user's separate, explicit
+approval to begin.
 
 ---
 
@@ -450,11 +451,15 @@ commit — and no regression was introduced in `capability-engine` or
 gap that prevented an unqualified "Go" — deep `Capability.input_schema`
 validation at stage 5 — is closed. Phase 3D is implementation-complete and
 CI-green. **PR #13 merged into `phase-3b-planning-domain` on 2026-08-18 as
-squash commit `ac285bc3533fb24d0434d7675b8fc3af2db1d079`, per the user's
-explicit, separately-given merge approval.** This documentation PR (#14)
-remains open, pending its own fresh CI verification against the new
-canonical base and a separate, explicit merge approval — reaching "Go"
-here never implied merge authorization for either PR on its own, and
-Phase 3E has not begun. **No branch has been deleted as part of this Gate
-Review, the closure pass that produced it, or the subsequent merge of PR
-#13.**
+squash commit `ac285bc3533fb24d0434d7675b8fc3af2db1d079`. This
+documentation PR (#14) subsequently reached 22/22 fresh CI green against
+the new canonical base and merged the same day as merge commit
+`e9ea3b8c6ae99c645e6eb41b98fbe34c55f8ec39`, per the user's explicit,
+separately-given merge approvals for each PR.** Reaching "Go" never
+implied merge authorization on its own for either PR — each merge
+required its own separate approval, which is now recorded here. Phase 3E
+has **not** begun and still requires the user's explicit approval to
+start. **No branch has been deleted** as part of this Gate Review, the
+closure pass that produced it, or the subsequent merges of PR #13 and PR
+#14 — `phase-3d-action-engine` and `phase-3-documentation-completion`
+both still exist post-merge, pending a separate branch-cleanup decision.
