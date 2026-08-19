@@ -31,14 +31,25 @@ registry, supervisors}`, the five Agent Packages (`research-agent`,
 
 ## 1. Architectural decisions
 
-**Not yet approved.** Four forks (3E-1 through 3E-4) and one additional,
-previously-undisclosed dependency question (`packages/nova-auth`) have
-recommended resolutions in
+**Originally: not yet approved.** Four forks (3E-1 through 3E-4) and one
+additional, previously-undisclosed dependency question (`packages/nova-auth`)
+have recommended resolutions in
 [`14-3e-agent-os-research.md`](../../design/phase-3/14-3e-agent-os-research.md)
 §3-§9 — none is approved. This section will record each decision's
 final, approved form once the user has approved it, the same way Phase
 3D's own Gate Review §1 recorded §5.1-§5.3's approved decisions only
 after approval, not before.
+
+**Update (2026-08-19), additive.** All four forks (3E-1 through 3E-4) are
+now **approved**, and the two remaining open items (`nova-auth` scope,
+`priority`'s critical-path-position formula) are **resolved** — full
+record in `14-3e-agent-os-research.md` §9/§8a/§8b and
+`08-tdd-3e-agent-os.md` §11. This is an approval of the **architectural
+decisions only** — it does not authorize starting Phase 3E's own
+implementation PR (a separate approval, not yet given), and it does not
+change this Gate Review's own overall PENDING status: §2 through §10
+below still correctly report no code, no tests, no CI, and no
+real-infrastructure results, because none exist yet.
 
 ## 2. Contracts added
 
@@ -83,10 +94,15 @@ commit) has been exercised.
 
 ## 8. Known limitations
 
-Not applicable until implementation exists, beyond what the research
-document itself already discloses as open, unresolved scope questions
-(the six items in `14-3e-agent-os-research.md` §9) — those are decisions
-still pending, not limitations of a shipped system.
+Not applicable until implementation exists. **Update (2026-08-19),
+additive:** the six items originally tracked as open, unresolved scope
+questions in `14-3e-agent-os-research.md` §9 are now all resolved/approved
+(see that document's §9 and §1 above) — none remain pending. The most
+consequential resolved item for future limitations reporting: `nova-auth`
+permission enforcement is declared-intent-only in Phase 3E (§8a of the
+research document), the same accepted gap already disclosed for
+`capability-engine` and `action-engine` — this will be the first "known
+limitation" recorded here once implementation exists to report against.
 
 ## 9. Acceptance criteria
 
