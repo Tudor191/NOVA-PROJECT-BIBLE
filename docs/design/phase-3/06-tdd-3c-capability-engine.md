@@ -270,18 +270,35 @@ applied to every other new payload in this TDD package (§11). Both are
 new, additive `nova_contracts` types per ADR-024 (`schema_version: int = 1`,
 no existing consumer to break).
 
-**Not resolved by this fork, flagged for TDD 3D's own implementation-time
-precision (not a Phase 3C architectural question):** `action-engine`'s
-own `Action` model (TDD 3D §3.1) has no field that unambiguously names
-*which* `Capability`/adapter a given `Action` resolves against —
-`execution_target: str` is the closest candidate, but its exact semantics
-for capability-selection are not spelled out anywhere in TDD 3D's current
-text. This should be tightened when TDD 3D's own implementation begins;
-it does not require the user's architectural judgment (there is no
-competing architecture here, only a missing field-level specification)
-and is not invented here per this pass's own "do not invent additional
-architecture beyond what is required to make this decision precise"
-constraint.
+**Correction, Phase 3D research pass (this note, not a re-opening of Fork
+3C-1/3D-1):** the RPC subjects and payloads described above as
+"illustrative... not fixed here" were, in fact, implemented and tested
+during Phase 3C's own implementation (PR #8) — see
+`nova_contracts.events.capability` and
+`services/capability-engine/src/nova_capability_engine/main.py`'s
+`_make_resolve_request_handler`/`_make_invoke_request_handler`. The
+illustrative names above match exactly what shipped:
+`capability.resolve.request`/`.reply` and
+`capability.invoke.request`/`.reply` are both live, served, and covered by
+a real integration test
+(`tests/integration/test_events_capability_resolve_and_invoke.py`).
+Phase 3D's `action-engine` implements the consumer side against this
+existing, canonical server contract — it does not redesign it. See
+`docs/design/phase-3/13-3d-action-engine-research.md` §4 for the full
+verification.
+
+**Not resolved by this fork as of the original reconciliation pass, since
+resolved by the Phase 3D research pass (`13-3d-action-engine-research.md`
+§5.1, approved):** `action-engine`'s own `Action` model (TDD 3D §3.1) had
+no field that unambiguously named *which* `Capability`/adapter a given
+`Action` resolves against — `execution_target: str` was the closest
+candidate, but its exact semantics for capability-selection were not
+spelled out anywhere in TDD 3D's text. **Now resolved:** `execution_target`
+holds the target capability's stable `name` field, resolved via a
+backward-compatible additive extension to `CapabilityResolveRequestPayload`
+(`name: str | None`, alongside the existing `capability_id: UUID | None`) —
+approved by the user, not a Phase 3C architectural question (there was no
+competing architecture here, only a missing field-level specification).
 
 ---
 
@@ -589,7 +606,13 @@ privileged-capability-*gating* engines — `action-engine`, `autonomy-engine`
   `.ReplyPayload` and `CapabilityInvokeRequestPayload`/`.ReplyPayload`,
   each `schema_version: int = 1` per ADR-024. Exact field shapes are
   implementation-time work, not fixed here, same discipline as every
-  other new payload in this document.
+  other new payload in this document. **Correction, Phase 3D research
+  pass:** these field shapes were fixed during Phase 3C's own
+  implementation (PR #8) and now ship exactly as illustrated above, plus
+  one additive extension approved during Phase 3D's research pass
+  (`CapabilityResolveRequestPayload.name: str | None`, `13-3d-action-engine-research.md`
+  §5.1) — not a re-opening of this section, an implementation-time
+  precision this section explicitly deferred, now closed.
 - Root `pyproject.toml`/import-linter contracts gain
   `nova_capability_engine` (automatic via `scaffold-engine.py` for
   `root_packages`/the ADR-004 independence contract/ADR-006/ADR-007 —
