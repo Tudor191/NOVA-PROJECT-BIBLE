@@ -1,11 +1,14 @@
 # Phase 3E Research & Decision Document — `agent-os`, the Five Agents, the `engineering` Supervisor, and the `GoalsPort` Migration
 
-**Status: research and decision pass complete. Four architectural forks (3E-1
-through 3E-4) resolved below, each with a recommended option and full
-rationale — but none of them is yet approved by the user. No production
-code is authorized by this document.** Implementation may not begin until
-the user has explicitly approved these recommendations, per standing
-instruction.
+**Status: research and decision pass complete, and all six open items are
+now resolved. Forks 3E-1 through 3E-4 are APPROVED by the user (2026-08-19)
+exactly as recommended below.** Items 5 (`nova-auth`) and 6 (`priority`
+formula) — not named forks in TDD 3E's own §11, but left open by the first
+pass of this document — are resolved in §8a and §8b below, added during
+this second pass. **No production code is authorized by this document.**
+Implementation may not begin until the user has explicitly approved
+starting Phase 3E's own implementation PR, a separate approval from the
+architectural-decision approval this document now records.
 
 **Baseline.** `phase-3b-planning-domain` @ `a600bf1ef29b96df7eb4f6d271e0ae175ed06d78`
 (post PR #13/#14/#15/#16 — Phase 3D, including its documentation-closure and
@@ -393,83 +396,297 @@ prove, the two live options are:
   Phase 3D added a small additive extension to `capability-engine`'s
   contract surface as an in-scope prerequisite of its own implementation.
 
-**This document does not resolve this question — it is flagged for the
-user's explicit decision alongside the four named forks (§9).** Unlike
-Forks 3E-1 through 3E-4, no concrete proposal for this exists anywhere in
-TDD 3E's own text to independently verify or refine; a genuine, unproposed
-scope decision, not a proposal-verification.
+**Resolved (2026-08-19) — see §8a immediately below.** The first pass of
+this document left this open as a genuine scope question; a second,
+deeper evidence pass found this project has already answered the
+identical question twice, independently, in two already-shipped Phase 3
+TDDs — see §8a.
 
 ---
 
-## 9. Unresolved decisions requiring the user's approval
+## 8a. Resolution — item 5, `nova-auth`
 
-1. **Fork 3E-1** (`AgentResult`/`AgentMessage` shapes) — recommended:
-   adopt TDD 3E §6's proposal as-is, with the `entities.py` vs.
-   `events/agent_os.py` placement split confirmed correct. **Awaiting
-   approval.**
-2. **Fork 3E-2** (Kernel persistence schema) — recommended: adopt TDD 3E
-   §4's proposed `agent_os` schema (`agent_instance` + `agent_package`)
-   as-is, confirmed to follow the established per-engine-schema and
-   natural-key-idempotency conventions. **Awaiting approval.**
-3. **Fork 3E-3** (`goal_tier` derivation) — recommended:
+**Recommended and adopted option: (a), declared-intent-only. No
+`packages/nova-auth` is built by Phase 3E.**
+
+### Additional evidence found on this second pass
+
+- **`action-engine`'s own shipped, closed pipeline already answers this
+  exact question**, verbatim, in `domain/pipeline.py`'s own stage-3
+  comment: *"`required_permissions` itself is checked declaratively (no
+  `nova-auth` yet, TDD 3D §7/§11 — locally enforced, same reasoning as
+  `capability-engine`'s own TDD 3C §10); the identity-confidence check is
+  this stage's binding, security-relevant gate."* `Action.required_permissions`
+  is stored (`ActionORM.required_permissions: JSONB`) and carried through
+  the pipeline, but no `nova-auth.authorize()` call exists anywhere in
+  `action-engine` — the real, binding security gate for Phase 3D is
+  ADR-032's identity-confidence check instead.
+- **`capability-engine`'s own TDD (`06-tdd-3c-capability-engine.md` §10,
+  "Security boundaries") reaches the identical conclusion**, in almost
+  identical language: *"`required_permissions` reuses the established
+  `PermissionGrant`/`PermissionAction` shape referenced in
+  `docs/architecture/13-auth-and-security.md:45-66` conceptually, though
+  `nova-auth` itself does not exist yet (confirmed: no `services/nova-auth`,
+  only a placeholder comment in `nova-core`'s `boot.py:85`) — so Phase 3's
+  permission checks are necessarily local/self-contained, consistent with
+  the same conclusion already reached for `action-engine` (TDD 3D §7)."*
+  For `capability-engine`, the real binding security boundary is its own
+  OS-level sandboxing (its TDD §10's own opening line: "This TDD **is** a
+  security-boundary-defining TDD — §3's sandboxing mechanisms are the
+  enforced boundary.")
+- **`nova-core`'s own boot sequence independently confirms `nova-auth` was
+  never scoped to Phase 3 at all**: `services/nova-core/src/nova_core/domain/boot.py:85`
+  reads, verbatim, `# placeholders until nova-auth exists (Roadmap Phase
+  2/7)` — `nova-auth` was already a named, deferred-to-a-later-phase
+  dependency before Phase 3 began, not an oversight specific to any one
+  Phase 3 TDD.
+
+### Decision
+
+Phase 3E follows the identical precedent TDD 3C §10 and TDD 3D §7/§11
+already established, independently, for the same question: `agent.yaml`'s
+`required_permissions` is declared in the manifest and surfaced to the
+user at Registry install-time (doc 12 §6's own "Permission review —
+surfaced to user if new/elevated" step — a diff-and-display against the
+previously-installed version's own declared permissions, requiring no
+`nova-auth` call), **not** enforced by a real `nova-auth.authorize()` call
+at Kernel-execute-time. This is an explicitly disclosed, deferred gap —
+recorded here, in TDD 3E §5 (Registry), and in the Phase 3E Gate Review
+once it applies — never a silently skipped check.
+
+### Exact rationale for rejecting option (b) (build a minimal `nova-auth` now)
+
+Building `nova-auth` now, only for Agent OS's own permission-declaration
+surface, would create a genuinely worse security posture than declaring
+the gap honestly: an agent's actual work is delegated to `action-engine`
+(`coding-agent`/`qa-agent`/`documentation-agent` all invoke
+`action.execute`, per TDD 3E §9's own agent-behavior table) and, through
+it, to `capability-engine` — and *neither* of those already-shipped,
+closed engines enforces via `nova-auth` either. A Kernel-level
+`nova-auth.authorize()` call would check a boundary that does nothing to
+prevent the same agent's downstream `action.execute()` call from doing
+whatever ADR-032's identity-confidence gate and `capability-engine`'s own
+sandboxing already allow — an enforcement point that cannot actually stop
+anything the two engines it delegates to don't already independently gate,
+while adding real net-new infrastructure (a whole new `packages/nova-auth`)
+that this project's own roadmap already scoped to a later phase, for a
+guarantee it would not actually deliver. Declaring the gap honestly,
+consistent with the two already-shipped precedents, is both the smaller
+change and the more honest one.
+
+### Consequences for implementation
+
+- No `packages/nova-auth` package, no `PermissionGrant`/`PermissionSet`
+  type, and no `nova-auth.authorize()` call anywhere in Phase 3E's own
+  implementation.
+- `agent-os/registry`'s install pipeline (doc 12 §6 step "Permission
+  review") implements the diff-and-display step locally, comparing an
+  `agent.yaml`'s `required_permissions` against the previously-installed
+  version's own declared list (or the empty list, for a first install),
+  surfacing anything new/elevated to the user — no external call needed.
+- `agent-os/kernel`'s own `execute()`-time step performs no permission
+  re-validation call (doc 12 §7's own "re-validated at every `execute()`
+  invocation" is not implemented in Phase 3, matching the identical,
+  already-accepted gap in `action-engine`'s own stage 3 and
+  `capability-engine`'s own invoke path).
+
+### Required documentation updates
+
+- TDD 3E §5 (Registry) gets a short additive note recording this
+  resolution — applied in this same pass (§9/§10 below).
+- This Gate Review-adjacent gap is recorded in the Phase 3E Gate Review's
+  own §1/§8 once that document is filled in for real, at the actual gate
+  review point — not fabricated now.
+
+---
+
+## 8b. Resolution — item 6, `priority`'s critical-path-position formula
+
+### Current repository evidence
+
+- `Goal.priority: float = Field(ge=0.0, le=1.0)` — a normalized scalar,
+  confirmed identical in both engines' `Goal` models.
+- `TaskGraph.critical_path: list[UUID]`, confirmed via direct inspection
+  of `domain/task_graph.py`'s `compute_critical_path()`: the list is
+  built by walking backward from the node with the greatest cumulative
+  `estimated_effort.effort_hours` along the DAG's longest chain, then
+  `path.reverse()`d — so `critical_path[0]` is the chain's root (a node
+  with no `depends_on`) and `critical_path[-1]` is the chain's final node.
+  Ties are broken deterministically toward the earliest-indexed node in
+  `nodes` (the function's own docstring: "the same graph always reports
+  the same path, not merely *a* longest one").
+- `TaskGraph` carries no deadline, urgency, or graph-level scalar of its
+  own beyond `root_objective`, `nodes`, and `critical_path` — there is no
+  existing field this heuristic can read a "how urgent is this" signal
+  from directly.
+- `planning.goals.current.request`'s reply is `list[Goal]` — potentially
+  more than one active `TaskGraph` per user at once, per TDD 3E §8's own
+  proposed RPC shape.
+
+### Options considered
+
+1. **Normalize the critical path's total `effort_hours` against an
+   invented absolute scale** (e.g., "8 hours = 1.0"). Rejected: no
+   document anywhere in this repository specifies what a "typical" or
+   "maximum" `effort_hours` figure is for a `TaskGraph`; any absolute
+   scale would be an invented magic number with no evidence behind it —
+   exactly what this project's own research discipline (used throughout
+   Phase 3C's and Phase 3D's own fork resolutions) rejects when a
+   simpler, evidence-grounded alternative exists.
+2. **Derive priority from the highest `RiskLevel` among the graph's
+   nodes.** Considered, and rejected on a closer read: `RiskLevel`
+   already has its own, separate, well-established purpose (ADR-032's
+   identity-confidence gate, `action-engine`'s approval-loop gating) —
+   reusing it here would conflate "how risky is this work" with "how
+   urgently should this goal win a scoring tie-break," two genuinely
+   different questions ADR-029 itself keeps separate (risk is one of the
+   Cognitive Priority Matrix's *other* seven factors, not the same
+   dimension `long_term_alignment`/`priority` occupy).
+3. **Rank each user's currently active `TaskGraph`s against each other by
+   their critical path's total `effort_hours`, and set `priority` as a
+   normalized rank position within that one RPC reply.** Adopted — see
+   below.
+
+### Recommended and adopted option
+
+**Option 3.** Within one `planning.goals.current.request` reply (i.e.,
+among a single user's currently active `TaskGraph`s), each graph's
+critical path's total `effort_hours` (`sum(node.estimated_effort.effort_hours
+for node in graph.nodes if node.id in graph.critical_path)`) is computed,
+and the graphs are sorted descending by that sum, ties broken by
+`TaskGraph.id` (the same deterministic-tie-break-by-stable-ID convention
+already used by `compute_critical_path()` itself and by ADR-029's own
+arbitration tie-break chain). Each graph's `priority` is then its
+normalized rank position:
+
+```python
+priority = 1.0 - (rank_index / max(1, len(active_task_graphs) - 1))
+```
+
+where `rank_index` is the graph's zero-based position in that sorted
+order (`0` = the graph with the largest critical-path effort sum, which
+gets `priority = 1.0`). A single active `TaskGraph` (the common case)
+gets `priority = 1.0` — the one active goal is, by definition, the user's
+top-priority goal among their current active set.
+
+### Exact rationale
+
+This reads TDD 3E §8's own phrase — "derived from critical-path
+*position*" — literally: `priority` is a *relative position* among the
+goals actually being returned together, not an absolute score requiring
+an invented scale. It uses only data the `TaskGraph` already exposes
+(`nodes`, `critical_path`), introduces no new field anywhere, and reuses
+this project's own already-established deterministic-tie-break-by-ID
+pattern rather than inventing a new one. A graph whose critical path
+represents more sustained work is read as more substantial (the same
+underlying intuition Fork 3E-3's `goal_tier` heuristic already uses for a
+different purpose), and — because it's a rank, not an absolute score —
+it needs no magic normalization constant to stay meaningful as the
+active-goal set changes over time.
+
+### Consequences for implementation
+
+- The pure `priority`-ranking function lives alongside the `goal_tier`
+  derivation function in `services/planning-engine/src/nova_planning_engine/domain/`,
+  operating on `list[TaskGraph]` (all of a user's currently active
+  graphs), not a single graph in isolation — a small but real difference
+  from `goal_tier`, which is a pure per-graph function.
+- `planning.goals.current.request`'s handler must fetch *all* of a user's
+  currently active `TaskGraph`s before computing `priority` for any one
+  of them (it cannot be computed per-graph, in isolation, the way
+  `goal_tier` can).
+
+### Required tests
+
+- Unit: the ranking function, covering the single-active-graph case
+  (`priority == 1.0`), a multi-graph case with a clear ordering, and the
+  tie-break-by-`id` case (two graphs with identical critical-path effort
+  sums).
+
+### Required documentation updates
+
+- TDD 3B (`05-tdd-3b-planning-engine.md`) gets a short additive note
+  alongside `goal_tier`'s own note (§9/§10 below), disclosing both new
+  derivation functions together, since they're introduced by the same new
+  RPC.
+
+---
+
+## 9. Final decisions — all six items resolved
+
+1. **Fork 3E-1** (`AgentResult`/`AgentMessage` shapes) — **APPROVED
+   (2026-08-19).** `AgentResult` → `nova_contracts.entities` (no
+   `schema_version`, no `@register_payload`); `AgentMessage` →
+   `nova_contracts.events.agent_os` (`schema_version: int = 1`,
+   `@register_payload`), exactly as recommended in §3 above.
+2. **Fork 3E-2** (Kernel persistence schema) — **APPROVED (2026-08-19).**
+   A dedicated `agent_os` Postgres schema (`agent_instance` +
+   `agent_package` tables), following the `action-engine`
+   per-engine-schema and natural-key-idempotency pattern, exactly as
+   recommended in §4 above.
+3. **Fork 3E-3** (`goal_tier` derivation) — **APPROVED (2026-08-19).**
    `"established"` iff `len(task_graph.nodes) > 1`, else `"ad_hoc"`,
-   derived at read time in `planning-engine`, never persisted. **Awaiting
-   approval.**
-4. **Fork 3E-4** (scaffolding tooling) — recommended: two new, separate
-   scripts (`scaffold-agent-os-component.py`, `scaffold-agent-package.py`);
-   `scaffold-engine.py` itself unchanged. **Awaiting approval.**
-5. **New finding, not a named fork** (§8): whether `agent.yaml`
-   permissions are (a) declared-intent-only in Phase 3E (mirroring Fork
-   3C-2's precedent, no `nova-auth` build required), or (b) actually
-   enforced via a new, minimal `packages/nova-auth` built as an in-scope
-   Phase 3E prerequisite. **Awaiting the user's decision — no
-   recommendation is made here, since either is architecturally
-   defensible and the choice is a scope decision, not a technical one
-   this pass can resolve on the evidence alone.**
-6. **`priority`'s exact critical-path-position formula** (§5's
-   "Consequences" section) — a small implementation-time detail flagged
-   for visibility, not requiring the same weight of approval as items 1-5,
-   but noted here so it is not silently decided during implementation
-   without the user having seen it named.
+   derived at read time in `planning-engine`, never persisted, exactly as
+   recommended in §5 above.
+4. **Fork 3E-4** (scaffolding tooling) — **APPROVED (2026-08-19).** Two
+   new, separate scripts (`scaffold-agent-os-component.py`,
+   `scaffold-agent-package.py`); `scaffold-engine.py` itself unchanged,
+   exactly as recommended in §6 above.
+5. **Item 5, `nova-auth`** (§8) — **RESOLVED (2026-08-19), see §8a.**
+   Option (a), declared-intent-only: `agent.yaml`'s `required_permissions`
+   is declared and surfaced at Registry install-time; no
+   `packages/nova-auth` is built by Phase 3E. No precursor PR is required
+   — see §8a's rationale for rejecting option (b).
+6. **Item 6, `priority`'s critical-path-position formula** — **RESOLVED
+   (2026-08-19), see §8b.** `priority = 1.0 - (rank_index / max(1,
+   len(active_task_graphs) - 1))`, ranking a user's active `TaskGraph`s by
+   critical-path effort sum, tie-broken by `TaskGraph.id`.
 
-**None of these six items blocks Phase 3D's own closure or any other
-phase** — Phase 3D is fully closed and unaffected by this document. They
-block only the start of Phase 3E's own implementation PR.
+**All six items are now resolved.** None of them reopens Phase 3D's own
+closure or any other phase — Phase 3D remains fully closed and unaffected
+by this document. Resolving these six items authorizes the architectural
+decisions documented in §3-§8b; it does **not**, by itself, authorize
+starting Phase 3E's own implementation PR — that remains a separate,
+explicit approval the user has not yet given (see the status banner at
+the top of this document).
 
 ---
 
-## 10. Proposed TDD 3E additive notes (not yet applied — for the user's approval alongside the forks above)
+## 10. TDD 3E additive notes (applied)
 
-If forks 1-4 are approved as recommended, the following short, additive,
-dated notes would be added to `08-tdd-3e-agent-os.md` (original text
-preserved in every case, per this project's standing reconciliation
-convention) — listed here rather than applied now, since applying them
-before approval would misrepresent unapproved recommendations as decided:
+Now that forks 1-4 and items 5-6 are approved/resolved, the following
+short, additive, dated notes have been added to `08-tdd-3e-agent-os.md`
+(original text preserved in every case, per this project's standing
+reconciliation convention — nothing was silently rewritten):
 
 - §3 (Scaffolding gap): a note recording Fork 3E-4's resolution and this
   document's citation.
 - §4 (`agent-os/kernel` design): a note recording Fork 3E-2's resolution.
+- §5 (Registry): a note recording item 5's (`nova-auth`) resolution.
 - §6 (`AgentResult`/`AgentMessage`): a note recording Fork 3E-1's
   resolution.
-- §8 (`GoalsPort` migration): a note recording Fork 3E-3's resolution.
+- §8 (`GoalsPort` migration): a note recording Fork 3E-3's resolution and
+  item 6's (`priority` formula) resolution.
 - §11 (Open architectural forks): each of the four fork entries gets a
-  "Resolved, see `14-3e-agent-os-research.md` §N — pending final user
-  approval" pointer, mirroring the exact struck-through-plus-resolution-note
-  pattern already used for Phase 3D's own Fork §16 item 1.
+  "RESOLVED (2026-08-19) — see `14-3e-agent-os-research.md` §N" pointer,
+  mirroring the exact struck-through-plus-resolution-note pattern already
+  used for Phase 3D's own Fork §16 item 1.
 
 ---
 
-## 11. Proposed implementation branch and PR structure (for later, once approved)
+## 11. Proposed implementation branch and PR structure (for later, once implementation is separately approved)
 
 Following the exact precedent Phase 3D's own research document set: one
 implementation branch, `phase-3e-agent-os`, based directly on
 `phase-3b-planning-domain`, one PR against the same base, covering the
 whole of Phase 3E's authorized scope (mirroring PR #8's and PR #13's
-shape) — **unless** decision item 5 above resolves to option (b) (build
-`nova-auth`), in which case a small, independent precursor PR for the
-minimal `nova-auth` package (touching a package no other engine currently
-depends on) is the safer sequencing, the same reasoning already applied to
-Phase 3D's own `capability-engine` contract extension.
+shape). Item 5 resolved to option (a) (declared-intent-only, §8a) — **no
+precursor `nova-auth` PR is needed**; the precursor-PR contingency this
+section originally described no longer applies.
 
-This section is descriptive, not authorizing — no branch has been created
-by this document.
+This section remains descriptive, not authorizing — no branch has been
+created by this document, and none will be created until the user
+separately approves starting Phase 3E's own implementation PR (a
+different approval from the architectural-decision approval this
+document now records — see the status banner at the top of this
+document).

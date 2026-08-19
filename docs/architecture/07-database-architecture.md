@@ -78,6 +78,32 @@ CREATE TABLE autonomy.decision_log (
     outcome TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- agent-os/kernel (illustrative sketch -- superseded by the detailed,
+-- phase-scoped schema in docs/design/phase-3/08-tdd-3e-agent-os.md §4/§5
+-- and docs/design/phase-3/14-3e-agent-os-research.md §4, which are
+-- authoritative for Phase 3E implementation once approved and built.
+-- Approved 2026-08-19; not yet implemented.)
+CREATE TABLE agent_os.agent_instance (
+    id UUID PRIMARY KEY,
+    agent_package_id UUID NOT NULL,
+    category TEXT NOT NULL,
+    execution_backend TEXT NOT NULL,
+    status TEXT NOT NULL,
+    assigned_task_node_id UUID,
+    supervisor_id UUID,
+    started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    health_status TEXT NOT NULL DEFAULT 'unknown'
+);
+CREATE TABLE agent_os.agent_package (
+    id UUID PRIMARY KEY,
+    category TEXT NOT NULL,
+    version TEXT NOT NULL,
+    manifest_json JSONB NOT NULL,
+    installed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    health_status TEXT NOT NULL DEFAULT 'unknown',
+    UNIQUE (category, version)
+);
 ```
 
 Every table has a corresponding SQLAlchemy model in `services/<engine>/src/.../models/`

@@ -284,6 +284,39 @@ already-enforced behavior.
 payload, and no scope creep into `communication-engine`'s own decision
 logic.
 
+**Note (2026-08-19), additive — new `planning.goals.current.request`/`.reply`
+RPC, discovered during Phase 3E's own architecture research pass, not
+originally specified by this TDD.** TDD 3E's `GoalsPort` real-RPC
+migration (both `reasoning-engine` and `executive-cognition-engine`)
+requires `planning-engine` to serve one small, additive RPC mapping each
+of a user's active `TaskGraph`s to a `Goal`:
+`Goal(id=task_graph.id, description=task_graph.root_objective,
+priority=<derived>, goal_tier=<derived>)`. Two new pure derivation
+functions back this RPC, both operating on already-persisted `TaskGraph`
+state and neither persisting a new field:
+
+- **`goal_tier`** — `"established"` iff `len(task_graph.nodes) > 1`, else
+  `"ad_hoc"`, derived at read time, never persisted. Full rationale:
+  [`14-3e-agent-os-research.md`](14-3e-agent-os-research.md) §5,
+  resolution recorded in `08-tdd-3e-agent-os.md` §8.
+- **`priority`** — `1.0 - (rank_index / max(1, len(active_task_graphs) - 1))`,
+  ranking a user's currently active `TaskGraph`s descending by
+  critical-path effort sum (`sum(node.estimated_effort.effort_hours for
+  node in graph.nodes if node.id in graph.critical_path)`), tie-broken by
+  `TaskGraph.id`. Full derivation:
+  [`14-3e-agent-os-research.md`](14-3e-agent-os-research.md) §8b,
+  resolution recorded in `08-tdd-3e-agent-os.md` §8.
+
+This RPC and both derivation functions are **approved and resolved
+(2026-08-19)** as architectural decisions, mirroring the "genuinely
+discovered during implementation/research necessity, disclosed via an
+additive extension" treatment already given to the
+`proactive_delivery_record` precedent (Fork D, Phase 2D-D) — this TDD's
+own `TaskGraph`/`TaskNode`/`Estimate` models are unchanged; only a new
+read-time RPC handler and two pure functions are added. Not yet
+implemented — implementation is authorized only once Phase 3E's own
+implementation PR is separately approved.
+
 ---
 
 ## 7. Open architectural forks

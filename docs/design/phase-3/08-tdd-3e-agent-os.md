@@ -1,10 +1,14 @@
 # TDD 3E — `agent-os` (Kernel, SDK, Registry, Supervisors), the Five Agents,
 ## the `engineering` Supervisor, and the `GoalsPort` Migration
 
-**Status: design only, awaiting approval. No production code authorized.**
-This is the largest, most integrative TDD in the package — it is the
-point at which `3B`/`3C`/`3D`'s independently-buildable engines are
-actually exercised together for the first time.
+**Status: design complete, architectural decisions approved/resolved
+(2026-08-19) — see §11 and each section's own resolution note. No
+production code authorized.** This is the largest, most integrative TDD
+in the package — it is the point at which `3B`/`3C`/`3D`'s
+independently-buildable engines are actually exercised together for the
+first time. Approval of the architectural decisions recorded here is a
+separate step from approving the start of Phase 3E's own implementation
+PR; the latter has not been given.
 
 ---
 
@@ -106,6 +110,19 @@ must land before `3E`'s own code can be scaffolded, distinct from the
 five engines' own straightforward use of the existing (unmodified)
 `scaffold-engine.py`.
 
+**RESOLVED (2026-08-19), additive note — Fork 3E-4.** Approved: two new,
+separate scripts — `tools/scaffold-agent-os-component.py` (for
+`agent-os/<name>/`, no `-engine` suffix, minimal health-only skeleton)
+and a second, distinct `tools/scaffold-agent-package.py` (for
+`agents/<name>-agent/`, the `agent.yaml` + `src/handler.py` + `tests/`
+layout). The `--target` flag alternative is rejected — see
+[`14-3e-agent-os-research.md`](14-3e-agent-os-research.md) §6 for the
+full rationale (branching one script across three structurally distinct
+templates was found to add more conditional complexity than two small,
+separate scripts). `tools/scaffold-engine.py` itself is unchanged. This
+note does not alter the proposal text above, which is preserved as
+originally written.
+
 ---
 
 ## 4. `agent-os/kernel` — design
@@ -159,6 +176,14 @@ Kernel process) is re-queued — its `assigned_task_node_id` is reset to
 redispatch, never silently lost. **Flagged for approval** — this schema
 is proposed, not extracted from any document.
 
+**RESOLVED (2026-08-19), additive note — Fork 3E-2.** Approved: the
+proposed `agent_os` Postgres schema, `agent_instance` + `agent_package`
+tables, adopted as-is. Independently re-verified against the
+`action-engine` per-engine-schema and natural-key-idempotency precedent
+in [`14-3e-agent-os-research.md`](14-3e-agent-os-research.md) §4 (exact
+SQLAlchemy ORM given there). This note does not alter the proposal text
+above, which is preserved as originally written.
+
 ---
 
 ## 5. `agent-os/registry` — design
@@ -179,6 +204,23 @@ Registry's persistence keys on `(category, version)`, not `category`
 alone, from day one, even though Phase 3 ships exactly one version per
 agent. New `agent_package` table: `id`, `category`, `version`,
 `manifest_json`, `installed_at`, `health_status`.
+
+**RESOLVED (2026-08-19), additive note — item 5, `nova-auth` (a
+previously-undisclosed dependency gap, not one of the four named forks
+above — see
+[`14-3e-agent-os-research.md`](14-3e-agent-os-research.md) §8/§8a).**
+`packages/nova-auth` does not exist and is not built by Phase 3E. The
+"Permission review" step of the 8-step pipeline above is implemented as a
+local diff-and-display: an installing `agent.yaml`'s `required_permissions`
+is compared against the previously-installed version's own declared list
+(or the empty list, for a first install) and anything new/elevated is
+surfaced to the user — no `nova-auth.authorize()` call. This is the same
+declared-intent-only precedent already established, independently, by
+`capability-engine`'s TDD 3C §10 and `action-engine`'s TDD 3D §7/§11 for
+the identical `nova-auth`-does-not-exist-yet situation. Kernel-side
+`execute()`-time permission re-validation (doc 12 §7) is correspondingly
+**not implemented** in Phase 3 — an explicitly disclosed, deferred gap,
+not a silently skipped check.
 
 ---
 
@@ -216,6 +258,16 @@ class AgentMessage(BaseModel):
 same disclosure discipline already applied to `Estimate`/`RiskLevel`
 (`3B`), `CapabilityHandle` (`3C`), `RetryPolicy`/`RollbackStrategy`
 (`3D`).
+
+**RESOLVED (2026-08-19), additive note — Fork 3E-1.** Approved: both
+shapes adopted as proposed above, with the placement split confirmed by
+independent re-verification —
+[`14-3e-agent-os-research.md`](14-3e-agent-os-research.md) §3 confirms
+`AgentResult` belongs in `nova_contracts.entities` (never independently
+published) and `AgentMessage` belongs in `nova_contracts.events.agent_os`
+(`schema_version: int = 1`, `@register_payload`), per this project's own
+Extraction-E placement rule. This note does not alter the proposal text
+above, which is preserved as originally written.
 
 **`AgentHandler` Protocol, `AgentContext`, `AgentHealth`, `AgentMetrics`**
 — used verbatim from doc 12 §4 (`12-agent-architecture.md:108-149`), no
@@ -296,6 +348,19 @@ implementation necessity):
   changing the Protocol's own shape or any caller" precedent, already
   established for `PersonalContextPort` in Phase 2D-D).
 
+**RESOLVED (2026-08-19), additive note — Fork 3E-3 and item 6
+(`priority` formula).** Approved: `goal_tier = "established"` iff
+`len(task_graph.nodes) > 1`, else `"ad_hoc"`, derived at read time inside
+`planning-engine`'s new RPC handler, never persisted — confirmed by
+independent re-verification against ADR-029's tie-break-only scope in
+[`14-3e-agent-os-research.md`](14-3e-agent-os-research.md) §5. `priority`
+is set to `1.0 - (rank_index / max(1, len(active_task_graphs) - 1))`,
+ranking a user's active `TaskGraph`s descending by critical-path effort
+sum (tie-broken by `TaskGraph.id`) — full derivation and rationale in
+that document's §8b. Both derivations are additive to `05-tdd-3b-planning-engine.md`,
+which carries its own corresponding note. This note does not alter the
+proposal text above, which is preserved as originally written.
+
 ---
 
 ## 9. The five agents — deliberately minimal Phase 3 scope
@@ -344,32 +409,39 @@ Non-goals.
 
 ## 11. Open architectural forks
 
-**Note (2026-08-19), additive — the four forks below are not yet
-resolved.** A dedicated research/decision pass,
+**Note (2026-08-19), additive — all four forks below are now RESOLVED.**
+A dedicated research/decision pass,
 [`14-3e-agent-os-research.md`](14-3e-agent-os-research.md), independently
 re-verified each proposal below against the current repository (source
 code, contracts, persistence patterns, and the cited architecture
 documents) and recorded a recommended option for each, plus one additional,
 previously-undisclosed dependency gap (`packages/nova-auth` does not
-exist — see that document's §8). **None of these recommendations is
-approved yet.** This note will be replaced with each fork's actual
-resolution once the user approves; the fork descriptions immediately below
-are preserved exactly as originally written.
+exist — see that document's §8/§8a). **All four forks are APPROVED by the
+user (2026-08-19), and items 5 (`nova-auth`) and 6 (`priority` formula)
+are RESOLVED (2026-08-19, §8a/§8b).** Approval of these architectural
+decisions does not, by itself, authorize starting Phase 3E's own
+implementation PR — that remains a separate approval, not yet given. The
+fork descriptions immediately below are preserved exactly as originally
+written; each now carries its own resolution note (§3, §4, §5, §6, §8
+above).
 
 ### Fork 3E-1 — `AgentResult`/`AgentMessage` field shapes (§6)
 
-Already presented with a concrete proposal. **Requires explicit
-approval.**
+Already presented with a concrete proposal. **RESOLVED (2026-08-19) —
+approved as proposed; see §6's resolution note and
+`14-3e-agent-os-research.md` §3.**
 
 ### Fork 3E-2 — Kernel persistence schema (§4)
 
-Already presented with a concrete proposal. **Requires explicit
-approval.**
+Already presented with a concrete proposal. **RESOLVED (2026-08-19) —
+approved as proposed; see §4's resolution note and
+`14-3e-agent-os-research.md` §4.**
 
 ### Fork 3E-3 — `goal_tier` derivation heuristic (§8)
 
-Already presented with a concrete proposal. **Requires explicit
-approval.**
+Already presented with a concrete proposal. **RESOLVED (2026-08-19) —
+approved as proposed; see §8's resolution note and
+`14-3e-agent-os-research.md` §5.**
 
 ### Fork 3E-4 — Scaffolding tooling approach (§3)
 
@@ -378,8 +450,26 @@ implementation detail, **recommendation: new script**
 (`tools/scaffold-agent-os-component.py`), since the generated skeleton
 differs enough (no FastAPI events/repository template) that branching
 inside the existing script would add more conditional complexity than a
-small, separate script. **Flagged for approval** since it's a genuine,
-if minor, implementation choice.
+small, separate script. **RESOLVED (2026-08-19) — approved: two new,
+separate scripts; see §3's resolution note and
+`14-3e-agent-os-research.md` §6.**
+
+### Item 5 (not a named fork) — `nova-auth` (§8, §5 above)
+
+Whether `agent.yaml` permissions are declared-intent-only or enforced via
+a new `packages/nova-auth`. **RESOLVED (2026-08-19) — Option (a),
+declared-intent-only; no `packages/nova-auth` is built. See §5's
+resolution note and `14-3e-agent-os-research.md` §8a for full rationale,
+including the two independent precedents (TDD 3C §10, TDD 3D §7/§11)
+that decided it.**
+
+### Item 6 — `priority`'s critical-path-position formula (§8 above)
+
+**RESOLVED (2026-08-19) —**
+`priority = 1.0 - (rank_index / max(1, len(active_task_graphs) - 1))`,
+ranking a user's active `TaskGraph`s by critical-path effort sum,
+tie-broken by `TaskGraph.id`. See §8's resolution note and
+`14-3e-agent-os-research.md` §8b for full derivation.
 
 ---
 
