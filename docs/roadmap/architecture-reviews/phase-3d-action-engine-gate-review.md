@@ -31,7 +31,7 @@ content in this Gate Review was changed by that update.
 
 It draws only on: the finalized TDD 3D (`docs/design/phase-3/07-tdd-3d-action-engine.md`),
 the approved research/plan (`docs/design/phase-3/13-3d-action-engine-research.md`,
-PR #12, not yet merged into this lineage), PR #13's actual diff and CI
+originally PR #12, synced into canonical lineage 2026-08-19 via PR #15), PR #13's actual diff and CI
 history, and direct inspection of the implementation on the
 `phase-3d-action-engine` branch. No historical metric is estimated; where
 a value was not recorded anywhere, this document says "Not reported."
@@ -424,17 +424,19 @@ test, not just documented intent.
    §2) — pre-existing open decision, unaffected by Phase 3D, restated here
    only because Phase 3D's own SLOC fields are "Not reported" and any
    future measurement will need this resolved first. **Still open.**
-3. **`phase-3d-research`/PR #12 sync timing** — deliberately not merged
-   into canonical lineage by this pass, consistent with the precedent PR
-   #11 established (sync after the implementation PR merges, not before).
-   Both PR #13 (2026-08-18, squash commit `ac285bc3533fb24d0434d7675b8fc3af2db1d079`)
-   and PR #14 (2026-08-18, merge commit `e9ea3b8c6ae99c645e6eb41b98fbe34c55f8ec39`)
-   have since merged, so this sync is now unblocked in principle, but it
-   has **not** been actioned — it remains **still open**.
+3. ~~**`phase-3d-research`/PR #12 sync timing.**~~ **Resolved (2026-08-19):**
+   deliberately not merged into canonical lineage until both implementation
+   PRs merged, consistent with the precedent PR #11 established (sync after
+   the implementation PR merges, not before). PR #13 (2026-08-18, squash
+   commit `ac285bc3533fb24d0434d7675b8fc3af2db1d079`) and PR #14 (2026-08-18,
+   merge commit `e9ea3b8c6ae99c645e6eb41b98fbe34c55f8ec39`) both merged,
+   unblocking the sync; it completed via PR #15 (2026-08-19, merge commit
+   `bf748d0ef4157da3a60e0eb880a24a58264d9387`). Kept struck through rather
+   than deleted, per this project's preserve-history convention.
 
 **Remaining decisions requiring the user's approval before Phase 3E
-begins:** PR #13 and PR #14 have both merged (see §17); the two
-still-open items (2, 3) above, neither of which blocks Phase 3E on its
+begins:** PR #13, PR #14, and PR #15 have all merged (see §17); item 2
+above (SLOC methodology) remains open but does not block Phase 3E on its
 own — Phase 3E itself still requires the user's separate, explicit
 approval to begin.
 
@@ -459,7 +461,12 @@ separately-given merge approvals for each PR.** Reaching "Go" never
 implied merge authorization on its own for either PR — each merge
 required its own separate approval, which is now recorded here. Phase 3E
 has **not** begun and still requires the user's explicit approval to
-start. **No branch has been deleted** as part of this Gate Review, the
-closure pass that produced it, or the subsequent merges of PR #13 and PR
-#14 — `phase-3d-action-engine` and `phase-3-documentation-completion`
-both still exist post-merge, pending a separate branch-cleanup decision.
+start. **Update (2026-08-19):** the `phase-3d-research`/PR #12 sync (§16
+item 3) also merged, as PR #15, merge commit
+`bf748d0ef4157da3a60e0eb880a24a58264d9387` — with it, all Phase 3D
+implementation, closure, and research documentation is now in canonical
+lineage. **No branch has been deleted** as part of this Gate Review, the
+closure pass that produced it, or the subsequent merges of PR #13, PR
+#14, or PR #15 — `phase-3d-action-engine`, `phase-3-documentation-completion`,
+and `phase-3d-research` all still exist post-merge, pending a separate
+branch-cleanup decision.
