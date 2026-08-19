@@ -510,7 +510,7 @@ here):
 - **3B — Decomposition Orchestration** (PR #7) — Complete, merged. [Gate Review](architecture-reviews/phase-3b-decomposition-orchestration-gate-review.md).
 - **3C** (`capability-engine`) — Complete, merged (PR #8). [Gate Review](architecture-reviews/phase-3c-capability-engine-gate-review.md).
 - **3D** (`action-engine`) — Implementation complete against all 7 of 7 acceptance criteria, CI green, PR #13 **merged into `phase-3b-planning-domain`** 2026-08-18 (squash commit `ac285bc3533fb24d0434d7675b8fc3af2db1d079`). [Gate Review](architecture-reviews/phase-3d-action-engine-gate-review.md).
-- **3E** (`agent-os` + first agents + supervisor) — **Not started.**
+- **3E** (`agent-os` + first agents + supervisor) — **Implementation not started.** Research/decision pass complete (2026-08-19): four architectural forks and one additional dependency question resolved to recommended options, [`14-3e-agent-os-research.md`](../design/phase-3/14-3e-agent-os-research.md) — none yet approved. Gate Review structure prepared, explicitly not applicable yet: [Gate Review](architecture-reviews/phase-3e-agent-os-gate-review.md).
 - The gateway/web-client prerequisite (`docs/design/phase-3/03-gateway-web-prerequisite.md`) and `apps/web-client`'s Planning/Agent Activity panels remain **design-only**, no production code authorized yet.
 
 **Objectives**

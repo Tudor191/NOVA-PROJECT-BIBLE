@@ -344,6 +344,18 @@ Non-goals.
 
 ## 11. Open architectural forks
 
+**Note (2026-08-19), additive — the four forks below are not yet
+resolved.** A dedicated research/decision pass,
+[`14-3e-agent-os-research.md`](14-3e-agent-os-research.md), independently
+re-verified each proposal below against the current repository (source
+code, contracts, persistence patterns, and the cited architecture
+documents) and recorded a recommended option for each, plus one additional,
+previously-undisclosed dependency gap (`packages/nova-auth` does not
+exist — see that document's §8). **None of these recommendations is
+approved yet.** This note will be replaced with each fork's actual
+resolution once the user approves; the fork descriptions immediately below
+are preserved exactly as originally written.
+
 ### Fork 3E-1 — `AgentResult`/`AgentMessage` field shapes (§6)
 
 Already presented with a concrete proposal. **Requires explicit
