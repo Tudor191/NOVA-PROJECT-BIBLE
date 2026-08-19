@@ -4,6 +4,42 @@
 
 **Baseline.** `phase-3b-planning-domain` @ `a943b0abec6b12d84d0cc7e52e3ba4dccee88c98` (post PR #9 and PR #11 — Project Health system and the resolved Phase 3C/3D/3E documentation are both canonical as of this baseline). This document does not re-litigate any decision already marked RESOLVED in `06-tdd-3c-capability-engine.md` or `07-tdd-3d-action-engine.md` — those documents' fork resolutions are treated as authoritative throughout.
 
+**Sync note (2026-08-18), added when this document was merged into canonical
+lineage — the original text above and below is otherwise unchanged.** This
+document (PR #12) was deliberately held out of canonical lineage until
+Phase 3D's implementation (PR #13) and its documentation-closure pass
+(PR #14) both merged, per the same sequencing precedent PR #11 established
+for `phase-3c-research`. That condition is now satisfied — PR #13 merged
+2026-08-18 as squash commit `ac285bc3533fb24d0434d7675b8fc3af2db1d079`, PR
+#14 merged the same day as merge commit
+`e9ea3b8c6ae99c645e6eb41b98fbe34c55f8ec39`. Two things worth recording
+for a reader arriving at this document after the fact:
+
+- **All three approved decisions (§5.1-§5.3) shipped exactly as described
+  here.** `execution_target` resolves by capability `name` via the
+  additive `CapabilityResolveRequestPayload.name` field and
+  `find_by_name` (§5.1); the stage-2/stage-5 validation split (§5.2) is
+  implemented in `domain/parameter_validation.py`; natural-key
+  idempotency on `Action.id` (§5.3) is implemented, including the
+  concurrent-retry-race path. See the
+  [Phase 3D Gate Review](../../roadmap/architecture-reviews/phase-3d-action-engine-gate-review.md)
+  for the full, verified account of each.
+- **§13's own "Acceptance criteria (final)" list below numbers 9 items,
+  not 7 — this does not contradict the "7 of 7" figure used everywhere
+  else in this project's documentation (Gate Review, Project Health,
+  roadmap).** TDD 3D's own canonical §14 tracks a *different*, 7-item
+  acceptance-criteria list (items 1-5 there correspond directly to items
+  1-5 below; TDD 3D §14 item 7 corresponds to item 7 below, the
+  stage-2/5 validation split). Items 6 (`execution_target` resolves by
+  name) and 8-9 (the dedicated idempotency test; full local+CI
+  verification green) below were implemented and verified — see the
+  Gate Review §10/§13 — but were never folded into TDD 3D §14's own
+  numbered list; they remain this document's own, narrower PR-scoped
+  verification bar, tracked separately rather than merged into the
+  headline count. Both lists are fully satisfied; the numbering simply
+  never lined up 1:1, and is clarified here rather than silently
+  reconciled by renumbering either document.
+
 ---
 
 ## 0. Scope of this document
