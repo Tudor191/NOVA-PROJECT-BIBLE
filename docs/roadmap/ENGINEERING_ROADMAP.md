@@ -502,6 +502,17 @@ user-facing surface.
 
 ## Phase 3 — Planning & the NOVA Agent Operating System (NAOS)
 
+Status (as of 2026-08-18, see `docs/project-health/project-health-master.md`
+§1 and each sub-phase's own Gate Review for full detail — not repeated
+here):
+- **3A** (`reasoning-engine` Multi-step recursion trigger) — Complete. [Gate Review](architecture-reviews/phase-3a-gate-review.md).
+- **3B — Domain Foundation** (`planning-engine` Task Graph model, PR #2) — Complete, merged. [Gate Review](architecture-reviews/phase-3b-domain-foundation-gate-review.md).
+- **3B — Decomposition Orchestration** (PR #7) — Complete, merged. [Gate Review](architecture-reviews/phase-3b-decomposition-orchestration-gate-review.md).
+- **3C** (`capability-engine`) — Complete, merged (PR #8). [Gate Review](architecture-reviews/phase-3c-capability-engine-gate-review.md).
+- **3D** (`action-engine`) — Implementation complete against all 7 of 7 acceptance criteria, CI green, PR #13 **merged into `phase-3b-planning-domain`** 2026-08-18 (squash commit `ac285bc3533fb24d0434d7675b8fc3af2db1d079`). [Gate Review](architecture-reviews/phase-3d-action-engine-gate-review.md).
+- **3E** (`agent-os` + first agents + supervisor) — **Not started.**
+- The gateway/web-client prerequisite (`docs/design/phase-3/03-gateway-web-prerequisite.md`) and `apps/web-client`'s Planning/Agent Activity panels remain **design-only**, no production code authorized yet.
+
 **Objectives**
 - Implement `planning-engine`, the **NOVA Agent Operating System** ([12](../architecture/12-agent-architecture.md), ADR-008) — Agent Kernel, Agent Registry, Agent SDK, and the `inprocess` execution backend — plus the first concrete agents, `action-engine`, and `capability-engine`. This is the point at which NOVA moves from "answers questions" to "does work," and where NAOS ships as a real but intentionally minimal instance of the full architecture in [12 §15](../architecture/12-agent-architecture.md#15-what-ships-in-phase-3-vs-what-the-architecture-already-supports).
 

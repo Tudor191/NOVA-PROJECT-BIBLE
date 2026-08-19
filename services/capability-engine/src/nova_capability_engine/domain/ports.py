@@ -114,6 +114,22 @@ class CapabilityRepository(Protocol):
 
     async def find_by_id(self, capability_id: UUID) -> Capability | None: ...
 
+    async def find_by_name(self, name: str) -> Capability | None:
+        """Resolve a capability by its stable `name` alone, without a
+        specific `version` -- added for `capability.resolve.request`'s
+        additive `name` field (Phase 3D research pass, approved:
+        `docs/design/phase-3/13-3d-action-engine-research.md` §5.1).
+
+        Phase 3's four built-in capabilities each install exactly one
+        version, so `name` alone is unambiguous today. If more than one
+        version of the same `name` is ever registered, the most recently
+        installed one wins -- a small, defensible default consistent with
+        ordinary "latest version" conventions, not a competing
+        architecture requiring the user's judgment (there is exactly one
+        reasonable reading of "resolve by name" when multiple versions
+        exist, and Phase 3's own capability set never exercises it)."""
+        ...
+
     async def list_all(self) -> list[Capability]: ...
 
     async def insert(self, capability: Capability) -> Capability:

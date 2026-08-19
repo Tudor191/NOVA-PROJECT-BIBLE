@@ -72,11 +72,17 @@ exposes a real, rollback-isolated `async_sessionmaker` an unmodified real
 `Postgres*Repository` can be constructed against directly. All four fixture
 types are self-tested inside `nova-testkit`'s own `tests/`
 (`test_postgres.py`/`test_redis.py`/`test_neo4j.py`/`test_nats.py`).
-**Current adoption**: `communication-engine`, `personality-engine`, and
-`perception-engine` each have a `tests/integration/test_repository_real_postgres.py`
-exercising their real repository against real Postgres — closing the
-real-Postgres verification gap the Project Health Review (August 2026)
-identified for exactly these three engines. Redis/Neo4j/NATS fixtures exist
+**Current adoption**: `communication-engine`, `personality-engine`,
+`perception-engine`, and (Phase 3C) `capability-engine` each have a
+`tests/integration/test_repository_real_postgres.py` exercising their real
+repository against real Postgres — closing the real-Postgres verification
+gap the Project Health Review (August 2026) identified for the first
+three of these. `action-engine` (Phase 3D) has the same test file
+implemented and passing in real GitHub Actions CI; `phase-3d-action-engine`
+(PR #13) merged into `phase-3b-planning-domain` on 2026-08-18 (squash
+commit `ac285bc3533fb24d0434d7675b8fc3af2db1d079`), so this test file is
+now "adopted" in the sense of being present on this lineage's own
+canonical branch, alongside the other four. Redis/Neo4j/NATS fixtures exist
 and are self-tested but **not yet adopted by any engine's own repository
 tests** — that is tracked, sequenced future work
 (`docs/design/nova-testkit/technical-implementation-plan.md §11`), not an

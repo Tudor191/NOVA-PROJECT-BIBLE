@@ -8,6 +8,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from uuid import uuid4
 
+import pytest
 from nova_contracts import (
     Capability,
     CapabilityHandle,
@@ -17,6 +18,7 @@ from nova_contracts import (
     CapabilityResolveRequestPayload,
 )
 from nova_contracts.registry import known_subjects, payload_model_for
+from pydantic import ValidationError
 
 
 def _capability(**overrides: object) -> Capability:
@@ -65,6 +67,28 @@ def test_resolve_request_and_reply_round_trip() -> None:
 
     not_found_reply = CapabilityResolveReplyPayload(found=False)
     assert not_found_reply.capability is None
+
+
+def test_resolve_request_by_name_round_trips() -> None:
+    """Additive extension, approved
+    (docs/design/phase-3/13-3d-action-engine-research.md §5.1) --
+    `action-engine`'s `CapabilityPort` resolves by stable capability
+    `name`, never by a `capability_id` it has no way to know in advance."""
+    request = CapabilityResolveRequestPayload(
+        name="git", requesting_engine="action-engine", correlation_id=uuid4()
+    )
+    assert request.capability_id is None
+    restored = CapabilityResolveRequestPayload.model_validate_json(request.model_dump_json())
+    assert restored == request
+
+
+def test_resolve_request_requires_exactly_one_of_capability_id_or_name() -> None:
+    with pytest.raises(ValidationError):
+        CapabilityResolveRequestPayload(requesting_engine="x", correlation_id=uuid4())
+    with pytest.raises(ValidationError):
+        CapabilityResolveRequestPayload(
+            capability_id=uuid4(), name="git", requesting_engine="x", correlation_id=uuid4()
+        )
 
 
 def test_invoke_request_and_reply_round_trip() -> None:

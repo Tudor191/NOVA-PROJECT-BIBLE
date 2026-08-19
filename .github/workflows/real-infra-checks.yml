@@ -59,6 +59,8 @@ jobs:
             path: services/digital-twin-engine
           - package: capability-engine
             path: services/capability-engine
+          - package: action-engine
+            path: services/action-engine
     steps:
       - uses: actions/checkout@v4
 

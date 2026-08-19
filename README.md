@@ -53,9 +53,19 @@ docker compose -f infra/docker/docker-compose.local.yml up -d   # full local sta
 
 ## Status
 
-**Phase 0 (Platform Bootstrap) implemented and passing CI locally.** `nova-core` boots
-through its full 7-phase sequence, exposes `/internal/health`, `/internal/readiness`,
-and `/internal/metrics`, and publishes its heartbeat over the Event Bus — see
+**Phases 0 through 3D are implemented and merged; Phase 3E has not
+started.** `nova-core` boots through its
+full 7-phase sequence, exposes `/internal/health`, `/internal/readiness`, and
+`/internal/metrics`, and publishes its heartbeat over the Event Bus — see
 [`docs/roadmap/ENGINEERING_ROADMAP.md`](docs/roadmap/ENGINEERING_ROADMAP.md#phase-0--platform-bootstrap)
-for the full acceptance criteria. Phases 1+ (Memory/Knowledge/World Model, the AI
-Core, the NOVA Agent Operating System, and everything after) have not started.
+for Phase 0's full acceptance criteria. Thirteen engines are implemented on the
+canonical `phase-3b-planning-domain` branch (Memory, Knowledge, World Model, AI Model
+Orchestration, Reasoning, Executive Cognition, Communication, Personality,
+Perception, Digital Twin, Planning, Capability, Action); `action-engine`
+(Phase 3D) merged 2026-08-18 via PR #13 (squash commit
+`ac285bc3533fb24d0434d7675b8fc3af2db1d079`). See
+[`docs/project-health/project-health-master.md`](docs/project-health/project-health-master.md)
+for the full, per-phase longitudinal status record (tests, coverage, CI, real-infra,
+and documentation health for every completed phase) and each phase's own Gate
+Review under [`docs/roadmap/architecture-reviews/`](docs/roadmap/architecture-reviews/)
+for full detail.

@@ -14,6 +14,20 @@ allowlist for the same reason.
 
 from nova_contracts.entities import MemoryReference, PersonalContext, WorldModelSnapshot
 from nova_contracts.envelope import EventEnvelope
+from nova_contracts.events.action import (
+    Action,
+    ActionApprovalDecidedPayload,
+    ActionApprovalRequestedPayload,
+    ActionExecuteRequestPayload,
+    ActionPriority,
+    ActionResultPayload,
+    ActionStatus,
+    ActionType,
+    ApprovalDecision,
+    RetryPolicy,
+    RollbackStrategy,
+    RollbackStrategyKind,
+)
 from nova_contracts.events.ai_model_orchestration import (
     BudgetExceededPayload,
     BudgetScope,
@@ -185,6 +199,15 @@ from nova_contracts.registry import (
 )
 
 __all__ = [
+    "Action",
+    "ActionApprovalDecidedPayload",
+    "ActionApprovalRequestedPayload",
+    "ActionExecuteRequestPayload",
+    "ActionPriority",
+    "ActionResultPayload",
+    "ActionStatus",
+    "ActionType",
+    "ApprovalDecision",
     "ArbitrationOutcome",
     "AttentionShiftedPayload",
     "AttentionState",
@@ -312,7 +335,10 @@ __all__ = [
     "RequestFailedPayload",
     "RequestOutcome",
     "ResponseShapingDirectivePayload",
+    "RetryPolicy",
     "RiskLevel",
+    "RollbackStrategy",
+    "RollbackStrategyKind",
     "ShortTermMemoryCreatedPayload",
     "SynthesizeReplyPayload",
     "SynthesizeRequestPayload",
