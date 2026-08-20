@@ -1,7 +1,7 @@
 # Phase 3B — `planning-engine` Persistence: Gate Review
 
-**Status: complete, locally fully verified; real-GitHub-Actions CI
-verification pending, to be recorded in §10 after this PR is opened.
+**Status: complete, fully verified locally and via real GitHub Actions
+(see §10) — 24/24 checks green at head `ac364b998e130c944c355e52608b57849407c785`.
 Covers exactly one PR-sized unit** (`phase-3b-planning-persistence`,
 branched from `phase-3b-planning-domain`) of Phase 3B's multi-PR
 implementation — the fourth and, per TDD 3B's own scope, final PR closing
@@ -153,6 +153,35 @@ transaction, with the fully up-to-date `TaskGraph`. A new
 `find_node(task_node_id) -> tuple[TaskGraph, TaskNode] | None` port method
 was added to make the two-step lookup (node → its graph) a proper
 repository primitive rather than an ad hoc query inline in the handler.
+
+---
+
+## 3a. CI-caught defect, fixed same-day (commit `ac364b9`)
+
+The first pushed commit (`3c71e77`)'s real-infra CI run
+(`real-infra-checks.yml`, `planning-engine` matrix entry, first execution
+ever for this engine) caught a genuine bug that no local check could have
+caught in this environment (no Docker daemon; see §6/§9's own disclosure):
+`_node_orm()` passed `node.depends_on` (`list[UUID]`) directly into
+`TaskNodeORM.depends_on` (a JSONB column) without stringifying, unlike the
+identical `critical_path` field a few lines above it, which already does
+`[str(node_id) for node_id in graph.critical_path]`. This only fails for a
+`TaskNode` with a **non-empty** `depends_on` — `json.dumps` cannot
+serialize a bare `UUID` object — which is why 9 of the 10 new real-infra
+tests passed and exactly one (the only one inserting a node with a
+dependency) failed: `TypeError: Object of type UUID is not JSON
+serializable`.
+
+Fixed by mirroring the existing `critical_path` pattern exactly:
+`_node_orm()` now stringifies (`[str(dep_id) for dep_id in
+node.depends_on]`) on write, and `_node_to_domain()` now parses back
+(`[UUID(dep_id) for dep_id in row.depends_on]`) on read. Local
+ruff/mypy/the 67-test non-real-infra suite were re-verified clean before
+pushing the fix; the corrected commit's own real-infra CI run confirmed
+"10 passed, 67 deselected." No other test or code path was affected —
+every other new test that exercises `depends_on` uses an empty list, so
+this defect was real but narrowly scoped to the one path CI's own
+non-empty-dependency test happened to exercise.
 
 ---
 
@@ -324,13 +353,13 @@ already-approved architectural decisions.
 | Claim | Evidence | Category |
 |---|---|---|
 | Domain/contract logic correct | 4 new `decompose_node` unit tests + 3 new contract round-trip tests, all passing | Fully verified |
-| Repository translation/mutation logic correct against real schema | 10 new real-Postgres tests, written and reviewed but not locally executed (no Docker daemon) | Contract-fake verified locally; real-infra verification pending CI (§10) |
+| Repository translation/mutation logic correct against real schema | 10 new real-Postgres tests; written and reviewed in an environment with no Docker daemon, then genuinely executed via CI (§10): "10 passed" against a real `postgres:16-alpine` container — one real defect caught and fixed in this process (§3a) | Fully verified (real-infra, §10) |
 | `planning.decompose.request` RPC serve/reply wiring correct | 3 new integration tests against a real `create_app()` + real in-memory `EventBus`, fake repository/model port | Local integration verified |
 | `GET`/`POST /v1/plans` API correct | 4 new integration tests against a real `TestClient` | Local integration verified |
 | `reasoning.process.completed` → persisted `TaskGraph` + enqueued outbox row | 4 modified integration tests, fake repository | Local integration verified |
 | Outbox worker (`workers/outbox_worker.py`) actually dispatches to a real NATS/Postgres pair | Not exercised — no engine's own worker test suite exercises this beyond unit-level `run_outbox_dispatch` composition (same gap disclosed for every other engine's own outbox worker) | Genuinely unverified (explicitly, not silently assumed) |
 | `reasoning.process.completed`/`planning.decompose.request` over real NATS JetStream (redelivery, consumer groups) | Not exercised — same disclosed gap as the decomposition-orchestration PR's own §9; no engine in this codebase uses the `nats_event_bus` fixture for a subject-subscription proof yet | Genuinely unverified (explicitly, not silently assumed) |
-| Docker image builds successfully | `docker-compose config` validates; `Dockerfile` reviewed line-by-line against `action-engine`'s own working equivalent; not built locally (no Docker daemon) | Pending CI (§10) |
+| Docker image builds successfully, zero critical/high CVEs | `docker-compose config` validates; not built locally (no Docker daemon), but CI's `build-and-scan (planning-engine)` (§10) built the image and Trivy reported zero critical/high findings | Fully verified (real CI, §10) |
 | ruff/mypy/import-linter/TS-codegen zero-drift | All re-run after every change in this PR, all clean | Fully verified |
 
 ---
@@ -355,11 +384,31 @@ already-approved architectural decisions.
 
 ---
 
-## 10. GitHub Actions (to be confirmed after this PR is opened)
+## 10. GitHub Actions (confirmed after push, PR #18, head `ac364b9`)
 
-*Filled in once the PR is pushed and its checks complete — real-infra
-tests, Docker image build/Trivy scan, and `pr-checks` all require CI's
-own Docker daemon and are not locally verifiable in this environment.*
+24/24 checks green, confirmed via `pull_request_read(method="get_check_runs")`,
+not assumed, at head commit `ac364b998e130c944c355e52608b57849407c785`:
+
+- `checks` (`pr-checks.yml`) — `success`.
+- `dependency-audit` — `success`.
+- `build-and-scan` — all 13 matrix entries `success`, including
+  **`build-and-scan (planning-engine)`** for the first time ever (this
+  engine had no matrix entry before this PR). Trivy's own scan table
+  (`severity: CRITICAL,HIGH`, `exit-code: 1`) reports every layer/package
+  row `0` ("Clean, no security findings detected") — zero critical/high
+  CVEs in the built image, consistent with every other engine's image on
+  this same base after TRIVY-2's fix plus this Dockerfile's own new
+  `apt-get upgrade -y` line (§5).
+- `real-infra` — all 10 matrix entries `success`, including
+  **`real-infra (planning-engine, services/planning-engine)`** for the
+  first time ever: **"10 passed, 67 deselected"** against a real
+  `postgres:16-alpine` container via `testcontainers` — every one of the
+  10 tests in §6/§8's real-Postgres suite genuinely executed and passed,
+  not merely written. (First push, commit `3c71e77`, failed one of these
+  10 with a real defect; see §3a. The re-push, commit `ac364b9`, is the
+  result cited here.)
+
+`mergeable_state` is `clean`.
 
 ---
 
@@ -370,7 +419,7 @@ own Docker daemon and are not locally verifiable in this environment.*
 | 1 | A scripted `reasoning.process.completed` at/above the decomposition-confidence threshold produces a structurally valid `TaskGraph` | **Met** — shipped in the decomposition-orchestration PR, unaffected by this PR; re-verified passing (`test_events_reasoning_completed.py`, now also asserting persistence) |
 | 2 | A second decomposition call against an existing `TaskGraph` mutates it in place, confirmed by primary-key stability | **Met** — `test_append_nodes_mutates_in_place_and_recomputes_critical_path` (real-infra) and `test_decompose_request_round_trips_a_genuine_breakdown` (integration) both assert the original node's `id` and the graph's `id` are unchanged after mutation |
 | 3 | `planning.decompose.request` served correctly, including the "already minimal" non-decomposable case | **Met** — `test_events_decompose_request.py`, 3 tests covering genuine breakdown, already-minimal, and unknown-`task_node_id` |
-| 4 | `TaskGraph`/`TaskNode` state survives a real-Postgres restart simulation unchanged | **Met, written and reviewed; not locally executed** — `test_a_fresh_repository_instance_reads_back_a_graph_written_earlier`, matching the TDD's own "simulated via a fresh repository instance against the same real Postgres" wording exactly; no reachable Docker daemon in this environment, real execution deferred to CI (§10) |
+| 4 | `TaskGraph`/`TaskNode` state survives a real-Postgres restart simulation unchanged | **Met, confirmed via real CI (§10)** — `test_a_fresh_repository_instance_reads_back_a_graph_written_earlier` passed against a real `postgres:16-alpine` container, matching the TDD's own "simulated via a fresh repository instance against the same real Postgres" wording exactly |
 | 5 | `POST /v1/plans/{id}/approve` round-trips through a real FastAPI app and correctly sets `approved_at` | **Met** — `test_plans_api.py::test_approve_plan_records_an_approval_decision` |
 
 All five of TDD 3B §13's acceptance criteria are met by this PR's own scope; criterion 4's real-Postgres execution is confirmed pending CI, not silently assumed.
