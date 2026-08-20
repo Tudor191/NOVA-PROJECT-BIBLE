@@ -20,12 +20,28 @@ not an oversight" (decomposition-orchestration Gate Review §11).
 **Note (2026-08-20), additive:** the head SHA cited above (`ac364b9`) is
 the last *application-code* commit; a subsequent docs-only commit
 (`41afd01684707eb11126d4e70f78c9e1af514db4`) recorded the CI results this
-section cites and is now PR #18's actual head. That docs-only commit's
-own CI run was independently re-confirmed 24/24 green (including
+section cites and became PR #18's head at that time. That docs-only
+commit's own CI run was independently re-confirmed 24/24 green (including
 `real-infra (planning-engine)`, `build-and-scan (planning-engine)`) during
 the 2026-08-20 consistency audit — no application-code change occurred
-between the two SHAs, so every finding in this document stands unchanged
-at the new head.
+between the two SHAs, so every finding in this document stood unchanged
+at that head.
+
+**Note (2026-08-20), additive — MERGED.** A second, purely documentation
+commit (`dc89dda14abcafeec24ece2454fd6080a85b65f0`) applied that
+consistency audit's own corrections, was independently re-confirmed
+24/24 green, and became PR #18's final head. The user then approved the
+merge, and **PR #18 was squash-merged into `phase-3b-planning-domain`
+at commit `a72bd83f69354fa8d262b9c0d68a7cd9125dc8ce`, now that branch's
+canonical HEAD.** Post-merge verification confirmed: `a72bd83`'s tree is
+byte-identical to `dc89dda`'s (zero diff) — the exact code CI verified
+24/24 green is what merged; the local test suite (67 passed, 10
+deselected, 98.68% domain coverage), `ruff check`, `mypy`, import-linter
+(6/6), TypeScript codegen (zero drift), and `docker-compose config` were
+all independently re-run directly against the merged canonical tree and
+matched every figure in this document exactly; the `TaskNode.depends_on`
+UUID-serialization fix (§3a) is confirmed present in canonical source.
+**Final gate status: Go — merged, verified.**
 
 ---
 
@@ -394,7 +410,7 @@ already-approved architectural decisions.
 
 ---
 
-## 10. GitHub Actions (confirmed after push, PR #18, head `ac364b9`)
+## 10. GitHub Actions (confirmed after push, PR #18, head `ac364b9` — PR since merged, see the "MERGED" note above)
 
 24/24 checks green, confirmed via `pull_request_read(method="get_check_runs")`,
 not assumed, at head commit `ac364b998e130c944c355e52608b57849407c785`:

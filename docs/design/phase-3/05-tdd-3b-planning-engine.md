@@ -1,18 +1,20 @@
 # TDD 3B — `planning-engine`
 
-**Status: partially implemented.** Domain foundation (§2: `TaskNode`/
-`TaskGraph`/`Estimate`/`RiskLevel`, graph invariants, critical-path
-computation) shipped in PR #2. Objective Decomposition (§6.1's
-`reasoning.process.completed` -> `TaskGraph` path, via the
-`ModelOrchestrationPort` added to §3) shipped in the decomposition-
-orchestration unit that follows PR #2. Persistence (§4), the API surface
-(§5), and `planning.task_graph.created`/`planning.decompose.request`
-(§6.2) shipped in the `phase-3b-planning-persistence` precursor PR that
-follows the decomposition-orchestration unit -- see that PR's own Gate
-Review for exact scope, tests, and CI evidence. Only the
-`agent_os.task.completed` subscription (§6.1) remains unbuilt, correctly
-deferred: its only real caller (`agent-os/kernel`) does not exist until
-Phase 3E's own implementation PR.
+**Status: implemented, except one item correctly deferred to Phase 3E.**
+Domain foundation (§2: `TaskNode`/`TaskGraph`/`Estimate`/`RiskLevel`,
+graph invariants, critical-path computation) shipped in PR #2. Objective
+Decomposition (§6.1's `reasoning.process.completed` -> `TaskGraph` path,
+via the `ModelOrchestrationPort` added to §3) shipped in the
+decomposition-orchestration unit that follows PR #2. Persistence (§4),
+the API surface (§5), and `planning.task_graph.created`/
+`planning.decompose.request` (§6.2) shipped in the
+`phase-3b-planning-persistence` precursor PR, **merged 2026-08-20** (PR
+#18, squash commit `a72bd83f69354fa8d262b9c0d68a7cd9125dc8ce`, canonical
+`phase-3b-planning-domain`) -- see that PR's own Gate Review for exact
+scope, tests, and CI evidence. Only the `agent_os.task.completed`
+subscription (§6.1) remains unbuilt, correctly deferred: its only real
+caller (`agent-os/kernel`) does not exist until Phase 3E's own
+implementation PR.
 
 ---
 
