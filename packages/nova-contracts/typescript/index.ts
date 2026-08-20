@@ -82,3 +82,6 @@ export * from "./ActionExecuteRequestPayload";
 export * from "./ActionResultPayload";
 export * from "./ActionApprovalRequestedPayload";
 export * from "./ActionApprovalDecidedPayload";
+export * from "./PlanningTaskGraphCreatedPayload";
+export * from "./PlanningDecomposeRequestPayload";
+export * from "./PlanningDecomposeReplyPayload";

@@ -532,6 +532,51 @@ services:
       postgres:
         condition: service_healthy
 
+  planning-engine:
+    build:
+      context: ../..
+      dockerfile: services/planning-engine/Dockerfile
+    restart: unless-stopped
+    environment:
+      EVENT_BUS_BACKEND: nats
+      NATS_URL: nats://nats:4222
+      NOVA_ENGINE_NAME: planning-engine
+      PLANNING_ENGINE_POSTGRES_DSN: postgresql+asyncpg://${POSTGRES_USER:-nova}:${POSTGRES_PASSWORD:-nova_dev_password}@postgres:5432/${POSTGRES_DB:-nova}
+      PLANNING_ENGINE_REDIS_URL: redis://redis:6379/0
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+    ports:
+      - "8013:8000"
+    depends_on:
+      nats:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  planning-engine-worker:
+    build:
+      context: ../..
+      dockerfile: services/planning-engine/Dockerfile
+    command: ["arq", "nova_planning_engine.workers.WorkerSettings"]
+    restart: unless-stopped
+    healthcheck:
+      disable: true
+    environment:
+      EVENT_BUS_BACKEND: nats
+      NATS_URL: nats://nats:4222
+      NOVA_ENGINE_NAME: planning-engine
+      PLANNING_ENGINE_POSTGRES_DSN: postgresql+asyncpg://${POSTGRES_USER:-nova}:${POSTGRES_PASSWORD:-nova_dev_password}@postgres:5432/${POSTGRES_DB:-nova}
+      PLANNING_ENGINE_REDIS_URL: redis://redis:6379/0
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+    depends_on:
+      nats:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
 volumes:
   postgres-data:
   neo4j-data:

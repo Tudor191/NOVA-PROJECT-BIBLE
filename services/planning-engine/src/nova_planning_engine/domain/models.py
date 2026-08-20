@@ -20,6 +20,7 @@ same "simple shared enum" pattern `ReasoningMode` already establishes for
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Literal
 from uuid import UUID, uuid4
 
@@ -90,3 +91,11 @@ class TaskGraph(BaseModel):
     root_objective: str
     nodes: list[TaskNode] = Field(default_factory=list)
     critical_path: list[UUID] = Field(default_factory=list)
+    approved_at: datetime | None = None
+    """§5 (`phase-3b-planning-persistence`): set by `POST /v1/plans/{id}/approve`.
+    Behaviorally meaningful (gates future Kernel dispatch, TDD 3E), so it
+    lives on the domain model itself -- the same reasoning that puts
+    `installed_at`/`health_status` directly on `nova_contracts.Capability`
+    rather than leaving them ORM-only. Plain audit timestamps
+    (`created_at`/`updated_at`) stay ORM-only instead, mirroring
+    `action-engine`'s own `Action`/`ActionORM` asymmetry."""

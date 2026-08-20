@@ -65,6 +65,7 @@ jobs:
           - digital-twin-engine
           - capability-engine
           - action-engine
+          - planning-engine
     steps:
       - uses: actions/checkout@v4
 

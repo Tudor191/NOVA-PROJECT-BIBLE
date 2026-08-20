@@ -61,6 +61,8 @@ jobs:
             path: services/capability-engine
           - package: action-engine
             path: services/action-engine
+          - package: planning-engine
+            path: services/planning-engine
     steps:
       - uses: actions/checkout@v4
 

@@ -159,7 +159,14 @@ from nova_contracts.events.personality import (
     ViolationCheckFamily,
     ViolationRecordPayload,
 )
-from nova_contracts.events.planning import RiskLevel
+from nova_contracts.events.planning import (
+    PlanningDecomposeReplyPayload,
+    PlanningDecomposeRequestPayload,
+    PlanningTaskGraphCreatedPayload,
+    RiskLevel,
+    TaskGraphSnapshot,
+    TaskNodeSnapshot,
+)
 from nova_contracts.events.reasoning import (
     ConstraintKind,
     ConstraintPayload,
@@ -322,6 +329,9 @@ __all__ = [
     "PersonalityStyleSelectRequestPayload",
     "PersonalityValidateResponseReplyPayload",
     "PersonalityValidateResponseRequestPayload",
+    "PlanningDecomposeReplyPayload",
+    "PlanningDecomposeRequestPayload",
+    "PlanningTaskGraphCreatedPayload",
     "PredictionPayload",
     "PresentIdentityPayload",
     "PrivacyLevel",
@@ -343,6 +353,8 @@ __all__ = [
     "SynthesizeReplyPayload",
     "SynthesizeRequestPayload",
     "SystemMode",
+    "TaskGraphSnapshot",
+    "TaskNodeSnapshot",
     "ToolCallPayload",
     "ToolSchemaPayload",
     "TranscribeReplyPayload",

@@ -50,21 +50,38 @@ CREATE TABLE capability.capability (
     UNIQUE (name, version)
 );
 
--- planning-engine
+-- planning-engine (illustrative sketch, pre-TDD -- superseded by the
+-- detailed, phase-scoped schema in
+-- docs/design/phase-3/05-tdd-3b-planning-engine.md §4, which is
+-- authoritative for the shipped implementation
+-- (`phase-3b-planning-persistence`, see that PR's own Gate Review). The
+-- TDD's schema has no `task_graph.status` column (`approved_at`,
+-- nullable, is the one Phase-3-meaningful status signal, set by
+-- `POST /v1/plans/{id}/approve`); the FK column is named `task_graph_id`,
+-- not `graph_id`; `task_node.estimated_effort` (JSONB) and both tables'
+-- `updated_at` are additional columns this sketch omits; and a third
+-- table, `outbox_event`, implements the transactional-outbox pattern
+-- every other engine's own schema already uses (ADR-034), also absent
+-- from this sketch.
 CREATE TABLE planning.task_graph (
     id UUID PRIMARY KEY,
     root_objective TEXT NOT NULL,
-    status TEXT NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    critical_path JSONB NOT NULL,
+    approved_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE TABLE planning.task_node (
     id UUID PRIMARY KEY,
-    graph_id UUID REFERENCES planning.task_graph(id),
+    task_graph_id UUID NOT NULL REFERENCES planning.task_graph(id),
     objective TEXT NOT NULL,
-    depends_on UUID[] NOT NULL DEFAULT '{}',
+    depends_on JSONB NOT NULL DEFAULT '[]',
     assigned_agent_category TEXT,
-    status TEXT NOT NULL,
-    risk TEXT NOT NULL
+    estimated_effort JSONB NOT NULL,
+    risk TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 -- autonomy-engine
