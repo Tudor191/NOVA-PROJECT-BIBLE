@@ -326,10 +326,25 @@ implementation PR is separately approved.
 
 ## 7. Open architectural forks
 
+**Note (2026-08-20), additive — all three forks below are now resolved;
+this section's original proposal text is left unchanged (historical
+record of what was proposed), with each fork's resolution and owning PR
+noted inline.** A 2026-08-20 documentation-consistency audit of the
+`phase-3b-planning-persistence` PR found this section still read as if
+all three were open, which could wrongly suggest that PR rests on an
+unapproved decision — it does not; PR #18 only reuses the schemas these
+three forks already fixed, in the Domain Foundation and Decomposition
+Orchestration PRs, both of which shipped before it.
+
 ### Fork 3B-1 — `Estimate`/`RiskLevel` field shape (§2.1)
 
 Already presented above with a concrete proposal. **Requires explicit
 approval** — genuinely undocumented, not extracted.
+
+**Resolved (Domain Foundation PR, `phase-3b-planning-domain`, PR #2):**
+implemented exactly as proposed above. See
+`docs/roadmap/architecture-reviews/phase-3b-domain-foundation-gate-review.md`
+§2 ("Fork 3B-1 ... implemented as approved").
 
 ### Fork 3B-2 — WBS field gaps (§2.3)
 
@@ -341,6 +356,11 @@ roadmap's own narrower-than-Bible scoping pattern found throughout this
 project (§1.3 of `00-research-and-scope.md`) — but **not silently
 decided**; flagged for explicit confirmation.
 
+**Resolved (Domain Foundation PR, `phase-3b-planning-domain`, PR #2):**
+the recommendation (leave absent) was adopted, locked in with a
+regression test. See the Domain Foundation Gate Review §3 ("Fork 3B-2 ...
+implemented as approved").
+
 ### Fork 3B-3 — reasoning-result-to-decomposition confidence threshold
 
 Not an architectural fork so much as a named implementation parameter
@@ -349,6 +369,12 @@ reuse `DEFAULT_VERIFY_THRESHOLD` (0.6, already defined in
 `reasoning-engine`'s `pipeline.py:69`) as `planning-engine`'s own default
 minimum-confidence-to-decompose threshold, avoiding a second, arbitrary
 constant. **Flagged for approval**, not silently assumed.
+
+**Resolved (Decomposition Orchestration PR, `phase-3b-decomposition-orchestration`,
+PR #7):** implemented exactly as proposed
+(`Settings.decomposition_confidence_threshold: float = 0.6`). See the
+decomposition-orchestration Gate Review §6 ("Unconfirmed but precedented
+parameter, flagged").
 
 ---
 

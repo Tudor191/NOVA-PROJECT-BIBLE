@@ -17,6 +17,16 @@ Postgres-backed persistence for `TaskGraph`/`TaskNode` (TDD 3B §4), the
 contracts (§6.2) that both prior PRs correctly left unbuilt, "by design,
 not an oversight" (decomposition-orchestration Gate Review §11).
 
+**Note (2026-08-20), additive:** the head SHA cited above (`ac364b9`) is
+the last *application-code* commit; a subsequent docs-only commit
+(`41afd01684707eb11126d4e70f78c9e1af514db4`) recorded the CI results this
+section cites and is now PR #18's actual head. That docs-only commit's
+own CI run was independently re-confirmed 24/24 green (including
+`real-infra (planning-engine)`, `build-and-scan (planning-engine)`) during
+the 2026-08-20 consistency audit — no application-code change occurred
+between the two SHAs, so every finding in this document stands unchanged
+at the new head.
+
 ---
 
 ## 0. Scope executed
@@ -422,7 +432,7 @@ not assumed, at head commit `ac364b998e130c944c355e52608b57849407c785`:
 | 4 | `TaskGraph`/`TaskNode` state survives a real-Postgres restart simulation unchanged | **Met, confirmed via real CI (§10)** — `test_a_fresh_repository_instance_reads_back_a_graph_written_earlier` passed against a real `postgres:16-alpine` container, matching the TDD's own "simulated via a fresh repository instance against the same real Postgres" wording exactly |
 | 5 | `POST /v1/plans/{id}/approve` round-trips through a real FastAPI app and correctly sets `approved_at` | **Met** — `test_plans_api.py::test_approve_plan_records_an_approval_decision` |
 
-All five of TDD 3B §13's acceptance criteria are met by this PR's own scope; criterion 4's real-Postgres execution is confirmed pending CI, not silently assumed.
+All five of TDD 3B §13's acceptance criteria are met by this PR's own scope; criterion 4's real-Postgres execution is confirmed via real CI (§10), not silently assumed.
 
 ## 12. Known limitations (of this PR's scope, not defects)
 

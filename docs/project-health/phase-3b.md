@@ -79,7 +79,7 @@ Source: `docs/roadmap/architecture-reviews/phase-3b-planning-persistence-gate-re
 | 3 | Report date | 2026-08-20 |
 | 4 | Branch | `phase-3b-planning-persistence`, branched from `phase-3b-planning-domain` |
 | 5 | PR number | PR #18, open, not yet merged |
-| 6 | Commit / merge commit | Head `ac364b998e130c944c355e52608b57849407c785` (not yet merged) |
+| 6 | Commit / merge commit | Head `41afd01684707eb11126d4e70f78c9e1af514db4` (not yet merged) — the last *application-code* commit is `ac364b998e130c944c355e52608b57849407c785`; `41afd01` is a docs-only follow-up whose own CI run was independently reconfirmed 24/24 green during the 2026-08-20 consistency audit |
 | 7 | Phase status | "Status: complete, fully verified locally and via real GitHub Actions (see §10) — 24/24 checks green at head `ac364b9`. Covers exactly one PR-sized unit ... the fourth and, per TDD 3B's own scope, final PR closing this phase's approved surface" except §6.1's `agent_os.task.completed`, correctly deferred to Phase 3E |
 | 8 | Production SLOC | Not reported |
 | 9 | Total SLOC | Not reported |
@@ -102,4 +102,4 @@ Source: `docs/roadmap/architecture-reviews/phase-3b-planning-persistence-gate-re
 
 ## Combined notes
 
-All three sub-units together implement Phase 3B's `planning-engine`: domain foundation, decomposition orchestration, and now persistence/API/event-contracts — the phase's approved surface is closed except §6.1's `agent_os.task.completed` subscription, correctly deferred to Phase 3E. **No report includes a Production SLOC or Total SLOC figure** — this snapshot does not calculate one from today's repository, per the strict no-invention rule. The decomposition-orchestration sub-unit (PR #7) is the first Phase 3 unit in this project-health record with confirmed real GitHub Actions CI results cited by run ID; the domain-foundation sub-unit (PR #2) predates that level of CI-result citation in its own gate review; the persistence sub-unit's own CI results are pending as of this snapshot and will be added once its PR is opened and its checks complete.
+All three sub-units together implement Phase 3B's `planning-engine`: domain foundation, decomposition orchestration, and now persistence/API/event-contracts — the phase's approved surface is closed except §6.1's `agent_os.task.completed` subscription, correctly deferred to Phase 3E. **No report includes a Production SLOC or Total SLOC figure** — this snapshot does not calculate one from today's repository, per the strict no-invention rule. The decomposition-orchestration sub-unit (PR #7) is the first Phase 3 unit in this project-health record with confirmed real GitHub Actions CI results cited by run ID; the domain-foundation sub-unit (PR #2) predates that level of CI-result citation in its own gate review; the persistence sub-unit's own CI results are confirmed (see field #15 above): 24/24 checks green, including 10/10 real-Postgres tests.
