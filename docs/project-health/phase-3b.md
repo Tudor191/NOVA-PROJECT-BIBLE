@@ -1,6 +1,6 @@
 # Phase 3B — Project Health Snapshot
 
-Phase 3B (`planning-engine`) shipped as **two separate, separately-reviewed PR-sized units**, each with its own Gate Review. Per the instruction not to collapse distinct reports into one set of numbers, both are preserved here separately, followed by a combined view of only the facts both documents agree on.
+Phase 3B (`planning-engine`) shipped as **three separate, separately-reviewed PR-sized units**, each with its own Gate Review. Per the instruction not to collapse distinct reports into one set of numbers, all three are preserved here separately, followed by a combined view of only the facts the documents agree on.
 
 ---
 
@@ -68,6 +68,38 @@ Source: `docs/roadmap/architecture-reviews/phase-3b-decomposition-orchestration-
 
 ---
 
+## Phase 3B — Sub-unit 3: Planning Persistence (precursor PR, `phase-3b-planning-persistence`)
+
+Source: `docs/roadmap/architecture-reviews/phase-3b-planning-persistence-gate-review.md` (read in full for this snapshot).
+
+| # | Field | Value |
+|---|---|---|
+| 1 | Phase identity | Phase 3B, sub-unit 3 |
+| 2 | Phase/Sub-Phase name | `planning-engine` Persistence (TDD 3B §4/§5/§6.2) |
+| 3 | Report date | 2026-08-20 |
+| 4 | Branch | `phase-3b-planning-persistence`, branched from `phase-3b-planning-domain` |
+| 5 | PR number | PR #18, open, not yet merged |
+| 6 | Commit / merge commit | Head `41afd01684707eb11126d4e70f78c9e1af514db4` (not yet merged) — the last *application-code* commit is `ac364b998e130c944c355e52608b57849407c785`; `41afd01` is a docs-only follow-up whose own CI run was independently reconfirmed 24/24 green during the 2026-08-20 consistency audit |
+| 7 | Phase status | "Status: complete, fully verified locally and via real GitHub Actions (see §10) — 24/24 checks green at head `ac364b9`. Covers exactly one PR-sized unit ... the fourth and, per TDD 3B's own scope, final PR closing this phase's approved surface" except §6.1's `agent_os.task.completed`, correctly deferred to Phase 3E |
+| 8 | Production SLOC | Not reported |
+| 9 | Total SLOC | Not reported |
+| 10 | SLOC methodology/tool | Not reported |
+| 11 | SLOC scope | Not reported |
+| 12 | Test status | "67 tests passing locally (10 real-infra tests correctly deselected by the package's own `test` script)" (§6/§9) |
+| 13 | Test count | 67 non-real-infra + 10 real-infra = 77 total collected; 21 new tests added in this PR (4 unit `decompose_node`, 3 new contract, 3 new `planning.decompose.request` integration, 4 new `/v1/plans` API integration, 4 modified `reasoning.process.completed` integration, 10 new real-infra) |
+| 14 | Coverage | Domain-layer coverage 98.68%, vs. 85% gate (§6/§9) |
+| 15 | CI status | **24/24 checks green on real GitHub Actions at head `ac364b9`** (Gate Review §10), confirmed via `pull_request_read(method="get_check_runs")` — `checks`, `dependency-audit`, all 13 `build-and-scan` matrix entries (incl. `planning-engine`, first time ever), all 10 `real-infra` matrix entries (incl. `planning-engine`, first time ever). `mergeable_state` is `clean`. One real defect was caught by the first push's own real-infra run and fixed same-day; see §16 and Gate Review §3a. |
+| 16 | Real-infrastructure status | **Fully verified via real CI**: 10 new real-Postgres tests, "10 passed" against a real `postgres:16-alpine` container (`real-infra-checks.yml`, `planning-engine` matrix entry, first time ever for this engine). The first push (commit `3c71e77`) failed 1 of these 10 with a genuine bug — `TaskNode.depends_on` (`list[UUID]`) was not stringified before writing to the JSONB column, only surfacing for a node with a non-empty `depends_on` — fixed same-day (commit `ac364b9`) by mirroring the existing `critical_path` stringify-on-write/parse-on-read pattern; the corrected run passed all 10. |
+| 17 | Documentation health | TDD 3B's top status banner corrected (§4/§5/§6.2 now shipped); both prior Phase 3B Gate Reviews additively updated with forward pointers to this closure; a dated reconciliation note added to the Phase 3E research document disclosing this prerequisite's discovery and closure under Phase 3B without reopening any of Phase 3E's six approved decisions |
+| 18 | Architecture status | No new architectural decisions — every structural choice (domain-vs-wire-payload split, per-engine schema/migration convention, RPC serve pattern, transactional outbox + separate Arq worker, `relationship()` usage) follows an already-established codebase convention, verified against `action-engine`/`memory-engine`/`communication-engine` precedent before implementing (Gate Review §1). import-linter 6/6 contracts kept. |
+| 19 | Security status | Not reported |
+| 20 | Unverified infrastructure | Outbox worker's real dispatch to a live NATS/Postgres pair not exercised (same disclosed gap as every other engine's own outbox worker); `reasoning.process.completed`/`planning.decompose.request` over real NATS JetStream redelivery/consumer-group semantics not exercised (same disclosed gap as the decomposition-orchestration PR's own §9) — both explicitly listed as "Genuinely unverified," not silently assumed (Gate Review §8) |
+| 21 | Open blockers | None stated as blocking; this engine had no `build-and-scan.yml`/`docker-compose.local.yml` entry at all before this PR (a gap inherited from the decomposition-orchestration PR's own disclosed "no persistence/API to serve yet" scoping) — closed here, not carried forward |
+| 22 | Branch hygiene | Not reported |
+| 23 | Notes / important findings | A self-caught design correction during implementation, before any test was written against it: the first draft of `decompose_handler.py` built the `planning.task_graph.created` outbox payload before the graph mutation (stale `critical_path`) and left an unimplemented stub; redesigned via an `outbox_event_builder` callback called after mutation, inside the same transaction, with the fully-updated graph (Gate Review §3). "Mutation, not regeneration" was scoped exactly to the node-scoped `planning.decompose.request` path, not invented for the `reasoning.process.completed` path, since no `reasoning_process_id`-to-`task_graph_id` linkage is specified anywhere in TDD 3B or the Phase 3E research documents (Gate Review §2). A separate, genuinely CI-caught defect (not self-caught — no Docker daemon was available locally to catch it): `TaskNode.depends_on` UUIDs were not stringified before the JSONB write, failing only for a node with a non-empty `depends_on`; fixed same-day by mirroring the existing `critical_path` stringify/parse pattern (Gate Review §3a). |
+
+---
+
 ## Combined notes
 
-Both sub-units together implement Phase 3B's `planning-engine` domain foundation and its first real orchestration path, but **neither report includes a Production SLOC or Total SLOC figure** — this snapshot does not calculate one from today's repository, per the strict no-invention rule. The decomposition-orchestration sub-unit (PR #7) is the first Phase 3 unit in this project-health record with confirmed real GitHub Actions CI results cited by run ID; the domain-foundation sub-unit (PR #2) predates that level of CI-result citation in its own gate review.
+All three sub-units together implement Phase 3B's `planning-engine`: domain foundation, decomposition orchestration, and now persistence/API/event-contracts — the phase's approved surface is closed except §6.1's `agent_os.task.completed` subscription, correctly deferred to Phase 3E. **No report includes a Production SLOC or Total SLOC figure** — this snapshot does not calculate one from today's repository, per the strict no-invention rule. The decomposition-orchestration sub-unit (PR #7) is the first Phase 3 unit in this project-health record with confirmed real GitHub Actions CI results cited by run ID; the domain-foundation sub-unit (PR #2) predates that level of CI-result citation in its own gate review; the persistence sub-unit's own CI results are confirmed (see field #15 above): 24/24 checks green, including 10/10 real-Postgres tests.

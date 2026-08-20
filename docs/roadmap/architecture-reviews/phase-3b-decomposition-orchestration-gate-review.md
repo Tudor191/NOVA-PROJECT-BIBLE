@@ -9,6 +9,12 @@ task_graph.created` publication, or `planning.decompose.request` RPC
 exists yet; those remain later, separately scoped and separately reviewed
 PRs (see §7).
 
+**Note (2026-08-20), additive:** the four items disclosed as absent above
+now ship in the `phase-3b-planning-persistence-gate-review.md` (the
+`phase-3b-planning-persistence` PR) — see that document for exact scope,
+tests, and CI evidence. This document's own historical scope and findings
+are otherwise unchanged.
+
 ---
 
 ## 0. Scope executed
@@ -275,9 +281,13 @@ repository exists in this PR). PR #7's `mergeable_state` is `clean`.
 
 ## 12. Remaining Phase 3 dependencies
 
-- The persistence-layer PR (TDD 3B §4) is the next scoped unit this PR's
-  own "Known limitations" point toward — it is also where persistent event
-  deduplication (§3) becomes mandatory, not optional.
+- **Closed (2026-08-20):** the persistence-layer PR (TDD 3B §4) this
+  section originally pointed to as "the next scoped unit" has shipped —
+  see `phase-3b-planning-persistence-gate-review.md`. Persistent event
+  deduplication (§3, "becomes mandatory, not optional" once persistence
+  exists) was evaluated during that PR and is not required by TDD 3B §4/
+  §5/§6.2's own approved scope — see that Gate Review's own disclosure for
+  the exact reasoning; not silently dropped.
 - TDD 3C/3D/3E remain unaffected: TDD 3C has no technical dependency on
   planning-engine (confirmed at research time, re-confirmed here — nothing
   in this PR changes that). TDD 3D's `Action.risk: RiskLevel` reuses the

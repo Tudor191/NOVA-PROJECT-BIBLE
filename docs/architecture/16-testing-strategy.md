@@ -82,7 +82,12 @@ implemented and passing in real GitHub Actions CI; `phase-3d-action-engine`
 (PR #13) merged into `phase-3b-planning-domain` on 2026-08-18 (squash
 commit `ac285bc3533fb24d0434d7675b8fc3af2db1d079`), so this test file is
 now "adopted" in the sense of being present on this lineage's own
-canonical branch, alongside the other four. Redis/Neo4j/NATS fixtures exist
+canonical branch, alongside the other four. `planning-engine`
+(`phase-3b-planning-persistence` precursor, PR #18) has the same test file
+implemented, 10 tests — not locally executable in the environment it was
+authored in (no reachable Docker daemon there), but confirmed passing
+(10/10) via `real-infra-checks.yml`'s real GitHub Actions run, which now
+includes a `planning-engine` matrix entry for the first time. Redis/Neo4j/NATS fixtures exist
 and are self-tested but **not yet adopted by any engine's own repository
 tests** — that is tracked, sequenced future work
 (`docs/design/nova-testkit/technical-implementation-plan.md §11`), not an

@@ -18,6 +18,22 @@ This document does not re-litigate anything already RESOLVED in
 `05-tdd-3b-planning-engine.md` — those documents' fork resolutions are
 treated as authoritative and are cited, not re-derived.
 
+**Note (2026-08-20), additive, does not reopen any of the six decisions
+below.** Before Phase 3E implementation could begin, pre-implementation
+verification discovered that `planning-engine` had zero real persistence
+or event publication despite this document's own Kernel design (§4, Fork
+3E-2) assuming a durable `TaskGraph` to dispatch against. This was
+reported per the standing "stop and report a genuine architectural
+conflict before choosing a solution" instruction, and the user approved
+closing it as a dedicated Phase 3B precursor PR
+(`phase-3b-planning-persistence`, implementing exactly TDD 3B §4/§5/§6.2 —
+already-approved, already-specified scope, not new architecture) rather
+than folding persistence work into Phase 3E's own implementation PR. See
+`docs/roadmap/architecture-reviews/phase-3b-planning-persistence-gate-review.md`
+for that PR's full scope and evidence. This document's own six resolved
+decisions (Forks 3E-1 through 3E-4, `nova-auth`, and the `priority`
+formula) are unaffected and unchanged.
+
 ---
 
 ## 0. Scope of this document

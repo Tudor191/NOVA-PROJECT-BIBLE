@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "scripts": {
     "lint": "uv run --package planning-engine ruff check . && uv run --package planning-engine mypy src",
-    "test": "uv run --package planning-engine pytest --cov=nova_planning_engine.domain",
+    "test": "uv run --package planning-engine pytest -m \"not real_infra\" --cov=nova_planning_engine.domain",
     "build": "echo 'planning-engine: no build step (container image built via Dockerfile in CI)'",
     "dev": "uv run --package planning-engine uvicorn nova_planning_engine.main:app --reload --port 8000"
   }

@@ -88,6 +88,9 @@ from nova_contracts import (
     PersonalityStyleSelectRequestPayload,
     PersonalityValidateResponseReplyPayload,
     PersonalityValidateResponseRequestPayload,
+    PlanningDecomposeReplyPayload,
+    PlanningDecomposeRequestPayload,
+    PlanningTaskGraphCreatedPayload,
     PredictionPayload,
     ReasoningProcessCompletedPayload,
     ReasoningProcessFailedPayload,
@@ -189,6 +192,9 @@ MODELS: list[type[BaseModel]] = [
     ActionResultPayload,
     ActionApprovalRequestedPayload,
     ActionApprovalDecidedPayload,
+    PlanningTaskGraphCreatedPayload,
+    PlanningDecomposeRequestPayload,
+    PlanningDecomposeReplyPayload,
 ]
 
 PACKAGE_ROOT = Path(__file__).resolve().parent.parent

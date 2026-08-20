@@ -14,6 +14,19 @@ class Settings(BaseSettings):
     http_port: int = 8000
     log_level: str = "INFO"
 
+    postgres_dsn: str = "postgresql+asyncpg://nova:nova_dev_password@localhost:5432/nova"
+    """SQLAlchemy-format DSN for the `planning` schema (ORM, Alembic) --
+    `task_graph`/`task_node`/`outbox_event`
+    (`phase-3b-planning-persistence` precursor, TDD 3B §4)."""
+
+    outbox_dispatch_batch_size: int = 100
+    """Matches `nova_service_kit.outbox.DEFAULT_BATCH_SIZE` -- overridable
+    per-engine, the same pattern `memory-engine`'s own worker settings use."""
+
+    redis_url: str = "redis://localhost:6379/0"
+    """Arq's broker for `workers/outbox_worker.py` (`WorkerSettings.redis_settings`)
+    -- matches `memory-engine`'s own default."""
+
     decomposition_confidence_threshold: float = 0.6
     """Fork 3B-3 (docs/design/phase-3/05-tdd-3b-planning-engine.md §7):
     `reasoning.process.completed` below this `confidence_score` is not

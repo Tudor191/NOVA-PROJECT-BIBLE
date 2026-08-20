@@ -7,9 +7,15 @@ dependencies = [
     "nova-contracts",
     "nova-eventbus-sdk",
     "nova-observability",
+    "nova-service-kit",
     "fastapi>=0.115",
     "uvicorn[standard]>=0.32",
     "pydantic-settings>=2.6",
+    "sqlalchemy[asyncio]>=2.0",
+    "asyncpg>=0.29",
+    "alembic>=1.13",
+    "redis>=5.0",
+    "arq>=0.26",
 ]
 
 [build-system]
@@ -26,6 +32,7 @@ allow-direct-references = true
 nova-contracts = { workspace = true }
 nova-eventbus-sdk = { workspace = true }
 nova-observability = { workspace = true }
+nova-service-kit = { workspace = true }
 nova-testkit = { workspace = true }
 
 [dependency-groups]

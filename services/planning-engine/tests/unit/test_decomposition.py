@@ -11,7 +11,8 @@ from uuid import uuid4
 
 import pytest
 from nova_contracts import GenerateReplyPayload, ToolCallPayload
-from nova_planning_engine.domain.decomposition import DecompositionError, decompose
+from nova_planning_engine.domain.decomposition import DecompositionError, decompose, decompose_node
+from nova_planning_engine.domain.models import Estimate, RiskLevel, TaskNode
 
 from tests.fakes.ports import FakeModelOrchestrationPort
 
@@ -383,3 +384,88 @@ async def test_decompose_raises_on_cycle() -> None:
             correlation_id=uuid4(),
         )
     assert exc_info.value.reason == "cycle"
+
+
+def _target_node() -> TaskNode:
+    return TaskNode(
+        objective="Implement the feature",
+        depends_on=[],
+        estimated_effort=Estimate(effort_hours=5.0, confidence=0.6),
+        risk=RiskLevel.MODERATE,
+    )
+
+
+async def test_decompose_node_returns_empty_list_when_model_proposes_no_further_breakdown() -> (
+    None
+):
+    """TDD 3B §8's "already minimal" case: the model's own reply resolves to
+    exactly one task (unmodified from `node`'s own objective) -- distinct
+    from a genuine breakdown into multiple subtasks."""
+    port = FakeModelOrchestrationPort(
+        reply=_reply(
+            [
+                {
+                    "local_id": "a",
+                    "objective": "Implement the feature",
+                    "depends_on": [],
+                    "effort_hours": 5.0,
+                    "confidence": 0.6,
+                    "risk": "moderate",
+                }
+            ]
+        )
+    )
+    new_nodes = await decompose_node(
+        node=_target_node(),
+        model_port=port,
+        requesting_engine="planning-engine",
+        correlation_id=uuid4(),
+    )
+    assert new_nodes == []
+
+
+async def test_decompose_node_returns_the_proposed_subtasks_on_a_genuine_breakdown() -> None:
+    port = FakeModelOrchestrationPort(
+        reply=_reply(
+            [
+                {
+                    "local_id": "a",
+                    "objective": "Design the schema",
+                    "depends_on": [],
+                    "effort_hours": 1.0,
+                    "confidence": 0.7,
+                    "risk": "low",
+                },
+                {
+                    "local_id": "b",
+                    "objective": "Implement the migration",
+                    "depends_on": ["a"],
+                    "effort_hours": 2.0,
+                    "confidence": 0.6,
+                    "risk": "moderate",
+                },
+            ]
+        )
+    )
+    new_nodes = await decompose_node(
+        node=_target_node(),
+        model_port=port,
+        requesting_engine="planning-engine",
+        correlation_id=uuid4(),
+    )
+    assert {n.objective for n in new_nodes} == {"Design the schema", "Implement the migration"}
+
+
+async def test_decompose_node_propagates_decomposition_error() -> None:
+    """`decompose_node` reuses `decompose()`'s pipeline unchanged -- a
+    defined failure (e.g. `no_structured_output`) propagates to the caller
+    (`events/decompose_handler.py`) rather than being swallowed here."""
+    port = FakeModelOrchestrationPort(reply=_reply([], finish_reason="stop"))
+    with pytest.raises(DecompositionError) as exc_info:
+        await decompose_node(
+            node=_target_node(),
+            model_port=port,
+            requesting_engine="planning-engine",
+            correlation_id=uuid4(),
+        )
+    assert exc_info.value.reason == "no_structured_output"

@@ -32,6 +32,7 @@ from nova_planning_engine.events.handlers import make_reasoning_process_complete
 from nova_planning_engine.main import create_app
 
 from tests.fakes.ports import FakeModelOrchestrationPort
+from tests.fakes.repository import FakePlanningRepository
 
 _TOOL_NAME = "propose_task_graph"
 
@@ -96,14 +97,16 @@ async def test_below_threshold_reasoning_completion_skips_decomposition(
 ) -> None:
     monkeypatch.setenv("EVENT_BUS_BACKEND", "in_memory")
     port = FakeModelOrchestrationPort()
+    repository = FakePlanningRepository()
     settings = Settings(decomposition_confidence_threshold=0.6)
-    app = create_app(settings, model_orchestration_port=port)
+    app = create_app(settings, model_orchestration_port=port, repository=repository)
 
     async with app.router.lifespan_context(app):
         handler = make_reasoning_process_completed_handler(app)
         await handler(_envelope(_payload(confidence_score=0.2)))
 
     assert port.requests == []
+    assert repository.graphs == {}
 
 
 async def test_above_threshold_reasoning_completion_triggers_decomposition(
@@ -111,8 +114,9 @@ async def test_above_threshold_reasoning_completion_triggers_decomposition(
 ) -> None:
     monkeypatch.setenv("EVENT_BUS_BACKEND", "in_memory")
     port = FakeModelOrchestrationPort(reply=_structured_reply())
+    repository = FakePlanningRepository()
     settings = Settings(decomposition_confidence_threshold=0.6)
-    app = create_app(settings, model_orchestration_port=port)
+    app = create_app(settings, model_orchestration_port=port, repository=repository)
 
     async with app.router.lifespan_context(app):
         handler = make_reasoning_process_completed_handler(app)
@@ -125,6 +129,17 @@ async def test_above_threshold_reasoning_completion_triggers_decomposition(
     assert sent.correlation_id == payload.correlation_id
     texts = [c.text for c in sent.context]
     assert "Ship the release" in texts
+
+    # `phase-3b-planning-persistence`: the resulting TaskGraph is durably
+    # persisted, and its `planning.task_graph.created` outbox row is
+    # enqueued in the same call -- not merely produced and discarded.
+    assert len(repository.graphs) == 1
+    (graph,) = repository.graphs.values()
+    assert graph.root_objective == "Ship the release"
+    assert len(repository.outbox) == 1
+    (outbox_row,) = repository.outbox.values()
+    assert outbox_row.subject == "planning.task_graph.created"
+    assert outbox_row.correlation_id == payload.correlation_id
 
 
 async def test_model_error_during_decomposition_does_not_raise(
@@ -143,8 +158,9 @@ async def test_model_error_during_decomposition_does_not_raise(
             error="provider unavailable",
         )
     )
+    repository = FakePlanningRepository()
     settings = Settings(decomposition_confidence_threshold=0.6)
-    app = create_app(settings, model_orchestration_port=port)
+    app = create_app(settings, model_orchestration_port=port, repository=repository)
 
     async with app.router.lifespan_context(app):
         handler = make_reasoning_process_completed_handler(app)
@@ -154,6 +170,7 @@ async def test_model_error_during_decomposition_does_not_raise(
         await handler(_envelope(_payload(confidence_score=0.9)))
 
     assert len(port.requests) == 1
+    assert repository.graphs == {}
 
 
 async def test_subscribing_via_the_real_event_bus_invokes_the_handler(
@@ -176,7 +193,7 @@ async def test_subscribing_via_the_real_event_bus_invokes_the_handler(
     monkeypatch.setenv("EVENT_BUS_BACKEND", "in_memory")
     port = FakeModelOrchestrationPort(reply=_structured_reply())
     settings = Settings(decomposition_confidence_threshold=0.6)
-    app = create_app(settings, model_orchestration_port=port)
+    app = create_app(settings, model_orchestration_port=port, repository=FakePlanningRepository())
 
     async with app.router.lifespan_context(app):
         payload = _payload(confidence_score=0.9)

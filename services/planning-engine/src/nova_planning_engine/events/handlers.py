@@ -13,14 +13,16 @@ model response any more valid (mirrors `reasoning-engine`'s own
 `HypothesisGenerationError` handling: caught deep inside the domain layer,
 routed to a defined failure outcome, never left to crash the caller).
 
-**Does not persist or publish anything yet.** Planning persistence
-(TDD 3B §4) and `planning.task_graph.created` (TDD 3B §6.2) are explicitly
-out of scope for this PR -- see this unit's Gate Review "Non-goals". The
-resulting `TaskGraph` is fully computed and validated but, for now, only
-observed via logs/metrics: proving the decomposition mechanism itself
-works end-to-end against a real model-orchestration call is this PR's
-whole purpose; persisting and publishing the result is the next scoped
-unit.
+**Persists and enqueues `planning.task_graph.created` for publication**
+(`phase-3b-planning-persistence` precursor, TDD 3B §4/§6.2) --
+`reasoning.process.completed` always produces a brand-new `TaskGraph`
+(never merges into an existing one; see
+`docs/design/phase-3/14-3e-agent-os-research.md`'s own note on why no
+`reasoning_process_id`-to-`task_graph_id` linkage exists). The outbox row
+is written in the same transaction as the `task_graph`/`task_node` rows
+(`PlanningRepository.insert`); the separate outbox worker
+(`workers/outbox_worker.py`) is what actually publishes it onto the Event
+Bus, decoupling this handler's own success from Event Bus availability.
 
 Never logs `objective_text`/`chosen_description`/`TaskNode.objective`
 content -- `PrivacyLevel` propagation for this data remains deferred
@@ -36,6 +38,8 @@ from nova_contracts import EventEnvelope, ReasoningProcessCompletedPayload
 from nova_observability import get_logger
 
 from nova_planning_engine.domain.decomposition import DecompositionError, decompose
+from nova_planning_engine.domain.ports import OutboxEvent
+from nova_planning_engine.events.snapshot import task_graph_created_payload
 
 __all__ = ["make_reasoning_process_completed_handler"]
 
@@ -86,12 +90,23 @@ def make_reasoning_process_completed_handler(app: FastAPI):  # type: ignore[no-u
             )
             return
 
+        created_payload = task_graph_created_payload(graph, correlation_id=payload.correlation_id)
+        await state.repository.insert(
+            graph,
+            outbox_event=OutboxEvent(
+                subject="planning.task_graph.created",
+                payload=created_payload.model_dump(mode="json"),
+                correlation_id=payload.correlation_id,
+            ),
+        )
+        state.metrics.planning_task_graph_created_total.add(1)
+
         duration = time.monotonic() - started
         state.metrics.decomposition_duration_seconds.record(duration, {"outcome": "succeeded"})
         state.metrics.decomposition_attempts_total.add(1, {"outcome": "succeeded"})
         state.metrics.decomposition_task_count.record(len(graph.nodes))
         logger.info(
-            "decomposition succeeded",
+            "decomposition succeeded and persisted",
             extra={
                 "reasoning_process_id": str(payload.reasoning_process_id),
                 "correlation_id": str(payload.correlation_id),

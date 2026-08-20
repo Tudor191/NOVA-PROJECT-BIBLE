@@ -13,6 +13,16 @@ inaccurate coverage claim in this document's original version. See §3a
 and §6 below for the full evidence trail. Both issues are now resolved;
 this status reflects the corrected, post-fix state.
 
+**Note (2026-08-20), additive:** the persistence gap this document
+disclosed above ("No event subscription, persistence, API, or
+decomposition logic exists yet") is now closed — see the
+`phase-3b-planning-persistence-gate-review.md` (persistence, API surface,
+`planning.task_graph.created`/`planning.decompose.request`) and the
+decomposition-orchestration Gate Review (event subscription,
+decomposition logic) for what shipped in each of those later, separately
+reviewed PRs. This document's own historical scope and findings are
+otherwise unchanged.
+
 ---
 
 ## 0. Scope executed

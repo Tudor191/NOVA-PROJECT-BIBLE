@@ -56,7 +56,7 @@ from nova_planning_engine.domain.task_graph import (
     find_duplicate_ids,
 )
 
-__all__ = ["DecompositionError", "build_prompt_context", "decompose"]
+__all__ = ["DecompositionError", "build_prompt_context", "decompose", "decompose_node"]
 
 _TOOL_NAME = "propose_task_graph"
 
@@ -285,3 +285,38 @@ async def decompose(
 
     critical_path = compute_critical_path(nodes)
     return TaskGraph(root_objective=root_objective, nodes=nodes, critical_path=critical_path)
+
+
+async def decompose_node(
+    *,
+    node: TaskNode,
+    model_port: ModelOrchestrationPort,
+    requesting_engine: str,
+    correlation_id: UUID,
+    privacy_hint: PrivacyLevel = PrivacyLevel.INTERNAL,
+) -> list[TaskNode]:
+    """`planning.decompose.request` (TDD 3B §6.2, doc 12 §11): a Supervisor
+    receiving `node` "still too coarse for a single leaf agent" requests
+    further decomposition, scoped to that node's own subtree. Reuses
+    `decompose()`'s entire model-call/validation pipeline unchanged --
+    `node.objective` seeds the same `propose_task_graph` tool call as a
+    fresh `root_objective` would, so the identical "no trust extended to
+    the model's own output" structural checks apply with no new code path.
+
+    Returns the empty list when the model itself proposes no further
+    breakdown (exactly one resulting task, unmodified from `node`'s own
+    objective) -- TDD 3B §8's own "already minimal" case; the caller
+    (`events/decompose_handler.py`) turns this into
+    `PlanningDecomposeReplyPayload(already_minimal=True)`, never a
+    silent no-op reply indistinguishable from success."""
+    result = await decompose(
+        root_objective=node.objective,
+        chosen_description=None,
+        model_port=model_port,
+        requesting_engine=requesting_engine,
+        correlation_id=correlation_id,
+        privacy_hint=privacy_hint,
+    )
+    if len(result.nodes) == 1:
+        return []
+    return result.nodes

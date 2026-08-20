@@ -2304,11 +2304,17 @@ name = "planning-engine"
 version = "0.1.0"
 source = { editable = "services/planning-engine" }
 dependencies = [
+    { name = "alembic" },
+    { name = "arq" },
+    { name = "asyncpg" },
     { name = "fastapi" },
     { name = "nova-contracts" },
     { name = "nova-eventbus-sdk" },
     { name = "nova-observability" },
+    { name = "nova-service-kit" },
     { name = "pydantic-settings" },
+    { name = "redis" },
+    { name = "sqlalchemy", extra = ["asyncio"] },
     { name = "uvicorn", extra = ["standard"] },
 ]
 
@@ -2322,11 +2328,17 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "alembic", specifier = ">=1.13" },
+    { name = "arq", specifier = ">=0.26" },
+    { name = "asyncpg", specifier = ">=0.29" },
     { name = "fastapi", specifier = ">=0.115" },
     { name = "nova-contracts", editable = "packages/nova-contracts" },
     { name = "nova-eventbus-sdk", editable = "packages/nova-eventbus-sdk" },
     { name = "nova-observability", editable = "packages/nova-observability" },
+    { name = "nova-service-kit", editable = "packages/nova-service-kit" },
     { name = "pydantic-settings", specifier = ">=2.6" },
+    { name = "redis", specifier = ">=5.0" },
+    { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.32" },
 ]
 
