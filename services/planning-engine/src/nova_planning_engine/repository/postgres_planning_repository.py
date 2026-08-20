@@ -35,7 +35,7 @@ def _node_to_domain(row: TaskNodeORM) -> TaskNode:
     return TaskNode(
         id=row.id,
         objective=row.objective,
-        depends_on=list(row.depends_on),
+        depends_on=[UUID(dep_id) for dep_id in row.depends_on],
         assigned_agent_category=row.assigned_agent_category,
         estimated_effort=Estimate.model_validate(row.estimated_effort),
         risk=RiskLevel(row.risk),
@@ -58,7 +58,7 @@ def _node_orm(node: TaskNode, task_graph_id: UUID) -> TaskNodeORM:
         id=node.id,
         task_graph_id=task_graph_id,
         objective=node.objective,
-        depends_on=list(node.depends_on),
+        depends_on=[str(dep_id) for dep_id in node.depends_on],
         assigned_agent_category=node.assigned_agent_category,
         estimated_effort=node.estimated_effort.model_dump(mode="json"),
         risk=node.risk.value,
