@@ -77,10 +77,10 @@ Source: `docs/roadmap/architecture-reviews/phase-3b-planning-persistence-gate-re
 | 1 | Phase identity | Phase 3B, sub-unit 3 |
 | 2 | Phase/Sub-Phase name | `planning-engine` Persistence (TDD 3B §4/§5/§6.2) |
 | 3 | Report date | 2026-08-20 |
-| 4 | Branch | `phase-3b-planning-persistence`, branched from `phase-3b-planning-domain` |
-| 5 | PR number | PR #18, open, not yet merged |
-| 6 | Commit / merge commit | Head `41afd01684707eb11126d4e70f78c9e1af514db4` (not yet merged) — the last *application-code* commit is `ac364b998e130c944c355e52608b57849407c785`; `41afd01` is a docs-only follow-up whose own CI run was independently reconfirmed 24/24 green during the 2026-08-20 consistency audit |
-| 7 | Phase status | "Status: complete, fully verified locally and via real GitHub Actions (see §10) — 24/24 checks green at head `ac364b9`. Covers exactly one PR-sized unit ... the fourth and, per TDD 3B's own scope, final PR closing this phase's approved surface" except §6.1's `agent_os.task.completed`, correctly deferred to Phase 3E |
+| 4 | Branch | `phase-3b-planning-persistence`, branched from `phase-3b-planning-domain`, **merged into canonical `phase-3b-planning-domain` 2026-08-20** |
+| 5 | PR number | PR #18, **merged** |
+| 6 | Commit / merge commit | Merge SHA (squash) `a72bd83f69354fa8d262b9c0d68a7cd9125dc8ce`, now `phase-3b-planning-domain`'s canonical HEAD. Verified byte-identical to the PR's fully-CI-verified head `dc89dda14abcafeec24ece2454fd6080a85b65f0` (zero tree diff) — the application code that passed 24/24 checks is exactly what merged. The last *application-code* commit within the PR was `ac364b998e130c944c355e52608b57849407c785`; two docs-only commits (`41afd01`, `dc89dda`) followed, each independently reconfirmed 24/24 green before merge |
+| 7 | Phase status | Merged and closed. TDD 3B §4/§5/§6.2 now shipped on canonical; only §6.1's `agent_os.task.completed` subscription remains unbuilt, correctly deferred to Phase 3E |
 | 8 | Production SLOC | Not reported |
 | 9 | Total SLOC | Not reported |
 | 10 | SLOC methodology/tool | Not reported |

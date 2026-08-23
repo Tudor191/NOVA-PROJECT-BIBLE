@@ -28,7 +28,12 @@ conflict before choosing a solution" instruction, and the user approved
 closing it as a dedicated Phase 3B precursor PR
 (`phase-3b-planning-persistence`, implementing exactly TDD 3B §4/§5/§6.2 —
 already-approved, already-specified scope, not new architecture) rather
-than folding persistence work into Phase 3E's own implementation PR. See
+than folding persistence work into Phase 3E's own implementation PR. That
+PR has since **merged (2026-08-20, squash commit
+`a72bd83f69354fa8d262b9c0d68a7cd9125dc8ce`, canonical
+`phase-3b-planning-domain`)** -- the persistence prerequisite this note
+describes is now satisfied on the canonical branch, not merely on a PR
+branch. See
 `docs/roadmap/architecture-reviews/phase-3b-planning-persistence-gate-review.md`
 for that PR's full scope and evidence. This document's own six resolved
 decisions (Forks 3E-1 through 3E-4, `nova-auth`, and the `priority`
