@@ -1,0 +1,11 @@
+{
+  "name": "@nova/supervisors",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "lint": "uv run --package supervisors ruff check . && uv run --package supervisors mypy src",
+    "test": "uv run --package supervisors pytest -m \"not real_infra\" --cov=nova_agent_os_supervisors.domain",
+    "build": "echo 'supervisors: no build step (container image build deferred until deployment)'",
+    "dev": "uv run --package supervisors uvicorn nova_agent_os_supervisors.main:app --reload --port 8000"
+  }
+}

@@ -34,10 +34,21 @@ healthy candidates in the required category") requires categories to
 allow. Resolved here as `(id, version)`, matching doc 12's own worked
 example and mirroring `capability-engine`'s own `(name, version)`/Fork
 3C-4 precedent exactly (`name`/`id` playing the identical role). Flagged
-prominently for the Phase 3E Gate Review and for explicit confirmation --
-not a design ambiguity (both sources agree on the intended behavior), but
-a genuine wording discrepancy worth the user's own sign-off given it fixes
-the persistence schema's primary key.
+prominently for the Phase 3E Gate Review and for explicit confirmation.
+
+**Update, Phase 3E Supervisor milestone reconciliation pass
+(`docs/design/phase-3/15-3e-supervisor-reconciliation.md` §A).** This is
+*not* merely a wording discrepancy, as first disclosed above -- tracing it
+through TDD 3E §4's own Fork 3E-2 resolution note shows the *already-
+approved* concrete ORM (`14-3e-agent-os-research.md` §4) uses a UUID
+surrogate `id` and a `UniqueConstraint("category", "version")`, matching
+TDD 3E §5's literal wording exactly, and Kernel's own already-built
+`agent_instance.agent_package_id` column (Milestone 2) is typed `UUID` to
+match it -- a real, disclosed schema mismatch against *this* module's own
+`(id: str, version: str)` composite-key choice. Genuinely stopped, not
+resolved; see that document for the full evidence chain and the options
+left for the user's decision. Not changed here on this pass's own
+authority.
 
 **Sandbox Test Run, disclosed.** Fork E3's "lighter OS-level scoping"
 (TDD 3C §3) constrains what capability *adapters* may touch (filesystem/
@@ -53,6 +64,18 @@ real, meaningful gate before Registration, not a no-op, but explicitly not
 full behavioral isolation. Disclosed, not silently implied to be more than
 it is (mirrors `nova_capability_engine.domain.sandbox`'s own disclosed-
 limitation discipline).
+
+**Confirmed, Phase 3E Supervisor milestone reconciliation pass
+(`docs/design/phase-3/15-3e-supervisor-reconciliation.md` §B).** Structural
+conformance only is the intended, correct scope for Phase 3 -- doc 12 §8's
+own execution-backend table shows the Sandbox Test Run's real purpose
+(gating `inprocess`/`subprocess` -> `container` trust promotion) is inert
+while `inprocess` is the only implemented backend, and
+`14-3e-agent-os-research.md` §8a independently confirms this project's
+actual enforcement boundary is `capability-engine`'s own OS-level
+sandboxing, exercised downstream at `action.execute()` time, never the
+Registry's own install-time gate. No implementation change follows from
+this confirmation.
 """
 
 from __future__ import annotations

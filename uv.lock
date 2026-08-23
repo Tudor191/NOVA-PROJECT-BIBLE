@@ -32,6 +32,7 @@ members = [
     "planning-engine",
     "reasoning-engine",
     "registry",
+    "supervisors",
     "world-model-engine",
 ]
 
@@ -3102,6 +3103,49 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/eb/e3/7c1dc7381d9f8ab7d854328ebfa884e62cb3f3d8549ddfd37c7814f42afa/starlette-1.3.1.tar.gz", hash = "sha256:05d0213193f2fbaae60e2ecb593b4add4262ad4e46536b54abe36f11a71724e0", size = 2703240, upload-time = "2026-06-12T09:23:11.602Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/ec/bb/2799cc2ede3ed41131f8975621e7213dfc7ef4acbbaadfa440f32500c370/starlette-1.3.1-py3-none-any.whl", hash = "sha256:c7372aae11c3c3f26a42df7bd626cec2f47d03483d261d369516a615a53714c6", size = 73632, upload-time = "2026-06-12T09:23:10.017Z" },
+]
+
+[[package]]
+name = "supervisors"
+version = "0.1.0"
+source = { editable = "agent-os/supervisors" }
+dependencies = [
+    { name = "fastapi" },
+    { name = "nova-agent-sdk" },
+    { name = "nova-contracts" },
+    { name = "nova-eventbus-sdk" },
+    { name = "nova-observability" },
+    { name = "nova-service-kit" },
+    { name = "pydantic-settings" },
+    { name = "uvicorn", extra = ["standard"] },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "httpx" },
+    { name = "nova-testkit" },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "fastapi", specifier = ">=0.115" },
+    { name = "nova-agent-sdk", editable = "agent-os/sdk/python" },
+    { name = "nova-contracts", editable = "packages/nova-contracts" },
+    { name = "nova-eventbus-sdk", editable = "packages/nova-eventbus-sdk" },
+    { name = "nova-observability", editable = "packages/nova-observability" },
+    { name = "nova-service-kit", editable = "packages/nova-service-kit" },
+    { name = "pydantic-settings", specifier = ">=2.6" },
+    { name = "uvicorn", extras = ["standard"], specifier = ">=0.32" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "httpx", specifier = ">=0.27" },
+    { name = "nova-testkit", editable = "packages/nova-testkit" },
+    { name = "pytest", specifier = ">=8.3" },
+    { name = "pytest-asyncio", specifier = ">=0.24" },
 ]
 
 [[package]]
