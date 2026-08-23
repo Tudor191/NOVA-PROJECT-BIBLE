@@ -1,5 +1,5 @@
 [tool.uv.workspace]
-members = ["packages/*", "services/*"]
+members = ["packages/*", "services/*", "agent-os/*"]
 
 [tool.uv]
 dev-dependencies = [
@@ -98,6 +98,7 @@ root_packages = [
     "nova_planning_engine",
     "nova_capability_engine",
     "nova_action_engine",
+    "nova_agent_os_kernel",
 ]
 include_external_packages = true
 
@@ -119,6 +120,7 @@ modules = [
     "nova_planning_engine",
     "nova_capability_engine",
     "nova_action_engine",
+    "nova_agent_os_kernel",
 ]
 
 [[tool.importlinter.contracts]]
@@ -139,6 +141,7 @@ source_modules = [
     "nova_planning_engine",
     "nova_capability_engine",
     "nova_action_engine",
+    "nova_agent_os_kernel",
 ]
 forbidden_modules = [
     "nats",
@@ -164,6 +167,7 @@ source_modules = [
     "nova_planning_engine",
     "nova_capability_engine",
     "nova_action_engine",
+    "nova_agent_os_kernel",
 ]
 forbidden_modules = [
     "neo4j",
@@ -256,4 +260,5 @@ forbidden_modules = [
     "nova_planning_engine",
     "nova_capability_engine",
     "nova_action_engine",
+    "nova_agent_os_kernel",
 ]

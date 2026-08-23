@@ -40,7 +40,11 @@ from nova_contracts.events.action import (
     RollbackStrategy,
     RollbackStrategyKind,
 )
-from nova_contracts.events.agent_os import AgentMessage, AgentMessageType
+from nova_contracts.events.agent_os import (
+    AgentMessage,
+    AgentMessageType,
+    AgentOsTaskCompletedPayload,
+)
 from nova_contracts.events.ai_model_orchestration import (
     BudgetExceededPayload,
     BudgetScope,
@@ -235,6 +239,7 @@ __all__ = [
     "AgentMessage",
     "AgentMessageType",
     "AgentMetrics",
+    "AgentOsTaskCompletedPayload",
     "AgentResult",
     "ApprovalDecision",
     "ArbitrationOutcome",

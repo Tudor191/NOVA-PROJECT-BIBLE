@@ -1,4 +1,5 @@
 packages:
+  - "agent-os/*"
   - "apps/*"
   - "packages/*"
   - "services/*"

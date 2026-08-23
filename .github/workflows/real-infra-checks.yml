@@ -63,6 +63,8 @@ jobs:
             path: services/action-engine
           - package: planning-engine
             path: services/planning-engine
+          - package: kernel
+            path: agent-os/kernel
     steps:
       - uses: actions/checkout@v4
 

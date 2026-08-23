@@ -88,3 +88,4 @@ export * from "./PlanningDecomposeReplyPayload";
 export * from "./PlanningGoalsCurrentRequestPayload";
 export * from "./PlanningGoalsCurrentReplyPayload";
 export * from "./AgentMessage";
+export * from "./AgentOsTaskCompletedPayload";

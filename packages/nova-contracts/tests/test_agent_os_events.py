@@ -1,6 +1,11 @@
 from uuid import uuid4
 
-from nova_contracts import AgentMessage, AgentMessageType, known_subjects
+from nova_contracts import (
+    AgentMessage,
+    AgentMessageType,
+    AgentOsTaskCompletedPayload,
+    known_subjects,
+)
 
 
 def test_agent_message_type_matches_doc_12_10_verbatim() -> None:
@@ -41,3 +46,30 @@ def test_agent_message_from_instance_id_defaults_to_none_for_kernel_originated()
 
 def test_agent_message_subject_is_registered() -> None:
     assert "agent_os.instance.inbox" in known_subjects()
+
+
+def test_agent_os_task_completed_subject_is_registered() -> None:
+    assert "agent_os.task.completed" in known_subjects()
+
+
+def test_agent_os_task_completed_round_trips() -> None:
+    payload = AgentOsTaskCompletedPayload(
+        task_node_id=uuid4(),
+        agent_instance_id=uuid4(),
+        outcome="success",
+        result={"summary": "done"},
+        correlation_id=uuid4(),
+    )
+    round_tripped = AgentOsTaskCompletedPayload.model_validate(payload.model_dump(mode="json"))
+    assert round_tripped == payload
+    assert round_tripped.schema_version == 1
+
+
+def test_agent_os_task_completed_interrupted_outcome_has_no_result() -> None:
+    payload = AgentOsTaskCompletedPayload(
+        task_node_id=uuid4(),
+        agent_instance_id=uuid4(),
+        outcome="interrupted",
+        correlation_id=uuid4(),
+    )
+    assert payload.result is None

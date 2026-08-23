@@ -51,6 +51,9 @@ jobs:
       - name: Import boundary check (ADR-004 / ADR-006)
         run: uv run lint-imports
 
+      - name: Test scaffolding tools (tools/scaffold-*.py, not a workspace package)
+        run: uv run pytest tools/tests -q
+
       - name: Lint every package
         run: pnpm turbo run lint
 
