@@ -21,6 +21,7 @@ from nova_contracts import (
     ActionApprovalRequestedPayload,
     ActionExecuteRequestPayload,
     ActionResultPayload,
+    AgentMessage,
     AttentionShiftedPayload,
     BudgetExceededPayload,
     CapabilityInvokeReplyPayload,
@@ -90,6 +91,8 @@ from nova_contracts import (
     PersonalityValidateResponseRequestPayload,
     PlanningDecomposeReplyPayload,
     PlanningDecomposeRequestPayload,
+    PlanningGoalsCurrentReplyPayload,
+    PlanningGoalsCurrentRequestPayload,
     PlanningTaskGraphCreatedPayload,
     PredictionPayload,
     ReasoningProcessCompletedPayload,
@@ -195,6 +198,9 @@ MODELS: list[type[BaseModel]] = [
     PlanningTaskGraphCreatedPayload,
     PlanningDecomposeRequestPayload,
     PlanningDecomposeReplyPayload,
+    PlanningGoalsCurrentRequestPayload,
+    PlanningGoalsCurrentReplyPayload,
+    AgentMessage,
 ]
 
 PACKAGE_ROOT = Path(__file__).resolve().parent.parent

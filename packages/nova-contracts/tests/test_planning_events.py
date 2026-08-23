@@ -1,8 +1,11 @@
 from uuid import uuid4
 
 from nova_contracts import (
+    GoalSnapshot,
     PlanningDecomposeReplyPayload,
     PlanningDecomposeRequestPayload,
+    PlanningGoalsCurrentReplyPayload,
+    PlanningGoalsCurrentRequestPayload,
     PlanningTaskGraphCreatedPayload,
     RiskLevel,
     TaskGraphSnapshot,
@@ -31,6 +34,8 @@ def test_all_planning_subjects_are_registered() -> None:
         "planning.task_graph.created",
         "planning.decompose.request",
         "planning.decompose.reply",
+        "planning.goals.current.request",
+        "planning.goals.current.reply",
     ):
         assert subject in subjects
 
@@ -84,3 +89,27 @@ def test_planning_decompose_request_reply_round_trip() -> None:
         decomposed_reply.model_dump(mode="json")
     )
     assert round_tripped_reply == decomposed_reply
+
+
+def test_planning_goals_current_request_reply_round_trip() -> None:
+    request = PlanningGoalsCurrentRequestPayload(
+        user_id=uuid4(), requesting_engine="reasoning-engine", correlation_id=uuid4()
+    )
+    round_tripped_request = PlanningGoalsCurrentRequestPayload.model_validate(
+        request.model_dump(mode="json")
+    )
+    assert round_tripped_request == request
+    assert round_tripped_request.scope is None
+
+    goal = GoalSnapshot(
+        id=uuid4(), description="ship the feature", priority=1.0, goal_tier="established"
+    )
+    reply = PlanningGoalsCurrentReplyPayload(goals=[goal])
+    round_tripped_reply = PlanningGoalsCurrentReplyPayload.model_validate(
+        reply.model_dump(mode="json")
+    )
+    assert round_tripped_reply == reply
+
+
+def test_planning_goals_current_reply_defaults_to_no_goals() -> None:
+    assert PlanningGoalsCurrentReplyPayload().goals == []

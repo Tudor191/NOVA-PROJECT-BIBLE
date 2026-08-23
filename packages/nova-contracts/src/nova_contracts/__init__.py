@@ -12,7 +12,19 @@ themselves published on the Event Bus (see that module's own docstring) -- not
 allowlist for the same reason.
 """
 
-from nova_contracts.entities import MemoryReference, PersonalContext, WorldModelSnapshot
+from nova_contracts.entities import (
+    AgentContext,
+    AgentHealth,
+    AgentMetrics,
+    AgentResult,
+    KnowledgeReference,
+    MemoryReference,
+    PermissionSet,
+    PersonalContext,
+    ResourceUsage,
+    ValidationOutcome,
+    WorldModelSnapshot,
+)
 from nova_contracts.envelope import EventEnvelope
 from nova_contracts.events.action import (
     Action,
@@ -28,6 +40,7 @@ from nova_contracts.events.action import (
     RollbackStrategy,
     RollbackStrategyKind,
 )
+from nova_contracts.events.agent_os import AgentMessage, AgentMessageType
 from nova_contracts.events.ai_model_orchestration import (
     BudgetExceededPayload,
     BudgetScope,
@@ -160,8 +173,11 @@ from nova_contracts.events.personality import (
     ViolationRecordPayload,
 )
 from nova_contracts.events.planning import (
+    GoalSnapshot,
     PlanningDecomposeReplyPayload,
     PlanningDecomposeRequestPayload,
+    PlanningGoalsCurrentReplyPayload,
+    PlanningGoalsCurrentRequestPayload,
     PlanningTaskGraphCreatedPayload,
     RiskLevel,
     TaskGraphSnapshot,
@@ -214,6 +230,12 @@ __all__ = [
     "ActionResultPayload",
     "ActionStatus",
     "ActionType",
+    "AgentContext",
+    "AgentHealth",
+    "AgentMessage",
+    "AgentMessageType",
+    "AgentMetrics",
+    "AgentResult",
     "ApprovalDecision",
     "ArbitrationOutcome",
     "AttentionShiftedPayload",
@@ -281,6 +303,7 @@ __all__ = [
     "GenerateReplyPayload",
     "GenerateRequestPayload",
     "GoalPayload",
+    "GoalSnapshot",
     "GoalTier",
     "HeartbeatPayload",
     "HumanOverrideAppliedPayload",
@@ -289,6 +312,7 @@ __all__ = [
     "KnowledgeLinkReplyPayload",
     "KnowledgeLinkRequestPayload",
     "KnowledgeNodeChangedPayload",
+    "KnowledgeReference",
     "KnowledgeRetrieveReplyPayload",
     "KnowledgeRetrieveRequestPayload",
     "KnowledgeScope",
@@ -323,6 +347,7 @@ __all__ = [
     "PerceptionSensorHealthChangedPayload",
     "PerceptionSource",
     "PerceptionWakeDetectedPayload",
+    "PermissionSet",
     "PersonalContext",
     "PersonalityMemoryUpdatePayload",
     "PersonalityStyleSelectReplyPayload",
@@ -331,6 +356,8 @@ __all__ = [
     "PersonalityValidateResponseRequestPayload",
     "PlanningDecomposeReplyPayload",
     "PlanningDecomposeRequestPayload",
+    "PlanningGoalsCurrentReplyPayload",
+    "PlanningGoalsCurrentRequestPayload",
     "PlanningTaskGraphCreatedPayload",
     "PredictionPayload",
     "PresentIdentityPayload",
@@ -344,6 +371,7 @@ __all__ = [
     "RequestCompletedPayload",
     "RequestFailedPayload",
     "RequestOutcome",
+    "ResourceUsage",
     "ResponseShapingDirectivePayload",
     "RetryPolicy",
     "RiskLevel",
@@ -360,6 +388,7 @@ __all__ = [
     "TranscribeReplyPayload",
     "TranscribeRequestPayload",
     "TurnDirection",
+    "ValidationOutcome",
     "ViolationCheckFamily",
     "ViolationRecordPayload",
     "VoiceEmbedReplyPayload",
