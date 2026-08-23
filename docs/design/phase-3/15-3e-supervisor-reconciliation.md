@@ -1,8 +1,10 @@
 # 15 — Phase 3E Supervisor Milestone: Reconciliation of Two Disclosed Items
 
-**Status: investigation complete. Item A is a genuine architectural conflict —
-stopped, not resolved, per explicit instruction. Item B is resolved as a
-documented conclusion; no implementation change required.**
+**Status: investigation complete. Item A was a genuine architectural
+conflict, stopped and reported per explicit instruction, then resolved
+2026-08-23 by explicit user decision (see §A's "Resolution" subsection)
+and implemented. Item B is resolved as a documented conclusion; no
+implementation change required.**
 
 This document is the focused reconciliation the user's Supervisor-milestone
 instruction required before Agent Package work may begin. It does not
@@ -135,6 +137,81 @@ only surface once a sixth agent is added sharing an existing category.
    lookups remain possible without querying inside `manifest_json`.
 3. Some other resolution the user prefers.
 
+### Resolution (2026-08-23, per explicit user decision)
+
+The user chose **option 2**: revert Registry's schema to the approved Fork
+3E-2 ORM exactly as specified, *without* adding the extra string field
+option 2's own text had speculated might be needed. The user's explicit
+instruction gave the canonical shape as exactly two elements — a UUID
+surrogate primary key, and `UniqueConstraint(category, version)` — and
+named nothing else. Adding a third, unrequested field (e.g. an
+`agent_id: str` column mirroring `capability-engine`'s `name`) would have
+repeated the same failure mode that caused this conflict in the first
+place: inventing architecture beyond what was actually approved. So the
+manifest's own string `id` (e.g. `"coding-agent"`) remains recoverable
+only from `manifest_json`, exactly as the approved ORM in
+`14-3e-agent-os-research.md` §4 shows it — no separate column was added.
+This is a scoping judgment made on this pass's own authority within the
+user's explicit instruction, not a further-elaborated instruction from the
+user; if the user wants a natural-key lookup column for the manifest's own
+`id` (doc-12-style `coding-agent@1.2.0` addressing without querying inside
+`manifest_json`), that remains open for a future, explicit decision.
+
+**What was corrected, concretely:**
+
+- `domain/models.py`: `AgentPackage.id` changed from `str` (the manifest's
+  own id) to `UUID` (a surrogate key, mirroring Kernel's own
+  `AgentInstance` treatment).
+- `domain/ports.py`: `RegistryRepository.find_by_id_version` →
+  `find_by_category_version`; `find_latest_by_id` →
+  `find_latest_by_category`; `update_health_status` narrowed from
+  `(package_id, version)` to `(package_id: UUID)` alone, since the
+  surrogate key is now sufficient on its own.
+- `repository/models.py` (`AgentPackageORM`): composite primary key
+  `(id, version)` (`id: Text`) replaced with a single UUID primary key
+  (`id: PG_UUID`) plus `UniqueConstraint("category", "version",
+  name="uq_agent_package_category_version")` — now identical to the
+  approved ORM in `14-3e-agent-os-research.md` §4.
+- `repository/postgres_registry_repository.py`: all method bodies updated
+  to match; the `(category, version)` unique-constraint violation is what
+  now translates to `AgentPackageAlreadyExistsError`.
+- `alembic/versions/0001_initial_schema.py`: `PRIMARY KEY (id, version)`
+  (composite, `TEXT id`) replaced with `id UUID NOT NULL PRIMARY KEY` +
+  `CONSTRAINT uq_agent_package_category_version UNIQUE (category,
+  version)`; the now-redundant standalone `category` index was dropped
+  (the composite unique index already serves category-only lookups via
+  leftmost-prefix matching).
+- `domain/pipeline.py`: Registration now mints `AgentPackage(id=uuid4(),
+  ...)` in the domain layer (matching `capability-engine`'s own
+  `Capability(id=uuid4(), ...)` convention) instead of using the
+  manifest's own id as the primary key. The idempotency check
+  (post-Manifest-Validation) and the race-condition re-check both key on
+  `(category, version)`. The Permission Review stage's diff baseline
+  changed from "the latest version of this same agent id" to "the latest
+  install in this same category" — a direct, disclosed consequence of
+  `(category, version)` keying (see "What is not in dispute" above); Phase
+  3's five agents each have a distinct category, so this has no observable
+  effect on Phase 3 itself.
+- `tests/fakes/repository.py` and `tests/unit/test_pipeline.py`: updated
+  to the corrected shape; two tests added — one proving two different
+  categories may share a version, one proving a same-`(category,
+  version)` reinstall is idempotent (returns the existing row) rather than
+  a hard error.
+- `tests/integration/test_repository_real_postgres.py`: updated to the
+  corrected shape against a real Postgres schema (via this component's own
+  Alembic migration), including a dedicated test that round-trips the
+  surrogate UUID through insert → find → update to prove ORM/repository/
+  migration consistency, and a real-Postgres-level test of the
+  two-categories-share-a-version case.
+
+**Not changed by this correction:** the eight-stage installation pipeline
+(`InstallationStage` enum, unchanged); the Sandbox Test Run's structural
+`AgentHandler`-conformance-only behavior (§B, below — untouched); no
+`nova-auth` introduced anywhere; `checksum` and
+`supervisor_notified_new_permissions` (Milestone-3-era bookkeeping,
+unrelated to the idempotency-key shape) preserved as-is; no other approved
+Phase 3E decision reopened.
+
 ---
 
 ## B. Registry Sandbox Test Run — structural conformance vs. behavioral isolation
@@ -211,5 +288,5 @@ Phase 3E Gate Review; no code changes accompany it.
 
 | Item | Conclusion | Action |
 |---|---|---|
-| A. Registry idempotency key | Genuine architectural conflict between doc 12 and the already-approved Fork 3E-2 concrete ORM; also a real schema-type mismatch already present between Kernel's `agent_package_id: UUID` (Milestone 2) and Registry's `AgentPackage.id: str` (Milestone 3) | **Stopped.** No change made. Presented to the user for a decision (§A, three options). |
+| A. Registry idempotency key | Genuine architectural conflict between doc 12 and the already-approved Fork 3E-2 concrete ORM; also a real schema-type mismatch already present between Kernel's `agent_package_id: UUID` (Milestone 2) and Registry's `AgentPackage.id: str` (Milestone 3) | **Resolved 2026-08-23 by explicit user decision (option 2: revert to the approved ORM as specified).** Implemented across domain model, ports, repository, migration, pipeline, and tests — see §A's "Resolution" subsection. |
 | B. Registry Sandbox Test Run | Structural `AgentHandler` conformance is the intended, correct Phase 3 scope; no behavioral isolation is specified or required | **Resolved as documented.** Milestone 3's implementation already matches this conclusion; no code change required. |

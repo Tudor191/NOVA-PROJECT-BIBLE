@@ -4,15 +4,18 @@ disk (`tmp_path`), using `FakeRegistryRepository`/`FakeCommunicationPort`
 so no real Postgres or Event Bus is required. Mirrors
 `capability-engine`'s own `tests/unit/test_pipeline.py` convention,
 adapted for filesystem discovery (`DiscoveredPackage`, not an in-memory
-bundled manifest) and the natural-key `(id, version)` resolution this
-component's own `domain/pipeline.py` module docstring discloses.
+bundled manifest) and the natural-key `(category, version)` resolution
+this component's own `domain/pipeline.py` module docstring discloses --
+the approved Fork 3E-2 ORM shape, corrected from Milestone 3's own
+`(id, version)` interpretation (`docs/design/phase-3/
+15-3e-supervisor-reconciliation.md` §A).
 """
 
 from __future__ import annotations
 
 from datetime import UTC, datetime
 from pathlib import Path
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 import yaml
@@ -171,14 +174,16 @@ async def test_full_pipeline_succeeds_and_promotes_health_to_healthy(tmp_path: P
         on_stage=on_stage,
     )
 
-    assert installed.id == "toy-agent"
+    assert isinstance(installed.id, UUID)
+    assert installed.manifest_json["id"] == "toy-agent"
     assert installed.version == "0.1.0"
     assert installed.category == "qa"
     assert installed.health_status == "healthy"
     assert installed.checksum
 
-    persisted = await repository.find_by_id_version("toy-agent", "0.1.0")
+    persisted = await repository.find_by_category_version("qa", "0.1.0")
     assert persisted is not None
+    assert persisted.id == installed.id
     assert persisted.health_status == "healthy"
 
     assert [stage for stage, _ in stages_seen] == [
@@ -240,7 +245,7 @@ async def test_idempotent_reinstall_returns_the_existing_row_unchanged(tmp_path:
     package = _write_agent_package(tmp_path)
     repository = FakeRegistryRepository()
     existing = AgentPackage(
-        id="toy-agent",
+        id=uuid4(),
         category="qa",
         version="0.1.0",
         manifest_json={"id": "toy-agent"},
@@ -248,7 +253,7 @@ async def test_idempotent_reinstall_returns_the_existing_row_unchanged(tmp_path:
         health_status="healthy",
         checksum="pre-existing-checksum",
     )
-    repository.rows[("toy-agent", "0.1.0")] = existing
+    repository.rows[("qa", "0.1.0")] = existing
 
     result = await install_agent_package(
         package,
@@ -260,6 +265,67 @@ async def test_idempotent_reinstall_returns_the_existing_row_unchanged(tmp_path:
 
     assert result == existing
     assert result.checksum == "pre-existing-checksum"
+
+
+async def test_two_different_categories_may_share_the_same_version(tmp_path: Path) -> None:
+    """Point 9(a) of the reconciliation correction: `(category, version)`
+    uniqueness must allow two *different*-category packages to both
+    install at the same version number."""
+    repository = FakeRegistryRepository()
+    qa_package = _write_agent_package(tmp_path / "qa", category="qa", version="1.0.0")
+    coding_package = _write_agent_package(
+        tmp_path / "coding", category="coding", version="1.0.0"
+    )
+
+    qa_installed = await install_agent_package(
+        qa_package,
+        repository=repository,
+        communication_port=None,
+        primary_user_id=None,
+        kernel_version="0.1.0",
+    )
+    coding_installed = await install_agent_package(
+        coding_package,
+        repository=repository,
+        communication_port=None,
+        primary_user_id=None,
+        kernel_version="0.1.0",
+    )
+
+    assert qa_installed.id != coding_installed.id
+    assert qa_installed.category == "qa"
+    assert coding_installed.category == "coding"
+    assert qa_installed.version == coding_installed.version == "1.0.0"
+    assert await repository.find_by_category_version("qa", "1.0.0") is not None
+    assert await repository.find_by_category_version("coding", "1.0.0") is not None
+
+
+async def test_same_category_and_version_reinstall_is_idempotent_not_a_hard_error(
+    tmp_path: Path,
+) -> None:
+    """Point 9(b): a second real install attempt for an already-installed
+    `(category, version)` pair returns the existing row, never a
+    duplicate-row error surfaced to the caller (Fork 3C-4's precedent)."""
+    repository = FakeRegistryRepository()
+    package = _write_agent_package(tmp_path, category="qa", version="1.0.0")
+
+    first = await install_agent_package(
+        package,
+        repository=repository,
+        communication_port=None,
+        primary_user_id=None,
+        kernel_version="0.1.0",
+    )
+    second = await install_agent_package(
+        package,
+        repository=repository,
+        communication_port=None,
+        primary_user_id=None,
+        kernel_version="0.1.0",
+    )
+
+    assert second.id == first.id
+    assert len(repository.rows) == 1
 
 
 async def test_dependency_resolution_fails_when_no_phase3_backend_is_declared(
@@ -411,7 +477,7 @@ async def test_registration_race_returns_the_already_inserted_row(tmp_path: Path
     class _RaceRepository(FakeRegistryRepository):
         async def insert(self, agent_package: AgentPackage) -> AgentPackage:
             raced = agent_package.model_copy(update={"checksum": "raced-in-first"})
-            self.rows[(agent_package.id, agent_package.version)] = raced
+            self.rows[(agent_package.category, agent_package.version)] = raced
             raise AgentPackageAlreadyExistsError("raced")
 
     result = await _install(package, repository=_RaceRepository())
@@ -432,6 +498,6 @@ async def test_on_load_failure_does_not_roll_back_registration(tmp_path: Path) -
     )
 
     assert installed.health_status == "unknown"
-    persisted = await repository.find_by_id_version("toy-agent", "0.1.0")
+    persisted = await repository.find_by_category_version("qa", "0.1.0")
     assert persisted is not None
     assert persisted.health_status == "unknown"

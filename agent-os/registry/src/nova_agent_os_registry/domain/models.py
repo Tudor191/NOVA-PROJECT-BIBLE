@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Literal
+from uuid import UUID
 
 from pydantic import BaseModel, Field
 
@@ -22,14 +23,18 @@ class AgentPackage(BaseModel):
     `domain/pipeline.py`'s module docstring for why a real SHA-256 digest
     is computed and stored despite no signing infrastructure existing yet).
 
-    `id` here is the *manifest's own* `AgentManifest.id` (e.g.
-    `"coding-agent"`), never a surrogate UUID -- natural-key idempotency is
-    keyed on `(id, version)`, not `(category, version)`; see
-    `domain/pipeline.py`'s module docstring for the exact TDD 3E §5 wording
-    this resolves and why.
+    `id` is a **surrogate UUID primary key**, generated at Registration
+    (`domain/pipeline.py`) -- not the manifest's own `AgentManifest.id`
+    string (e.g. `"coding-agent"`, which lives only inside `manifest_json`
+    here). Natural-key idempotency is `(category, version)`, per the
+    approved Fork 3E-2 resolution's own concrete ORM
+    (`docs/design/phase-3/14-3e-agent-os-research.md` §4) -- see
+    `docs/design/phase-3/15-3e-supervisor-reconciliation.md` §A for the
+    full reconciliation record of why this corrects Milestone 3's own,
+    since-superseded `(id: str, version)` interpretation.
     """
 
-    id: str
+    id: UUID
     category: str
     version: str
     manifest_json: dict

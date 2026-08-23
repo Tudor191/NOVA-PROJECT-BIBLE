@@ -1,14 +1,18 @@
 """`PostgresRegistryRepository` -- implements
 `domain.ports.RegistryRepository` against SQLAlchemy async, per the schema
-in docs/design/phase-3/08-tdd-3e-agent-os.md §5.
+in docs/design/phase-3/08-tdd-3e-agent-os.md §5, corrected to the approved
+Fork 3E-2 concrete ORM shape
+(docs/design/phase-3/15-3e-supervisor-reconciliation.md §A).
 
-`insert()` translates an `(id, version)` primary-key violation
+`insert()` translates a `(category, version)` unique-constraint violation
 (`sqlalchemy.exc.IntegrityError`) into `AgentPackageAlreadyExistsError` --
 the natural-key idempotency guard convention every other Phase 3
 repository already establishes.
 """
 
 from __future__ import annotations
+
+from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -38,16 +42,24 @@ class PostgresRegistryRepository:
     def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
         self._session_factory = session_factory
 
-    async def find_by_id_version(self, package_id: str, version: str) -> AgentPackage | None:
+    async def find_by_category_version(
+        self, category: str, version: str
+    ) -> AgentPackage | None:
         async with self._session_factory() as session:
-            row = await session.get(AgentPackageORM, (package_id, version))
+            result = await session.execute(
+                select(AgentPackageORM).where(
+                    AgentPackageORM.category == category,
+                    AgentPackageORM.version == version,
+                )
+            )
+            row = result.scalars().first()
             return _to_domain(row) if row is not None else None
 
-    async def find_latest_by_id(self, package_id: str) -> AgentPackage | None:
+    async def find_latest_by_category(self, category: str) -> AgentPackage | None:
         async with self._session_factory() as session:
             result = await session.execute(
                 select(AgentPackageORM)
-                .where(AgentPackageORM.id == package_id)
+                .where(AgentPackageORM.category == category)
                 .order_by(AgentPackageORM.installed_at.desc())
                 .limit(1)
             )
@@ -79,15 +91,14 @@ class PostgresRegistryRepository:
             except IntegrityError as exc:
                 await session.rollback()
                 raise AgentPackageAlreadyExistsError(
-                    f"agent_package ({package.id}, {package.version}) already exists"
+                    f"agent_package (category={package.category!r}, "
+                    f"version={package.version!r}) already exists"
                 ) from exc
         return package
 
-    async def update_health_status(
-        self, package_id: str, version: str, *, health_status: str
-    ) -> None:
+    async def update_health_status(self, package_id: UUID, *, health_status: str) -> None:
         async with self._session_factory() as session:
-            row = await session.get(AgentPackageORM, (package_id, version))
+            row = await session.get(AgentPackageORM, package_id)
             if row is None:
                 return
             row.health_status = health_status

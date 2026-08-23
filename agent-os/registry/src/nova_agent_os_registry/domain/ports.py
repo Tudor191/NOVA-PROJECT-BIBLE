@@ -25,10 +25,10 @@ __all__ = [
 
 class AgentPackageAlreadyExistsError(Exception):
     """Raised by a `RegistryRepository.insert()` implementation when
-    `(id, version)` already exists -- the natural-key idempotency guard
-    every other Phase 3 repository already establishes (`capability-engine`'s
-    `CapabilityAlreadyExistsError`/Fork 3C-4, `action-engine`'s
-    `ActionAlreadyExistsError`, `agent-os/kernel`'s own
+    `(category, version)` already exists -- the natural-key idempotency
+    guard every other Phase 3 repository already establishes
+    (`capability-engine`'s `CapabilityAlreadyExistsError`/Fork 3C-4,
+    `action-engine`'s `ActionAlreadyExistsError`, `agent-os/kernel`'s own
     `AgentInstanceAlreadyExistsError`)."""
 
 
@@ -71,14 +71,18 @@ class CommunicationPort(Protocol):
 @runtime_checkable
 class RegistryRepository(Protocol):
     """Persistence port for the `agent_os` Postgres schema's
-    `agent_package` table (TDD 3E §5). Natural key: `(id, version)` -- see
-    `domain/pipeline.py`'s module docstring for why this resolves TDD 3E
-    §5's own "(category, version)" wording."""
+    `agent_package` table (TDD 3E §5). Natural key: `(category, version)`
+    -- the approved Fork 3E-2 resolution's own concrete ORM
+    (`14-3e-agent-os-research.md` §4), correcting Milestone 3's own
+    `(id, version)` interpretation; see
+    `docs/design/phase-3/15-3e-supervisor-reconciliation.md` §A."""
 
-    async def find_by_id_version(self, package_id: str, version: str) -> AgentPackage | None: ...
+    async def find_by_category_version(
+        self, category: str, version: str
+    ) -> AgentPackage | None: ...
 
-    async def find_latest_by_id(self, package_id: str) -> AgentPackage | None:
-        """The most recently `installed_at` row for `package_id`, across
+    async def find_latest_by_category(self, category: str) -> AgentPackage | None:
+        """The most recently `installed_at` row for `category`, across
         every installed version -- what the Permission Review stage diffs
         a new install's `required_permissions` against (TDD 3E §5)."""
         ...
@@ -86,12 +90,14 @@ class RegistryRepository(Protocol):
     async def list_by_category(self, category: str) -> list[AgentPackage]: ...
 
     async def insert(self, package: AgentPackage) -> AgentPackage:
-        """Inserts a new row. An `(id, version)` collision must be caught
-        by the caller and raises `AgentPackageAlreadyExistsError`,
+        """Inserts a new row. A `(category, version)` collision must be
+        caught by the caller and raises `AgentPackageAlreadyExistsError`,
         mirroring every other Phase 3 repository's own idempotency-guard
         translation."""
         ...
 
-    async def update_health_status(
-        self, package_id: str, version: str, *, health_status: str
-    ) -> None: ...
+    async def update_health_status(self, package_id: UUID, *, health_status: str) -> None:
+        """Keyed on the surrogate `id` alone -- once a row exists, its
+        UUID is a sufficient, unique lookup key (mirrors
+        `agent-os/kernel`'s own `update_status(instance_id: UUID, ...)`)."""
+        ...

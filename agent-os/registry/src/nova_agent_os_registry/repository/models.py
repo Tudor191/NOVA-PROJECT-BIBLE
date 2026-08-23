@@ -1,6 +1,9 @@
 """SQLAlchemy ORM models -- the `agent_os` Postgres schema's
-`agent_package` table, exactly as specified in
-docs/design/phase-3/08-tdd-3e-agent-os.md §5. `Base.metadata` is what
+`agent_package` table, matching the approved Fork 3E-2 resolution's own
+concrete ORM (`docs/design/phase-3/14-3e-agent-os-research.md` §4) exactly
+-- see `docs/design/phase-3/15-3e-supervisor-reconciliation.md` §A for the
+full reconciliation record correcting Milestone 3's own, since-superseded
+`(id: str, version)` composite-key interpretation. `Base.metadata` is what
 Alembic's `env.py` autogenerates migrations against;
 `alembic/versions/0001_initial_schema.py` is hand-written to match this
 file precisely, the same convention as every prior engine.
@@ -14,10 +17,12 @@ component's migration runs first) and the one table this component owns.
 
 from __future__ import annotations
 
+import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, MetaData, PrimaryKeyConstraint, Text
+from sqlalchemy import DateTime, MetaData, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -32,16 +37,21 @@ class AgentPackageORM(Base):
     treatment `capability-engine`'s `permissions_reviewed_at`/
     `sandbox_test_passed_at` columns already established.
 
-    Composite primary key `(id, version)` -- see `domain/pipeline.py`'s
-    module docstring for the exact TDD 3E §5 wording this resolves.
+    UUID surrogate primary key (`id`), `UniqueConstraint("category",
+    "version")` for natural-key idempotency -- the approved Fork 3E-2
+    concrete ORM's exact shape, mirroring `capability-engine`'s own
+    `CapabilityORM` structure (UUID PK + `UniqueConstraint("name",
+    "version")`).
     """
 
     __tablename__ = "agent_package"
-    __table_args__ = (PrimaryKeyConstraint("id", "version"),)
+    __table_args__ = (
+        UniqueConstraint("category", "version", name="uq_agent_package_category_version"),
+    )
 
-    id: Mapped[str] = mapped_column(Text)
-    version: Mapped[str] = mapped_column(Text)
+    id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True)
     category: Mapped[str] = mapped_column(Text, nullable=False)
+    version: Mapped[str] = mapped_column(Text, nullable=False)
     manifest_json: Mapped[dict] = mapped_column(JSONB, nullable=False)
     installed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     health_status: Mapped[str] = mapped_column(Text, nullable=False, server_default="unknown")

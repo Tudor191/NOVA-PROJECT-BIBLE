@@ -20,35 +20,38 @@ idempotency can only be pre-checked *after* Fetch + Manifest Validation
 have actually parsed `agent.yaml`, not before Fetch, since there is
 nothing to key on before that.
 
-**Natural-key resolution, disclosed.** TDD 3E §5's own text reads:
-"the Registry's persistence keys on `(category, version)`, not `category`
-alone" -- but doc 12 §6's own worked example versions `coding-agent@1.2.0`/
-`coding-agent@1.3.0` (the package's own `id`, not its taxonomy `category`),
-and TDD 3E §5's very same sentence states the purpose is multi-version
-coexistence "per agent" (per package identity). Keying uniqueness on
-`category` alone (or `(category, version)`) would incorrectly forbid two
-*different* packages sharing one category (e.g. two distinct `"coding"`-
-category agents) from ever coexisting -- the opposite of what
-category-based Kernel Scheduler dispatch (doc 12 §7: "query Registry for
-healthy candidates in the required category") requires categories to
-allow. Resolved here as `(id, version)`, matching doc 12's own worked
-example and mirroring `capability-engine`'s own `(name, version)`/Fork
-3C-4 precedent exactly (`name`/`id` playing the identical role). Flagged
-prominently for the Phase 3E Gate Review and for explicit confirmation.
-
-**Update, Phase 3E Supervisor milestone reconciliation pass
-(`docs/design/phase-3/15-3e-supervisor-reconciliation.md` §A).** This is
-*not* merely a wording discrepancy, as first disclosed above -- tracing it
-through TDD 3E §4's own Fork 3E-2 resolution note shows the *already-
-approved* concrete ORM (`14-3e-agent-os-research.md` §4) uses a UUID
-surrogate `id` and a `UniqueConstraint("category", "version")`, matching
-TDD 3E §5's literal wording exactly, and Kernel's own already-built
-`agent_instance.agent_package_id` column (Milestone 2) is typed `UUID` to
-match it -- a real, disclosed schema mismatch against *this* module's own
-`(id: str, version: str)` composite-key choice. Genuinely stopped, not
-resolved; see that document for the full evidence chain and the options
-left for the user's decision. Not changed here on this pass's own
-authority.
+**Natural-key resolution, corrected (2026-08-23).** Milestone 3 originally
+implemented `(id, version)`, reading TDD 3E §5's own "(category, version)"
+wording as a probable slip against doc 12 §6's `coding-agent@1.2.0`-style
+worked example. That reading did not survive the Phase 3E Supervisor
+milestone's own reconciliation pass
+(`docs/design/phase-3/15-3e-supervisor-reconciliation.md` §A): tracing TDD
+3E §5's wording through TDD 3E §4's own **already-approved** Fork 3E-2
+resolution to its concrete ORM
+(`docs/design/phase-3/14-3e-agent-os-research.md` §4) shows the approved
+shape is a **UUID surrogate primary key** plus
+`UniqueConstraint("category", "version")` -- matching TDD 3E §5's literal
+wording exactly, and matching Kernel's own already-built
+`agent_instance.agent_package_id: UUID` column (Milestone 2). The
+`(id, version)` interpretation was therefore a genuine deviation from an
+already-approved architectural decision, not a wording fix -- explicitly
+corrected here per the user's own explicit resolution instruction
+(2026-08-23, recorded in `15-3e-supervisor-reconciliation.md`'s own
+addendum). `AgentPackage.id` is now a surrogate UUID, generated at
+Registration (stage 7 below); the manifest's own `AgentManifest.id`
+(e.g. `"coding-agent"`) lives only inside `manifest_json`, never as a
+separate queryable column -- the approved ORM names no such field, and
+none is added here on this pass's own authority (matching the same "do
+not invent architecture beyond what is approved" discipline as every
+other correction in this project). One disclosed, accepted consequence
+carried over unchanged from the original finding: `(category, version)`
+uniqueness means two *different* agent packages sharing one category can
+never both hold the same version number, and Permission Review's
+"diff against the previous version" (stage 5 below) diffs against the
+latest install *in that category*, not necessarily the same agent
+identity, if a category is ever shared by more than one agent. Phase 3's
+own five agents each have a distinct category (TDD 3E §9), so this has no
+observable effect on Phase 3 itself.
 
 **Sandbox Test Run, disclosed.** Fork E3's "lighter OS-level scoping"
 (TDD 3C §3) constrains what capability *adapters* may touch (filesystem/
@@ -87,7 +90,7 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
 from typing import Protocol
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import yaml
 from nova_agent_sdk import AgentHandler, AgentManifest
@@ -185,8 +188,8 @@ async def install_agent_package(
 
     Idempotency (mirroring Fork 3C-4, adapted for filesystem discovery --
     see this module's own docstring): checked *after* Fetch + Manifest
-    Validation, the earliest point `(manifest.id, manifest.version)` is
-    known. If a row already exists, returns it immediately -- no stage
+    Validation, the earliest point `(manifest.category, manifest.version)`
+    is known. If a row already exists, returns it immediately -- no stage
     re-runs beyond the two needed to learn the key.
     """
 
@@ -237,7 +240,7 @@ async def install_agent_package(
         ) from exc
     await _record(InstallationStage.MANIFEST_VALIDATION, "success")
 
-    existing = await repository.find_by_id_version(manifest.id, manifest.version)
+    existing = await repository.find_by_category_version(manifest.category, manifest.version)
     if existing is not None:
         return existing
 
@@ -276,8 +279,10 @@ async def install_agent_package(
     # to the user via the same best-effort, non-blocking
     # CommunicationPort delivery `capability-engine`'s own Permission
     # Review stage already established (TDD 3C §10) -- never blocks the
-    # pipeline, never a nova-auth.authorize() call.
-    previous = await repository.find_latest_by_id(manifest.id)
+    # pipeline, never a nova-auth.authorize() call. Diffs against the
+    # latest install *in this category* (see module docstring's disclosed
+    # consequence of `(category, version)` keying).
+    previous = await repository.find_latest_by_category(manifest.category)
     previous_permissions: set[str] = (
         set(previous.manifest_json.get("required_permissions", []))
         if previous is not None
@@ -312,9 +317,10 @@ async def install_agent_package(
         )
     await _record(InstallationStage.SANDBOX_TEST, "success")
 
-    # 7. Registration
+    # 7. Registration -- `id` is a surrogate UUID minted here, matching
+    # the approved Fork 3E-2 ORM (see module docstring).
     agent_package = AgentPackage(
-        id=manifest.id,
+        id=uuid4(),
         category=manifest.category,
         version=manifest.version,
         manifest_json=manifest.model_dump(mode="json"),
@@ -330,7 +336,7 @@ async def install_agent_package(
         # and this insert -- treat identically to the pre-check
         # idempotent-no-op path (Fork 3C-4's precedent), never a hard
         # failure.
-        raced = await repository.find_by_id_version(manifest.id, manifest.version)
+        raced = await repository.find_by_category_version(manifest.category, manifest.version)
         if raced is not None:
             await _record(InstallationStage.REGISTRATION, "already_exists")
             return raced
@@ -348,7 +354,7 @@ async def install_agent_package(
     except Exception as exc:  # noqa: BLE001 -- recorded, not re-raised (see docstring)
         await _record(InstallationStage.ON_LOAD, "failure", str(exc))
         return agent_package
-    await repository.update_health_status(manifest.id, manifest.version, health_status="healthy")
+    await repository.update_health_status(agent_package.id, health_status="healthy")
     agent_package = agent_package.model_copy(update={"health_status": "healthy"})
     await _record(InstallationStage.ON_LOAD, "success")
     return agent_package
