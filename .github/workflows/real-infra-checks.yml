@@ -65,6 +65,8 @@ jobs:
             path: services/planning-engine
           - package: kernel
             path: agent-os/kernel
+          - package: registry
+            path: agent-os/registry
     steps:
       - uses: actions/checkout@v4
 

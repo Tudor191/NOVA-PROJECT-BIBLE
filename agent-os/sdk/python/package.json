@@ -1,0 +1,10 @@
+{
+  "name": "@nova/nova-agent-sdk",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "lint": "uv run --package nova-agent-sdk ruff check . && uv run --package nova-agent-sdk mypy src",
+    "test": "uv run --package nova-agent-sdk pytest",
+    "build": "echo 'nova-agent-sdk: no build step (pure Python library)'"
+  }
+}
