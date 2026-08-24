@@ -30,6 +30,7 @@ from nova_agent_sdk.manifest import (
     HealthCheckConfig,
     ResourceProfile,
 )
+from nova_agent_sdk.model_gateway import ModelGatewayPort
 
 __all__ = [
     "AgentContext",
@@ -41,6 +42,7 @@ __all__ = [
     "AgentResult",
     "CompatibilityInfo",
     "HealthCheckConfig",
+    "ModelGatewayPort",
     "ResourceProfile",
     "ValidationOutcome",
 ]

@@ -29,6 +29,9 @@ from nova_agent_os_registry.config import Settings
 from nova_agent_os_registry.domain.discovery import discover_agent_packages
 from nova_agent_os_registry.domain.pipeline import InstallationError, install_agent_package
 from nova_agent_os_registry.domain.ports import CommunicationPort, RegistryRepository
+from nova_agent_os_registry.events.find_healthy_package_handler import (
+    make_find_healthy_package_handler,
+)
 from nova_agent_os_registry.events.published import PUBLISHABLE_SUBJECTS
 from nova_agent_os_registry.events.subscribed import SUBSCRIBABLE_SUBJECTS
 
@@ -112,6 +115,11 @@ def create_app(
         await bus.connect()
         await _install_discovered_packages(
             settings, repository=repo, communication_port=communication_port
+        )
+        await bus.serve(
+            "agent_os.registry.find_healthy_package.request",
+            make_find_healthy_package_handler(app),
+            source_engine="registry",
         )
 
         app.state.ready = True

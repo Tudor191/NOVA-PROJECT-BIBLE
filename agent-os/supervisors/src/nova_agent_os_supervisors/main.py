@@ -14,6 +14,7 @@ from nova_service_kit import make_health_router
 
 from nova_agent_os_supervisors.config import Settings
 from nova_agent_os_supervisors.events.published import PUBLISHABLE_SUBJECTS
+from nova_agent_os_supervisors.events.restart_plan_handler import make_restart_plan_handler
 from nova_agent_os_supervisors.events.subscribed import SUBSCRIBABLE_SUBJECTS
 
 logger = get_logger("supervisors")
@@ -35,6 +36,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         logger.info("supervisors starting")
         await bus.connect()
         app.state.bus = bus
+        await bus.serve(
+            "agent_os.supervisor.restart_plan.request",
+            make_restart_plan_handler(app),
+            source_engine="supervisors",
+        )
         app.state.ready = True
         yield
         logger.info("supervisors shutting down")

@@ -14,9 +14,10 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
+from nova_contracts import AgentResult, ValidationOutcome
 from pydantic import BaseModel
 
-__all__ = ["AgentInstance"]
+__all__ = ["AgentInstance", "AgentInstanceHandle"]
 
 
 class AgentInstance(BaseModel):
@@ -48,3 +49,24 @@ class AgentInstance(BaseModel):
     """Populated once `agent-os/supervisors` exists -- not this milestone."""
     started_at: datetime
     health_status: Literal["healthy", "degraded", "unhealthy", "unknown"] = "unknown"
+
+
+class AgentInstanceHandle(BaseModel):
+    """The outcome of `AgentExecutionBackend.spawn()` (doc 12 §8) --
+    disclosed addition: doc 12 §8 gives the Protocol's signature
+    (`spawn(...) -> AgentInstanceHandle`) but never a field-level shape for
+    the handle itself. Phase 3's `inprocess` backend runs an instance's full
+    assigned-task lifecycle (`on_load` -> `on_assign` -> `execute` ->
+    `self_validate` -> `on_unload`) synchronously inside `spawn()` itself
+    (single scripted task per dispatch, TDD 3E §9 -- none of the five Phase
+    3 agents' behaviors span multiple dispatch cycles), so the handle
+    carries the already-completed outcome rather than a live reference to
+    poll later. `result`/`validation` are both `None` only when `error` is
+    set (an exception during `on_load`/`on_assign`/`execute`/`self_validate`
+    itself, not a `status="failure"` `AgentResult`, which is a normal,
+    successfully-produced result)."""
+
+    instance_id: UUID
+    result: AgentResult | None = None
+    validation: ValidationOutcome | None = None
+    error: str | None = None

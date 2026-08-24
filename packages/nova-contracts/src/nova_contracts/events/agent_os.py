@@ -37,11 +37,21 @@ from enum import StrEnum
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from nova_contracts.registry import register_payload
 
-__all__ = ["AgentMessage", "AgentMessageType", "AgentOsTaskCompletedPayload"]
+__all__ = [
+    "AgentMessage",
+    "AgentMessageType",
+    "AgentOsFindHealthyPackageReplyPayload",
+    "AgentOsFindHealthyPackageRequestPayload",
+    "AgentOsRestartPlanReplyPayload",
+    "AgentOsRestartPlanRequestPayload",
+    "AgentOsTaskCompletedPayload",
+    "AgentPackageSnapshot",
+    "SupervisedInstanceSnapshot",
+]
 
 
 class AgentMessageType(StrEnum):
@@ -111,4 +121,100 @@ class AgentOsTaskCompletedPayload(BaseModel):
     outcome: Literal["success", "failure", "needs_revision", "interrupted"]
     result: dict | None = None
     correlation_id: UUID
+    schema_version: int = 1
+
+
+# --- Kernel Scheduler RPCs, disclosed additions ------------------------------
+#
+# TDD 3E §4's own Kernel Scheduler design names two cross-engine calls
+# ("query Registry for healthy candidates in the required category"; restart
+# an instance per the owning Supervisor's configured strategy, doc 12 §9) but
+# defines no wire payload for either -- both `agent-os/registry` and
+# `agent-os/supervisors` shipped with no RPC surface at all as of Milestone 3
+# / the Supervisor-foundation slice (confirmed: both `events/subscribed.py`
+# were empty). These four payloads are the smallest, disclosed wire shape
+# that lets the Scheduler actually make both calls without violating ADR-004
+# (no engine, including one `agent-os` component, imports another's
+# internals directly) -- proposed here, not extracted from any document,
+# flagged for Gate Review, the same discipline already applied to
+# `AgentResult`/`AgentMessage` (Fork 3E-1) and `AgentOsTaskCompletedPayload`
+# above.
+
+
+class AgentPackageSnapshot(BaseModel):
+    """Wire-shaped mirror of `agent-os/registry`'s own `AgentPackage` domain
+    model (repository-internal, never itself published) -- the shape a
+    Scheduler needs to select and load a candidate. `id` is the surrogate
+    UUID primary key (per `docs/design/phase-3/
+    15-3e-supervisor-reconciliation.md` §A), carried here so the Kernel
+    Scheduler can populate `agent_instance.agent_package_id` (TDD 3E §4, an
+    already-approved FK-shaped column) with the exact installed row it
+    dispatched against, not merely `category`/`version`. `category`/
+    `version` remain the natural key; `manifest_json` is what the Scheduler
+    reads the manifest's own `id` (e.g. `"research-agent"`) from, to resolve
+    `agents/<id>/src/handler.py` on disk -- the same filesystem-based
+    discovery convention doc 12 §6/§15 already establishes for Registry's
+    own install pipeline, applied here at dispatch time instead of install
+    time."""
+
+    id: UUID
+    category: str
+    version: str
+    manifest_json: dict
+    health_status: str
+
+
+@register_payload("agent_os.registry.find_healthy_package.request")
+class AgentOsFindHealthyPackageRequestPayload(BaseModel):
+    """Kernel Scheduler -> Registry: "query Registry for healthy candidates
+    in the required category" (TDD 3E §4, step 1), literally. Registry's own
+    `find_latest_by_category` port method (already built, Milestone 3)
+    answers this directly -- "candidates," scoped to Phase 3's one-healthy-
+    version-per-category reality, resolves to "the most recently installed
+    healthy row," not a list requiring a separate scoring step here."""
+
+    category: str
+    requesting_engine: str
+    correlation_id: UUID
+    schema_version: int = 1
+
+
+@register_payload("agent_os.registry.find_healthy_package.reply")
+class AgentOsFindHealthyPackageReplyPayload(BaseModel):
+    package: AgentPackageSnapshot | None = None
+    schema_version: int = 1
+
+
+class SupervisedInstanceSnapshot(BaseModel):
+    """Wire-shaped mirror of `agent-os/supervisors`'s own `SupervisedInstance`
+    domain model (field-for-field) -- the minimum a Supervisor needs to run
+    its already-built `domain/restart.py::plan_restart()` for a real failure,
+    crossing the wire because ADR-004 forbids Kernel from importing
+    `nova_agent_os_supervisors` internals directly."""
+
+    id: UUID
+    category: str
+    restart_strategy: Literal["one_for_one", "one_for_all", "rest_for_one"]
+    started_order: int
+    status: Literal["running", "completed", "failed"]
+
+
+@register_payload("agent_os.supervisor.restart_plan.request")
+class AgentOsRestartPlanRequestPayload(BaseModel):
+    """Kernel -> Supervisors: "owning Supervisor applies its configured
+    restart strategy" (TDD 3E §12's failure table, doc 12 §9). `siblings`
+    includes the failed instance itself (mirrors `plan_restart()`'s own
+    parameter contract)."""
+
+    failed_instance_id: UUID
+    restart_strategy: Literal["one_for_one", "one_for_all", "rest_for_one"]
+    siblings: list[SupervisedInstanceSnapshot] = Field(default_factory=list)
+    requesting_engine: str
+    correlation_id: UUID
+    schema_version: int = 1
+
+
+@register_payload("agent_os.supervisor.restart_plan.reply")
+class AgentOsRestartPlanReplyPayload(BaseModel):
+    restart_instance_ids: list[UUID] = Field(default_factory=list)
     schema_version: int = 1

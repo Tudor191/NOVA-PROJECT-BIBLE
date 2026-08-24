@@ -22,6 +22,10 @@ from nova_contracts import (
     ActionExecuteRequestPayload,
     ActionResultPayload,
     AgentMessage,
+    AgentOsFindHealthyPackageReplyPayload,
+    AgentOsFindHealthyPackageRequestPayload,
+    AgentOsRestartPlanReplyPayload,
+    AgentOsRestartPlanRequestPayload,
     AgentOsTaskCompletedPayload,
     AttentionShiftedPayload,
     BudgetExceededPayload,
@@ -203,6 +207,10 @@ MODELS: list[type[BaseModel]] = [
     PlanningGoalsCurrentReplyPayload,
     AgentMessage,
     AgentOsTaskCompletedPayload,
+    AgentOsFindHealthyPackageRequestPayload,
+    AgentOsFindHealthyPackageReplyPayload,
+    AgentOsRestartPlanRequestPayload,
+    AgentOsRestartPlanReplyPayload,
 ]
 
 PACKAGE_ROOT = Path(__file__).resolve().parent.parent
