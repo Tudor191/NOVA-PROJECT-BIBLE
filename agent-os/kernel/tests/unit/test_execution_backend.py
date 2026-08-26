@@ -14,6 +14,14 @@ has no reviewer-side logic of its own. That is exactly the right fixture for
 proving `spawn_and_review()`'s own mechanics (dynamic import, `on_load` ->
 `on_message` -> `on_unload`, reply pass-through) independently of any real
 review verdict, which no Phase 3 package can yet provide.
+
+`test_spawn_drives_the_real_qa_agent_handler_...` below proves the same
+dynamic-import/constructor mechanism a third time, against
+`agents/qa-agent`'s real on-disk Handler and a `FakeActionPort` (qa-agent's
+own `execute()` uses `action_port`, not `model_gateway` -- mirrors
+`agents/coding-agent/tests/test_handler.py`'s own `FakeActionPort`
+precedent, here driven through the real `InprocessExecutionBackend` rather
+than the Handler in isolation).
 """
 
 from __future__ import annotations
@@ -24,6 +32,8 @@ from uuid import uuid4
 from nova_agent_os_kernel.domain.execution_backend import InprocessExecutionBackend
 from nova_agent_sdk import AgentContext
 from nova_contracts import (
+    ActionExecuteRequestPayload,
+    ActionResultPayload,
     AgentMessage,
     AgentMessageType,
     AgentPackageSnapshot,
@@ -42,6 +52,14 @@ class FakeModelGatewayPort:
         self._reply = reply
 
     async def generate(self, request: GenerateRequestPayload) -> GenerateReplyPayload:
+        return self._reply
+
+
+class FakeActionPort:
+    def __init__(self, *, reply: ActionResultPayload) -> None:
+        self._reply = reply
+
+    async def execute(self, request: ActionExecuteRequestPayload) -> ActionResultPayload:
         return self._reply
 
 
@@ -84,6 +102,88 @@ def _context() -> AgentContext:
         granted_capabilities=[],
         correlation_id=uuid4(),
     )
+
+
+def _qa_package() -> AgentPackageSnapshot:
+    return AgentPackageSnapshot(
+        id=uuid4(),
+        category="qa",
+        version="0.1.0",
+        manifest_json={
+            "id": "qa-agent",
+            "version": "0.1.0",
+            "category": "qa",
+            "display_name": "QA Agent",
+            "required_capabilities": ["terminal"],
+            "required_permissions": ["terminal:execute"],
+            "supported_execution_backends": ["inprocess"],
+            "resource_profile": {"cpu": "standard", "memory": "standard", "gpu": "none"},
+            "health_check": {"interval_seconds": 30},
+            "compatibility": {"min_kernel_version": "0.1.0"},
+        },
+        health_status="healthy",
+    )
+
+
+def _qa_context() -> AgentContext:
+    task = TaskNodeSnapshot(
+        id=uuid4(),
+        objective="Run the test suite",
+        depends_on=[],
+        assigned_agent_category="qa",
+        effort_hours=0.5,
+        confidence=0.9,
+        risk="low",
+        status="ready",
+    )
+    return AgentContext(
+        task=task,
+        world_model_slice=WorldModelSnapshot(user_id=uuid4(), degraded=True),
+        relevant_memory=[],
+        relevant_knowledge=[],
+        granted_permissions=PermissionSet(granted=[]),
+        granted_capabilities=[],
+        correlation_id=uuid4(),
+    )
+
+
+async def test_spawn_drives_the_real_qa_agent_handler_to_a_successful_result() -> None:
+    action_port = FakeActionPort(
+        reply=ActionResultPayload(
+            action_id=uuid4(),
+            status="completed",
+            result={"exit_code": 0, "stdout": "3 passed", "stderr": ""},
+            error=None,
+        )
+    )
+    backend = InprocessExecutionBackend(
+        agents_root=_REPO_ROOT / "agents",
+        model_gateway=FakeModelGatewayPort(
+            reply=GenerateReplyPayload(
+                text="",
+                input_tokens=0,
+                output_tokens=0,
+                finish_reason="stop",
+                structural_confidence=0.0,
+                model_id=uuid4(),
+                provider="fake",
+            )
+        ),
+        action_port=action_port,
+    )
+    context = _qa_context()
+
+    handle = await backend.spawn(_qa_package(), context)
+
+    assert handle.error is None
+    assert handle.result is not None
+    assert handle.result.status == "success"
+    assert handle.result.output["exit_code"] == 0
+    assert handle.result.task_node_id == context.task.id
+    assert handle.result.agent_instance_id == handle.instance_id
+    assert handle.validation is not None
+    assert handle.validation.passed is True
+    assert handle.validation.requires_peer_review is False
 
 
 async def test_spawn_drives_the_real_research_agent_handler_to_a_successful_result() -> None:

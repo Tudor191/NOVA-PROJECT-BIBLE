@@ -118,6 +118,33 @@ def _review_reply(*, status: str, correlation_id) -> AgentMessage:  # type: igno
     )
 
 
+def _qa_package() -> AgentPackageSnapshot:
+    return AgentPackageSnapshot(
+        id=uuid4(),
+        category="qa",
+        version="0.1.0",
+        manifest_json={"id": "qa-agent", "version": "0.1.0"},
+        health_status="healthy",
+    )
+
+
+def _qa_success_handle(*, task_node_id, correlation_id) -> AgentInstanceHandle:  # type: ignore[no-untyped-def]
+    result = AgentResult(
+        agent_instance_id=uuid4(),
+        task_node_id=task_node_id,
+        status="success",
+        output={"exit_code": 0, "stdout": "5 passed", "stderr": ""},
+        confidence=1.0,
+        self_validation_passed=True,
+        correlation_id=correlation_id,
+    )
+    return AgentInstanceHandle(
+        instance_id=result.agent_instance_id,
+        result=result,
+        validation=ValidationOutcome(passed=True, requires_peer_review=False),
+    )
+
+
 def _failure_handle(*, task_node_id, correlation_id) -> AgentInstanceHandle:  # type: ignore[no-untyped-def]
     result = AgentResult(
         agent_instance_id=uuid4(),
@@ -452,3 +479,39 @@ async def test_dispatch_task_node_without_peer_reviewer_category_skips_review() 
 
     assert len(backend.spawn_and_review_calls) == 0
     assert len(supervisor_port.peer_review_calls) == 0
+
+
+async def test_dispatch_task_node_for_qa_agent_reports_success_with_no_peer_review() -> None:
+    """qa-agent's own real package shape (`category="qa"`, no
+    `peer_reviewer_category`) -- the third Agent Package, and the first
+    since `coding-agent`'s own slice to prove, specifically for its own
+    category, that the peer-review addition stays fully inert (TDD 3E §9's
+    own agent table gives `qa-agent` no reviewer/reviewee role)."""
+    node = _node(objective="Run the test suite", assigned_agent_category="qa")
+    correlation_id = uuid4()
+    handle = _qa_success_handle(task_node_id=node.id, correlation_id=correlation_id)
+    event_publisher = FakeEventPublisher()
+    supervisor_port = FakeSupervisorPort()
+    backend = FakeAgentExecutionBackend(handles=[handle])
+
+    await dispatch_task_node(
+        node,
+        repository=FakeKernelRepository(),
+        registry_port=FakeRegistryPort(package=_qa_package()),
+        supervisor_port=supervisor_port,
+        execution_backend=backend,
+        event_publisher=event_publisher,
+        primary_user_id=uuid4(),
+        correlation_id=correlation_id,
+    )
+
+    assert len(backend.spawn_and_review_calls) == 0
+    assert len(supervisor_port.peer_review_calls) == 0
+    assert len(event_publisher.published) == 1
+    published_payload = AgentOsTaskCompletedPayload.model_validate(
+        event_publisher.published[0].payload
+    )
+    assert published_payload.outcome == "success"
+    assert published_payload.result is not None
+    assert published_payload.result["output"]["exit_code"] == 0
+    assert "peer_validation" not in published_payload.result
