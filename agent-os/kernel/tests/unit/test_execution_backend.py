@@ -194,6 +194,89 @@ async def test_spawn_drives_the_real_qa_agent_handler_to_a_successful_result() -
     assert handle.validation.requires_peer_review is False
 
 
+def _documentation_package() -> AgentPackageSnapshot:
+    return AgentPackageSnapshot(
+        id=uuid4(),
+        category="documentation",
+        version="0.1.0",
+        manifest_json={
+            "id": "documentation-agent",
+            "version": "0.1.0",
+            "category": "documentation",
+            "display_name": "Documentation Agent",
+            "required_capabilities": ["filesystem"],
+            "required_permissions": ["filesystem:write:project-scope"],
+            "supported_execution_backends": ["inprocess"],
+            "resource_profile": {"cpu": "standard", "memory": "standard", "gpu": "none"},
+            "health_check": {"interval_seconds": 30},
+            "compatibility": {"min_kernel_version": "0.1.0"},
+        },
+        health_status="healthy",
+    )
+
+
+def _documentation_context() -> AgentContext:
+    task = TaskNodeSnapshot(
+        id=uuid4(),
+        objective="Document the rate-limiting middleware",
+        depends_on=[],
+        assigned_agent_category="documentation",
+        effort_hours=1.0,
+        confidence=0.8,
+        risk="low",
+        status="ready",
+    )
+    return AgentContext(
+        task=task,
+        world_model_slice=WorldModelSnapshot(user_id=uuid4(), degraded=True),
+        relevant_memory=[],
+        relevant_knowledge=[],
+        granted_permissions=PermissionSet(granted=[]),
+        granted_capabilities=[],
+        correlation_id=uuid4(),
+    )
+
+
+async def test_spawn_drives_the_real_documentation_agent_handler_to_a_successful_result() -> None:
+    """documentation-agent is the first Phase 3 package to use both
+    `model_gateway` and `action_port` for real (TDD 3E §9's own sentence
+    names both steps) -- proves `spawn()` supplies both correctly to the
+    same Handler instance."""
+    action_port = FakeActionPort(
+        reply=ActionResultPayload(
+            action_id=uuid4(), status="completed", result={"content": "written"}, error=None
+        )
+    )
+    gateway = FakeModelGatewayPort(
+        reply=GenerateReplyPayload(
+            text="# Rate Limiting\n\nConfigure `max_requests`.",
+            input_tokens=20,
+            output_tokens=15,
+            finish_reason="stop",
+            structural_confidence=0.9,
+            model_id=uuid4(),
+            provider="fake",
+        )
+    )
+    backend = InprocessExecutionBackend(
+        agents_root=_REPO_ROOT / "agents", model_gateway=gateway, action_port=action_port
+    )
+    context = _documentation_context()
+
+    handle = await backend.spawn(_documentation_package(), context)
+
+    assert handle.error is None
+    assert handle.result is not None
+    assert handle.result.status == "success"
+    assert handle.result.output["content"] == "# Rate Limiting\n\nConfigure `max_requests`."
+    assert handle.result.confidence == 0.9
+    assert handle.result.task_node_id == context.task.id
+    assert handle.result.agent_instance_id == handle.instance_id
+    assert handle.validation is not None
+    assert handle.validation.passed is True
+    assert handle.validation.requires_peer_review is False
+
+
 async def test_spawn_drives_the_real_research_agent_handler_to_a_successful_result() -> None:
     gateway = FakeModelGatewayPort(
         reply=GenerateReplyPayload(
