@@ -17,6 +17,8 @@ PUBLISHABLE_SUBJECTS: frozenset[str] = frozenset(
         "agent_os.task.completed",
         "agent_os.registry.find_healthy_package.request",
         "agent_os.supervisor.restart_plan.request",
+        "agent_os.supervisor.peer_review.request",
         "ai_model.generate.request",
+        "action.execute",
     }
 )

@@ -14,11 +14,34 @@ restart plan (`SupervisorPort`, TDD 3E §12's failure table) and retry
 `agent_os.task.completed` either way.
 
 A `TaskNode` with no healthy candidate in Registry, or no
-`assigned_agent_category` at all, is a disclosed, logged no-op -- Phase 3
-ships exactly one Agent Package category that can ever resolve
-(`research-agent`); the other four Phase 3E TDD §9 categories are not yet
-built, and this Scheduler is generic per doc 12 §7 ("does not know what a
-Coding Agent does"), so it does not special-case any of them.
+`assigned_agent_category` at all, is a disclosed, logged no-op -- this
+Scheduler is generic per doc 12 §7 ("does not know what a Coding Agent
+does"), so it does not special-case any agent category.
+
+**Peer review, disclosed addition (coding-agent slice).** A successful
+primary result whose `ValidationOutcome.requires_peer_review` is `True`
+now triggers a review round before `agent_os.task.completed` is
+published: the Scheduler reads the dispatched package's own
+`AgentManifest.peer_reviewer_category` (disclosed addition,
+`agent-os/sdk/python`), resolves a healthy reviewer package via the same
+`RegistryPort` used for the primary dispatch, and delivers a
+`PEER_REVIEW_REQUEST` via the execution backend's own `spawn_and_review()`
+(see `domain/execution_backend.py`'s own module docstring for why this,
+not a live Agent Mailbox `send()`, is how Phase 3's synchronous backend
+delivers it). The raw outcome -- not a Kernel-computed verdict -- is
+reported to the Supervisor (`SupervisorPort.record_peer_review()`), which
+owns the accept/reject classification and Decision Memory recording (doc
+12 §9), matching this module's own established "Kernel does dispatch
+mechanics, the Supervisor owns restart/review policy" split. A `rejected`
+verdict republishes as `outcome="needs_revision"` (`AgentResult.status`'s
+own vocabulary, TDD 3E §12); `approved`/`not_required`/`timed_out` all
+finalize as `"success"` -- TDD 3E §12's own "Supervisor proceeds with the
+primary result" language for a timed-out or missing reviewer, extended
+here to also cover "no `architect-agent` package installed yet," the
+concrete case this project's own roadmap sequencing (`coding-agent` before
+`architect-agent`) produces. No agent's manifest declares
+`peer_reviewer_category` other than `coding-agent`'s own -- every other
+Phase 3 agent's dispatch is entirely unaffected by this addition.
 
 **`AgentContext` construction, disclosed.** TDD 3E §4's own Kernel
 Scheduler design describes registry-query/score/backend-select/dispatch
@@ -41,11 +64,16 @@ treatment of that same gap.
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from uuid import UUID
+from typing import Literal
+from uuid import UUID, uuid4
 
 from nova_agent_sdk import AgentContext
 from nova_contracts import (
+    AgentMessage,
+    AgentMessageType,
     AgentOsTaskCompletedPayload,
+    AgentPackageSnapshot,
+    AgentResult,
     EventEnvelope,
     PermissionSet,
     TaskGraphSnapshot,
@@ -107,6 +135,95 @@ async def _publish_task_completed(
             correlation_id=correlation_id,
             payload=payload.model_dump(mode="json"),
         )
+    )
+
+
+async def _run_peer_review(
+    *,
+    primary_result: AgentResult,
+    reviewer_category: str,
+    registry_port: RegistryPort,
+    supervisor_port: SupervisorPort,
+    execution_backend: AgentExecutionBackend,
+    correlation_id: UUID,
+) -> Literal["approved", "rejected", "timed_out", "not_required"]:
+    """One peer-review round for a successful primary result whose package
+    declares `peer_reviewer_category` -- see this module's own docstring
+    for the full disclosure. `reviewer_available=False` covers both "no
+    healthy reviewer package installed" and "the reviewer's own
+    `on_message()` raised/returned no `PEER_REVIEW_RESULT`"."""
+    reviewer_package = await registry_port.find_healthy_package(
+        category=reviewer_category, correlation_id=correlation_id
+    )
+    reviewer_result: AgentResult | None = None
+    reviewer_available = False
+
+    if reviewer_package is not None:
+        request = AgentMessage(
+            message_type=AgentMessageType.PEER_REVIEW_REQUEST,
+            from_instance_id=primary_result.agent_instance_id,
+            to_instance_id=uuid4(),
+            payload=primary_result.model_dump(mode="json"),
+            correlation_id=correlation_id,
+        )
+        reply = await execution_backend.spawn_and_review(reviewer_package, request)
+        if reply is not None and reply.message_type is AgentMessageType.PEER_REVIEW_RESULT:
+            reviewer_result = AgentResult.model_validate(reply.payload)
+            reviewer_available = True
+
+    return await supervisor_port.record_peer_review(
+        primary_result=primary_result,
+        reviewer_category=reviewer_category,
+        reviewer_result=reviewer_result,
+        reviewer_available=reviewer_available,
+        correlation_id=correlation_id,
+    )
+
+
+async def _finalize_outcome(
+    *,
+    node: TaskNodeSnapshot,
+    instance: AgentInstance,
+    handle: AgentInstanceHandle,
+    outcome: str,
+    package: AgentPackageSnapshot,
+    registry_port: RegistryPort,
+    supervisor_port: SupervisorPort,
+    execution_backend: AgentExecutionBackend,
+    event_publisher: EventPublisher,
+    correlation_id: UUID,
+) -> None:
+    """Publishes `agent_os.task.completed`, first running a peer-review
+    round (see this module's own docstring) when `outcome == "success"`
+    and the dispatched package declares `peer_reviewer_category`. A
+    `rejected` verdict republishes as `outcome="needs_revision"`; every
+    other verdict (`approved`/`not_required`/`timed_out`) finalizes as
+    `"success"`, matching TDD 3E §12's own non-fatal treatment of a
+    missing or unresponsive reviewer."""
+    result_dict = handle.result.model_dump(mode="json") if handle.result is not None else None
+    final_outcome = outcome
+
+    reviewer_category = package.manifest_json.get("peer_reviewer_category")
+    if outcome == "success" and handle.result is not None and reviewer_category is not None:
+        peer_validation = await _run_peer_review(
+            primary_result=handle.result,
+            reviewer_category=reviewer_category,
+            registry_port=registry_port,
+            supervisor_port=supervisor_port,
+            execution_backend=execution_backend,
+            correlation_id=correlation_id,
+        )
+        final_outcome = "needs_revision" if peer_validation == "rejected" else "success"
+        if result_dict is not None:
+            result_dict = {**result_dict, "peer_validation": peer_validation}
+
+    await _publish_task_completed(
+        event_publisher=event_publisher,
+        task_node_id=node.id,
+        agent_instance_id=instance.id,
+        outcome=final_outcome,
+        result=result_dict,
+        correlation_id=correlation_id,
     )
 
 
@@ -174,12 +291,16 @@ async def dispatch_task_node(
     await repository.insert(instance)
 
     if not needs_restart:
-        await _publish_task_completed(
-            event_publisher=event_publisher,
-            task_node_id=node.id,
-            agent_instance_id=instance.id,
+        await _finalize_outcome(
+            node=node,
+            instance=instance,
+            handle=handle,
             outcome=outcome,
-            result=handle.result.model_dump(mode="json") if handle.result else None,
+            package=package,
+            registry_port=registry_port,
+            supervisor_port=supervisor_port,
+            execution_backend=execution_backend,
+            event_publisher=event_publisher,
             correlation_id=correlation_id,
         )
         return instance.id
@@ -191,12 +312,16 @@ async def dispatch_task_node(
         correlation_id=correlation_id,
     )
     if instance.id not in restart_ids:
-        await _publish_task_completed(
-            event_publisher=event_publisher,
-            task_node_id=node.id,
-            agent_instance_id=instance.id,
+        await _finalize_outcome(
+            node=node,
+            instance=instance,
+            handle=handle,
             outcome=outcome,
-            result=handle.result.model_dump(mode="json") if handle.result else None,
+            package=package,
+            registry_port=registry_port,
+            supervisor_port=supervisor_port,
+            execution_backend=execution_backend,
+            event_publisher=event_publisher,
             correlation_id=correlation_id,
         )
         return instance.id
@@ -215,12 +340,16 @@ async def dispatch_task_node(
         health_status="unhealthy" if retry_needs_restart else "healthy",
     )
     await repository.insert(retry_instance)
-    await _publish_task_completed(
-        event_publisher=event_publisher,
-        task_node_id=node.id,
-        agent_instance_id=retry_instance.id,
+    await _finalize_outcome(
+        node=node,
+        instance=retry_instance,
+        handle=retry_handle,
         outcome=retry_outcome,
-        result=retry_handle.result.model_dump(mode="json") if retry_handle.result else None,
+        package=package,
+        registry_port=registry_port,
+        supervisor_port=supervisor_port,
+        execution_backend=execution_backend,
+        event_publisher=event_publisher,
         correlation_id=correlation_id,
     )
     return retry_instance.id

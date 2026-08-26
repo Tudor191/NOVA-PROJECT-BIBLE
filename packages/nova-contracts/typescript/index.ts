@@ -91,5 +91,7 @@ export * from "./AgentMessage";
 export * from "./AgentOsTaskCompletedPayload";
 export * from "./AgentOsFindHealthyPackageRequestPayload";
 export * from "./AgentOsFindHealthyPackageReplyPayload";
+export * from "./AgentOsPeerReviewRequestPayload";
+export * from "./AgentOsPeerReviewReplyPayload";
 export * from "./AgentOsRestartPlanRequestPayload";
 export * from "./AgentOsRestartPlanReplyPayload";

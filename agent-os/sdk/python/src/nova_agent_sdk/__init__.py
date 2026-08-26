@@ -23,6 +23,7 @@ from nova_contracts import (
     ValidationOutcome,
 )
 
+from nova_agent_sdk.action_port import ActionPort
 from nova_agent_sdk.handler import AgentHandler
 from nova_agent_sdk.manifest import (
     AgentManifest,
@@ -33,6 +34,7 @@ from nova_agent_sdk.manifest import (
 from nova_agent_sdk.model_gateway import ModelGatewayPort
 
 __all__ = [
+    "ActionPort",
     "AgentContext",
     "AgentHandler",
     "AgentHealth",

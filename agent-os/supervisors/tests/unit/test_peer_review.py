@@ -5,7 +5,10 @@ from __future__ import annotations
 
 from uuid import uuid4
 
-from nova_agent_os_supervisors.domain.peer_review import run_peer_review_round
+from nova_agent_os_supervisors.domain.peer_review import (
+    classify_reviewer_result,
+    run_peer_review_round,
+)
 from nova_contracts import AgentMessage, AgentMessageType, AgentResult
 
 from tests.fakes.instance_port import FakeAgentInstancePort
@@ -91,3 +94,15 @@ async def test_no_reply_is_treated_the_same_as_a_timeout() -> None:
     )
 
     assert outcome.peer_validation == "timed_out"
+
+
+def test_classify_reviewer_result_none_is_timed_out() -> None:
+    assert classify_reviewer_result(None) == "timed_out"
+
+
+def test_classify_reviewer_result_success_is_approved() -> None:
+    assert classify_reviewer_result(_primary_result(status="success")) == "approved"
+
+
+def test_classify_reviewer_result_needs_revision_is_rejected() -> None:
+    assert classify_reviewer_result(_primary_result(status="needs_revision")) == "rejected"

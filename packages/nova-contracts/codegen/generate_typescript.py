@@ -24,6 +24,8 @@ from nova_contracts import (
     AgentMessage,
     AgentOsFindHealthyPackageReplyPayload,
     AgentOsFindHealthyPackageRequestPayload,
+    AgentOsPeerReviewReplyPayload,
+    AgentOsPeerReviewRequestPayload,
     AgentOsRestartPlanReplyPayload,
     AgentOsRestartPlanRequestPayload,
     AgentOsTaskCompletedPayload,
@@ -209,6 +211,8 @@ MODELS: list[type[BaseModel]] = [
     AgentOsTaskCompletedPayload,
     AgentOsFindHealthyPackageRequestPayload,
     AgentOsFindHealthyPackageReplyPayload,
+    AgentOsPeerReviewRequestPayload,
+    AgentOsPeerReviewReplyPayload,
     AgentOsRestartPlanRequestPayload,
     AgentOsRestartPlanReplyPayload,
 ]

@@ -18,15 +18,40 @@ synchronous rather than a live, pollable instance -- none of the five Phase
 install-time On Load smoke test (`domain/pipeline.py`) calls
 `handler_class()` with zero arguments -- a hard constraint this backend
 must not break, since it is existing, approved, already-shipped code. This
-backend instead constructs `handler_class(agent_instance_id=..., model_gateway=...)`
+backend instead constructs
+`handler_class(agent_instance_id=..., model_gateway=..., action_port=...)`
 as **keyword-only, defaulted** arguments (a real Agent Package's own
-`Handler.__init__` gives both a `= None` default, per
+`Handler.__init__` gives all three a `= None` default, per
 `agent-os/sdk/python`'s own generated-stub convention going forward) --
 `handler_class()` (bare) still works for Registry's install-time smoke
-test, which never calls `execute()` and therefore never touches either
-value; only a Kernel-spawned instance's real `execute()` call needs them
-populated, and it always is, since this backend is the only caller that
-ever supplies them.
+test, which never calls `execute()` and therefore never touches any of
+them; only a Kernel-spawned instance's real `execute()` call needs the one
+or two it actually uses populated, and they always are, since this backend
+is the only caller that ever supplies them. `action_port`, disclosed
+addition (coding-agent slice): every Handler class now accepts it,
+including `research-agent`'s own (a one-line, mechanical constructor-only
+change, unused by its `execute()`) -- this backend passes the same three
+kwargs uniformly to every Handler class it constructs rather than special-
+casing per agent category, so extending the constructor convention is the
+smallest change that keeps `spawn()` category-agnostic.
+
+**`spawn_and_review()`, disclosed addition (coding-agent slice).** Doc 12
+§8's `send(handle, message)` cannot deliver a `PEER_REVIEW_REQUEST` to a
+reviewer instance -- `spawn()` already runs the primary instance to
+completion and tears it down before returning (see `send()`'s own
+`NotImplementedError` below), so there is never a live instance for
+*any* agent to `send()` to in Phase 3's synchronous backend, regardless of
+category. Rather than keep a spawned instance alive across a second,
+unbounded wait for a message that only ever happens once (peer review),
+this method constructs a **second**, independent Handler instance for the
+reviewer package and drives it through `on_load` -> `on_message(message)`
+-> `on_unload` synchronously, returning the reply directly -- symmetric
+with `spawn()`'s own synchronous, complete-and-return shape, and reusing
+the exact same dynamic-import/constructor convention. The reviewer's own
+`on_message()` (doc 12 §10's Agent Mailbox dispatch target, already the
+sanctioned entry point for `PEER_REVIEW_REQUEST` traffic) is where a real
+reviewer's actual review logic lives -- this method only drives the
+transport, never interprets the reply.
 """
 
 from __future__ import annotations
@@ -36,6 +61,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from nova_agent_sdk import (
+    ActionPort,
     AgentContext,
     AgentHandler,
     AgentHealth,
@@ -66,9 +92,16 @@ def _load_handler_class(handler_path: Path) -> type:
 
 
 class InprocessExecutionBackend:
-    def __init__(self, *, agents_root: Path, model_gateway: ModelGatewayPort) -> None:
+    def __init__(
+        self,
+        *,
+        agents_root: Path,
+        model_gateway: ModelGatewayPort,
+        action_port: ActionPort | None = None,
+    ) -> None:
         self._agents_root = agents_root
         self._model_gateway = model_gateway
+        self._action_port = action_port
 
     async def spawn(
         self, agent: AgentPackageSnapshot, context: AgentContext
@@ -80,7 +113,9 @@ class InprocessExecutionBackend:
         try:
             handler_class = _load_handler_class(handler_path)
             handler_instance: AgentHandler = handler_class(
-                agent_instance_id=instance_id, model_gateway=self._model_gateway
+                agent_instance_id=instance_id,
+                model_gateway=self._model_gateway,
+                action_port=self._action_port,
             )
             manifest = AgentManifest.model_validate(agent.manifest_json)
             await handler_instance.on_load(manifest)
@@ -92,6 +127,28 @@ class InprocessExecutionBackend:
             return AgentInstanceHandle(instance_id=instance_id, error=str(exc))
 
         return AgentInstanceHandle(instance_id=instance_id, result=result, validation=validation)
+
+    async def spawn_and_review(
+        self, agent: AgentPackageSnapshot, message: AgentMessage
+    ) -> AgentMessage | None:
+        manifest_id = agent.manifest_json["id"]
+        handler_path = self._agents_root / manifest_id / "src" / "handler.py"
+
+        try:
+            handler_class = _load_handler_class(handler_path)
+            handler_instance: AgentHandler = handler_class(
+                agent_instance_id=message.to_instance_id,
+                model_gateway=self._model_gateway,
+                action_port=self._action_port,
+            )
+            manifest = AgentManifest.model_validate(agent.manifest_json)
+            await handler_instance.on_load(manifest)
+            reply = await handler_instance.on_message(message)
+            await handler_instance.on_unload()
+        except Exception:  # noqa: BLE001 -- an unreachable/broken reviewer is "no reply"
+            return None
+
+        return reply
 
     async def send(self, handle: AgentInstanceHandle, message: AgentMessage) -> None:
         raise NotImplementedError(

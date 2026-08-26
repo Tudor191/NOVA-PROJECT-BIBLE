@@ -6,11 +6,12 @@ other Phase 3 component's own unit tests already establish."""
 
 from __future__ import annotations
 
+from typing import Literal
 from uuid import UUID
 
 from nova_agent_os_kernel.domain.models import AgentInstance, AgentInstanceHandle
 from nova_agent_sdk import AgentContext, AgentHealth, AgentMessage
-from nova_contracts import AgentPackageSnapshot
+from nova_contracts import AgentPackageSnapshot, AgentResult
 
 __all__ = ["FakeAgentExecutionBackend", "FakeRegistryPort", "FakeSupervisorPort"]
 
@@ -28,11 +29,20 @@ class FakeRegistryPort:
 
 
 class FakeSupervisorPort:
-    def __init__(self, *, restart_instance_ids: list[UUID] | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        restart_instance_ids: list[UUID] | None = None,
+        peer_validation: Literal["approved", "rejected", "timed_out", "not_required"] = (
+            "not_required"
+        ),
+    ) -> None:
         self._restart_instance_ids = (
             restart_instance_ids if restart_instance_ids is not None else []
         )
+        self._peer_validation = peer_validation
         self.calls: list[dict[str, object]] = []
+        self.peer_review_calls: list[dict[str, object]] = []
 
     async def plan_restart(
         self,
@@ -47,21 +57,54 @@ class FakeSupervisorPort:
         )
         return self._restart_instance_ids
 
+    async def record_peer_review(
+        self,
+        *,
+        primary_result: AgentResult,
+        reviewer_category: str,
+        reviewer_result: AgentResult | None,
+        reviewer_available: bool,
+        correlation_id: UUID | None = None,
+    ) -> Literal["approved", "rejected", "timed_out", "not_required"]:
+        self.peer_review_calls.append(
+            {
+                "primary_result": primary_result,
+                "reviewer_category": reviewer_category,
+                "reviewer_result": reviewer_result,
+                "reviewer_available": reviewer_available,
+            }
+        )
+        return self._peer_validation
+
 
 class FakeAgentExecutionBackend:
     """`handles` is consumed in order -- each `spawn()` call pops the next
     queued handle, so a test can script "first attempt fails, retry
-    succeeds" precisely."""
+    succeeds" precisely. `review_replies` is consumed the same way by
+    `spawn_and_review()`."""
 
-    def __init__(self, *, handles: list[AgentInstanceHandle]) -> None:
+    def __init__(
+        self,
+        *,
+        handles: list[AgentInstanceHandle],
+        review_replies: list[AgentMessage | None] | None = None,
+    ) -> None:
         self._handles = list(handles)
+        self._review_replies = list(review_replies) if review_replies is not None else []
         self.spawn_calls: list[tuple[AgentPackageSnapshot, AgentContext]] = []
+        self.spawn_and_review_calls: list[tuple[AgentPackageSnapshot, AgentMessage]] = []
 
     async def spawn(
         self, agent: AgentPackageSnapshot, context: AgentContext
     ) -> AgentInstanceHandle:
         self.spawn_calls.append((agent, context))
         return self._handles.pop(0)
+
+    async def spawn_and_review(
+        self, agent: AgentPackageSnapshot, message: AgentMessage
+    ) -> AgentMessage | None:
+        self.spawn_and_review_calls.append((agent, message))
+        return self._review_replies.pop(0)
 
     async def send(self, handle: AgentInstanceHandle, message: AgentMessage) -> None:
         raise NotImplementedError

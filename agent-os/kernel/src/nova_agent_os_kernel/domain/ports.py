@@ -17,11 +17,11 @@ discipline already applied throughout Phase 3E.
 
 from __future__ import annotations
 
-from typing import Protocol, runtime_checkable
+from typing import Literal, Protocol, runtime_checkable
 from uuid import UUID
 
 from nova_agent_sdk import AgentContext, AgentHealth, AgentMessage
-from nova_contracts import AgentPackageSnapshot, EventEnvelope
+from nova_contracts import AgentPackageSnapshot, AgentResult, EventEnvelope
 from pydantic import BaseModel
 
 from nova_agent_os_kernel.domain.models import AgentInstance, AgentInstanceHandle
@@ -112,6 +112,23 @@ class SupervisorPort(Protocol):
         correlation_id: UUID | None = None,
     ) -> list[UUID]: ...
 
+    async def record_peer_review(
+        self,
+        *,
+        primary_result: AgentResult,
+        reviewer_category: str,
+        reviewer_result: AgentResult | None,
+        reviewer_available: bool,
+        correlation_id: UUID | None = None,
+    ) -> Literal["approved", "rejected", "timed_out", "not_required"]:
+        """Disclosed addition, coding-agent slice: wraps
+        `agent_os.supervisor.peer_review.request` -- see
+        `nova_contracts.events.agent_os`'s own
+        `AgentOsPeerReviewRequestPayload` docstring for the full
+        ownership-split disclosure (Kernel spawns and delivers, the
+        Supervisor classifies and records to Decision Memory)."""
+        ...
+
 
 @runtime_checkable
 class AgentExecutionBackend(Protocol):
@@ -120,11 +137,23 @@ class AgentExecutionBackend(Protocol):
     and infrastructure decision, never a rewrite." Phase 3 implements only
     `inprocess` (`domain/execution_backend.py::InprocessExecutionBackend`);
     declaring the full Protocol shape now, not a redesign later, is the
-    explicit point of doc 12 §8's own "already designed for" framing."""
+    explicit point of doc 12 §8's own "already designed for" framing.
+
+    `spawn_and_review`, disclosed addition (coding-agent slice): not one of
+    doc 12 §8's own four methods -- see `domain/execution_backend.py`'s own
+    module docstring for why the Agent Mailbox `send()` this Protocol
+    already declares cannot reach a completed, synchronous `spawn()`'s
+    instance, and why this is the smallest additional method that lets the
+    Kernel Scheduler still deliver a `PEER_REVIEW_REQUEST` to a freshly
+    spawned reviewer without redesigning `spawn()` itself."""
 
     async def spawn(
         self, agent: AgentPackageSnapshot, context: AgentContext
     ) -> AgentInstanceHandle: ...
+
+    async def spawn_and_review(
+        self, agent: AgentPackageSnapshot, message: AgentMessage
+    ) -> AgentMessage | None: ...
 
     async def send(self, handle: AgentInstanceHandle, message: AgentMessage) -> None: ...
 

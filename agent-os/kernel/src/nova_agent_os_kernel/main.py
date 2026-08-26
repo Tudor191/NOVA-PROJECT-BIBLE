@@ -24,6 +24,7 @@ from nova_eventbus_sdk import BoundEventBus, get_event_bus
 from nova_observability import configure_observability, get_logger, prometheus_asgi_app
 from nova_service_kit import make_health_router
 
+from nova_agent_os_kernel.clients.action_client import ActionClient
 from nova_agent_os_kernel.clients.model_gateway_client import ModelGatewayClient
 from nova_agent_os_kernel.clients.registry_client import RegistryClient
 from nova_agent_os_kernel.clients.supervisor_client import SupervisorClient
@@ -69,7 +70,9 @@ def create_app(
         supervisor_port = SupervisorClient(bus)
     if execution_backend is None:
         execution_backend = InprocessExecutionBackend(
-            agents_root=Path(settings.agents_root), model_gateway=ModelGatewayClient(bus)
+            agents_root=Path(settings.agents_root),
+            model_gateway=ModelGatewayClient(bus),
+            action_port=ActionClient(bus),
         )
 
     @asynccontextmanager

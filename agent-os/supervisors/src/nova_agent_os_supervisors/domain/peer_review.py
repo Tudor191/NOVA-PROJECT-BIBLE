@@ -8,6 +8,7 @@ approving review.
 
 from __future__ import annotations
 
+from typing import Literal
 from uuid import UUID, uuid4
 
 from nova_contracts import AgentMessage, AgentMessageType, AgentResult
@@ -15,7 +16,25 @@ from nova_contracts import AgentMessage, AgentMessageType, AgentResult
 from nova_agent_os_supervisors.domain.models import PeerReviewOutcome
 from nova_agent_os_supervisors.domain.ports import AgentInstancePort
 
-__all__ = ["run_peer_review_round"]
+__all__ = ["classify_reviewer_result", "run_peer_review_round"]
+
+
+def classify_reviewer_result(
+    reviewer_result: AgentResult | None,
+) -> Literal["approved", "rejected", "timed_out"]:
+    """The accept/reject rule (doc 12 §9: "collects its `AgentResult`
+    before accepting the primary result"), extracted from
+    `run_peer_review_round` so the coding-agent slice's own Kernel-driven
+    peer-review RPC (`events/peer_review_record_handler.py`) can apply the
+    identical classification without duplicating it -- Kernel's own
+    synchronous `spawn_and_review()` collects a reviewer's `AgentResult`
+    directly (no live Agent Mailbox round trip to model here), so only the
+    classification rule itself, not the delivery mechanism, is shared.
+    `reviewer_result=None` (a timeout or an unreachable reviewer) is never
+    treated as approving, matching TDD 3E §12 exactly."""
+    if reviewer_result is None:
+        return "timed_out"
+    return "approved" if reviewer_result.status == "success" else "rejected"
 
 
 async def run_peer_review_round(
@@ -53,7 +72,7 @@ async def run_peer_review_round(
         )
 
     reviewer_result = AgentResult.model_validate(reply.payload)
-    peer_validation = "approved" if reviewer_result.status == "success" else "rejected"
+    peer_validation = classify_reviewer_result(reviewer_result)
     return PeerReviewOutcome(
         primary_result=primary_result,
         reviewer_instance_id=reviewer_instance_id,

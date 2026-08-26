@@ -57,7 +57,7 @@ class CompatibilityInfo(BaseModel):
 
 
 class AgentManifest(BaseModel):
-    """Doc 12 §3's `agent.yaml` fields, verbatim."""
+    """Doc 12 §3's `agent.yaml` fields, verbatim, plus `peer_reviewer_category`."""
 
     id: str
     version: str
@@ -69,3 +69,19 @@ class AgentManifest(BaseModel):
     resource_profile: ResourceProfile
     health_check: HealthCheckConfig
     compatibility: CompatibilityInfo
+    peer_reviewer_category: str | None = None
+    """Disclosed addition, coding-agent slice: doc 12 §3's own worked
+    `agent.yaml` example (the coding-agent one, verbatim) never shows a
+    reviewer-declaring field, and TDD 3E §9's table gives the pairing only
+    as prose ("architect-agent... consumes coding-agent's AgentResult").
+    A package-level, manifest-declared fact is the smallest way to make
+    that pairing machine-readable: the Kernel Scheduler reads this
+    directly off the dispatched package's own manifest when
+    `ValidationOutcome.requires_peer_review=True`, needing no new
+    Supervisor-side policy lookup for what is, in Phase 3, a single static
+    fact per agent category. `None` (the default, e.g. research-agent's
+    manifest) means "no peer review configured for this category" -- the
+    Scheduler then finalizes the primary result exactly as it does today,
+    unchanged from `agent_os.registry.find_healthy_package`'s own
+    already-approved shape. Flagged for the Phase 3E Gate Review, same
+    discipline as every other proposed-not-extracted field on this type."""

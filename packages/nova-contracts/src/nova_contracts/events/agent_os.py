@@ -39,6 +39,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from nova_contracts.entities import AgentResult
 from nova_contracts.registry import register_payload
 
 __all__ = [
@@ -46,6 +47,8 @@ __all__ = [
     "AgentMessageType",
     "AgentOsFindHealthyPackageReplyPayload",
     "AgentOsFindHealthyPackageRequestPayload",
+    "AgentOsPeerReviewReplyPayload",
+    "AgentOsPeerReviewRequestPayload",
     "AgentOsRestartPlanReplyPayload",
     "AgentOsRestartPlanRequestPayload",
     "AgentOsTaskCompletedPayload",
@@ -217,4 +220,47 @@ class AgentOsRestartPlanRequestPayload(BaseModel):
 @register_payload("agent_os.supervisor.restart_plan.reply")
 class AgentOsRestartPlanReplyPayload(BaseModel):
     restart_instance_ids: list[UUID] = Field(default_factory=list)
+    schema_version: int = 1
+
+
+@register_payload("agent_os.supervisor.peer_review.request")
+class AgentOsPeerReviewRequestPayload(BaseModel):
+    """Kernel -> Supervisors, disclosed addition (coding-agent slice):
+    doc 12 §9's peer review is "implemented once at the Supervisor level,"
+    including "recorded to Decision Memory either way" (§9 also covers
+    conflict resolution with that exact phrase) -- but only Kernel holds an
+    `AgentExecutionBackend` able to actually spawn a reviewer instance
+    (Phase 3's synchronous `inprocess` backend has no live, addressable
+    instance for `agent-os/supervisors`' own already-built
+    `AgentInstancePort.deliver()` to reach, see `agent-os/kernel/src/
+    nova_agent_os_kernel/domain/execution_backend.py`'s own module
+    docstring for the full disclosure). Kernel therefore performs the
+    mechanical work (resolve a healthy reviewer package via Registry,
+    `spawn_and_review()` it) and reports the raw outcome here so the
+    Supervisor -- not Kernel -- still makes the accept/reject
+    classification and Decision Memory recording, matching doc 12 §9's
+    ownership split even though the *delivery* mechanism differs from a
+    live Agent Mailbox `send()`.
+
+    `reviewer_result=None, reviewer_available=False` covers both a real
+    RPC-level timeout and "no healthy package installed for
+    `reviewer_category` yet" (e.g. `coding-agent` validated before
+    `architect-agent` exists) -- TDD 3E §12 names only `"timed_out"` as the
+    disclosed non-fatal outcome for an unreachable reviewer; both cases are
+    modeled as that same outcome here rather than inventing a second value
+    for what is, from the primary result's perspective, an identical
+    "could not get a real review" fact."""
+
+    primary_result: AgentResult
+    reviewer_category: str
+    reviewer_result: AgentResult | None = None
+    reviewer_available: bool
+    requesting_engine: str
+    correlation_id: UUID
+    schema_version: int = 1
+
+
+@register_payload("agent_os.supervisor.peer_review.reply")
+class AgentOsPeerReviewReplyPayload(BaseModel):
+    peer_validation: Literal["approved", "rejected", "timed_out", "not_required"]
     schema_version: int = 1

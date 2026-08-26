@@ -14,5 +14,6 @@ from __future__ import annotations
 SUBSCRIBABLE_SUBJECTS: frozenset[str] = frozenset(
     {
         "agent_os.supervisor.restart_plan.request",
+        "agent_os.supervisor.peer_review.request",
     }
 )

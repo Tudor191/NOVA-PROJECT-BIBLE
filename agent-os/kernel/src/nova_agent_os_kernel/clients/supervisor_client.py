@@ -16,11 +16,15 @@ at this RPC boundary.
 
 from __future__ import annotations
 
+from typing import Literal
 from uuid import UUID, uuid4
 
 from nova_contracts import (
+    AgentOsPeerReviewReplyPayload,
+    AgentOsPeerReviewRequestPayload,
     AgentOsRestartPlanReplyPayload,
     AgentOsRestartPlanRequestPayload,
+    AgentResult,
     SupervisedInstanceSnapshot,
 )
 
@@ -77,3 +81,30 @@ class SupervisorClient:
         )
         parsed = AgentOsRestartPlanReplyPayload.model_validate(envelope.payload)
         return parsed.restart_instance_ids
+
+    async def record_peer_review(
+        self,
+        *,
+        primary_result: AgentResult,
+        reviewer_category: str,
+        reviewer_result: AgentResult | None,
+        reviewer_available: bool,
+        correlation_id: UUID | None = None,
+    ) -> Literal["approved", "rejected", "timed_out", "not_required"]:
+        cid = correlation_id or uuid4()
+        envelope = await self._event_publisher.request(
+            "agent_os.supervisor.peer_review.request",
+            AgentOsPeerReviewRequestPayload(
+                primary_result=primary_result,
+                reviewer_category=reviewer_category,
+                reviewer_result=reviewer_result,
+                reviewer_available=reviewer_available,
+                requesting_engine=SOURCE_ENGINE,
+                correlation_id=cid,
+            ),
+            source_engine=SOURCE_ENGINE,
+            correlation_id=cid,
+            timeout_ms=self._timeout_ms,
+        )
+        parsed = AgentOsPeerReviewReplyPayload.model_validate(envelope.payload)
+        return parsed.peer_validation
