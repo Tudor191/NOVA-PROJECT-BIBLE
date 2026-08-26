@@ -1,0 +1,32 @@
+# agent.yaml -- the Agent Package manifest
+# (docs/architecture/12-agent-architecture.md §3)
+id: architect-agent
+version: 0.1.0
+category: architect                 # Part 4 taxonomy -- the exact category
+                                     # `coding-agent`'s own manifest names via
+                                     # `peer_reviewer_category: architect`
+display_name: "Architect Agent"
+required_capabilities: []           # TDD 3E §9's own agent table gives
+                                     # architect-agent no action-engine/
+                                     # capability-engine involvement at all --
+                                     # its scripted review operates only on
+                                     # the `AgentResult` payload already
+                                     # carried by `PEER_REVIEW_REQUEST`
+required_permissions: []            # same reasoning -- no filesystem/
+                                     # terminal/model access needed; declared-
+                                     # intent-only in Phase 3 regardless (TDD
+                                     # 3E §5/§8a, no nova-auth)
+supported_execution_backends:
+  - inprocess                        # Phase 3 ships inprocess only (TDD 3E §2)
+resource_profile:
+  cpu: standard
+  memory: standard
+  gpu: none
+health_check:
+  interval_seconds: 30
+compatibility:
+  min_kernel_version: "0.1.0"
+# No `peer_reviewer_category` -- TDD 3E §9's own agent table gives no one
+# the job of reviewing architect-agent's own output in Phase 3 (only
+# coding-agent, reviewed by architect-agent, has a reviewer). See this
+# package's README for the full disclosure.

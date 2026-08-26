@@ -4,16 +4,23 @@ execution_backend.py::_load_handler_class`) Registry's own install pipeline
 uses, exercised here at dispatch time instead of install time. A fake
 `ModelGatewayPort` stands in for the real `ai_model.generate.request` RPC.
 
-`spawn_and_review()`'s own tests (bottom of this file) reuse
+`spawn_and_review()`'s own research-agent-backed tests (below) reuse
 `agents/research-agent`'s real, already-on-disk Handler as a **transport-only
-stand-in reviewer** -- `architect-agent` does not exist yet (disclosed,
-`agents/coding-agent/README.md`'s own gap note), and research-agent's own
-`on_message()` already has a proven, tested `PEER_REVIEW_REQUEST -> None`
-branch (`agents/research-agent/tests/test_handler.py`) precisely because it
-has no reviewer-side logic of its own. That is exactly the right fixture for
-proving `spawn_and_review()`'s own mechanics (dynamic import, `on_load` ->
-`on_message` -> `on_unload`, reply pass-through) independently of any real
-review verdict, which no Phase 3 package can yet provide.
+stand-in reviewer** -- proving `spawn_and_review()`'s own mechanics
+(dynamic import, `on_load` -> `on_message` -> `on_unload`, reply
+pass-through) independently of any reviewer's actual business logic. This
+predates `agents/architect-agent`'s own slice and is kept, unchanged,
+alongside the new architect-agent-backed tests: the two prove different
+things -- transport correctness against a Handler with no reviewer role at
+all, versus a real approve/reject verdict against the actual reviewer
+`coding-agent`'s own manifest names.
+
+`test_spawn_and_review_produces_a_real_...verdict_...` tests (bottom of this
+file) drive `spawn_and_review()` against `agents/architect-agent`'s real
+on-disk Handler -- the first Phase 3 package able to produce an actual
+review verdict, not just pass a message through. See
+`agents/architect-agent/README.md`'s own disclosure of the scripted review
+rule these tests exercise.
 
 `test_spawn_drives_the_real_qa_agent_handler_...` below proves the same
 dynamic-import/constructor mechanism a third time, against
@@ -37,6 +44,7 @@ from nova_contracts import (
     AgentMessage,
     AgentMessageType,
     AgentPackageSnapshot,
+    AgentResult,
     GenerateReplyPayload,
     GenerateRequestPayload,
     PermissionSet,
@@ -324,3 +332,104 @@ async def test_spawn_and_review_returns_none_for_an_unknown_agent_id() -> None:
     reply = await backend.spawn_and_review(package, message)
 
     assert reply is None
+
+
+def _architect_package() -> AgentPackageSnapshot:
+    return AgentPackageSnapshot(
+        id=uuid4(),
+        category="architect",
+        version="0.1.0",
+        manifest_json={
+            "id": "architect-agent",
+            "version": "0.1.0",
+            "category": "architect",
+            "display_name": "Architect Agent",
+            "required_capabilities": [],
+            "required_permissions": [],
+            "supported_execution_backends": ["inprocess"],
+            "resource_profile": {"cpu": "standard", "memory": "standard", "gpu": "none"},
+            "health_check": {"interval_seconds": 30},
+            "compatibility": {"min_kernel_version": "0.1.0"},
+        },
+        health_status="healthy",
+    )
+
+
+def _primary_result(**overrides: object) -> AgentResult:
+    defaults: dict[str, object] = {
+        "agent_instance_id": uuid4(),
+        "task_node_id": uuid4(),
+        "status": "success",
+        "output": {"change": {"content": "written"}},
+        "confidence": 1.0,
+        "self_validation_passed": True,
+        "correlation_id": uuid4(),
+    }
+    defaults.update(overrides)
+    return AgentResult(**defaults)
+
+
+async def test_spawn_and_review_produces_a_real_approved_verdict_from_architect_agent() -> None:
+    backend = InprocessExecutionBackend(
+        agents_root=_REPO_ROOT / "agents",
+        model_gateway=FakeModelGatewayPort(
+            reply=GenerateReplyPayload(
+                text="",
+                input_tokens=0,
+                output_tokens=0,
+                finish_reason="stop",
+                structural_confidence=0.0,
+                model_id=uuid4(),
+                provider="fake",
+            )
+        ),
+    )
+    reviewer_instance_id = uuid4()
+    primary_result = _primary_result(status="success", self_validation_passed=True)
+    message = AgentMessage(
+        message_type=AgentMessageType.PEER_REVIEW_REQUEST,
+        from_instance_id=primary_result.agent_instance_id,
+        to_instance_id=reviewer_instance_id,
+        payload=primary_result.model_dump(mode="json"),
+        correlation_id=primary_result.correlation_id,
+    )
+
+    reply = await backend.spawn_and_review(_architect_package(), message)
+
+    assert reply is not None
+    assert reply.message_type is AgentMessageType.PEER_REVIEW_RESULT
+    verdict = AgentResult.model_validate(reply.payload)
+    assert verdict.status == "success"
+    assert verdict.agent_instance_id == reviewer_instance_id
+
+
+async def test_spawn_and_review_produces_a_real_rejected_verdict_from_architect_agent() -> None:
+    backend = InprocessExecutionBackend(
+        agents_root=_REPO_ROOT / "agents",
+        model_gateway=FakeModelGatewayPort(
+            reply=GenerateReplyPayload(
+                text="",
+                input_tokens=0,
+                output_tokens=0,
+                finish_reason="stop",
+                structural_confidence=0.0,
+                model_id=uuid4(),
+                provider="fake",
+            )
+        ),
+    )
+    reviewer_instance_id = uuid4()
+    primary_result = _primary_result(status="failure", self_validation_passed=False)
+    message = AgentMessage(
+        message_type=AgentMessageType.PEER_REVIEW_REQUEST,
+        from_instance_id=primary_result.agent_instance_id,
+        to_instance_id=reviewer_instance_id,
+        payload=primary_result.model_dump(mode="json"),
+        correlation_id=primary_result.correlation_id,
+    )
+
+    reply = await backend.spawn_and_review(_architect_package(), message)
+
+    assert reply is not None
+    verdict = AgentResult.model_validate(reply.payload)
+    assert verdict.status == "needs_revision"

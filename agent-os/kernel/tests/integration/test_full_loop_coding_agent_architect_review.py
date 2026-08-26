@@ -1,31 +1,36 @@
-"""End-to-end proof of the coding-agent slice's own disclosed addition: a
-real Kernel `create_app()` (real Scheduler, real `RegistryClient` RPC, real
-`InprocessExecutionBackend`) dispatches through the real
-`agents/coding-agent/src/handler.py` Handler, then runs a real peer-review
-round through a real Supervisors `create_app()` (real
-`agent_os.supervisor.peer_review.request` RPC, real
-`peer_review_record_handler`, real Decision Memory call) -- mirrors
-`test_full_loop_research_agent.py`'s own structure and stand-in
-conventions exactly, extended to a second real engine (`agent-os/supervisors`)
-bound to the same shared in-memory bus.
+"""End-to-end proof of a **real** peer-review round: a real Kernel
+`create_app()` dispatches through the real `agents/coding-agent/src/handler.py`
+Handler, then a real Supervisors `create_app()` runs a real peer-review
+round through the real `agents/architect-agent/src/handler.py` Handler --
+closes the loop `test_full_loop_coding_agent_peer_review.py`'s own
+"no healthy architect-agent candidate" edge case left open, and is the
+concrete instance of TDD 3E §14's acceptance criterion 1 ("at least one
+real peer-review round (`architect-agent` reviewing `coding-agent`'s
+output)").
 
-**Updated note (architect-agent slice): `agents/architect-agent` now
-exists as a real, installable package.** This test deliberately keeps its
-own Registry stand-in answering `category="architect"` with `package=None`
--- it now exercises the *edge case* of no healthy architect-agent
-candidate being found (e.g. every instance unhealthy), not "the package
-doesn't exist" (that disclosure predates this slice). Peer review is
-attempted, no reviewer package is found, and the Supervisor's own real RPC
-handler classifies this as `peer_validation="timed_out"`, which still
-finalizes the task as `outcome="success"` (TDD 3E §12's own non-fatal
-treatment, see `domain/scheduler.py`'s own module docstring). The real,
-positive path -- a real `architect-agent` package resolved and reviewing a
-real `coding-agent` result -- is proven end-to-end in the sibling
-`test_full_loop_coding_agent_architect_review.py`. The mechanically
-separate question -- does `spawn_and_review()`'s own transport correctly
-deliver a `PEER_REVIEW_REQUEST` and pass a reply through, and does
-`architect-agent`'s own scripted rule approve/reject correctly -- is
-proven independently in `tests/unit/test_execution_backend.py`.
+Same structure and stand-in conventions as
+`test_full_loop_coding_agent_peer_review.py` -- real Kernel + real
+Supervisors bound to the same shared in-memory bus, a Registry stand-in
+answering the real `RegistryClient` RPC -- except this Registry stand-in
+now resolves **both** `category="coding"` and `category="architect"` to
+their real, installed package snapshots (independently proven by
+`agent-os/registry`'s own `test_real_coding_agent_installs.py` and
+`test_real_architect_agent_installs.py`), so `spawn_and_review()` actually
+constructs and drives a real `architect-agent` Handler instance instead of
+finding no candidate.
+
+Only the approve path is exercised here: `coding-agent`'s own `execute()`
+always sets `self_validation_passed` equal to `status == "success"` (see
+that Handler's own source) -- there is no way for the *real* coding-agent
+Handler to produce a self-inconsistent result, which is exactly the only
+input `architect-agent`'s own scripted rule rejects (see
+`agents/architect-agent/src/handler.py`'s own `_review()`). The reject
+path is therefore proven directly against a hand-built, self-inconsistent
+`AgentResult` fixture instead -- `tests/unit/test_execution_backend.py`'s
+own `test_spawn_and_review_produces_a_real_rejected_verdict_...` and
+`agents/architect-agent/tests/test_handler.py`'s own
+`test_peer_review_request_rejects_...` tests -- since no real Phase 3
+agent can organically produce the input that verdict requires.
 """
 
 from __future__ import annotations
@@ -69,13 +74,13 @@ class _FakeActionPort:
 
 
 class _UnusedModelGatewayPort:
-    """coding-agent's own `execute()` never calls `model_gateway` (it uses
-    `action_port` instead, see `agents/coding-agent/src/handler.py`) --
-    this stand-in exists only to satisfy `InprocessExecutionBackend`'s own
-    constructor type, and raises if that assumption ever stops holding."""
+    """Neither `coding-agent`'s nor `architect-agent`'s own `execute()`/
+    `on_message()` call `model_gateway` -- this stand-in exists only to
+    satisfy `InprocessExecutionBackend`'s own constructor type, and raises
+    if that assumption ever stops holding."""
 
     async def generate(self, request: GenerateRequestPayload) -> GenerateReplyPayload:
-        raise AssertionError("coding-agent's execute() does not call model_gateway")
+        raise AssertionError("neither coding-agent nor architect-agent calls model_gateway")
 
 
 class _RecordingDecisionMemoryPort:
@@ -119,7 +124,31 @@ def _coding_agent_package_snapshot() -> AgentPackageSnapshot:
     )
 
 
-async def test_full_loop_coding_agent_dispatches_and_runs_a_peer_review_round(
+def _architect_agent_package_snapshot() -> AgentPackageSnapshot:
+    """Matches, field-for-field, what Registry's own real install pipeline
+    produces for `agents/architect-agent/agent.yaml`, independently proven
+    by `agent-os/registry`'s own `test_real_architect_agent_installs.py`."""
+    return AgentPackageSnapshot(
+        id=uuid4(),
+        category="architect",
+        version="0.1.0",
+        manifest_json={
+            "id": "architect-agent",
+            "version": "0.1.0",
+            "category": "architect",
+            "display_name": "Architect Agent",
+            "required_capabilities": [],
+            "required_permissions": [],
+            "supported_execution_backends": ["inprocess"],
+            "resource_profile": {"cpu": "standard", "memory": "standard", "gpu": "none"},
+            "health_check": {"interval_seconds": 30},
+            "compatibility": {"min_kernel_version": "0.1.0"},
+        },
+        health_status="healthy",
+    )
+
+
+async def test_full_loop_architect_agent_really_reviews_and_approves_coding_agent(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("EVENT_BUS_BACKEND", "in_memory")
@@ -127,7 +156,12 @@ async def test_full_loop_coding_agent_dispatches_and_runs_a_peer_review_round(
     monkeypatch.setattr("nova_agent_os_kernel.main.get_event_bus", lambda: shared_bus)
     monkeypatch.setattr("nova_agent_os_supervisors.main.get_event_bus", lambda: shared_bus)
 
-    package_snapshot = _coding_agent_package_snapshot()
+    coding_package = _coding_agent_package_snapshot()
+    architect_package = _architect_agent_package_snapshot()
+    packages_by_category = {
+        coding_package.category: coding_package,
+        architect_package.category: architect_package,
+    }
 
     kernel_repository = FakeKernelRepository()
     primary_user_id = uuid4()
@@ -155,9 +189,9 @@ async def test_full_loop_coding_agent_dispatches_and_runs_a_peer_review_round(
         supervisors_app.router.lifespan_context(supervisors_app),
     ):
         # Stand-in for `agent-os/registry`: answers the real Kernel's real
-        # `RegistryClient` RPC. `category="coding"` resolves the real
-        # coding-agent package; `category="architect"` returns `None`,
-        # since `architect-agent` does not exist yet (disclosed).
+        # `RegistryClient` RPC for both `category="coding"` (the primary
+        # dispatch) and `category="architect"` (the reviewer resolution),
+        # each with its own real, installed package snapshot.
         registry_stand_in = BoundEventBus(
             shared_bus,
             engine_name="registry",
@@ -171,12 +205,9 @@ async def test_full_loop_coding_agent_dispatches_and_runs_a_peer_review_round(
         async def _answer_find_healthy_package(
             envelope: EventEnvelope,
         ) -> AgentOsFindHealthyPackageReplyPayload:
-            payload = AgentOsFindHealthyPackageRequestPayload.model_validate(
-                envelope.payload
-            )
-            if payload.category != package_snapshot.category:
-                return AgentOsFindHealthyPackageReplyPayload(package=None)
-            return AgentOsFindHealthyPackageReplyPayload(package=package_snapshot)
+            payload = AgentOsFindHealthyPackageRequestPayload.model_validate(envelope.payload)
+            package = packages_by_category.get(payload.category)
+            return AgentOsFindHealthyPackageReplyPayload(package=package)
 
         await registry_stand_in.serve(
             "agent_os.registry.find_healthy_package.request",
@@ -219,9 +250,7 @@ async def test_full_loop_coding_agent_dispatches_and_runs_a_peer_review_round(
             critical_path=[node.id],
         )
         correlation_id = uuid4()
-        graph_payload = PlanningTaskGraphCreatedPayload(
-            graph=graph, correlation_id=correlation_id
-        )
+        graph_payload = PlanningTaskGraphCreatedPayload(graph=graph, correlation_id=correlation_id)
 
         await planning_stand_in.publish(
             EventEnvelope(
@@ -239,14 +268,14 @@ async def test_full_loop_coding_agent_dispatches_and_runs_a_peer_review_round(
         assert completed_payload.task_node_id == node.id
         assert completed_payload.outcome == "success"
         assert completed_payload.result is not None
-        assert completed_payload.result["peer_validation"] == "timed_out"
+        assert completed_payload.result["peer_validation"] == "approved"
 
         persisted = await kernel_repository.find_by_id(completed_payload.agent_instance_id)
         assert persisted is not None
         assert persisted.status == "completed"
         assert persisted.category == "coding"
         assert persisted.assigned_task_node_id == node.id
-        assert persisted.agent_package_id == package_snapshot.id
+        assert persisted.agent_package_id == coding_package.id
 
         assert len(decision_memory.calls) == 1
         assert decision_memory.calls[0]["correlation_id"] == correlation_id
