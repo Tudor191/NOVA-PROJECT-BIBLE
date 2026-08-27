@@ -19,11 +19,18 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import selectinload
 
-from nova_planning_engine.domain.models import Estimate, RiskLevel, TaskGraph, TaskNode
+from nova_planning_engine.domain.models import (
+    Estimate,
+    RiskLevel,
+    TaskGraph,
+    TaskNode,
+    TaskNodeStatus,
+)
 from nova_planning_engine.domain.ports import (
     OutboxEvent,
     OutboxRow,
     TaskGraphNotFoundError,
+    TaskNodeNotFoundError,
 )
 from nova_planning_engine.domain.task_graph import compute_critical_path
 from nova_planning_engine.repository.models import OutboxEventORM, TaskGraphORM, TaskNodeORM
@@ -163,6 +170,36 @@ class PostgresPlanningRepository:
             row.approved_at = approved_at
             await session.flush()
             return _graph_to_domain(row)
+
+    async def reset_node_status(
+        self,
+        task_node_id: UUID,
+        *,
+        status: TaskNodeStatus,
+        outbox_event_builder: Callable[[TaskGraph], OutboxEvent],
+    ) -> TaskGraph:
+        async with self._session_factory() as session, session.begin():
+            node_result = await session.execute(
+                select(TaskNodeORM).where(TaskNodeORM.id == task_node_id)
+            )
+            node_row = node_result.scalar_one_or_none()
+            if node_row is None:
+                raise TaskNodeNotFoundError(f"task_node {task_node_id} does not exist")
+            node_row.status = status
+
+            graph_result = await session.execute(
+                select(TaskGraphORM)
+                .where(TaskGraphORM.id == node_row.task_graph_id)
+                .options(selectinload(TaskGraphORM.nodes))
+            )
+            graph_row = graph_result.scalar_one()
+
+            await session.flush()
+            await session.refresh(graph_row, attribute_names=["nodes"])
+            updated_graph = _graph_to_domain(graph_row)
+
+            session.add(_outbox_orm(outbox_event_builder(updated_graph)))
+            return updated_graph
 
     async def list_all(self, *, limit: int = 1000) -> list[TaskGraph]:
         async with self._session_factory() as session:

@@ -8,7 +8,12 @@ tested via the established "second `BoundEventBus`" pattern, mirroring
 
 `planning.goals.current.request` (TDD 3E §8) is this engine's second served
 RPC -- the real-RPC replacement for `reasoning-engine`'s and
-`executive-cognition-engine`'s own `GoalsPort` placeholder."""
+`executive-cognition-engine`'s own `GoalsPort` placeholder.
+
+`agent_os.task.completed` (TDD 3E §4/§12, TDD 3B §6.1's own deferred
+subscription) is a fire-and-forget subscription -- `agent-os/kernel`'s own
+restart-reconciliation and Scheduler failure paths, wired now that
+`agent-os/kernel` exists (`events/task_completed_handler.py`)."""
 
 from __future__ import annotations
 
@@ -17,5 +22,6 @@ SUBSCRIBABLE_SUBJECTS: frozenset[str] = frozenset(
         "reasoning.process.completed",
         "planning.decompose.request",
         "planning.goals.current.request",
+        "agent_os.task.completed",
     }
 )

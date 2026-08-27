@@ -22,7 +22,7 @@ from uuid import UUID
 from nova_contracts import EventEnvelope, GenerateReplyPayload, GenerateRequestPayload
 from pydantic import BaseModel
 
-from nova_planning_engine.domain.models import TaskGraph, TaskNode
+from nova_planning_engine.domain.models import TaskGraph, TaskNode, TaskNodeStatus
 
 __all__ = [
     "EventPublisher",
@@ -31,6 +31,7 @@ __all__ = [
     "OutboxRow",
     "PlanningRepository",
     "TaskGraphNotFoundError",
+    "TaskNodeNotFoundError",
 ]
 
 
@@ -160,6 +161,28 @@ class PlanningRepository(Protocol):
         around."""
         ...
 
+    async def reset_node_status(
+        self,
+        task_node_id: UUID,
+        *,
+        status: TaskNodeStatus,
+        outbox_event_builder: Callable[[TaskGraph], OutboxEvent],
+    ) -> TaskGraph:
+        """TDD 3E §4/§12, TDD 3B §6.1's own "`planning-engine` subscribes to
+        mutate the corresponding `TaskNode.status`" -- the `agent_os.task.
+        completed` consumer's own write. Mutates exactly one `TaskNode`'s
+        `status` in place (never its other fields, never `critical_path` --
+        a status change alone doesn't affect the graph's shape, unlike
+        `append_nodes`'s own node-set change), then calls
+        `outbox_event_builder` with the fully-updated `TaskGraph` and writes
+        both in one transaction -- the identical "mutation, not
+        regeneration" pattern `append_nodes` already establishes for the
+        `planning.decompose.request` path (TDD 3B §4), applied to a status
+        mutation instead of a node-set mutation. Raises
+        `TaskNodeNotFoundError` if `task_node_id` does not exist in any
+        persisted graph."""
+        ...
+
 
 class TaskGraphNotFoundError(Exception):
     """Raised by `PlanningRepository.append_nodes`/`set_approved_at` when
@@ -167,3 +190,14 @@ class TaskGraphNotFoundError(Exception):
     request` handler / `POST /v1/plans/{id}/approve`) translates this into
     a defined, non-500 failure response rather than a bare, unhandled
     `KeyError`-shaped surprise."""
+
+
+class TaskNodeNotFoundError(Exception):
+    """Raised by `PlanningRepository.reset_node_status` when `task_node_id`
+    does not exist in any persisted graph -- a distinct condition/class
+    from `TaskGraphNotFoundError` since the caller (`events/
+    task_completed_handler.py`) already resolves node existence via
+    `find_node` before ever calling `reset_node_status`, so this is a
+    narrow, defensive raise for the rare read-then-write race, not the
+    primary "unknown node" signal (that one is `find_node` returning
+    `None`, handled as a defined no-op, never an exception)."""

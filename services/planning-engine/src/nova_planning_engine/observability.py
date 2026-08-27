@@ -84,6 +84,11 @@ class PlanningEngineMetrics:
     """TDD 3E §8: one increment per `planning.goals.current.request` this
     engine serves."""
 
+    planning_task_node_reset_to_ready_total: Counter
+    """TDD 3E §4/§12: one increment per `TaskNode` reset to `"ready"` by the
+    `agent_os.task.completed` handler, labeled by `outcome`
+    (`"interrupted"`/`"failure"`)."""
+
 
 def create_metrics() -> PlanningEngineMetrics:
     meter = get_meter("planning-engine")
@@ -133,5 +138,10 @@ def create_metrics() -> PlanningEngineMetrics:
         planning_goals_current_request_served_total=meter.create_counter(
             "planning_goals_current_request_served_total",
             description="planning.goals.current.request calls served.",
+        ),
+        planning_task_node_reset_to_ready_total=meter.create_counter(
+            "planning_task_node_reset_to_ready_total",
+            description="TaskNodes reset to ready by the agent_os.task.completed handler, "
+            "labeled by outcome.",
         ),
     )

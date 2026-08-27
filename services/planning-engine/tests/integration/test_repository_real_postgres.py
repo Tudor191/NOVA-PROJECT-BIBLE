@@ -21,7 +21,11 @@ from uuid import uuid4
 import pytest
 from nova_contracts import RiskLevel
 from nova_planning_engine.domain.models import Estimate, TaskGraph, TaskNode
-from nova_planning_engine.domain.ports import OutboxEvent, TaskGraphNotFoundError
+from nova_planning_engine.domain.ports import (
+    OutboxEvent,
+    TaskGraphNotFoundError,
+    TaskNodeNotFoundError,
+)
 from nova_planning_engine.repository.postgres_planning_repository import (
     PostgresPlanningRepository,
 )
@@ -196,6 +200,49 @@ async def test_set_approved_at_raises_for_an_unknown_task_graph_id(
 
     with pytest.raises(TaskGraphNotFoundError):
         await repository.set_approved_at(uuid4(), approved_at=datetime.now(UTC))
+
+
+async def test_reset_node_status_mutates_status_and_republishes(
+    repository: PostgresPlanningRepository,
+) -> None:
+    """TDD 3E §4/§12's own restart-resume write -- mirrors
+    `test_append_nodes_mutates_in_place_and_recomputes_critical_path`'s own
+    "mutation, not regeneration" verification shape, applied to a status
+    change instead of a node-set change."""
+    node = _node(status="running")
+    graph = _graph(nodes=[node], critical_path=[node.id])
+    await repository.insert(graph, outbox_event=_outbox_event())
+
+    captured_builder_arg: list[TaskGraph] = []
+
+    def _builder(updated_graph: TaskGraph) -> OutboxEvent:
+        captured_builder_arg.append(updated_graph)
+        return _outbox_event(subject="planning.task_graph.created", correlation_id=uuid4())
+
+    updated = await repository.reset_node_status(
+        node.id, status="ready", outbox_event_builder=_builder
+    )
+
+    assert updated.nodes[0].status == "ready"
+    assert captured_builder_arg == [updated]
+
+    fetched = await repository.find_by_id(graph.id)
+    assert fetched is not None
+    assert fetched.nodes[0].status == "ready"
+
+    # Second row in the outbox now (the original insert's own row, plus
+    # this mutation's own republish).
+    ready_rows = await repository.list_dispatch_ready()
+    assert len(ready_rows) == 2
+
+
+async def test_reset_node_status_raises_for_an_unknown_task_node_id(
+    repository: PostgresPlanningRepository,
+) -> None:
+    with pytest.raises(TaskNodeNotFoundError):
+        await repository.reset_node_status(
+            uuid4(), status="ready", outbox_event_builder=lambda _graph: _outbox_event()
+        )
 
 
 async def test_outbox_list_dispatch_ready_and_mark_dispatched_round_trip(

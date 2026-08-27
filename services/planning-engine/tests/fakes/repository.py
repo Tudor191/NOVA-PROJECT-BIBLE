@@ -10,8 +10,13 @@ from collections.abc import Callable
 from datetime import datetime
 from uuid import UUID, uuid4
 
-from nova_planning_engine.domain.models import TaskGraph, TaskNode
-from nova_planning_engine.domain.ports import OutboxEvent, OutboxRow, TaskGraphNotFoundError
+from nova_planning_engine.domain.models import TaskGraph, TaskNode, TaskNodeStatus
+from nova_planning_engine.domain.ports import (
+    OutboxEvent,
+    OutboxRow,
+    TaskGraphNotFoundError,
+    TaskNodeNotFoundError,
+)
 from nova_planning_engine.domain.task_graph import compute_critical_path
 
 
@@ -75,6 +80,25 @@ class FakePlanningRepository:
         updated = graph.model_copy(update={"approved_at": approved_at})
         self.graphs[task_graph_id] = updated
         return updated
+
+    async def reset_node_status(
+        self,
+        task_node_id: UUID,
+        *,
+        status: TaskNodeStatus,
+        outbox_event_builder: Callable[[TaskGraph], OutboxEvent],
+    ) -> TaskGraph:
+        for graph in self.graphs.values():
+            for index, node in enumerate(graph.nodes):
+                if node.id != task_node_id:
+                    continue
+                updated_node = node.model_copy(update={"status": status})
+                new_nodes = [*graph.nodes[:index], updated_node, *graph.nodes[index + 1 :]]
+                updated_graph = graph.model_copy(update={"nodes": new_nodes})
+                self.graphs[graph.id] = updated_graph
+                self._enqueue(outbox_event_builder(updated_graph))
+                return updated_graph
+        raise TaskNodeNotFoundError(f"task_node {task_node_id} does not exist")
 
     async def list_all(self, *, limit: int = 1000) -> list[TaskGraph]:
         return list(self.graphs.values())[:limit]
