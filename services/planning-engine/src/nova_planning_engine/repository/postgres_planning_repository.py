@@ -164,6 +164,13 @@ class PostgresPlanningRepository:
             await session.flush()
             return _graph_to_domain(row)
 
+    async def list_all(self, *, limit: int = 1000) -> list[TaskGraph]:
+        async with self._session_factory() as session:
+            result = await session.execute(
+                select(TaskGraphORM).options(selectinload(TaskGraphORM.nodes)).limit(limit)
+            )
+            return [_graph_to_domain(row) for row in result.scalars().all()]
+
     async def list_dispatch_ready(self, *, limit: int = 100) -> list[OutboxRow]:
         async with self._session_factory() as session:
             result = await session.execute(

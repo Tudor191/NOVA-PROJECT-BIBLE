@@ -228,18 +228,23 @@ async def test_personal_context_port_returns_projected_context(
 
 # --- GoalsPort -------------------------------------------------------------
 #
-# §7.1: Phase 2B's honest placeholder -- both implementations return `[]`
-# unconditionally (Planning Engine doesn't exist yet), asserted explicitly
-# as the one legitimate behavioral identity this port has right now.
+# TDD 3E §8: `GoalsClient` now calls a real `planning.goals.current.request`
+# RPC. `[]` is still a legitimate, shared behavior for both implementations
+# in this one scenario -- `FakeGoalsPort()` defaults to no configured goals,
+# and `GoalsClient` degrades to `[]` on a timeout (nothing registered on the
+# `FakeEventPublisher`) -- but for different reasons, not because the port
+# is a placeholder any more.
 
 _GOALS_PORTS: list[tuple[str, Callable[[], GoalsPort]]] = [
     ("fake", lambda: FakeGoalsPort()),
-    ("real", lambda: GoalsClient()),
+    ("real", lambda: GoalsClient(FakeEventPublisher())),
 ]
 
 
 @_params(_GOALS_PORTS)
-async def test_goals_port_placeholder_returns_empty(factory: Callable[[], GoalsPort]) -> None:
+async def test_goals_port_returns_empty_when_no_goals_are_available(
+    factory: Callable[[], GoalsPort],
+) -> None:
     port = factory()
     assert await port.current_goals(user_id=uuid4()) == []
 

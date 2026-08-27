@@ -142,6 +142,24 @@ class PlanningRepository(Protocol):
 
     async def mark_dispatched(self, outbox_id: UUID) -> None: ...
 
+    async def list_all(self, *, limit: int = 1000) -> list[TaskGraph]:
+        """TDD 3E §8 -- every persisted `TaskGraph`, needed by
+        `planning.goals.current.request`'s own handler to compute "a user's
+        active `TaskGraph`s." **Disclosed gap, not silently invented**: the
+        `task_graph` table (TDD 3B §4) carries no `user_id`/ownership column
+        -- nothing upstream of this engine (`reasoning.process.completed`'s
+        own `decompose()` call site) ever threads `ReasoningProcessCompletedPayload.user_id`
+        through to a persisted field, unlike every other "current state for
+        a user" port in this codebase (e.g. `WorldModelPort.list_history`,
+        `MemoryPort.get`). Adding that column is a schema/migration change
+        TDD 3E §8 itself never describes and is out of this slice's own
+        authorized scope (GoalsPort migration only) -- so this method
+        returns every graph, unfiltered, and the RPC handler that calls it
+        (`events/goals_handler.py`) filters only by "active," never by
+        `user_id`. Flagged for a follow-on slice, not silently worked
+        around."""
+        ...
+
 
 class TaskGraphNotFoundError(Exception):
     """Raised by `PlanningRepository.append_nodes`/`set_approved_at` when

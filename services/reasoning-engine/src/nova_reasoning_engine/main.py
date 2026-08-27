@@ -97,7 +97,7 @@ def create_app(
         memory = memory_port or MemoryClient(bus)
         knowledge = knowledge_port or KnowledgeClient(bus)
         personal_context = personal_context_port or PersonalContextClient(world_model)
-        goals = goals_port or GoalsClient()
+        goals = goals_port or GoalsClient(bus)
         model_orchestration = model_orchestration_port or ModelOrchestrationClient(bus)
 
         await bus.connect()

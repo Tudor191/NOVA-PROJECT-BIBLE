@@ -80,6 +80,10 @@ class PlanningEngineMetrics:
     `repository/outbox_dispatcher.py` (`workers/outbox_worker.py`) --
     mirrors `memory-engine`'s own instrument of the same name."""
 
+    planning_goals_current_request_served_total: Counter
+    """TDD 3E §8: one increment per `planning.goals.current.request` this
+    engine serves."""
+
 
 def create_metrics() -> PlanningEngineMetrics:
     meter = get_meter("planning-engine")
@@ -125,5 +129,9 @@ def create_metrics() -> PlanningEngineMetrics:
         outbox_dispatched_total=meter.create_counter(
             "planning_engine_outbox_dispatched_total",
             description="Outbox events dispatched to the Event Bus.",
+        ),
+        planning_goals_current_request_served_total=meter.create_counter(
+            "planning_goals_current_request_served_total",
+            description="planning.goals.current.request calls served.",
         ),
     )

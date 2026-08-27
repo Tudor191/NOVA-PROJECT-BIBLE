@@ -76,6 +76,9 @@ class FakePlanningRepository:
         self.graphs[task_graph_id] = updated
         return updated
 
+    async def list_all(self, *, limit: int = 1000) -> list[TaskGraph]:
+        return list(self.graphs.values())[:limit]
+
     async def list_dispatch_ready(self, *, limit: int = 100) -> list[OutboxRow]:
         return sorted(self.outbox.values(), key=lambda row: row.created_at)[:limit]
 

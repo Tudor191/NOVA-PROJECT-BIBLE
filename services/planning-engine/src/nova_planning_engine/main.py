@@ -25,6 +25,7 @@ from nova_planning_engine.clients.model_orchestration_client import ModelOrchest
 from nova_planning_engine.config import Settings
 from nova_planning_engine.domain.ports import ModelOrchestrationPort, PlanningRepository
 from nova_planning_engine.events.decompose_handler import make_decompose_request_handler
+from nova_planning_engine.events.goals_handler import make_goals_current_request_handler
 from nova_planning_engine.events.handlers import make_reasoning_process_completed_handler
 from nova_planning_engine.events.published import PUBLISHABLE_SUBJECTS
 from nova_planning_engine.events.subscribed import SUBSCRIBABLE_SUBJECTS
@@ -90,6 +91,11 @@ def create_app(
         await bus.serve(
             "planning.decompose.request",
             make_decompose_request_handler(app),
+            source_engine="planning-engine",
+        )
+        await bus.serve(
+            "planning.goals.current.request",
+            make_goals_current_request_handler(app),
             source_engine="planning-engine",
         )
         app.state.ready = True
