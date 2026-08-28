@@ -23,6 +23,7 @@ from uuid import uuid4
 import pytest
 from nova_agent_os_registry.domain.models import AgentPackage
 from nova_agent_os_registry.domain.ports import AgentPackageAlreadyExistsError
+from nova_agent_os_registry.domain.selection import select_dispatch_version
 from nova_agent_os_registry.repository.postgres_registry_repository import (
     PostgresRegistryRepository,
 )
@@ -130,6 +131,70 @@ async def test_two_versions_of_the_same_category_coexist(
 
     assert await repository.find_by_category_version("coding", "1.2.0") == v1
     assert await repository.find_by_category_version("coding", "1.3.0") == v2
+
+
+async def test_hot_load_coexistence_selects_the_newest_healthy_version(
+    repository: PostgresRegistryRepository,
+) -> None:
+    """TDD 3E §14 acceptance criterion #3 against real Postgres: `1.1.0`
+    and `1.2.0` coexist as real rows under one category, and the real
+    selection policy (`domain/selection.py`, the same function the served
+    RPC uses) picks `1.2.0`. Full design record: `docs/design/phase-3/
+    16-3e-hot-load-design-decision.md`."""
+    v110 = await repository.insert(
+        _package(category="hotload-coexist", version="1.1.0", health_status="healthy")
+    )
+    v120 = await repository.insert(
+        _package(category="hotload-coexist", version="1.2.0", health_status="healthy")
+    )
+
+    rows = await repository.list_by_category("hotload-coexist")
+    assert {row.id for row in rows} == {v110.id, v120.id}
+
+    selected = select_dispatch_version(rows)
+    assert selected is not None
+    assert selected.version == "1.2.0"
+    assert selected.id == v120.id
+
+
+async def test_hot_load_falls_back_to_the_older_healthy_version_in_real_postgres(
+    repository: PostgresRegistryRepository,
+) -> None:
+    """The newest row installed but never promoted past `"unknown"` (a
+    failed `on_load`) must not make the category undispatchable while an
+    older healthy row exists."""
+    v110 = await repository.insert(
+        _package(category="hotload-fallback", version="1.1.0", health_status="healthy")
+    )
+    await repository.insert(
+        _package(category="hotload-fallback", version="1.2.0", health_status="unknown")
+    )
+
+    selected = select_dispatch_version(await repository.list_by_category("hotload-fallback"))
+    assert selected is not None
+    assert selected.version == "1.1.0"
+    assert selected.id == v110.id
+
+
+async def test_installing_a_newer_version_leaves_the_older_row_unmutated_in_real_postgres(
+    repository: PostgresRegistryRepository,
+) -> None:
+    """The persistence-level guarantee every already-dispatched
+    `agent_instance.agent_package_id` pin depends on: inserting `1.2.0`
+    never touches `1.1.0`'s row."""
+    v110 = await repository.insert(
+        _package(category="hotload-immutable", version="1.1.0", health_status="healthy")
+    )
+    before = await repository.find_by_category_version("hotload-immutable", "1.1.0")
+
+    await repository.insert(
+        _package(category="hotload-immutable", version="1.2.0", health_status="healthy")
+    )
+
+    after = await repository.find_by_category_version("hotload-immutable", "1.1.0")
+    assert after == before
+    assert after is not None
+    assert after.id == v110.id
 
 
 async def test_find_latest_by_category_returns_the_most_recently_installed_version(

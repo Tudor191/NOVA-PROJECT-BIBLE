@@ -328,6 +328,126 @@ async def test_same_category_and_version_reinstall_is_idempotent_not_a_hard_erro
     assert len(repository.rows) == 1
 
 
+async def test_installing_a_second_version_preserves_the_first_and_both_coexist(
+    tmp_path: Path,
+) -> None:
+    """TDD 3E §14 acceptance criterion #3 at the install-pipeline level:
+    installing `coding-agent@1.2.0` while `1.1.0` is already installed
+    must add a second row, leave the `1.1.0` row **byte-for-byte
+    unchanged**, and keep both queryable (doc 16 §2). This is the
+    "installing 1.2.0 does not mutate the 1.1.0 row" guarantee every
+    already-dispatched instance's `agent_package_id` pin depends on."""
+    repository = FakeRegistryRepository()
+    v110_source = _write_agent_package(
+        tmp_path / "v110", package_id="coding-agent", category="coding", version="1.1.0"
+    )
+    v120_source = _write_agent_package(
+        tmp_path / "v120", package_id="coding-agent", category="coding", version="1.2.0"
+    )
+
+    v110 = await install_agent_package(
+        v110_source,
+        repository=repository,
+        communication_port=None,
+        primary_user_id=None,
+        kernel_version="0.1.0",
+    )
+    v110_before = repository.rows[("coding", "1.1.0")].model_copy(deep=True)
+
+    v120 = await install_agent_package(
+        v120_source,
+        repository=repository,
+        communication_port=None,
+        primary_user_id=None,
+        kernel_version="0.1.0",
+    )
+
+    # Both coexist as distinct rows under one category.
+    assert v110.id != v120.id
+    assert len(await repository.list_by_category("coding")) == 2
+    assert await repository.find_by_category_version("coding", "1.1.0") is not None
+    assert await repository.find_by_category_version("coding", "1.2.0") is not None
+
+    # Installing 1.2.0 never mutated the 1.1.0 row -- the guarantee an
+    # existing agent_instance's agent_package_id pin relies on.
+    assert repository.rows[("coding", "1.1.0")] == v110_before
+
+
+async def test_installing_a_second_version_remains_idempotent_on_category_version(
+    tmp_path: Path,
+) -> None:
+    """Requirement 7: `(category, version)` idempotency still holds once
+    two versions coexist -- re-installing either one returns its existing
+    row without creating a third."""
+    repository = FakeRegistryRepository()
+    v110_source = _write_agent_package(
+        tmp_path / "v110", package_id="coding-agent", category="coding", version="1.1.0"
+    )
+    v120_source = _write_agent_package(
+        tmp_path / "v120", package_id="coding-agent", category="coding", version="1.2.0"
+    )
+    kwargs: dict[str, object] = {
+        "repository": repository,
+        "communication_port": None,
+        "primary_user_id": None,
+        "kernel_version": "0.1.0",
+    }
+
+    v110 = await install_agent_package(v110_source, **kwargs)  # type: ignore[arg-type]
+    v120 = await install_agent_package(v120_source, **kwargs)  # type: ignore[arg-type]
+
+    v110_again = await install_agent_package(v110_source, **kwargs)  # type: ignore[arg-type]
+    v120_again = await install_agent_package(v120_source, **kwargs)  # type: ignore[arg-type]
+
+    assert v110_again.id == v110.id
+    assert v120_again.id == v120.id
+    assert len(repository.rows) == 2
+
+
+async def test_permission_review_still_diffs_against_the_latest_installed_version(
+    tmp_path: Path,
+) -> None:
+    """Requirement 8: Permission Review's own `find_latest_by_category`
+    ("most recently *installed*") stays separate from scheduling selection
+    ("highest *healthy version*") -- doc 16 §3. Installing 1.2.0 after
+    1.1.0 diffs its permissions against 1.1.0, surfacing only what is
+    genuinely new."""
+    repository = FakeRegistryRepository()
+    communication_port = FakeCommunicationPort(session_id=uuid4())
+    user_id = uuid4()
+
+    await install_agent_package(
+        _write_agent_package(
+            tmp_path / "v110",
+            package_id="coding-agent",
+            category="coding",
+            version="1.1.0",
+            required_permissions=["filesystem:write:project-scope"],
+        ),
+        repository=repository,
+        communication_port=communication_port,
+        primary_user_id=user_id,
+        kernel_version="0.1.0",
+    )
+    v120 = await install_agent_package(
+        _write_agent_package(
+            tmp_path / "v120",
+            package_id="coding-agent",
+            category="coding",
+            version="1.2.0",
+            required_permissions=["filesystem:write:project-scope", "terminal:execute"],
+        ),
+        repository=repository,
+        communication_port=communication_port,
+        primary_user_id=user_id,
+        kernel_version="0.1.0",
+    )
+
+    # Only the genuinely-new permission is surfaced, not the one 1.1.0
+    # already declared.
+    assert v120.supervisor_notified_new_permissions == ["terminal:execute"]
+
+
 async def test_dependency_resolution_fails_when_no_phase3_backend_is_declared(
     tmp_path: Path,
 ) -> None:
