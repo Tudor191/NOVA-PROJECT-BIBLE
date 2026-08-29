@@ -49,7 +49,7 @@ def test_get_plan_returns_a_persisted_task_graph(harness) -> None:  # type: igno
     asyncio.run(
         repository.insert(
             graph,
-            outbox_event=OutboxEvent(
+            outbox_event_builder=lambda _graph: OutboxEvent(
                 subject="planning.task_graph.created",
                 payload={},
                 correlation_id=uuid4(),
@@ -80,7 +80,7 @@ def test_approve_plan_records_an_approval_decision(harness) -> None:  # type: ig
     asyncio.run(
         repository.insert(
             graph,
-            outbox_event=OutboxEvent(
+            outbox_event_builder=lambda _graph: OutboxEvent(
                 subject="planning.task_graph.created", payload={}, correlation_id=uuid4()
             ),
         )

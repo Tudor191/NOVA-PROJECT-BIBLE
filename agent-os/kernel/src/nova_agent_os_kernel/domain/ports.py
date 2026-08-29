@@ -82,7 +82,16 @@ class KernelRepository(Protocol):
 
     async def list_by_status(self, status: str) -> list[AgentInstance]: ...
 
-    async def update_status(self, instance_id: UUID, *, status: str) -> None: ...
+    async def update_status(
+        self, instance_id: UUID, *, status: str, health_status: str | None = None
+    ) -> None:
+        """Transitions an already-inserted `agent_instance` row. `Scheduler`
+        uses it to move a row from `"running"` (written before `spawn()`, so
+        restart reconciliation has a real orphan to recover -- TDD 3E §4) to
+        its terminal `"completed"`/`"failed"`. `health_status` is left
+        unchanged when `None`; an unknown `instance_id` is a no-op, never an
+        error."""
+        ...
 
 
 @runtime_checkable
@@ -147,9 +156,27 @@ class AgentExecutionBackend(Protocol):
     Kernel Scheduler still deliver a `PEER_REVIEW_REQUEST` to a freshly
     spawned reviewer without redesigning `spawn()` itself."""
 
+    def next_instance_id(self) -> UUID:
+        """Mints the id the next `spawn()` should use. Disclosed addition
+        (TaskNode-lifecycle slice) -- lets the Scheduler persist a
+        `"running"` `agent_instance` row *before* awaiting `spawn()`, which
+        is what makes TDD 3E §4's restart reconciliation reachable at all.
+        The id stays the backend's to mint, since a future `subprocess`/
+        `container`/`remote` backend may need it to carry backend-specific
+        structure."""
+        ...
+
     async def spawn(
-        self, agent: AgentPackageSnapshot, context: AgentContext
-    ) -> AgentInstanceHandle: ...
+        self,
+        agent: AgentPackageSnapshot,
+        context: AgentContext,
+        *,
+        instance_id: UUID | None = None,
+    ) -> AgentInstanceHandle:
+        """`instance_id` reuses an id already minted by
+        `next_instance_id()`; `None` mints a fresh one, preserving every
+        existing caller's behavior unchanged."""
+        ...
 
     async def spawn_and_review(
         self, agent: AgentPackageSnapshot, message: AgentMessage

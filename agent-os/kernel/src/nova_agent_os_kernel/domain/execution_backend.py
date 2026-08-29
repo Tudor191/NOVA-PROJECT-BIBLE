@@ -58,7 +58,7 @@ from __future__ import annotations
 
 import importlib.util
 from pathlib import Path
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from nova_agent_sdk import (
     ActionPort,
@@ -103,10 +103,28 @@ class InprocessExecutionBackend:
         self._model_gateway = model_gateway
         self._action_port = action_port
 
+    def next_instance_id(self) -> UUID:
+        """Mints the id `spawn()` will use, ahead of the work starting.
+
+        Disclosed addition (TaskNode-lifecycle slice): the Kernel Scheduler
+        must persist a `"running"` `agent_instance` row *before* awaiting
+        `spawn()`, so that a Kernel killed mid-dispatch leaves the orphan row
+        TDD 3E §4's restart reconciliation is specified to re-queue. That
+        requires knowing the instance id first. Kept as a separate method
+        rather than having the Scheduler generate a `uuid4()` itself, so the
+        id remains the backend's to mint -- a `subprocess`/`container`/
+        `remote` backend (Phase 4+) may well need it to carry
+        backend-specific structure."""
+        return uuid4()
+
     async def spawn(
-        self, agent: AgentPackageSnapshot, context: AgentContext
+        self,
+        agent: AgentPackageSnapshot,
+        context: AgentContext,
+        *,
+        instance_id: UUID | None = None,
     ) -> AgentInstanceHandle:
-        instance_id = uuid4()
+        instance_id = instance_id or self.next_instance_id()
         manifest_id = agent.manifest_json["id"]
         handler_path = self._agents_root / manifest_id / "src" / "handler.py"
 

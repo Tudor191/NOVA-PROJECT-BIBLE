@@ -50,6 +50,7 @@ from nova_contracts import (
 from nova_planning_engine.domain.models import Estimate, RiskLevel, TaskGraph, TaskNode
 from nova_planning_engine.domain.ports import ModelOrchestrationPort
 from nova_planning_engine.domain.task_graph import (
+    admit,
     compute_critical_path,
     find_cycle,
     find_dangling_dependencies,
@@ -284,7 +285,16 @@ async def decompose(
         )
 
     critical_path = compute_critical_path(nodes)
-    return TaskGraph(root_objective=root_objective, nodes=nodes, critical_path=critical_path)
+    # Admission (TDD 3E §4:140's own definition of `"ready"`): every node
+    # `_build_nodes` produced carries `TaskNode`'s default `"pending"`, and
+    # `agent-os/kernel`'s Scheduler dispatches only `"ready"` nodes -- so
+    # without this step a structurally valid graph is also a permanently
+    # undispatchable one. Runs *after* the structural checks above, never
+    # before: `dependencies_satisfied` is only meaningful on a graph already
+    # known to be duplicate-free, acyclic, and free of dangling references.
+    return TaskGraph(
+        root_objective=root_objective, nodes=admit(nodes), critical_path=critical_path
+    )
 
 
 async def decompose_node(

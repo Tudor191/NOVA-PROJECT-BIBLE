@@ -29,8 +29,13 @@ class FakeKernelRepository:
     async def list_by_status(self, status: str) -> list[AgentInstance]:
         return [row for row in self._rows.values() if row.status == status]
 
-    async def update_status(self, instance_id: UUID, *, status: str) -> None:
+    async def update_status(
+        self, instance_id: UUID, *, status: str, health_status: str | None = None
+    ) -> None:
         row = self._rows.get(instance_id)
         if row is None:
             return
-        self._rows[instance_id] = row.model_copy(update={"status": status})
+        update: dict[str, str] = {"status": status}
+        if health_status is not None:
+            update["health_status"] = health_status
+        self._rows[instance_id] = row.model_copy(update=update)

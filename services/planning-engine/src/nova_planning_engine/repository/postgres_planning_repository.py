@@ -2,11 +2,19 @@
 against SQLAlchemy async, per the schema in
 docs/design/phase-3/05-tdd-3b-planning-engine.md §4.
 
-Every write (`insert`, `append_nodes`, `set_approved_at`) writes its
-accompanying `outbox_event` row in the same transaction (TDD 3B §4's
-transactional-outbox requirement) -- mirrors `memory-engine`'s own
-`create_long_term`/`OutboxEvent` pattern exactly, applied to a
-multi-row (`task_graph` + N `task_node`) write instead of a single row.
+Every write (`insert`, `append_nodes`, `apply_transitions`,
+`set_approved_at`) writes its accompanying `outbox_event` row in the same
+transaction (TDD 3B §4's transactional-outbox requirement) -- mirrors
+`memory-engine`'s own `create_long_term`/`OutboxEvent` pattern exactly,
+applied to a multi-row (`task_graph` + N `task_node`) write instead of a
+single row.
+
+Every write that enqueues `planning.task_graph.created` additionally
+performs the ready-to-running hand-off, in the exact order
+`domain/ports.py::HAND_OFF_ORDERING` specifies: build the payload from the
+pre-hand-off state, write the outbox row, *then* flip. `_hand_off` below is
+the single implementation of step 4, called from both such paths so the
+ordering cannot drift between them.
 """
 
 from __future__ import annotations
@@ -32,10 +40,29 @@ from nova_planning_engine.domain.ports import (
     TaskGraphNotFoundError,
     TaskNodeNotFoundError,
 )
-from nova_planning_engine.domain.task_graph import compute_critical_path
+from nova_planning_engine.domain.task_graph import admit, compute_critical_path
 from nova_planning_engine.repository.models import OutboxEventORM, TaskGraphORM, TaskNodeORM
 
 __all__ = ["PostgresPlanningRepository"]
+
+
+def _hand_off(node_rows: list[TaskNodeORM]) -> set[UUID]:
+    """`HAND_OFF_ORDERING` step 4: flip every still-`"ready"` row to
+    `"running"` and report which ids moved. Mutates the ORM rows in the
+    caller's open transaction (no `flush`/`commit` here) so the flip lands
+    atomically with the outbox row the caller already added -- the whole
+    point of the ordering. Must only ever be called *after* the payload has
+    been built."""
+    handed_off: set[UUID] = set()
+    for node_row in node_rows:
+        if node_row.status == "ready":
+            node_row.status = "running"
+            handed_off.add(node_row.id)
+    return handed_off
+
+
+def _domain_nodes(graph_row: TaskGraphORM) -> list[TaskNode]:
+    return [_node_to_domain(node_row) for node_row in graph_row.nodes]
 
 
 def _node_to_domain(row: TaskNodeORM) -> TaskNode:
@@ -112,7 +139,9 @@ class PostgresPlanningRepository:
             graph_row = graph_result.scalar_one()
             return _graph_to_domain(graph_row), _node_to_domain(node_row)
 
-    async def insert(self, graph: TaskGraph, *, outbox_event: OutboxEvent) -> TaskGraph:
+    async def insert(
+        self, graph: TaskGraph, *, outbox_event_builder: Callable[[TaskGraph], OutboxEvent]
+    ) -> TaskGraph:
         async with self._session_factory() as session, session.begin():
             session.add(
                 TaskGraphORM(
@@ -122,10 +151,25 @@ class PostgresPlanningRepository:
                     approved_at=graph.approved_at,
                 )
             )
-            for node in graph.nodes:
-                session.add(_node_orm(node, graph.id))
-            session.add(_outbox_orm(outbox_event))
-        return graph
+            node_rows = [_node_orm(node, graph.id) for node in graph.nodes]
+            for node_row in node_rows:
+                session.add(node_row)
+
+            # `HAND_OFF_ORDERING` steps 2-4: payload from the pre-hand-off
+            # state, then flip. `graph` is already that state.
+            session.add(_outbox_orm(outbox_event_builder(graph)))
+            handed_off = _hand_off(node_rows)
+
+        return graph.model_copy(
+            update={
+                "nodes": [
+                    node.model_copy(update={"status": "running"})
+                    if node.id in handed_off
+                    else node
+                    for node in graph.nodes
+                ]
+            }
+        )
 
     async def append_nodes(
         self,
@@ -152,10 +196,30 @@ class PostgresPlanningRepository:
 
             await session.flush()
             await session.refresh(row, attribute_names=["nodes"])
-            updated_graph = _graph_to_domain(row)
 
-            session.add(_outbox_orm(outbox_event_builder(updated_graph)))
-            return updated_graph
+            # `HAND_OFF_ORDERING` step 1: admit the nodes just appended.
+            # Without this a `planning.decompose.request` mutation would
+            # re-create the exact defect graph creation had -- new nodes
+            # stuck `"pending"` forever. `admit` only ever touches
+            # `"pending"` nodes, so nothing already in flight is disturbed.
+            admitted = {node.id: node.status for node in admit(_domain_nodes(row))}
+            for node_row in row.nodes:
+                node_row.status = admitted[node_row.id]
+
+            published_graph = _graph_to_domain(row)
+            session.add(_outbox_orm(outbox_event_builder(published_graph)))
+            handed_off = _hand_off(list(row.nodes))
+
+        return published_graph.model_copy(
+            update={
+                "nodes": [
+                    node.model_copy(update={"status": "running"})
+                    if node.id in handed_off
+                    else node
+                    for node in published_graph.nodes
+                ]
+            }
+        )
 
     async def set_approved_at(self, task_graph_id: UUID, *, approved_at: datetime) -> TaskGraph:
         async with self._session_factory() as session, session.begin():
@@ -171,35 +235,53 @@ class PostgresPlanningRepository:
             await session.flush()
             return _graph_to_domain(row)
 
-    async def reset_node_status(
+    async def apply_transitions(
         self,
-        task_node_id: UUID,
+        task_graph_id: UUID,
+        transitions: list[tuple[UUID, TaskNodeStatus]],
         *,
-        status: TaskNodeStatus,
         outbox_event_builder: Callable[[TaskGraph], OutboxEvent],
     ) -> TaskGraph:
         async with self._session_factory() as session, session.begin():
-            node_result = await session.execute(
-                select(TaskNodeORM).where(TaskNodeORM.id == task_node_id)
-            )
-            node_row = node_result.scalar_one_or_none()
-            if node_row is None:
-                raise TaskNodeNotFoundError(f"task_node {task_node_id} does not exist")
-            node_row.status = status
-
             graph_result = await session.execute(
                 select(TaskGraphORM)
-                .where(TaskGraphORM.id == node_row.task_graph_id)
+                .where(TaskGraphORM.id == task_graph_id)
                 .options(selectinload(TaskGraphORM.nodes))
             )
-            graph_row = graph_result.scalar_one()
+            graph_row = graph_result.scalar_one_or_none()
+            if graph_row is None:
+                raise TaskGraphNotFoundError(f"task_graph {task_graph_id} does not exist")
+
+            rows_by_id = {node_row.id: node_row for node_row in graph_row.nodes}
+            for node_id, status in transitions:
+                node_row = rows_by_id.get(node_id)
+                if node_row is None:
+                    raise TaskNodeNotFoundError(
+                        f"task_node {node_id} is not part of task_graph {task_graph_id}"
+                    )
+                node_row.status = status
 
             await session.flush()
             await session.refresh(graph_row, attribute_names=["nodes"])
-            updated_graph = _graph_to_domain(graph_row)
 
-            session.add(_outbox_orm(outbox_event_builder(updated_graph)))
-            return updated_graph
+            # `HAND_OFF_ORDERING` steps 2-4: the payload is built from the
+            # post-transition, pre-hand-off state (so newly promoted nodes
+            # appear as `"ready"` for the Scheduler), and only then are
+            # those same nodes flipped to `"running"`.
+            published_graph = _graph_to_domain(graph_row)
+            session.add(_outbox_orm(outbox_event_builder(published_graph)))
+            handed_off = _hand_off(list(graph_row.nodes))
+
+        return published_graph.model_copy(
+            update={
+                "nodes": [
+                    node.model_copy(update={"status": "running"})
+                    if node.id in handed_off
+                    else node
+                    for node in published_graph.nodes
+                ]
+            }
+        )
 
     async def list_all(self, *, limit: int = 1000) -> list[TaskGraph]:
         async with self._session_factory() as session:

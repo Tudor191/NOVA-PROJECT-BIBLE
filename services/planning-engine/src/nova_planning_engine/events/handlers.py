@@ -90,16 +90,26 @@ def make_reasoning_process_completed_handler(app: FastAPI):  # type: ignore[no-u
             )
             return
 
-        created_payload = task_graph_created_payload(graph, correlation_id=payload.correlation_id)
-        await state.repository.insert(
-            graph,
-            outbox_event=OutboxEvent(
+        def _build_outbox_event(persisted_graph):  # type: ignore[no-untyped-def]
+            created_payload = task_graph_created_payload(
+                persisted_graph, correlation_id=payload.correlation_id
+            )
+            return OutboxEvent(
                 subject="planning.task_graph.created",
                 payload=created_payload.model_dump(mode="json"),
                 correlation_id=payload.correlation_id,
-            ),
+            )
+
+        # Builder-style, and the returned graph is the post-hand-off one:
+        # the enqueued snapshot names the admitted nodes as `"ready"` for
+        # `agent-os/kernel`'s Scheduler, while the persisted rows already say
+        # `"running"` (`domain/ports.py::HAND_OFF_ORDERING`).
+        handed_off_graph = await state.repository.insert(
+            graph, outbox_event_builder=_build_outbox_event
         )
         state.metrics.planning_task_graph_created_total.add(1)
+        admitted = sum(1 for node in handed_off_graph.nodes if node.status == "running")
+        state.metrics.planning_task_node_admitted_total.add(admitted)
 
         duration = time.monotonic() - started
         state.metrics.decomposition_duration_seconds.record(duration, {"outcome": "succeeded"})
@@ -113,6 +123,7 @@ def make_reasoning_process_completed_handler(app: FastAPI):  # type: ignore[no-u
                 "task_graph_id": str(graph.id),
                 "task_count": len(graph.nodes),
                 "critical_path_length": len(graph.critical_path),
+                "admitted_node_count": admitted,
             },
         )
 

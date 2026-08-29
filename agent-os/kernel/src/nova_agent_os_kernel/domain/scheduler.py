@@ -244,6 +244,58 @@ def _handle_outcome(handle: AgentInstanceHandle) -> tuple[bool, str]:
     return False, handle.result.status
 
 
+async def _spawn_tracked(
+    package: AgentPackageSnapshot,
+    context: AgentContext,
+    *,
+    node: TaskNodeSnapshot,
+    category: str,
+    repository: KernelRepository,
+    execution_backend: AgentExecutionBackend,
+) -> tuple[AgentInstanceHandle, AgentInstance]:
+    """Runs one instance through the backend with its `agent_instance` row
+    persisted as `"running"` **before** `spawn()` is awaited, then updated to
+    its terminal status afterwards.
+
+    Writing the row first is what makes TDD 3E §4's restart reconciliation
+    actually reachable: it re-queues "every `agent_instance` row still marked
+    `status="running"`" on Kernel startup, but until now no row was ever
+    written in that state -- `spawn()` is synchronous, so rows were inserted
+    already terminal and a Kernel killed mid-dispatch left nothing to
+    recover. The instance id is minted by the backend, so the row is created
+    from `spawn()`'s own handle; to have the id before the work starts, the
+    backend now mints it up front (`AgentExecutionBackend.next_instance_id`)
+    and `spawn()` reuses it.
+
+    A crash between the two writes leaves exactly the row reconciliation is
+    designed to find -- `"running"` with an `assigned_task_node_id` -- which
+    is the correct, recoverable outcome rather than a lost assignment."""
+    instance_id = execution_backend.next_instance_id()
+    instance = AgentInstance(
+        id=instance_id,
+        agent_package_id=package.id,
+        category=category,
+        execution_backend="inprocess",
+        status="running",
+        assigned_task_node_id=node.id,
+        started_at=datetime.now(UTC),
+        health_status="unknown",
+    )
+    await repository.insert(instance)
+
+    handle = await execution_backend.spawn(package, context, instance_id=instance_id)
+    needs_restart, _outcome = _handle_outcome(handle)
+
+    terminal_status = "failed" if needs_restart else "completed"
+    terminal_health = "unhealthy" if needs_restart else "healthy"
+    await repository.update_status(
+        instance.id, status=terminal_status, health_status=terminal_health
+    )
+    return handle, instance.model_copy(
+        update={"status": terminal_status, "health_status": terminal_health}
+    )
+
+
 async def dispatch_task_node(
     node: TaskNodeSnapshot,
     *,
@@ -275,20 +327,15 @@ async def dispatch_task_node(
         return None
 
     context = _build_context(node, primary_user_id=primary_user_id, correlation_id=correlation_id)
-    handle = await execution_backend.spawn(package, context)
-    needs_restart, outcome = _handle_outcome(handle)
-
-    instance = AgentInstance(
-        id=handle.instance_id,
-        agent_package_id=package.id,
+    handle, instance = await _spawn_tracked(
+        package,
+        context,
+        node=node,
         category=category,
-        execution_backend="inprocess",
-        status="failed" if needs_restart else "completed",
-        assigned_task_node_id=node.id,
-        started_at=datetime.now(UTC),
-        health_status="unhealthy" if needs_restart else "healthy",
+        repository=repository,
+        execution_backend=execution_backend,
     )
-    await repository.insert(instance)
+    needs_restart, outcome = _handle_outcome(handle)
 
     if not needs_restart:
         await _finalize_outcome(
@@ -327,19 +374,15 @@ async def dispatch_task_node(
         return instance.id
 
     # Bounded, single retry -- never re-consults the Supervisor a second time.
-    retry_handle = await execution_backend.spawn(package, context)
-    retry_needs_restart, retry_outcome = _handle_outcome(retry_handle)
-    retry_instance = AgentInstance(
-        id=retry_handle.instance_id,
-        agent_package_id=package.id,
+    retry_handle, retry_instance = await _spawn_tracked(
+        package,
+        context,
+        node=node,
         category=category,
-        execution_backend="inprocess",
-        status="failed" if retry_needs_restart else "completed",
-        assigned_task_node_id=node.id,
-        started_at=datetime.now(UTC),
-        health_status="unhealthy" if retry_needs_restart else "healthy",
+        repository=repository,
+        execution_backend=execution_backend,
     )
-    await repository.insert(retry_instance)
+    _retry_needs_restart, retry_outcome = _handle_outcome(retry_handle)
     await _finalize_outcome(
         node=node,
         instance=retry_instance,

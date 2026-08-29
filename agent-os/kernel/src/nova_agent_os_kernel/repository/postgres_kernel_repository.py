@@ -77,10 +77,14 @@ class PostgresKernelRepository:
             )
             return [_to_domain(row) for row in result.scalars().all()]
 
-    async def update_status(self, instance_id: UUID, *, status: str) -> None:
+    async def update_status(
+        self, instance_id: UUID, *, status: str, health_status: str | None = None
+    ) -> None:
         async with self._session_factory() as session:
             row = await session.get(AgentInstanceORM, instance_id)
             if row is None:
                 return
             row.status = status
+            if health_status is not None:
+                row.health_status = health_status
             await session.commit()

@@ -81,7 +81,14 @@ class FakeAgentExecutionBackend:
     """`handles` is consumed in order -- each `spawn()` call pops the next
     queued handle, so a test can script "first attempt fails, retry
     succeeds" precisely. `review_replies` is consumed the same way by
-    `spawn_and_review()`."""
+    `spawn_and_review()`.
+
+    `next_instance_id()` returns the id of the **next queued handle**,
+    mirroring the real `InprocessExecutionBackend`'s own contract that the
+    backend mints the id `spawn()` will then use. That is what lets the
+    Scheduler persist a `"running"` `agent_instance` row before awaiting
+    `spawn()` and still have the row, the handle, and the published
+    `agent_os.task.completed` all carry one id."""
 
     def __init__(
         self,
@@ -94,11 +101,21 @@ class FakeAgentExecutionBackend:
         self.spawn_calls: list[tuple[AgentPackageSnapshot, AgentContext]] = []
         self.spawn_and_review_calls: list[tuple[AgentPackageSnapshot, AgentMessage]] = []
 
+    def next_instance_id(self) -> UUID:
+        return self._handles[0].instance_id
+
     async def spawn(
-        self, agent: AgentPackageSnapshot, context: AgentContext
+        self,
+        agent: AgentPackageSnapshot,
+        context: AgentContext,
+        *,
+        instance_id: UUID | None = None,
     ) -> AgentInstanceHandle:
         self.spawn_calls.append((agent, context))
-        return self._handles.pop(0)
+        handle = self._handles.pop(0)
+        if instance_id is not None and instance_id != handle.instance_id:
+            handle = handle.model_copy(update={"instance_id": instance_id})
+        return handle
 
     async def spawn_and_review(
         self, agent: AgentPackageSnapshot, message: AgentMessage

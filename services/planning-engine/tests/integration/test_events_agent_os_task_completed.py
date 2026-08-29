@@ -13,6 +13,14 @@ listening on the live Event Bus -- TDD 3B §4's transactional-outbox
 pattern means the actual Event Bus publish is `workers/outbox_worker.py`'s
 own, separate responsibility, decoupled from this handler's own write.
 
+**Published snapshot vs. persisted state.** Every assertion below checks
+both, because they deliberately differ: the enqueued
+`planning.task_graph.created` payload names newly-runnable nodes `"ready"`
+(it is the hand-off document `agent-os/kernel`'s Scheduler dispatches
+from), while the committed rows already say `"running"` -- they have been
+handed over, so a later republish cannot re-offer them. See
+`domain/ports.py::HAND_OFF_ORDERING` for the full record.
+
 `test_kernel_restart_then_planning_resume_round_trip` is the strongest
 "restart followed by resume" proof achievable from planning-engine's own
 side of the ADR-004 engine boundary: it constructs the *exact* payload
@@ -147,11 +155,15 @@ async def test_kernel_restart_then_planning_resume_round_trip(
 
     persisted = repository.graphs[graph.id]
     persisted_by_id = {n.id: n for n in persisted.nodes}
-    assert persisted_by_id[interrupted_node.id].status == "ready"
+    # Hand-off: the published snapshot said "ready" (asserted above); the
+    # committed row says "running", so a later republish cannot re-offer
+    # work already handed to the Kernel.
+    assert persisted_by_id[interrupted_node.id].status == "running"
+    assert persisted_by_id[sibling_node.id].status == "completed"
 
 
-@pytest.mark.parametrize("outcome", ["interrupted", "failure"])
-async def test_reset_outcomes_reset_a_running_node_to_ready(
+@pytest.mark.parametrize("outcome", ["interrupted", "needs_revision"])
+async def test_redispatch_outcomes_reset_a_running_node_to_ready(
     monkeypatch,  # type: ignore[no-untyped-def]
     outcome: str,
 ) -> None:
@@ -176,14 +188,52 @@ async def test_reset_outcomes_reset_a_running_node_to_ready(
     enqueued = _enqueued_graphs(repository)
     assert len(enqueued) == 1
     assert enqueued[0].graph.nodes[0].status == "ready"
-    assert repository.graphs[graph.id].nodes[0].status == "ready"
+    assert repository.graphs[graph.id].nodes[0].status == "running"
 
 
-@pytest.mark.parametrize("outcome", ["success", "needs_revision"])
-async def test_non_reset_outcomes_leave_the_node_untouched(
+async def test_success_completes_the_node_and_promotes_its_dependent(
     monkeypatch,  # type: ignore[no-untyped-def]
-    outcome: str,
 ) -> None:
+    """The transition that makes a multi-step Task Graph advance past its
+    first layer at all -- and the one this handler previously did not make."""
+    monkeypatch.setenv("EVENT_BUS_BACKEND", "in_memory")
+    first = _node(objective="Write the endpoint", status="running")
+    second = _node(objective="Test the endpoint", depends_on=[first.id], status="pending")
+    repository = FakePlanningRepository()
+    graph = _seed_graph(repository, nodes=[first, second])
+    app = create_app(
+        Settings(), model_orchestration_port=FakeModelOrchestrationPort(), repository=repository
+    )
+
+    async with app.router.lifespan_context(app):
+        await _publish(
+            app,
+            AgentOsTaskCompletedPayload(
+                task_node_id=first.id,
+                agent_instance_id=uuid4(),
+                outcome="success",
+                result={"output": {}},
+                correlation_id=uuid4(),
+            ),
+        )
+
+    enqueued = _enqueued_graphs(repository)
+    assert len(enqueued) == 1
+    published = {n.id: n.status for n in enqueued[0].graph.nodes}
+    assert published == {first.id: "completed", second.id: "ready"}
+
+    persisted = {n.id: n.status for n in repository.graphs[graph.id].nodes}
+    assert persisted == {first.id: "completed", second.id: "running"}
+
+
+async def test_failure_marks_the_node_terminally_failed_without_redispatch(
+    monkeypatch,  # type: ignore[no-untyped-def]
+) -> None:
+    """Approved Phase 3 decision (Option B): by the time `outcome="failure"`
+    reaches this engine the Kernel has already run the Supervisor restart
+    path and its bounded retry, so the node is terminal. TDD 3E §12 does not
+    define post-retry failure semantics -- see
+    `domain/task_completion.py`'s own docstring for the full record."""
     monkeypatch.setenv("EVENT_BUS_BACKEND", "in_memory")
     node = _node(status="running")
     repository = FakePlanningRepository()
@@ -193,18 +243,56 @@ async def test_non_reset_outcomes_leave_the_node_untouched(
     )
 
     async with app.router.lifespan_context(app):
-        payload = AgentOsTaskCompletedPayload(
-            task_node_id=node.id,
-            agent_instance_id=uuid4(),
-            outcome=outcome,  # type: ignore[arg-type]
-            result={"output": {}},
-            correlation_id=uuid4(),
+        await _publish(
+            app,
+            AgentOsTaskCompletedPayload(
+                task_node_id=node.id,
+                agent_instance_id=uuid4(),
+                outcome="failure",
+                result=None,
+                correlation_id=uuid4(),
+            ),
         )
-        await _publish(app, payload)
 
-    assert _enqueued_graphs(repository) == []
-    assert repository.graphs[graph.id].nodes[0].status == "running"
-    assert repository.outbox == {}
+    enqueued = _enqueued_graphs(repository)
+    assert len(enqueued) == 1
+    assert enqueued[0].graph.nodes[0].status == "failed"
+    # Never "ready" and never handed off: the Scheduler is not offered this
+    # node again.
+    assert repository.graphs[graph.id].nodes[0].status == "failed"
+
+
+async def test_a_deterministic_failure_never_enters_an_unbounded_redispatch_loop(
+    monkeypatch,  # type: ignore[no-untyped-def]
+) -> None:
+    """The concrete hazard Option B prevents, through the real handler:
+    replaying the same failure produces exactly one state change and one
+    republish, then nothing -- so the graph cannot cycle forever."""
+    monkeypatch.setenv("EVENT_BUS_BACKEND", "in_memory")
+    node = _node(status="running")
+    repository = FakePlanningRepository()
+    graph = _seed_graph(repository, nodes=[node])
+    app = create_app(
+        Settings(), model_orchestration_port=FakeModelOrchestrationPort(), repository=repository
+    )
+
+    async with app.router.lifespan_context(app):
+        for _ in range(4):
+            await _publish(
+                app,
+                AgentOsTaskCompletedPayload(
+                    task_node_id=node.id,
+                    agent_instance_id=uuid4(),
+                    outcome="failure",
+                    result=None,
+                    correlation_id=uuid4(),
+                ),
+            )
+
+    # One republish for the first event; the three redeliveries change
+    # nothing and enqueue nothing.
+    assert len(_enqueued_graphs(repository)) == 1
+    assert repository.graphs[graph.id].nodes[0].status == "failed"
 
 
 async def test_an_already_completed_node_is_never_regressed(
@@ -212,7 +300,8 @@ async def test_an_already_completed_node_is_never_regressed(
 ) -> None:
     """Preserve completed work, do not duplicate completed agent
     instances -- a late/duplicate interrupted event for an already-
-    completed node is a defined no-op, never a regression."""
+    completed node is a defined no-op, never a regression. NATS JetStream
+    is at-least-once, so this is a real delivery mode, not a hypothetical."""
     monkeypatch.setenv("EVENT_BUS_BACKEND", "in_memory")
     node = _node(status="completed")
     repository = FakePlanningRepository()

@@ -6,7 +6,7 @@ component's own domain-layer unit tests already establish."""
 
 from __future__ import annotations
 
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from nova_agent_os_kernel.domain.models import AgentInstanceHandle
 from nova_agent_os_kernel.domain.scheduler import dispatch_ready_nodes, dispatch_task_node
@@ -515,3 +515,79 @@ async def test_dispatch_task_node_for_qa_agent_reports_success_with_no_peer_revi
     assert published_payload.result is not None
     assert published_payload.result["output"]["exit_code"] == 0
     assert "peer_validation" not in published_payload.result
+
+
+# --- `agent_instance` running-state correctness (TDD 3E §4, D2) -------------
+
+
+async def test_a_running_instance_row_exists_while_the_agent_is_executing() -> None:
+    """TDD 3E §4's restart reconciliation re-queues "every `agent_instance`
+    row still marked `status="running"`" -- but until this slice no row was
+    ever written in that state. `spawn()` is synchronous, so rows were
+    inserted already terminal, and a Kernel killed mid-dispatch left nothing
+    to recover. The row is now persisted *before* `spawn()` is awaited; this
+    observes it from inside the backend, the only point at which the
+    in-flight state is visible."""
+    node = _node()
+    correlation_id = uuid4()
+    handle = _success_handle(task_node_id=node.id, correlation_id=correlation_id)
+    repository = FakeKernelRepository()
+    observed: list[tuple[str, str, UUID | None]] = []
+
+    class _ObservingBackend(FakeAgentExecutionBackend):
+        async def spawn(self, agent, context, *, instance_id=None):  # type: ignore[no-untyped-def]
+            row = await repository.find_by_id(instance_id or handle.instance_id)
+            if row is not None:
+                observed.append((row.status, row.health_status, row.assigned_task_node_id))
+            return await super().spawn(agent, context, instance_id=instance_id)
+
+    await dispatch_task_node(
+        node,
+        repository=repository,
+        registry_port=FakeRegistryPort(package=_package()),
+        supervisor_port=FakeSupervisorPort(),
+        execution_backend=_ObservingBackend(handles=[handle]),
+        event_publisher=FakeEventPublisher(),
+        primary_user_id=uuid4(),
+        correlation_id=correlation_id,
+    )
+
+    # Mid-execution: a real, recoverable orphan row.
+    assert observed == [("running", "unknown", node.id)]
+
+    # After execution: transitioned to terminal, not left "running" forever.
+    final = await repository.find_by_id(handle.instance_id)
+    assert final is not None
+    assert final.status == "completed"
+    assert final.health_status == "healthy"
+
+
+async def test_a_failed_instance_row_ends_failed_and_unhealthy() -> None:
+    node = _node()
+    correlation_id = uuid4()
+    failed = _failure_handle(task_node_id=node.id, correlation_id=correlation_id)
+    retry = _failure_handle(task_node_id=node.id, correlation_id=correlation_id)
+    repository = FakeKernelRepository()
+
+    await dispatch_task_node(
+        node,
+        repository=repository,
+        registry_port=FakeRegistryPort(package=_package()),
+        # Restart the failed instance, so the bounded single retry really
+        # runs and a second row is written -- the default FakeSupervisorPort
+        # declines every restart.
+        supervisor_port=FakeSupervisorPort(restart_instance_ids=[failed.instance_id]),
+        execution_backend=FakeAgentExecutionBackend(handles=[failed, retry]),
+        event_publisher=FakeEventPublisher(),
+        primary_user_id=uuid4(),
+        correlation_id=correlation_id,
+    )
+
+    for handle in (failed, retry):
+        row = await repository.find_by_id(handle.instance_id)
+        assert row is not None
+        assert row.status == "failed"
+        assert row.health_status == "unhealthy"
+        # No row is left "running": reconciliation must not re-queue work
+        # that already reached a terminal outcome.
+    assert await repository.list_by_status("running") == []
