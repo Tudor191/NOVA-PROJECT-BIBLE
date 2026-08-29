@@ -45,7 +45,25 @@ Fork E3's approved lighter OS-level scoping (no gVisor/Firecracker/
 container isolation): a filesystem path allow-list (`filesystem`/`git`,
 checked against the canonicalized/resolved path), a terminal executable
 allow-list (`terminal`/`git`, `asyncio.create_subprocess_exec`, never
-`shell=True`), and an outbound-host allow-list (`http`).
+`shell=True`), a restricted working directory and minimal environment
+(`terminal`/`git`), and an outbound-host allow-list (`http`).
+
+**Paths are resolved against the declared root, not the process's working
+directory.** A relative path (`"coding-agent-output/x.md"` — the shape
+every agent actually sends) means that path *inside the allowed root*.
+The containment check is unchanged and still rejects anything resolving
+outside it, `../`-traversal and symlinks included.
+
+**Working directory.** `terminal` runs its subprocess in
+`sandbox_filesystem_root` by default; a caller-supplied `cwd` must resolve
+inside that root or the invocation is refused as a sandbox violation. With
+no root configured a caller-supplied `cwd` is refused outright rather than
+honoured (fail-closed).
+
+**Environment.** The subprocess environment is a single `PATH` and nothing
+inherited from this process. Its value is `sandbox_terminal_path`, because
+the executables the allow-list declares (`pytest`, `uv`) live wherever the
+deployment put them rather than on a path this engine could guess.
 
 **Known, disclosed limitation:** none of these primitives prevent a
 `terminal`/`git` capability's own spawned subprocess from making its own
@@ -83,7 +101,8 @@ other Phase 3 engine).
 The four built-ins are installed through the real pipeline at startup
 (`main.py`'s lifespan), not hardcoded pre-registered rows -- deployment
 settings (`sandbox_filesystem_root`, `sandbox_terminal_allowed_executables`,
-`sandbox_http_allowed_hosts`) determine each one's declared scope.
+`sandbox_http_allowed_hosts`, `sandbox_terminal_path`) determine each one's
+declared scope and execution environment.
 
 ## Testing
 

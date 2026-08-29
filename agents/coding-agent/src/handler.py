@@ -123,7 +123,18 @@ class Handler(AgentHandler):
 
         request = _build_action_request(
             self._task,
-            requested_by=self._agent_instance_id,
+            # ADR-032: `requested_by` is the identity `action-engine` gates
+            # the action on -- it looks up an identity-confidence signal and
+            # a per-user policy for exactly this id (its own
+            # `domain/pipeline.py` stage 3). That has to be the real user the
+            # work is being done for. This instance's own id is an ephemeral
+            # per-dispatch UUID with no identity record and no policy row, so
+            # supplying it made every agent-originated action fail closed:
+            # absent signal -> confidence 0.0, absent policy -> threshold
+            # 1.0, denied. Agent provenance is not lost -- it is carried by
+            # `Action.source` ("coding-agent"), which is what that field is
+            # for.
+            requested_by=self._context.world_model_slice.user_id,
             correlation_id=self._context.correlation_id,
         )
         try:

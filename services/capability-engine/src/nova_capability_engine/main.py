@@ -163,6 +163,8 @@ def create_app(
             else build_adapter_registry(
                 terminal_timeout_s=settings.sandbox_terminal_timeout_s,
                 http_timeout_s=settings.sandbox_http_timeout_s,
+                filesystem_root=settings.sandbox_filesystem_root,
+                terminal_path=settings.sandbox_terminal_path,
             )
         )
 

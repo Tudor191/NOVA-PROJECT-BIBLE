@@ -135,7 +135,11 @@ class Handler(AgentHandler):
             raise RuntimeError("execute() called on an instance with no agent_instance_id")
 
         request = _build_action_request(
-            requested_by=self._agent_instance_id,
+            # ADR-032, same reasoning as `coding-agent`'s own call site: the
+            # real user `action-engine`'s identity-confidence gate resolves a
+            # signal and a policy for, never this instance's ephemeral id.
+            # Agent provenance stays in `Action.source` ("qa-agent").
+            requested_by=self._context.world_model_slice.user_id,
             correlation_id=self._context.correlation_id,
         )
         try:

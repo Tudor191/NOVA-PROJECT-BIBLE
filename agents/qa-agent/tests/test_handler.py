@@ -135,7 +135,12 @@ async def test_execute_calls_action_port_with_a_fixed_terminal_command() -> None
     assert request.parameters["operation"] == "execute"
     assert request.parameters["executable"] == "pytest"
     assert request.requesting_engine == "qa-agent"
-    assert request.requested_by == instance_id
+    # ADR-032 (D6) -- see `coding-agent`'s own equivalent assertion for the
+    # full reasoning: the real user, never this instance's ephemeral id,
+    # with agent provenance kept in `source`.
+    assert request.requested_by == context.world_model_slice.user_id
+    assert request.requested_by != instance_id
+    assert request.source == "qa-agent"
     assert request.correlation_id == context.correlation_id
 
     assert result.agent_instance_id == instance_id

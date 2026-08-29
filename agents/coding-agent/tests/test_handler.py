@@ -136,7 +136,16 @@ async def test_execute_calls_action_port_and_produces_a_successful_agent_result(
     assert request.parameters["operation"] == "write"
     assert str(task.id) in request.parameters["path"]
     assert request.requesting_engine == "coding-agent"
-    assert request.requested_by == instance_id
+    # ADR-032 (D6): the identity `action-engine` gates the action on is the
+    # real user from the assigned context -- NOT this instance's own
+    # ephemeral id, which has no identity signal and no confidence policy
+    # and so would be denied at stage 3. Both halves are asserted: an
+    # equality check alone would pass if the handler happened to read some
+    # other field that coincidentally held the same value.
+    assert request.requested_by == context.world_model_slice.user_id
+    assert request.requested_by != instance_id
+    # Agent provenance is not lost by that change -- it lives in `source`.
+    assert request.source == "coding-agent"
     assert request.correlation_id == context.correlation_id
 
     assert result.agent_instance_id == instance_id

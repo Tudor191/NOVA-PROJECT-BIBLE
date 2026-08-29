@@ -177,7 +177,10 @@ async def test_execute_calls_model_gateway_then_action_port_and_succeeds() -> No
     assert str(task.id) in action_request.parameters["path"]
     assert action_request.parameters["content"] == _success_generate_reply().text
     assert action_request.requesting_engine == "documentation-agent"
-    assert action_request.requested_by == instance_id
+    # ADR-032 (D6) -- see `coding-agent`'s own equivalent assertion.
+    assert action_request.requested_by == context.world_model_slice.user_id
+    assert action_request.requested_by != instance_id
+    assert action_request.source == "documentation-agent"
 
     assert result.agent_instance_id == instance_id
     assert result.task_node_id == task.id

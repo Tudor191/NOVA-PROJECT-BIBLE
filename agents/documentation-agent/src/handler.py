@@ -190,7 +190,13 @@ class Handler(AgentHandler):
         action_request = _build_action_request(
             self._task,
             content=generate_reply.text,
-            requested_by=self._agent_instance_id,
+            # ADR-032, same reasoning as `coding-agent`'s own call site.
+            # D6 names `coding-agent` and `qa-agent` explicitly; its rule is
+            # stated generally ("for agent-originated
+            # ActionExecuteRequestPayloads"), and this handler issues one, so
+            # it is covered by the rule rather than left as the one agent
+            # still denied by the identity gate.
+            requested_by=self._context.world_model_slice.user_id,
             correlation_id=self._context.correlation_id,
         )
         try:
