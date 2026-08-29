@@ -1,13 +1,18 @@
 # Phase 3E — `agent-os`: Gate Review
 
 **Status: COMPLETE. Verdict: CONDITIONAL-GO (2026-08-29).**
-Branch `phase-3e-agent-os`, head `60934ac07166acd3635e3bf33dee9462d97f8a04`,
-working tree clean, nothing unpushed, **no PR open, and no GitHub Actions
-run has ever executed against any Phase 3E commit.** Every figure below was
-produced by a command run in the session that wrote this document, against
-that exact SHA, per
+Branch `phase-3e-agent-os`. **Last code commit —
+`60934ac07166acd3635e3bf33dee9462d97f8a04` — is the SHA every verification
+figure below was produced against**, per
 [`PROJECT_PHASE_COMPLETION_PROTOCOL.md`](../../PROJECT_PHASE_COMPLETION_PROTOCOL.md)
-§0.3.1.
+§0.3.1. This document and the eight other files listed in §14 landed
+immediately after it as `90954aa`, a **documentation-only** commit — no
+production code, schema, contract, migration or configuration change (`git
+status --porcelain` over the change touches only `docs/` and `README.md`).
+`90954aa` is therefore the branch head; `60934ac` remains the verified code
+state, and the two are identical in every non-documentation path. Working
+tree clean, nothing unpushed, **no PR open, and no GitHub Actions run has
+ever executed against any Phase 3E commit.**
 
 > **Document history.** From 2026-08-20 to 2026-08-29 this file was an
 > explicitly-marked placeholder ("structure only — not yet applicable",
@@ -702,5 +707,6 @@ and both are the user's.
 ---
 
 **Reviewed:** 2026-08-29 · **Branch:** `phase-3e-agent-os` ·
-**Head:** `60934ac07166acd3635e3bf33dee9462d97f8a04` ·
+**Verified code SHA:** `60934ac07166acd3635e3bf33dee9462d97f8a04` ·
+**Branch head after this docs-only commit:** `90954aa` ·
 **Working tree:** clean · **PR:** none · **CI:** none
