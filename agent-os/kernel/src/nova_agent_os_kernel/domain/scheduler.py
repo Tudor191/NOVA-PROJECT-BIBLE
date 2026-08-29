@@ -18,6 +18,23 @@ A `TaskNode` with no healthy candidate in Registry, or no
 Scheduler is generic per doc 12 §7 ("does not know what a Coding Agent
 does"), so it does not special-case any agent category.
 
+**Parallel dispatch (doc 12 §7, TDD 3E §14 criterion #1).** Every
+`"ready"` node in one published graph is dispatched **concurrently**, under
+a single `asyncio.gather` in `dispatch_ready_nodes` -- doc 12 §7's
+"Independent Task Graph nodes are scheduled simultaneously... the Kernel
+Scheduler does not serialize unrelated work waiting on a single dispatch
+loop", implemented literally. `return_exceptions=True` keeps one node's
+failure from cancelling its independent siblings; see that function's own
+docstring for the full failure-isolation and ordering guarantees.
+
+**Per-node lifecycle isolation.** Concurrency changes nothing about what
+each node does: `_spawn_tracked` still writes that node's own
+`agent_instance` row `"running"` before `spawn()` and transitions it to a
+terminal status afterwards, and `_finalize_outcome` still publishes exactly
+one `agent_os.task.completed` for that node. Sibling dispatches share no
+mutable state -- separate `AgentContext`, separate instance id, separate
+row, separate event.
+
 **Peer review, disclosed addition (coding-agent slice).** A successful
 primary result whose `ValidationOutcome.requires_peer_review` is `True`
 now triggers a review round before `agent_os.task.completed` is
@@ -63,6 +80,7 @@ treatment of that same gap.
 
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime
 from typing import Literal
 from uuid import UUID, uuid4
@@ -244,6 +262,57 @@ def _handle_outcome(handle: AgentInstanceHandle) -> tuple[bool, str]:
     return False, handle.result.status
 
 
+async def _plan_restart_or_decline(
+    supervisor_port: SupervisorPort,
+    *,
+    failed_instance_id: UUID,
+    category: str,
+    siblings: list[AgentInstance],
+    correlation_id: UUID,
+) -> list[UUID]:
+    """`supervisor_port.plan_restart()`, with an unreachable Supervisor
+    treated as "declined to restart" rather than allowed to propagate.
+
+    `SupervisorClient.plan_restart` issues a real
+    `agent_os.supervisor.restart_plan.request` RPC and does not catch
+    `TimeoutError`; neither did this function's caller. An unreachable
+    Supervisor therefore used to raise straight out of
+    `dispatch_task_node`, which left the worst possible state behind: the
+    `agent_instance` row already stamped `"failed"` by `_spawn_tracked`, but
+    **no `agent_os.task.completed` ever published** -- so `planning-engine`
+    never learned the outcome and left its `TaskNode` `"running"` forever,
+    while Kernel restart reconciliation (which re-queues only `"running"`
+    *instance* rows) had nothing to recover either.
+
+    Declining is the fail-closed reading: the retry is an optimisation the
+    Supervisor authorises, and an unreachable Supervisor authorises nothing.
+    The node still gets its real outcome reported through the normal
+    `_finalize_outcome` path, so the `TaskNode` reaches a defined terminal
+    state instead of being stranded. The degradation is logged, never
+    silent.
+
+    Under `dispatch_ready_nodes`' `asyncio.gather`, this also stops one
+    node's Supervisor timeout from being the reason a sibling's result goes
+    unreported."""
+    try:
+        return await supervisor_port.plan_restart(
+            failed_instance_id=failed_instance_id,
+            category=category,
+            siblings=siblings,
+            correlation_id=correlation_id,
+        )
+    except Exception:  # noqa: BLE001 -- degraded to "declined", never propagated
+        logger.warning(
+            "supervisor restart_plan RPC failed for agent_instance %s (category %r) -- "
+            "treating as 'no restart planned' and reporting the original outcome; the "
+            "bounded retry is skipped, the TaskNode is not stranded",
+            failed_instance_id,
+            category,
+            exc_info=True,
+        )
+        return []
+
+
 async def _spawn_tracked(
     package: AgentPackageSnapshot,
     context: AgentContext,
@@ -352,7 +421,8 @@ async def dispatch_task_node(
         )
         return instance.id
 
-    restart_ids = await supervisor_port.plan_restart(
+    restart_ids = await _plan_restart_or_decline(
+        supervisor_port,
         failed_instance_id=instance.id,
         category=category,
         siblings=[instance],
@@ -409,26 +479,83 @@ async def dispatch_ready_nodes(
     primary_user_id: UUID,
     correlation_id: UUID,
 ) -> list[UUID]:
-    """Dispatches every `status == "ready"` node in `graph`. Independent
-    nodes are dispatched sequentially here (Phase 3's own `inprocess`
-    backend has no concurrency mechanism yet -- doc 12 §7's "Parallel
-    dispatch" is `already-designed-for`, not shipped, per doc 12 §15's own
-    table); each still gets its own, independent `agent_instance` row and
-    completion event."""
+    """Dispatches every `status == "ready"` node in `graph` **concurrently**
+    (doc 12 §7: "Independent Task Graph nodes are scheduled simultaneously...
+    the Kernel Scheduler does not serialize unrelated work waiting on a
+    single dispatch loop"; Bible Part 4's own "several agents
+    simultaneously"; TDD 3E §14 criterion #1's "at least two agent instances
+    working in parallel where dependencies allow").
+
+    Each node gets its own `dispatch_task_node` coroutine, all awaited under
+    one `asyncio.gather`. The overlap is real rather than nominal:
+    `spawn()` is `async` and yields at every I/O point it performs -- the
+    Registry RPC, the `action.execute` RPC an agent's own `execute()`
+    issues, and every repository write -- so sibling instances genuinely
+    interleave. Each still gets its own `AgentContext`, its own
+    `agent_instance` row, and its own `agent_os.task.completed` event; no
+    state is shared between them.
+
+    **Correction to this docstring's own earlier claim.** It previously
+    asserted that doc 12 §15's table classifies parallel dispatch as
+    "already-designed-for, not shipped". §15's table has six rows (execution
+    backend, supervision, registry, peer review, versioning, agents shipped)
+    and contains no such row. The deferral was asserted only here, never by
+    the cited document.
+
+    **Failure isolation.** `return_exceptions=True`: one node's unhandled
+    exception -- a Registry RPC timeout, a peer-review RPC timeout, an Event
+    Bus publish failure -- must never cancel a sibling that is independent
+    of it by construction. Each exception is logged against the node that
+    raised it and excluded from the returned ids; every other node still
+    runs to completion and still reports its own outcome. (The Supervisor
+    restart-plan RPC is handled one level down, in
+    `_plan_restart_or_decline`, because a failure there has a *better*
+    answer than "give up on this node": decline the retry and still report
+    the real outcome.)
+
+    **Deterministic ordering.** Results are returned in `graph.nodes` order,
+    not completion order -- `asyncio.gather` preserves input ordering, and
+    the coroutines are built by iterating `graph.nodes`. Callers therefore
+    see the same list for the same graph regardless of how the concurrent
+    executions happen to interleave, exactly as they did under the previous
+    sequential loop. Per-node persistence needs no cross-node ordering: each
+    node writes only its own `agent_instance` row.
+
+    No concurrency cap is imposed. The ready-set of a single Task Graph
+    already bounds the fan-out, and adding a limit would mean inventing a
+    configuration surface this slice was explicitly scoped not to add."""
+    ready_nodes = [node for node in graph.nodes if node.status == "ready"]
+    if not ready_nodes:
+        return []
+
+    results = await asyncio.gather(
+        *(
+            dispatch_task_node(
+                node,
+                repository=repository,
+                registry_port=registry_port,
+                supervisor_port=supervisor_port,
+                execution_backend=execution_backend,
+                event_publisher=event_publisher,
+                primary_user_id=primary_user_id,
+                correlation_id=correlation_id,
+            )
+            for node in ready_nodes
+        ),
+        return_exceptions=True,
+    )
+
     dispatched: list[UUID] = []
-    for node in graph.nodes:
-        if node.status != "ready":
+    for node, result in zip(ready_nodes, results, strict=True):
+        if isinstance(result, BaseException):
+            logger.error(
+                "dispatch of task_node %s (category %r) raised -- this node reports no "
+                "outcome, its independent siblings in this batch are unaffected",
+                node.id,
+                node.assigned_agent_category,
+                exc_info=result,
+            )
             continue
-        instance_id = await dispatch_task_node(
-            node,
-            repository=repository,
-            registry_port=registry_port,
-            supervisor_port=supervisor_port,
-            execution_backend=execution_backend,
-            event_publisher=event_publisher,
-            primary_user_id=primary_user_id,
-            correlation_id=correlation_id,
-        )
-        if instance_id is not None:
-            dispatched.append(instance_id)
+        if result is not None:
+            dispatched.append(result)
     return dispatched
