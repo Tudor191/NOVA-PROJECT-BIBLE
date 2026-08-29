@@ -42,6 +42,7 @@ from nova_reasoning_engine.domain.models import (
     ContextBundle,
     Decision,
     Evidence,
+    Hypothesis,
     HypothesisGenerationRequest,
     LifecycleStatus,
     ReasoningMode,
@@ -85,11 +86,26 @@ async def _report_stage(on_stage: Callable[[str], Awaitable[None]] | None, stage
 
 async def _resolve_reactive(
     request: ReasoningRequest, context: ContextBundle, process: ReasoningProcess
-) -> tuple[Decision, list[Alternative], list[Evidence], dict[UUID, str]]:
-    """Reactive mode (§6, table row 1): no hypothesis generation, no model
+) -> tuple[Decision, list[Alternative], list[Evidence], dict[UUID, str], Hypothesis]:
+    """Reactive mode (§6, table row 1): no *generated* hypotheses, no model
     call -- a direct answer drawn from whatever context was already
     retrieved. `alternatives_considered` stays empty, per the mode's own
-    Expected Outputs column."""
+    Expected Outputs column.
+
+    **The single retrieved answer is still a real `Hypothesis` row**, and is
+    returned here for the caller to persist alongside the `Alternative` it
+    supports. That is not a weakening of the mode's "no hypothesis
+    generation" rule: what the rule excludes is the model-driven generation
+    step (`generate_hypotheses`, §12), and none happens here. What the row
+    records is the claim the answer rests on -- already computed, drawn
+    straight from `context`, and marked `"supported"` because the retrieved
+    context is exactly what supports it.
+
+    It exists because `reasoning.alternative.hypothesis_id` is a NOT NULL
+    foreign key to `reasoning.hypothesis(id)`. This branch previously set it
+    to `process.id` -- a *process* id in a hypothesis column, which is wrong
+    on its own terms and additionally unsatisfiable against the real schema.
+    See this module's own `run()` for the matching persistence."""
     if context.knowledge:
         source, ref = "knowledge", context.knowledge[0].name
     elif context.memories:
@@ -97,9 +113,14 @@ async def _resolve_reactive(
     else:
         source, ref = "none", "no relevant information was found"
 
+    hypothesis = Hypothesis(
+        reasoning_process_id=process.id,
+        description=ref,
+        status="supported" if source != "none" else "unsupported",
+    )
     alternative = Alternative(
         reasoning_process_id=process.id,
-        hypothesis_id=process.id,
+        hypothesis_id=hypothesis.id,
         description=ref,
         constraint_status="eligible",
     )
@@ -115,7 +136,7 @@ async def _resolve_reactive(
         explanation=explanation,
         confidence_score=0.9 if source != "none" else 0.1,
     )
-    return decision, [alternative], [], {}
+    return decision, [alternative], [], {}, hypothesis
 
 
 def _derive_sub_question(chosen: Alternative, evidence_by_id: dict[UUID, Evidence]) -> str:
@@ -241,9 +262,18 @@ async def run(
         await _report_stage(on_stage, "degraded")
 
     if mode is ReasoningMode.REACTIVE:
-        decision, alternatives, all_evidence, rejected_reasons = await _resolve_reactive(
-            request, context, process
+        decision, alternatives, all_evidence, rejected_reasons, hypothesis = (
+            await _resolve_reactive(request, context, process)
         )
+        # Persisted before `finalize()`, in the same caller-persists order
+        # the Multi-step branch below already uses (`record_hypotheses` then
+        # `record_alternatives`). `Decision.selected_alternative_id`
+        # references `reasoning.alternative(id)`, which in turn references
+        # `reasoning.hypothesis(id)`; writing the Decision without these two
+        # rows is a foreign-key violation against the real schema, and this
+        # branch previously did exactly that.
+        await repository.record_hypotheses([hypothesis])
+        await repository.record_alternatives(alternatives)
         confidence = confidence_module.estimate_confidence(
             evidence=[],
             memories=context.memories,

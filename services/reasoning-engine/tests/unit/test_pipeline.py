@@ -652,3 +652,131 @@ async def test_context_assembly_failure_downgrades_an_otherwise_decided_outcome(
     repository = ports["repository"]
     assert repository.processes[decision.reasoning_process_id].status == "decided"
     assert repository.processes[decision.reasoning_process_id].completed_at is not None
+
+
+# ---------------------------------------------------------------------------
+# Reactive-mode persistence (defect D-1, found by the Phase 3E real-Postgres
+# acceptance E2E). The branch used to build an `Alternative`, point
+# `Decision.selected_alternative_id` at it, and call `finalize()` without ever
+# persisting either that Alternative or a Hypothesis for it to reference --
+# invisible against a fake repository, a foreign-key violation against the
+# real schema. See `tests/integration/test_repository_real_postgres.py` for
+# the same guarantee proven against real PostgreSQL.
+# ---------------------------------------------------------------------------
+
+
+class _CallOrderRecordingRepository(FakeReasoningRepository):
+    """`FakeReasoningRepository` that also records the order of the writes
+    the pipeline performs, so "before `finalize()`" is assertable rather than
+    merely plausible."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.write_order: list[str] = []
+
+    async def record_hypotheses(self, hypotheses):  # type: ignore[no-untyped-def]
+        self.write_order.append("record_hypotheses")
+        await super().record_hypotheses(hypotheses)
+
+    async def record_alternatives(self, alternatives):  # type: ignore[no-untyped-def]
+        self.write_order.append("record_alternatives")
+        await super().record_alternatives(alternatives)
+
+    async def finalize(self, **kwargs):  # type: ignore[no-untyped-def]
+        self.write_order.append("finalize")
+        return await super().finalize(**kwargs)
+
+
+def _reactive_request() -> ReasoningRequest:
+    return ReasoningRequest(
+        objective_text="what is the capital of France?",
+        user_id=uuid4(),
+        requesting_engine="test",
+        reasoning_mode_hint=ReasoningMode.REACTIVE,
+    )
+
+
+def _grounded_knowledge_port() -> FakeKnowledgePort:
+    return FakeKnowledgePort(
+        [KnowledgeReference(node_id="n1", name="Paris", layer="verified", confidence=0.9)]
+    )
+
+
+async def test_reactive_mode_persists_its_hypothesis_and_alternative_before_finalize() -> None:
+    repository = _CallOrderRecordingRepository()
+    ports = _ports(knowledge_port=_grounded_knowledge_port(), repository=repository)
+
+    await pipeline.run(_reactive_request(), **ports)
+
+    assert repository.write_order == ["record_hypotheses", "record_alternatives", "finalize"]
+    assert len(repository.hypotheses) == 1
+    assert len(repository.alternatives) == 1
+
+
+async def test_reactive_modes_decision_references_a_persisted_alternative() -> None:
+    """The exact foreign-key chain the real schema enforces:
+    `decision.selected_alternative_id` -> `alternative.id`."""
+    repository = _CallOrderRecordingRepository()
+    ports = _ports(knowledge_port=_grounded_knowledge_port(), repository=repository)
+
+    decision, _trace, chosen = await pipeline.run(_reactive_request(), **ports)
+
+    assert chosen is not None
+    assert decision.selected_alternative_id is not None
+    persisted_alternative_ids = {alternative.id for alternative in repository.alternatives}
+    assert decision.selected_alternative_id in persisted_alternative_ids
+
+
+async def test_reactive_modes_alternative_references_a_persisted_hypothesis() -> None:
+    """The second link of the same chain: `alternative.hypothesis_id` ->
+    `hypothesis.id`, a NOT NULL foreign key. This used to hold `process.id`,
+    which is not a hypothesis id at all."""
+    repository = _CallOrderRecordingRepository()
+    ports = _ports(knowledge_port=_grounded_knowledge_port(), repository=repository)
+
+    decision, _trace, _chosen = await pipeline.run(_reactive_request(), **ports)
+
+    alternative = repository.alternatives[0]
+    persisted_hypothesis_ids = {hypothesis.id for hypothesis in repository.hypotheses}
+    assert alternative.hypothesis_id in persisted_hypothesis_ids
+    assert alternative.hypothesis_id != decision.reasoning_process_id
+
+
+async def test_reactive_modes_persisted_rows_belong_to_the_same_process() -> None:
+    repository = _CallOrderRecordingRepository()
+    ports = _ports(knowledge_port=_grounded_knowledge_port(), repository=repository)
+
+    decision, _trace, _chosen = await pipeline.run(_reactive_request(), **ports)
+
+    process_id = decision.reasoning_process_id
+    assert repository.hypotheses[0].reasoning_process_id == process_id
+    assert repository.alternatives[0].reasoning_process_id == process_id
+
+
+async def test_reactive_modes_hypothesis_records_the_retrieved_answer_as_supported() -> None:
+    """Semantics, not just referential integrity: the row records the claim
+    the answer rests on, and the retrieved context is what supports it."""
+    repository = _CallOrderRecordingRepository()
+    ports = _ports(knowledge_port=_grounded_knowledge_port(), repository=repository)
+
+    await pipeline.run(_reactive_request(), **ports)
+
+    hypothesis = repository.hypotheses[0]
+    assert hypothesis.description == "Paris"
+    assert hypothesis.status == "supported"
+    assert repository.alternatives[0].description == hypothesis.description
+
+
+async def test_reactive_mode_without_grounding_records_an_unsupported_hypothesis() -> None:
+    """No knowledge and no memories: the answer is still persisted, still
+    referentially valid, but honestly marked -- `"unsupported"`, matching the
+    same branch's own 0.1 confidence. NULL is never used to mean "ungrounded"."""
+    repository = _CallOrderRecordingRepository()
+    ports = _ports(repository=repository)  # no knowledge, no memories
+
+    decision, _trace, _chosen = await pipeline.run(_reactive_request(), **ports)
+
+    assert decision.confidence_score == pytest.approx(0.1)
+    assert repository.hypotheses[0].status == "unsupported"
+    assert decision.selected_alternative_id == repository.alternatives[0].id
+    assert repository.alternatives[0].hypothesis_id == repository.hypotheses[0].id
