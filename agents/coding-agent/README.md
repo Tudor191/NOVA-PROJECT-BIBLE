@@ -9,7 +9,36 @@ Phase-3-wide "no agent does open-ended, unscoped work" discipline
 `research-agent`'s own README already establishes (TDD 3E §9, table footnote).
 It writes one fixed-format record file per task, under a fixed
 `coding-agent-output/<task-id>.md` project-relative path, via a `"write"`
-`action.execute` filesystem operation.
+`action.execute` filesystem operation, then **stages and commits it** —
+three `action.execute` requests in order (decision D5):
+
+| # | `action_type` | `execution_target` | operation |
+|---|---|---|---|
+| 1 | `filesystem` | `filesystem` | `write` the record file |
+| 2 | `terminal` | `git` | `add` exactly that path |
+| 3 | `terminal` | `git` | `commit -m "coding-agent: <objective>"` |
+
+A completed task therefore leaves a **real commit** in the target
+repository, not an uncommitted edit. Steps 2–3 carry `depends_on` pointing
+at the previous step; `action-engine` records that field without gating on
+it, and ordering is guaranteed by awaiting each step before the next.
+
+**Exit codes are checked here.** A git command exiting non-zero is a
+*successful invocation* to `capability-engine` and `action-engine` (TDD 3C
+§8's structured failure), so the reply says `status="completed"` with
+`result["exit_code"] != 0`. This agent inspects `exit_code` on both git
+steps — the same convention `qa-agent` uses for `pytest` — and reports a
+failed `AgentResult` naming the step, rather than a code change that never
+landed. A failed step stops the chain: no commit is attempted after a
+failed write or a failed stage.
+
+**Target repository and environment.** Neither git step sends `repo_root`,
+so `GitAdapter` uses its capability's declared root —
+`Settings.sandbox_filesystem_root`, decision D7's target repository. The
+subprocess environment is Slice 3's unchanged single `PATH`: `git add` and
+`git commit` need no `HOME` (verified against real git), provided the target
+repository has a **local** `user.name`/`user.email`, which D5 makes the
+fixture's responsibility.
 
 **Second Agent Package, second bring-up.** `research-agent` was brought up
 and validated first, alone, proving the full Kernel Scheduler -> Supervisor

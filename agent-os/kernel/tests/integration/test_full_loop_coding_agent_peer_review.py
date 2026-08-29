@@ -61,11 +61,27 @@ _REPO_ROOT = Path(__file__).resolve().parents[4]
 
 
 class _FakeActionPort:
+    """Answers per operation. `coding-agent` issues three actions per task
+    since Slice 4 (D5: filesystem `write`, `git add`, `git commit`), and the
+    two git steps are only successful when the reply carries
+    `result["exit_code"] == 0` -- a single canned reply would make every run
+    look like a failed commit."""
+
     def __init__(self, *, reply: ActionResultPayload) -> None:
-        self._reply = reply
+        self._write_reply = reply
+        self.received_operations: list[str] = []
 
     async def execute(self, request: ActionExecuteRequestPayload) -> ActionResultPayload:
-        return self._reply
+        operation = str(request.parameters.get("operation"))
+        self.received_operations.append(operation)
+        if operation == "write":
+            return self._write_reply
+        return ActionResultPayload(
+            action_id=uuid4(),
+            status="completed",
+            result={"exit_code": 0, "stdout": "", "stderr": "", "timed_out": False},
+            error=None,
+        )
 
 
 class _UnusedModelGatewayPort:
@@ -238,6 +254,9 @@ async def test_full_loop_coding_agent_dispatches_and_runs_a_peer_review_round(
         )
         assert completed_payload.task_node_id == node.id
         assert completed_payload.outcome == "success"
+        # D5, through the real Kernel dispatch path: the agent really issued
+        # all three actions, in order, for this one dispatched TaskNode.
+        assert action_port.received_operations == ["write", "add", "commit"]
         assert completed_payload.result is not None
         assert completed_payload.result["peer_validation"] == "timed_out"
 

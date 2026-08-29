@@ -383,6 +383,34 @@ against the one scripted end-to-end objective (§13), consistent with
 "ship a real but intentionally minimal instance of the full
 architecture" (roadmap's own Phase 3 framing, `:506`).
 
+**Implementation note added 2026-08-29 (Phase 3E Slice 4, decision D5).**
+The `coding-agent` row above is unchanged and was not reopened; this records
+what "a scripted code change" was implemented as. §13's own acceptance
+objective ends in "a real git commit in a throwaway repo", which a
+filesystem write alone cannot satisfy — the working tree would be dirty and
+nothing committed. `coding-agent` therefore issues **three** `action.execute`
+requests per task, in order: the filesystem `write`, then `git add` of
+exactly that path, then `git commit -m "coding-agent: <objective>"`.
+
+Two consequences worth recording, neither of them a contract change:
+
+- **git is reached as `action_type="terminal"` plus
+  `execution_target="git"`**, per `ActionType`'s own docstring rule that git
+  is an adapter over Terminal/Filesystem Actions and never a third type
+  value. No `repo_root` is sent, so `GitAdapter` scopes to its capability's
+  declared root — decision D7's target repository.
+- **The agent checks `exit_code` itself.** TDD 3C §8 makes a non-zero git
+  exit a *structured* failure, so `action-engine` reports
+  `status="completed"` and only `result["exit_code"]` distinguishes a real
+  commit from a refused one. Without that check a failed commit would reach
+  the Supervisor — and §13's acceptance criterion — as a successful code
+  change. This mirrors `qa-agent`'s already-shipped `pytest` convention.
+
+Verified against real git: `git add`/`git commit` need no `HOME` in the
+subprocess environment, so Slice 3's single-`PATH` environment is unchanged
+and no new setting was introduced. The target repository must carry a
+**local** `user.name`/`user.email`, which D5 assigns to the fixture.
+
 ---
 
 ## 10. Event contracts — full list for this TDD
