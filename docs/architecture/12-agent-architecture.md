@@ -420,3 +420,45 @@ must support hundreds of agents without redesign" are both visibly true at once:
 | Peer review | Implemented at Supervisor level for the first 5 agents | Scales to any category by configuration, not code |
 | Versioning | Single version per agent | Multi-version coexistence — mechanism exists from Phase 3, exercised as soon as two versions of one agent actually need to coexist |
 | Agents shipped | 5 (`research`, `coding`, `qa`, `architect`, `documentation` — see [Roadmap Phase 3](../roadmap/ENGINEERING_ROADMAP.md)) | The remaining Part 4 categories are additive Agent Packages, never kernel changes |
+
+**Implementation status, 2026-08-29 (Phase 3E Gate Review).** Every row of
+the "Phase 3 (v1)" column above is now built, on the unmerged branch
+`phase-3e-agent-os` (head `60934ac`); the "already designed for" column is
+unchanged and still describes future phases. Verified against the source
+this pass, not assumed:
+
+- **Execution backend** — `InprocessExecutionBackend`
+  (`agent-os/kernel/domain/execution_backend.py`) is the only backend;
+  `agent-os/execution-backends/` does not exist, per TDD 3E §2's deliberate
+  decision not to create the `subprocess`/`container`/`remote`
+  subdirectories ahead of their phase.
+- **Supervision** — flat, one Supervisor (`engineering`),
+  `agent-os/supervisors/`.
+- **Registry** — filesystem discovery only, over the eight-stage install
+  pipeline (`agent-os/registry/domain/pipeline.py`).
+- **Peer review** — implemented at Supervisor level via the
+  `agent_os.supervisor.peer_review.request` RPC; `coding-agent` is the only
+  package declaring `peer_reviewer_category` (`architect`), so it is the
+  only pairing exercised.
+- **Versioning** — the Registry keys on `(category, version)` from day one
+  and `agent-os/registry/domain/selection.py` picks the highest `healthy`
+  version. All five shipped packages are at `0.1.0`, so the coexistence
+  mechanism is proven by tests (`registry` real-Postgres two-version
+  coexistence and healthy-fallback cases; kernel
+  `test_hot_load_version_pinning.py`) rather than by two versions actually
+  shipping — exactly the "exercised as soon as two versions need to
+  coexist" wording this table already used.
+- **Agents shipped** — all five exist under `agents/`.
+
+**Three §5/§13 capabilities this section does not cover are named here so
+the table is not read as complete.** `agent.<instance_id>.<state>`
+lifecycle events (§5) and the aggregated `agent_os.health.snapshot` (§13)
+are **not published by Phase 3E** — neither has a payload in
+`nova-contracts` and neither appears in any component's
+`PUBLISHABLE_SUBJECTS`. Kernel-side `execute()`-time permission
+re-validation (§7) is likewise not implemented, per TDD 3E §5's
+already-approved declared-intent-only resolution of the `nova-auth` gap.
+Full disclosure and status in
+[`08-tdd-3e-agent-os.md`](../design/phase-3/08-tdd-3e-agent-os.md) §10 and
+[`phase-3e-agent-os-gate-review.md`](../roadmap/architecture-reviews/phase-3e-agent-os-gate-review.md)
+§8/§10.

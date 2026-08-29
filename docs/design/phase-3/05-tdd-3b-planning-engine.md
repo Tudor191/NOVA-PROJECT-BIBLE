@@ -1,6 +1,22 @@
 # TDD 3B — `planning-engine`
 
 **Status: implemented, except one item correctly deferred to Phase 3E.**
+
+> **Additive correction, 2026-08-29 (Phase 3E Gate Review).** The status
+> line above is preserved as originally written but is now superseded on
+> one point: the deferred item — §6.1's `agent_os.task.completed`
+> subscription — **was built by Phase 3E** (commit `b9aed32`, on the
+> unmerged branch `phase-3e-agent-os`). `planning-engine` now consumes
+> that subject through `domain/task_completion.py`, resetting a
+> `TaskNode` to `"ready"` on `outcome in {"interrupted", "failure"}` and
+> republishing the graph. Phase 3E additionally added, to this engine,
+> the TaskNode admission/advancement lifecycle
+> ([`17-3e-task-node-lifecycle.md`](17-3e-task-node-lifecycle.md),
+> approved 2026-08-29), the `planning.goals.current.request`/`.reply` RPC
+> handler (TDD 3E §8), and `PlanningRepository.reset_node_status`. TDD
+> 3B's own approved scope is therefore **fully closed** once
+> `phase-3e-agent-os` merges. No 3B design decision was reopened.
+
 Domain foundation (§2: `TaskNode`/`TaskGraph`/`Estimate`/`RiskLevel`,
 graph invariants, critical-path computation) shipped in PR #2. Objective
 Decomposition (§6.1's `reasoning.process.completed` -> `TaskGraph` path,

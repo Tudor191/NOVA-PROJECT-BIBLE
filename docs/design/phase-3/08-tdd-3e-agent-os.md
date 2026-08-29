@@ -3,7 +3,25 @@
 
 **Status: design complete, architectural decisions approved/resolved
 (2026-08-19) — see §11 and each section's own resolution note. No
-production code authorized.** This is the largest, most integrative TDD
+production code authorized.**
+
+> **Status update, 2026-08-29 (Phase 3E Gate Review), additive.** The
+> banner above is preserved as originally written; "no production code
+> authorized" describes the state on 2026-08-19 and is no longer current.
+> Phase 3E was subsequently implemented on branch `phase-3e-agent-os`
+> (head `60934ac`, unmerged, no PR, no CI run). Gate verdict:
+> **CONDITIONAL-GO** — see
+> [`phase-3e-agent-os-gate-review.md`](../../roadmap/architecture-reviews/phase-3e-agent-os-gate-review.md).
+> Three sections carry implementation-deviation notes added by that
+> review and not previously disclosed anywhere: **§4** (the Scheduler's
+> scoring step is not implemented), **§10** (three of six event contracts
+> are not implemented), and **§14** (criteria #2 and #3 are met with
+> disclosed narrowing, not by full-path E2E). §9 already carried its own
+> D5 implementation note from 2026-08-29. Read those four notes before
+> treating any other section of this document as a description of the
+> shipped system.
+
+This is the largest, most integrative TDD
 in the package — it is the point at which `3B`/`3C`/`3D`'s
 independently-buildable engines are actually exercised together for the
 first time. Approval of the architectural decisions recorded here is a
@@ -175,6 +193,38 @@ Kernel process) is re-queued — its `assigned_task_node_id` is reset to
 `"ready"` in `planning-engine` (via the same event path §7 uses) for
 redispatch, never silently lost. **Flagged for approval** — this schema
 is proposed, not extracted from any document.
+
+**Implementation deviation, disclosed 2026-08-29 (Phase 3E Gate Review) —
+the Scheduler's step (2), scoring.** The four-step dispatch loop above is
+implemented as **three** steps, not four:
+`agent-os/kernel/domain/scheduler.py::dispatch_task_node` performs (1) the
+Registry query (`registry_port.find_healthy_package(category=...)`),
+(3) backend selection (trivially — `inprocess` is the only backend), and
+(4) dispatch. **Step (2) — "score by historical performance (from
+`AgentMetrics`) + current load + resource availability + Executive
+Cognition's Cognitive Priority Matrix" — is not implemented.** The
+Registry's own selection policy (highest `healthy` version by
+dotted-integer comparison, `agent-os/registry/domain/selection.py`) is the
+sole selection input; there is no scoring function in the Kernel, and
+`agent-os/kernel` makes no call to `executive-cognition-engine` (verified
+by grep: no reference to `executive`, `arbitrate`, or `cognitive_priority`
+anywhere under `agent-os/kernel/src/`).
+
+Half of this gap was already disclosed, in
+[`16-3e-hot-load-design-decision.md`](16-3e-hot-load-design-decision.md)
+§5's "Registry scoring beyond version+health" bullet, which records that
+`agent_package` stores no metrics columns and that "version and health are
+the only selection inputs in Phase 3". That bullet cites doc 12 §6 and
+names only the `AgentMetrics` inputs. **The remaining three inputs this
+section names — current load, resource availability, and the Cognitive
+Priority Matrix — were not disclosed anywhere until this note.** Recorded
+here so the gap is visible against the section that actually specifies it.
+
+This narrowing has **not** been ratified by the user; it is carried as an
+open condition in
+[`phase-3e-agent-os-gate-review.md`](../../roadmap/architecture-reviews/phase-3e-agent-os-gate-review.md)
+§10 and §11, not treated as approved. No acceptance criterion in §14 turns
+on scoring.
 
 **RESOLVED (2026-08-19), additive note — Fork 3E-2.** Approved: the
 proposed `agent_os` Postgres schema, `agent_instance` + `agent_package`
@@ -425,6 +475,29 @@ already anticipated in `3B` §6.1); `planning.decompose.request` (Kernel/
 Supervisor-initiated, served by `planning-engine`, already defined in
 `3B` — this TDD is the RPC's first real caller).
 
+**Implementation status of this section, disclosed 2026-08-29 (Phase 3E
+Gate Review).** Verified subject by subject against
+`agent-os/*/src/*/events/{published,subscribed}.py`,
+`packages/nova-contracts/src/nova_contracts/events/agent_os.py`, and the
+generated TypeScript. Three of the six subjects above are **not
+implemented**, and until this note none of the three was disclosed
+anywhere:
+
+| Subject | §10 role | Status in the shipped code |
+|---|---|---|
+| `planning.task_graph.created` | Subscribed | **Implemented** — `agent-os/kernel/main.py:112`, the Scheduler's trigger. |
+| `agent_os.instance.<instance_id>.inbox` | Subscribed | **Partially implemented, already disclosed.** `AgentMessage` is a registered payload and `agent-os/supervisors/events/published.py` declares the glob `agent_os.instance.*.inbox`, but that file's own docstring records it "has no live receiver yet". The Phase 3 peer-review round delivers its `AgentMessage` **in-process**, through `InprocessExecutionBackend.spawn_and_review()` calling the reviewer Handler's `on_message()` directly — correct for the only enabled backend, since §6/`01-tdd-preparation-and-fork-resolutions.md` §5.5 Fact 4 already establish that `inprocess` passes these objects live rather than serialized. |
+| `agent_os.task.completed` | Published | **Implemented** — `agent-os/kernel/events/published.py`, consumed by `planning-engine`. |
+| `agent.<instance_id>.<state>` (lifecycle transitions, doc 12 §5) | Published | **NOT IMPLEMENTED.** No payload exists in `nova-contracts`, no subject appears in any `PUBLISHABLE_SUBJECTS` set, and nothing publishes it. Instance lifecycle state is persisted to `agent_os.agent_instance.status` and is otherwise unobservable from outside the Kernel. |
+| `agent_os.health.snapshot` (aggregated health, doc 12 §13) | Published | **NOT IMPLEMENTED.** No payload exists in `nova-contracts` — §6 above states this payload "also lives in `events/agent_os.py`"; it does not. Nothing aggregates or publishes health. Per-package `health_status` is written by the Registry install pipeline and per-instance `health_status` by the Kernel, but neither is ever published. |
+| `planning.decompose.request` | Published (RPC, "this TDD is the RPC's first real caller") | **NOT CALLED.** The RPC is served by `planning-engine` and is exercised by that engine's own tests, but no `agent-os` component ever calls it. §12's "`planning.decompose.request` for an already-minimal node" row therefore describes a path that does not execute in the shipped system. |
+
+None of these three gaps affects a §14 acceptance criterion, and none was
+introduced by a later slice reversing an earlier one — they were never
+built. They are carried as open conditions in
+[`phase-3e-agent-os-gate-review.md`](../../roadmap/architecture-reviews/phase-3e-agent-os-gate-review.md)
+§10/§11 and have **not** been ratified as approved narrowings.
+
 **Explicitly not published by any agent or Supervisor directly:**
 `communication.intent.*` — per ADR-005/doc 12 §14, an agent's only
 output is its `AgentResult`, routed up through its Supervisor → Agent
@@ -563,6 +636,18 @@ Plus, specific to this TDD's own additions:
    call sites, confirmed by an unmodified-caller regression test.
 5. Every one of the five agents' manifest validates against
    `AgentHandler` before the Registry will register it.
+
+**Verification status, 2026-08-29 (Phase 3E Gate Review), additive — 3 of
+5 Met, 2 Met with disclosed narrowing.** Full evidence in that document's
+§9; summarised here so this section is not read as unverified.
+
+| # | Status | Evidence |
+|---|---|---|
+| 1 | **Met** | `agent-os/kernel/tests/integration/test_phase_3e_end_to_end_acceptance.py` (7 tests) and its `real_infra` twin `…_real_postgres.py` (1 test). The real-Postgres variant runs six engines' Alembic chains on one PostgreSQL 16.13 database, is driven only by `POST /v1/reasoning/reason`, and asserts a real commit read from git's own history, a `pytest` exit-0 in the target repository, `concurrent_peak == 2`, and one real peer-review round. Passed 10/10 consecutive runs. |
+| 2 | **Met with disclosed narrowing** | Proven at unit + integration + real-Postgres level, not by a full-path E2E. Kernel half: `tests/integration/test_restart_reconciliation.py` (a real `create_app()` lifespan restart really publishes `agent_os.task.completed` with `outcome="interrupted"`) + `tests/unit/test_reconciliation.py`. Planning half: `planning-engine`'s `test_events_agent_os_task_completed.py::test_kernel_restart_then_planning_resume_round_trip`. The two halves never import each other's production code (ADR-004) and are joined by an asserted payload shape, not by one executing process. **No test kills a running `agent-os-kernel` OS process mid-execution**; "restart" is a fresh `create_app()` entering its lifespan. |
+| 3 | **Met with disclosed narrowing** | `tests/integration/test_hot_load_version_pinning.py` + `agent-os/registry` `tests/unit/test_selection.py` and `tests/integration/test_repository_real_postgres.py` (13 real-Postgres tests incl. two-version coexistence and healthy-fallback). Narrowing recorded in [`16-3e-hot-load-design-decision.md`](16-3e-hot-load-design-decision.md) §2 and approved 2026-08-28: this is **version pinning and scheduling hot-load, not simultaneous execution of two bytecode versions** — `InprocessExecutionBackend` resolves handler code by manifest `id` alone and no per-version directory exists. Also note the criterion names `coding-agent@1.1.0 → 1.2.0`; the shipped package is `0.1.0`, and the test uses synthetic `1.1.0`/`1.2.0` `agent_package` rows. |
+| 4 | **Met** | Both `GoalsPort` Protocols and every `current_goals()` call site are byte-identical to their pre-migration form (`reasoning-engine/domain/ports.py:113`, `domain/context_assembly.py:68`; `executive-cognition-engine/domain/ports.py:91`, `domain/coordinate.py:117`); only the two `clients/goals_client.py` adapters changed. `reasoning-engine/tests/contract/test_port_compliance.py` is the unmodified-caller regression test. Disclosed limitation, recorded at `planning-engine/domain/ports.py::PlanningRepository.list_all`: `task_graph` carries no ownership column, so the reply is not filtered by `user_id`. |
+| 5 | **Met** | `agent-os/registry/domain/pipeline.py:311` — `issubclass(handler_class, AgentHandler)` gates Register; failure raises before the row is written. Exercised against all five real on-disk packages by `tests/integration/test_real_*_agent_installs.py`. |
 
 ---
 
