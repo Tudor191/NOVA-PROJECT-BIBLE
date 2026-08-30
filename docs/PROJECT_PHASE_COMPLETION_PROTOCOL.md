@@ -721,9 +721,22 @@ Gate Review may only cite an uncached run.
     `services/*` entries only**. `agent-os/*` components have **no Dockerfile**
     and appear in neither this matrix nor `infra/docker/docker-compose.local.yml`.
     A phase that makes an `agent-os` component deployable must close that gap or
-    explicitly record it as deferred.
-  - `.github/workflows/real-infra-checks.yml`'s matrix currently lists 10
-    packages; a new package with `real_infra` tests must be added.
+    explicitly record it as deferred. (Phase 3E took the second route: recorded
+    as a ratified deferred obligation in
+    [`08-tdd-3e-agent-os.md`](design/phase-3/08-tdd-3e-agent-os.md) §15, with a
+    criterion-by-criterion demonstration that no Phase 3E acceptance criterion
+    requires a deployed container.)
+  - **`agents/*` are not workspace members and are not covered by
+    `pnpm turbo run lint`/`test`.** They are Agent Packages (doc 02 `:162-169`),
+    with no `package.json` and no `pyproject.toml`, and each exposes a module
+    named `handler`, so one pytest or mypy process cannot collect them together.
+    `pr-checks.yml` therefore runs them as a **per-package loop** plus a single
+    `ruff check agents/`. A phase adding an Agent Package inherits that loop
+    automatically; a phase changing the layout must keep it working.
+  - `.github/workflows/real-infra-checks.yml`'s matrix currently lists **11**
+    packages; a new package with `real_infra` tests must be added. (Was 10
+    until Phase 3E added `reasoning-engine` — the count is corrected here
+    rather than left stale, per §6.3's living-reference rule.)
   - `pyproject.toml` `[tool.uv.workspace]` members and `pnpm-workspace.yaml`
     packages must include any new workspace member.
 
@@ -778,7 +791,10 @@ with the reason.
 - Whether `.github/workflows/real-infra-checks.yml` covers the affected package
   (its matrix currently lists nova-testkit, communication-engine,
   personality-engine, perception-engine, digital-twin-engine, capability-engine,
-  action-engine, planning-engine, kernel, registry).
+  action-engine, planning-engine, **reasoning-engine**, kernel, registry —
+  eleven; `reasoning-engine` was added by Phase 3E after a real-Postgres
+  foreign-key defect survived from Phase 2B precisely because that engine had
+  no entry here).
 - That this workflow is **non-blocking and staged by design** — it is
   deliberately not a required status check. A green `pr-checks` run is therefore
   **not** evidence that real-infrastructure tests passed.
