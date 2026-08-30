@@ -197,6 +197,39 @@ the original citation was off by two lines), which this design
 deliberately does not implement (per Fork E3, not reopened by this
 pass).
 
+**Implementation note added 2026-08-29 (Phase 3E Slice 3, decisions
+D7/D8/D9).** The mechanism table above is unchanged and was not reopened.
+What follows records where the shipped implementation did not yet meet it,
+and what closed the gap. Phase 3E's real agent path was the first caller to
+exercise these adapters with agent-shaped input, and it exposed three
+defects:
+
+1. **Relative paths resolved against the process's working directory.**
+   `resolve_within_roots` called `Path(path).resolve()`, which anchors a
+   relative path at `Path.cwd()`. Every real caller sends a project-relative
+   path (`coding-agent` builds `f"coding-agent-output/{task.id}.md"`), so
+   every agent write resolved outside the declared root and was refused as
+   a sandbox violation. Relative paths now anchor at the declared root. The
+   containment check — what the `filesystem` row actually requires — is
+   untouched, and `../`-traversal and symlink escapes are still rejected.
+2. **The `terminal` row's "restricted working directory" was not
+   implemented at all.** `parameters["cwd"]` was passed to the subprocess
+   unvalidated when supplied, and `None` when omitted, inheriting whatever
+   directory this engine was started in. `TerminalAdapter` now takes an
+   explicit `default_cwd` from `Settings.sandbox_filesystem_root`, uses it
+   when no `cwd` is given, and validates any supplied `cwd` against it.
+3. **"Restricted/minimal environment variables" was met so narrowly that
+   the executable allow-list became unusable.** The environment was a
+   hardcoded `PATH=/usr/bin:/bin`, which cannot resolve `pytest` or `uv` —
+   both named in `sandbox_terminal_allowed_executables` — because they live
+   in the active virtualenv. The environment is still a single `PATH` with
+   nothing inherited from the parent; its value is now
+   `Settings.sandbox_terminal_path`, so a deployment declares where its own
+   executables live rather than this module guessing.
+
+`sandbox_terminal_path` is the only addition to this engine's configuration
+surface. No contract, event subject, schema, or adapter interface changed.
+
 ---
 
 ## 4. Architectural forks — reconciliation pass status

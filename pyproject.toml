@@ -1,5 +1,6 @@
 [tool.uv.workspace]
-members = ["packages/*", "services/*"]
+members = ["packages/*", "services/*", "agent-os/*", "agent-os/sdk/*"]
+exclude = ["agent-os/sdk"]
 
 [tool.uv]
 dev-dependencies = [
@@ -53,6 +54,14 @@ ignore_missing_imports = true
 module = ["jsonschema.*"]
 ignore_missing_imports = true
 
+# PyYAML ships no py.typed marker either -- used only inside
+# agent-os/registry's own domain/pipeline.py, for parsing agent.yaml
+# Agent Package manifests (Phase 3E Milestone 3, doc 12 §3/§6), never
+# imported by any other engine's own src/.
+[[tool.mypy.overrides]]
+module = ["yaml.*"]
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 markers = [
@@ -98,6 +107,10 @@ root_packages = [
     "nova_planning_engine",
     "nova_capability_engine",
     "nova_action_engine",
+    "nova_agent_os_kernel",
+    "nova_agent_sdk",
+    "nova_agent_os_registry",
+    "nova_agent_os_supervisors",
 ]
 include_external_packages = true
 
@@ -119,6 +132,9 @@ modules = [
     "nova_planning_engine",
     "nova_capability_engine",
     "nova_action_engine",
+    "nova_agent_os_kernel",
+    "nova_agent_os_registry",
+    "nova_agent_os_supervisors",
 ]
 
 [[tool.importlinter.contracts]]
@@ -139,6 +155,9 @@ source_modules = [
     "nova_planning_engine",
     "nova_capability_engine",
     "nova_action_engine",
+    "nova_agent_os_kernel",
+    "nova_agent_os_registry",
+    "nova_agent_os_supervisors",
 ]
 forbidden_modules = [
     "nats",
@@ -164,6 +183,9 @@ source_modules = [
     "nova_planning_engine",
     "nova_capability_engine",
     "nova_action_engine",
+    "nova_agent_os_kernel",
+    "nova_agent_os_registry",
+    "nova_agent_os_supervisors",
 ]
 forbidden_modules = [
     "neo4j",
@@ -256,4 +278,38 @@ forbidden_modules = [
     "nova_planning_engine",
     "nova_capability_engine",
     "nova_action_engine",
+    "nova_agent_os_kernel",
+    "nova_agent_os_registry",
+    "nova_agent_os_supervisors",
+]
+
+# Mirrors ADR-033/034's shape for a third case with the identical
+# justification -- TDD 3E's own explicit requirement ("Keep the SDK
+# independent of engine-specific domain implementations", Phase 3E
+# Milestone 3): `nova-agent-sdk` is the interface every Agent Package and
+# the Registry depend on, so it must carry zero engine-specific (or
+# agent-os-component-specific) knowledge, the same guarantee ADR-033/034
+# already give nova-testkit/nova-service-kit for the same reason.
+[[tool.importlinter.contracts]]
+name = "nova-agent-sdk has no engine-specific knowledge: it may not import any engine's or agent-os component's own top-level package"
+type = "forbidden"
+source_modules = [
+    "nova_agent_sdk",
+]
+forbidden_modules = [
+    "nova_core",
+    "nova_memory_engine",
+    "nova_knowledge_engine",
+    "nova_world_model_engine",
+    "nova_ai_model_orchestration_engine",
+    "nova_reasoning_engine",
+    "nova_executive_cognition_engine",
+    "nova_personality_engine",
+    "nova_communication_engine",
+    "nova_perception_engine",
+    "nova_digital_twin_engine",
+    "nova_planning_engine",
+    "nova_capability_engine",
+    "nova_action_engine",
+    "nova_agent_os_kernel",
 ]

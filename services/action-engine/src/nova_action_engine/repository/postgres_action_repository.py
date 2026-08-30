@@ -7,6 +7,20 @@ into `ActionAlreadyExistsError` -- the natural-key idempotency guard
 approved for `action.execute` (§5.3, `13-3d-action-engine-research.md`),
 mirroring `capability-engine`'s own `CapabilityAlreadyExistsError`/Fork
 3C-4 translation exactly.
+
+**`depends_on` is stored as JSONB strings, not `UUID` objects.**
+`Action.depends_on` is a `list[UUID]`; `action.action.depends_on` is a JSONB
+column, and the JSON encoder asyncpg drives has no `UUID` serializer --
+inserting the objects raised `TypeError: Object of type UUID is not JSON
+serializable` for every Action carrying a dependency, which is exactly
+`coding-agent`'s `git add`/`git commit` steps (decision D5). `insert()`
+therefore writes `str(uuid)` and `_to_domain()` parses back with `UUID(...)`,
+so the round trip returns the same `list[UUID]` the caller passed. Nothing
+about the public contract or the schema changes: `Action.depends_on` is
+still `list[UUID]` to every caller, and the column is still JSONB. The
+symmetric `str()`/`UUID()` pair is deliberate -- a bare `list(...)` on read
+would silently hand callers `list[str]` for rows written by any other
+writer.
 """
 
 from __future__ import annotations
@@ -39,7 +53,7 @@ def _to_domain(row: ActionORM) -> Action:
         source=row.source,
         requested_by=row.requested_by,
         execution_target=row.execution_target,
-        depends_on=list(row.depends_on),
+        depends_on=[UUID(value) for value in row.depends_on],
         parameters=dict(row.parameters),
         expected_result=row.expected_result,
         risk=row.risk,
@@ -74,7 +88,7 @@ class PostgresActionRepository:
             source=action.source,
             requested_by=action.requested_by,
             execution_target=action.execution_target,
-            depends_on=list(action.depends_on),
+            depends_on=[str(dependency) for dependency in action.depends_on],
             parameters=dict(action.parameters),
             expected_result=action.expected_result,
             risk=action.risk,

@@ -40,8 +40,11 @@ from pydantic import BaseModel, Field
 from nova_contracts.registry import register_payload
 
 __all__ = [
+    "GoalSnapshot",
     "PlanningDecomposeReplyPayload",
     "PlanningDecomposeRequestPayload",
+    "PlanningGoalsCurrentReplyPayload",
+    "PlanningGoalsCurrentRequestPayload",
     "PlanningTaskGraphCreatedPayload",
     "RiskLevel",
     "TaskGraphSnapshot",
@@ -127,4 +130,51 @@ class PlanningDecomposeReplyPayload(BaseModel):
 
     already_minimal: bool
     new_nodes: list[TaskNodeSnapshot] = Field(default_factory=list)
+    schema_version: int = 1
+
+
+class GoalSnapshot(BaseModel):
+    """TDD 3E §8, Fork 3E-3 (RESOLVED, approved as proposed) -- the wire
+    shape of one active `TaskGraph`, mapped to a `Goal`. Deliberately **not**
+    named `Goal` -- `reasoning-engine`'s and `executive-cognition-engine`'s
+    own domain-local `Goal` types have already diverged by one field
+    (`goal_tier`, per ADR-029) and neither imports this type or is imported
+    by it; each engine's own `clients/goals_client.py` adapter is what
+    translates a `GoalSnapshot` into that engine's own `Goal` at the RPC
+    boundary, the same wire-payload-to-domain-type translation pattern used
+    everywhere else in this codebase.
+
+    `goal_tier` is derived by `planning-engine` at read time from
+    `len(task_graph.nodes) > 1`, never persisted (TDD 3B §6.2's own
+    additive note). `priority` is derived at read time from the requesting
+    user's full set of active `TaskGraph`s, ranked descending by
+    critical-path effort sum and tie-broken by `TaskGraph.id`:
+    `1.0 - (rank_index / max(1, len(active_task_graphs) - 1))`."""
+
+    id: UUID
+    description: str
+    priority: float = Field(ge=0.0, le=1.0)
+    goal_tier: Literal["ad_hoc", "established"]
+
+
+@register_payload("planning.goals.current.request")
+class PlanningGoalsCurrentRequestPayload(BaseModel):
+    """TDD 3E §8 -- the real-RPC replacement for `GoalsPort`'s own
+    caller-supplied placeholder. Field names/optionality mirror
+    `GoalsPort.current_goals()`'s own Protocol signature exactly (both
+    `reasoning-engine`'s and `executive-cognition-engine`'s
+    `clients/goals_client.py`), which this RPC's own client adapter calls
+    through unchanged -- the Protocol itself, and every one of its callers,
+    is never touched by this migration."""
+
+    user_id: UUID
+    scope: str | None = None
+    requesting_engine: str
+    correlation_id: UUID
+    schema_version: int = 1
+
+
+@register_payload("planning.goals.current.reply")
+class PlanningGoalsCurrentReplyPayload(BaseModel):
+    goals: list[GoalSnapshot] = Field(default_factory=list)
     schema_version: int = 1

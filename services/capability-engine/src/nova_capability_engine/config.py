@@ -7,6 +7,8 @@ from uuid import UUID
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from nova_capability_engine.adapters.terminal_adapter import DEFAULT_TERMINAL_PATH
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -34,6 +36,18 @@ class Settings(BaseSettings):
     usable must configure this explicitly (fail-closed, the same idiom
     `digital-twin-engine`'s `ProactiveBoundaryPolicy` established for an
     absent policy)."""
+
+    sandbox_terminal_path: str = DEFAULT_TERMINAL_PATH
+    """`PATH` for the `terminal`/`git` built-ins' subprocess environment
+    (TDD 3C §3's "restricted/minimal environment variables") -- the only
+    variable exported, nothing inherited from this process.
+
+    Deployment-scoped because the allow-list in
+    `sandbox_terminal_allowed_executables` names `pytest`, `uv`, and
+    `python3`, which in this repository live in the active virtualenv's
+    `bin` rather than on the conventional POSIX path. Declaring where an
+    allowed executable actually lives is a property of the deployment, not
+    of this module; the default is conventional, never machine-specific."""
 
     sandbox_terminal_timeout_s: float = 30.0
     sandbox_http_timeout_s: float = 10.0

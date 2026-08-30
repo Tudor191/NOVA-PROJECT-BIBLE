@@ -1,0 +1,33 @@
+# agent.yaml -- the Agent Package manifest
+# (docs/architecture/12-agent-architecture.md §3)
+id: documentation-agent
+version: 0.1.0
+category: documentation             # Part 4 taxonomy
+display_name: "Documentation Agent"
+required_capabilities:              # declared-intent-only in Phase 3 -- Fork 3C-2's own
+                                     # resolution left `AgentContext.granted_capabilities`
+                                     # unpopulated by the Kernel Scheduler; the real, live
+                                     # enforcement point is action-engine's own stage-5
+                                     # capability resolution at execute() time (TDD 3D §6).
+                                     # `ai-model-orchestration-engine` is called directly
+                                     # (`model_gateway`, mirrors research-agent's own
+                                     # manifest), not through a capability-engine adapter,
+                                     # so it is not listed here
+  - filesystem
+required_permissions:                # declared-intent-only in Phase 3 (TDD 3E §5/§8a
+                                     # item 5, no nova-auth -- see this package's README)
+  - filesystem:write:project-scope
+supported_execution_backends:
+  - inprocess                        # Phase 3 ships inprocess only (TDD 3E §2)
+resource_profile:
+  cpu: standard
+  memory: standard
+  gpu: none
+health_check:
+  interval_seconds: 30
+compatibility:
+  min_kernel_version: "0.1.0"
+# No `peer_reviewer_category` -- TDD 3E §9's own agent table gives no one the
+# job of reviewing documentation-agent's own output in Phase 3 (only
+# coding-agent, reviewed by architect-agent, has a reviewer). See this
+# package's README for the full disclosure.

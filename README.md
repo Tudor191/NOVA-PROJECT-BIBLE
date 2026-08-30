@@ -53,8 +53,15 @@ docker compose -f infra/docker/docker-compose.local.yml up -d   # full local sta
 
 ## Status
 
-**Phases 0 through 3D are implemented and merged; Phase 3E has not
-started.** `nova-core` boots through its
+**Phases 0 through 3D are implemented and merged. Phase 3E
+(`agent-os` + the five Agent Packages + the `engineering` Supervisor) is
+implemented on branch `phase-3e-agent-os` (last production-source commit
+`60934ac`) and is **not yet merged** — PR #20 is open against the canonical
+Phase 3 branch, CI is green (27 of 27 GitHub Actions Check Runs succeeded
+against head SHA `733a31d`), and its Gate Review verdict is **GO** as of
+2026-08-30. That GO records that every condition the Gate Review attached is
+discharged; it does not retire the narrowings and known limitations that
+review discloses, which are unchanged.** `nova-core` boots through its
 full 7-phase sequence, exposes `/internal/health`, `/internal/readiness`, and
 `/internal/metrics`, and publishes its heartbeat over the Event Bus — see
 [`docs/roadmap/ENGINEERING_ROADMAP.md`](docs/roadmap/ENGINEERING_ROADMAP.md#phase-0--platform-bootstrap)
@@ -63,7 +70,12 @@ canonical `phase-3b-planning-domain` branch (Memory, Knowledge, World Model, AI 
 Orchestration, Reasoning, Executive Cognition, Communication, Personality,
 Perception, Digital Twin, Planning, Capability, Action); `action-engine`
 (Phase 3D) merged 2026-08-18 via PR #13 (squash commit
-`ac285bc3533fb24d0434d7675b8fc3af2db1d079`). See
+`ac285bc3533fb24d0434d7675b8fc3af2db1d079`). Phase 3E adds, on its own
+unmerged branch, four `agent-os` components (`kernel`, `registry`,
+`supervisors`, `sdk/python`) and five Agent Packages under `agents/`
+(`research`, `coding`, `qa`, `architect`, `documentation`) — neither
+directory is an engine, and `agent-os/*` has no Dockerfile and is not yet
+in the `build-and-scan.yml` matrix or `docker-compose.local.yml`. See
 [`docs/project-health/project-health-master.md`](docs/project-health/project-health-master.md)
 for the full, per-phase longitudinal status record (tests, coverage, CI, real-infra,
 and documentation health for every completed phase) and each phase's own Gate

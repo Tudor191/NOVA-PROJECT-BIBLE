@@ -80,6 +80,32 @@ class PlanningEngineMetrics:
     `repository/outbox_dispatcher.py` (`workers/outbox_worker.py`) --
     mirrors `memory-engine`'s own instrument of the same name."""
 
+    planning_goals_current_request_served_total: Counter
+    """TDD 3E §8: one increment per `planning.goals.current.request` this
+    engine serves."""
+
+    planning_task_node_admitted_total: Counter
+    """TDD 3E §4: one increment per `TaskNode` admitted to `"ready"` and
+    handed off at graph creation. A persistently-zero value means the real
+    Reasoning -> Planning -> Kernel path is dispatching nothing at all --
+    the exact condition that went undetected before this slice."""
+
+    planning_task_node_completed_total: Counter
+    """One increment per `TaskNode` moved to `"completed"` by an
+    `agent_os.task.completed` `outcome="success"` (TDD 3B §6.1)."""
+
+    planning_task_node_promoted_total: Counter
+    """One increment per `TaskNode` moved to `"ready"` by the
+    `agent_os.task.completed` handler, labeled by the `outcome` that caused
+    it: `"success"` (a dependent unblocked by a completed dependency),
+    `"interrupted"` (restart-resume), or `"needs_revision"` (peer review
+    asked for another round)."""
+
+    planning_task_node_failed_total: Counter
+    """One increment per `TaskNode` moved to terminal `"failed"`, labeled by
+    `outcome`. See `domain/task_completion.py`'s own docstring for why
+    `"failure"` is terminal rather than redispatched."""
+
 
 def create_metrics() -> PlanningEngineMetrics:
     meter = get_meter("planning-engine")
@@ -125,5 +151,26 @@ def create_metrics() -> PlanningEngineMetrics:
         outbox_dispatched_total=meter.create_counter(
             "planning_engine_outbox_dispatched_total",
             description="Outbox events dispatched to the Event Bus.",
+        ),
+        planning_goals_current_request_served_total=meter.create_counter(
+            "planning_goals_current_request_served_total",
+            description="planning.goals.current.request calls served.",
+        ),
+        planning_task_node_admitted_total=meter.create_counter(
+            "planning_task_node_admitted_total",
+            description="TaskNodes admitted to ready and handed off at graph creation.",
+        ),
+        planning_task_node_completed_total=meter.create_counter(
+            "planning_task_node_completed_total",
+            description="TaskNodes moved to completed by an agent_os.task.completed success.",
+        ),
+        planning_task_node_promoted_total=meter.create_counter(
+            "planning_task_node_promoted_total",
+            description="TaskNodes moved to ready by the agent_os.task.completed handler, "
+            "labeled by the outcome that caused it.",
+        ),
+        planning_task_node_failed_total=meter.create_counter(
+            "planning_task_node_failed_total",
+            description="TaskNodes moved to terminal failed, labeled by outcome.",
         ),
     )

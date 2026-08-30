@@ -81,10 +81,12 @@ class PersonalContextPort(Protocol):
 
 @runtime_checkable
 class GoalsPort(Protocol):
-    """§5.7, §8 -- Current Goals. The identical honest placeholder ADR-026
-    established for Reasoning Engine: `clients/goals_client.py` returns
-    caller-supplied goals rather than a real Planning Engine RPC, since
-    Planning Engine (Phase 3) does not exist yet."""
+    """§5.7, §8 -- Current Goals. Migrated per TDD 3E §8: `clients/
+    goals_client.py` now calls `planning-engine`'s real `planning.goals.
+    current.request` RPC, the same migration Reasoning Engine's own
+    `GoalsPort` received. This Protocol's own shape is unchanged (§24) --
+    callers still see `list[Goal]`, degrading to `[]` on a timeout exactly
+    as the placeholder did."""
 
     async def current_goals(
         self, *, user_id: UUID, scope: str | None = None, correlation_id: UUID | None = None

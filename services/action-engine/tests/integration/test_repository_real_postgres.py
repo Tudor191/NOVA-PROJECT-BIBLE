@@ -19,7 +19,7 @@ from __future__ import annotations
 import os
 from datetime import UTC, datetime
 from pathlib import Path
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from nova_action_engine.domain.models import IdentityConfidencePolicy, PendingApproval
@@ -189,3 +189,84 @@ async def test_identity_confidence_policy_round_trips(
 
     fetched = await repository.find_identity_confidence_policy(user_id)
     assert fetched == policy_row
+
+
+# --------------------------------------------------------------------------
+# `depends_on` <-> JSONB (defect D-2, found by the Phase 3E real-Postgres
+# acceptance E2E). `Action.depends_on` is a `list[UUID]`; the column is
+# JSONB, whose encoder has no `UUID` serializer, so every Action carrying a
+# dependency used to fail to insert with "Object of type UUID is not JSON
+# serializable" -- which is exactly `coding-agent`'s `git add`/`git commit`
+# steps (decision D5). The tests above only ever used the default empty
+# `depends_on`, which is why this went unnoticed.
+# --------------------------------------------------------------------------
+
+
+async def test_insert_round_trips_an_empty_depends_on(
+    repository: PostgresActionRepository,
+) -> None:
+    action = _action(depends_on=[])
+    await repository.insert(action)
+
+    fetched = await repository.find_by_id(action.id)
+    assert fetched is not None
+    assert fetched.depends_on == []
+
+
+async def test_insert_round_trips_a_single_dependency(
+    repository: PostgresActionRepository,
+) -> None:
+    dependency = uuid4()
+    action = _action(depends_on=[dependency])
+    await repository.insert(action)
+
+    fetched = await repository.find_by_id(action.id)
+    assert fetched is not None
+    assert fetched.depends_on == [dependency]
+    # Parsed back as real `UUID`s, not the strings the column stores.
+    assert all(isinstance(value, UUID) for value in fetched.depends_on)
+
+
+async def test_insert_round_trips_multiple_dependencies_in_order(
+    repository: PostgresActionRepository,
+) -> None:
+    """`coding-agent`'s own chain is write -> add -> commit, so order is not
+    incidental: a caller reading `depends_on` back must see what it wrote."""
+    dependencies = [uuid4(), uuid4(), uuid4()]
+    action = _action(depends_on=dependencies)
+    await repository.insert(action)
+
+    fetched = await repository.find_by_id(action.id)
+    assert fetched is not None
+    assert fetched.depends_on == dependencies
+
+
+async def test_a_dependent_action_survives_a_full_write_read_lifecycle(
+    repository: PostgresActionRepository,
+) -> None:
+    """The whole `action-engine` pipeline shape for a dependent Action:
+    insert, gate, execute, record -- every step against real Postgres, with
+    `depends_on` intact at the end."""
+    dependencies = [uuid4(), uuid4()]
+    action = _action(
+        action_type="terminal",
+        execution_target="git",
+        depends_on=dependencies,
+        parameters={"operation": "commit", "args": ["-m", "coding-agent: objective"]},
+    )
+    await repository.insert(action)
+
+    await repository.update_status(action.id, status="executing", confidence=1.0)
+    await repository.record_result(action.id, result={"exit_code": 0}, error=None)
+
+    fetched = await repository.find_by_id(action.id)
+    assert fetched is not None
+    assert fetched.depends_on == dependencies
+    assert fetched.status == "executing"
+    assert fetched.confidence == 1.0
+    assert fetched.execution_target == "git"
+    assert fetched.parameters["operation"] == "commit"
+
+    result, error = await repository.get_result(action.id)  # type: ignore[misc]
+    assert result == {"exit_code": 0}
+    assert error is None

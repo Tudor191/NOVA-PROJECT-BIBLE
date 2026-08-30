@@ -1,0 +1,11 @@
+{
+  "name": "@nova/kernel",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "lint": "uv run --package kernel ruff check . && uv run --package kernel mypy src",
+    "test": "uv run --package kernel pytest -m \"not real_infra\" --cov=nova_agent_os_kernel.domain",
+    "build": "echo 'kernel: no build step (container image build deferred until deployment)'",
+    "dev": "uv run --package kernel uvicorn nova_agent_os_kernel.main:app --reload --port 8000"
+  }
+}

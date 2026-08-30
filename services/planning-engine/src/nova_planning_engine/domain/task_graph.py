@@ -11,7 +11,13 @@ Deliberately excludes: deriving `TaskNode`s from a `reasoning.process.completed`
 event (decomposition orchestration -- a later, event-consumption PR's job)
 and mutating a persisted graph in place (the persistence-layer PR's job).
 This module is only concerned with the graph as a structure: is it valid,
-and what is its critical path.
+what is its critical path, and -- since TDD 3E §4 defines `"ready"` purely
+as a property *of the graph* ("for each `TaskNode` with `status="ready"`
+(all `depends_on` complete)") -- which of its nodes that definition admits
+right now (`admit`, `promotable_ids`). Those two are structural queries in
+exactly the same sense `compute_critical_path` is; they decide nothing
+about *when* a transition happens (that is
+`domain/task_completion.py`'s job) and touch no persistence.
 
 Known, accepted limitation: `find_cycle`/`compute_critical_path` use plain
 Python recursion (one stack frame per DFS/longest-path level), matching
@@ -29,12 +35,73 @@ from uuid import UUID
 from nova_planning_engine.domain.models import TaskNode
 
 __all__ = [
+    "admit",
     "compute_critical_path",
+    "dependencies_satisfied",
     "find_cycle",
     "find_dangling_dependencies",
     "find_duplicate_ids",
     "has_cycle",
+    "promotable_ids",
 ]
+
+
+def dependencies_satisfied(node: TaskNode, *, by_id: dict[UUID, TaskNode]) -> bool:
+    """TDD 3E §4:140's own parenthetical definition of `"ready"` -- "all
+    `depends_on` complete" -- evaluated literally against `by_id`.
+
+    A dependency id absent from `by_id` counts as **not** satisfied
+    (fail-closed): a node whose dependency does not exist can never be
+    proven runnable, so it must not be dispatched. In practice this never
+    fires -- `compute_critical_path` rejects a dangling `depends_on`
+    reference before any graph is persisted (`find_dangling_dependencies`)
+    -- but the check is here rather than assumed, so a future caller that
+    skips that validation degrades into "never dispatched" rather than
+    "dispatched against a phantom dependency"."""
+    return all(
+        dep_id in by_id and by_id[dep_id].status == "completed" for dep_id in node.depends_on
+    )
+
+
+def admit(nodes: list[TaskNode]) -> list[TaskNode]:
+    """Graph admission: returns `nodes` with every `"pending"` node whose
+    dependencies are already satisfied re-stamped `"ready"`, every other
+    node returned unchanged (identity, not a copy, when nothing changes).
+
+    This is the step whose absence made the real Reasoning -> Planning ->
+    Kernel path dispatch nothing at all: `TaskNode.status` defaults to
+    `"pending"` (`domain/models.py`), `decompose()` never overrode it, and
+    `agent-os/kernel`'s own Scheduler dispatches **only** `"ready"` nodes --
+    so a structurally perfect, correctly-categorised Task Graph produced
+    zero agent instances. Admission is what makes TDD 3E §4's own
+    precondition reachable.
+
+    Deliberately scoped to `"pending"` nodes: a `"running"`, `"completed"`,
+    or `"failed"` node is never re-admitted, so calling this on an
+    already-live graph (as `append_nodes` does for a mid-flight
+    `planning.decompose.request` mutation) can only ever promote the
+    genuinely new, dependency-free nodes it just added."""
+    by_id = {node.id: node for node in nodes}
+    return [
+        node.model_copy(update={"status": "ready"})
+        if node.status == "pending" and dependencies_satisfied(node, by_id=by_id)
+        else node
+        for node in nodes
+    ]
+
+
+def promotable_ids(nodes: list[TaskNode]) -> list[UUID]:
+    """The ids `admit` would re-stamp `"ready"`, in `nodes` order -- the
+    same predicate expressed as ids rather than rebuilt nodes, for the
+    caller (`domain/task_completion.py`) that has to describe transitions
+    to the repository as `(id, status)` pairs rather than hand it a whole
+    node list."""
+    by_id = {node.id: node for node in nodes}
+    return [
+        node.id
+        for node in nodes
+        if node.status == "pending" and dependencies_satisfied(node, by_id=by_id)
+    ]
 
 
 def find_duplicate_ids(nodes: list[TaskNode]) -> list[UUID]:

@@ -4,23 +4,35 @@ import pytest
 from nova_contracts import RiskLevel
 from nova_planning_engine.domain.models import Estimate, TaskNode
 from nova_planning_engine.domain.task_graph import (
+    admit,
     compute_critical_path,
+    dependencies_satisfied,
     find_cycle,
     find_dangling_dependencies,
     find_duplicate_ids,
     has_cycle,
+    promotable_ids,
 )
 
 
 def _node(
-    objective: str, *, depends_on: list[UUID] | None = None, effort_hours: float = 1.0
+    objective: str,
+    *,
+    depends_on: list[UUID] | None = None,
+    effort_hours: float = 1.0,
+    status: str = "pending",
 ) -> TaskNode:
     return TaskNode(
         objective=objective,
         depends_on=depends_on or [],
         estimated_effort=Estimate(effort_hours=effort_hours, confidence=0.8),
         risk=RiskLevel.LOW,
+        status=status,  # type: ignore[arg-type]
     )
+
+
+def _statuses(nodes: list[TaskNode]) -> dict[str, str]:
+    return {node.objective: node.status for node in nodes}
 
 
 def test_empty_graph_has_no_cycle_and_empty_critical_path() -> None:
@@ -265,3 +277,130 @@ def test_parent_child_relationship_is_expressed_through_depends_on() -> None:
     assert dependent.depends_on == [prerequisite.id]
     assert not hasattr(prerequisite, "children")
     assert not hasattr(prerequisite, "dependents")
+
+
+# --- Admission and promotion (TDD 3E §4:140's own definition of "ready") -----
+#
+# `"ready"` means "all `depends_on` complete". `admit` applies that at graph
+# creation; `promotable_ids` applies it after a completion. Without either,
+# every node produced by `decompose()` stays `"pending"` and the Kernel
+# Scheduler -- which dispatches only `"ready"` nodes -- dispatches nothing.
+
+
+def test_dependencies_satisfied_for_a_dependency_free_node() -> None:
+    node = _node("root")
+    assert dependencies_satisfied(node, by_id={node.id: node}) is True
+
+
+def test_dependencies_satisfied_only_when_every_dependency_is_completed() -> None:
+    done = _node("done", status="completed")
+    running = _node("running", status="running")
+    dependent = _node("dependent", depends_on=[done.id, running.id])
+    by_id = {n.id: n for n in (done, running, dependent)}
+
+    assert dependencies_satisfied(dependent, by_id=by_id) is False
+
+    by_id[running.id] = running.model_copy(update={"status": "completed"})
+    assert dependencies_satisfied(dependent, by_id=by_id) is True
+
+
+def test_a_dangling_dependency_is_never_satisfied() -> None:
+    """Fail-closed: a node whose dependency does not exist can never be
+    proven runnable, so it must not be dispatched."""
+    dependent = _node("dependent", depends_on=[uuid4()])
+    assert dependencies_satisfied(dependent, by_id={dependent.id: dependent}) is False
+
+
+def test_admit_promotes_only_dependency_free_nodes() -> None:
+    root = _node("root")
+    dependent = _node("dependent", depends_on=[root.id])
+    assert _statuses(admit([root, dependent])) == {"root": "ready", "dependent": "pending"}
+
+
+def test_admit_promotes_every_independent_node_in_a_wide_graph() -> None:
+    """Criterion #1's parallelism clause depends on this: a graph with two
+    independent nodes must admit BOTH, or there is never more than one
+    instance to run at a time."""
+    left = _node("left")
+    right = _node("right")
+    joiner = _node("joiner", depends_on=[left.id, right.id])
+    assert _statuses(admit([left, right, joiner])) == {
+        "left": "ready",
+        "right": "ready",
+        "joiner": "pending",
+    }
+
+
+def test_admit_leaves_a_chain_beyond_its_head_pending() -> None:
+    first = _node("first")
+    second = _node("second", depends_on=[first.id])
+    third = _node("third", depends_on=[second.id])
+    assert _statuses(admit([first, second, third])) == {
+        "first": "ready",
+        "second": "pending",
+        "third": "pending",
+    }
+
+
+def test_admit_handles_a_diamond() -> None:
+    root = _node("root")
+    left = _node("left", depends_on=[root.id])
+    right = _node("right", depends_on=[root.id])
+    join = _node("join", depends_on=[left.id, right.id])
+    assert _statuses(admit([root, left, right, join])) == {
+        "root": "ready",
+        "left": "pending",
+        "right": "pending",
+        "join": "pending",
+    }
+
+
+@pytest.mark.parametrize("status", ["ready", "running", "completed", "failed", "blocked"])
+def test_admit_never_touches_a_non_pending_node(status: str) -> None:
+    """Calling `admit` on an already-live graph (as the
+    `planning.decompose.request` mutation path does) must not disturb
+    anything already dispatched or finished."""
+    node = _node("already moved on", status=status)
+    assert _statuses(admit([node])) == {"already moved on": status}
+
+
+def test_admit_on_an_empty_graph_returns_empty() -> None:
+    assert admit([]) == []
+
+
+def test_promotable_ids_agrees_with_admit() -> None:
+    root = _node("root")
+    dependent = _node("dependent", depends_on=[root.id])
+    nodes = [root, dependent]
+
+    promoted = {
+        node.id for node in admit(nodes) if node.status == "ready"
+    }
+    assert set(promotable_ids(nodes)) == promoted
+
+
+def test_promotable_ids_returns_a_dependent_once_its_dependency_completes() -> None:
+    root = _node("root", status="completed")
+    dependent = _node("dependent", depends_on=[root.id])
+    assert promotable_ids([root, dependent]) == [dependent.id]
+
+
+def test_promotable_ids_returns_nothing_while_a_dependency_is_still_running() -> None:
+    root = _node("root", status="running")
+    dependent = _node("dependent", depends_on=[root.id])
+    assert promotable_ids([root, dependent]) == []
+
+
+def test_promotable_ids_returns_nothing_when_a_dependency_failed() -> None:
+    """A dependent of a terminally-failed node is not runnable, and no
+    "skip the failed dependency" recovery path is invented here."""
+    root = _node("root", status="failed")
+    dependent = _node("dependent", depends_on=[root.id])
+    assert promotable_ids([root, dependent]) == []
+
+
+def test_promotable_ids_preserves_node_order() -> None:
+    root = _node("root", status="completed")
+    first = _node("first", depends_on=[root.id])
+    second = _node("second", depends_on=[root.id])
+    assert promotable_ids([root, first, second]) == [first.id, second.id]

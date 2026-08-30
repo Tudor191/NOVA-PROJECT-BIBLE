@@ -15,9 +15,22 @@ __all__ = ["build_adapter_registry"]
 
 
 def build_adapter_registry(
-    *, terminal_timeout_s: float, http_timeout_s: float
+    *,
+    terminal_timeout_s: float,
+    http_timeout_s: float,
+    filesystem_root: str,
+    terminal_path: str,
 ) -> dict[str, AdapterPort]:
-    terminal = TerminalAdapter(timeout_s=terminal_timeout_s)
+    """`filesystem_root` reaches `TerminalAdapter` as its `default_cwd`
+    (TDD 3C §3's "restricted working directory") -- the same
+    `Settings.sandbox_filesystem_root` that `build_builtin_manifests` puts
+    in the `filesystem`/`git` capabilities' `required_resources`, so all
+    three adapters scope to one declared root rather than three
+    independently-configured ones. `GitAdapter` receives the same
+    `TerminalAdapter` instance and therefore the same environment."""
+    terminal = TerminalAdapter(
+        timeout_s=terminal_timeout_s, default_cwd=filesystem_root, path_env=terminal_path
+    )
     return {
         "filesystem": FilesystemAdapter(),
         "terminal": terminal,
