@@ -54,6 +54,52 @@ jobs:
       - name: Test scaffolding tools (tools/scaffold-*.py, not a workspace package)
         run: uv run pytest tools/tests -q
 
+      # Agent Packages are deliberately NOT workspace members -- doc 02
+      # (02-repository-and-folder-structure.md:162-169) is explicit that
+      # `agents/<name>-agent/` is a dynamically loadable Agent Package, not an
+      # instance of the engine template. They have no package.json and no
+      # pyproject.toml, so Turborepo never sees them and the two `turbo run`
+      # steps below do not cover them. Same precedent as tools/tests above:
+      # not a workspace package, so CI runs it separately.
+      #
+      # One process per package is REQUIRED, not a stylistic choice: all five
+      # packages expose a module named `handler` (agents/<id>/src/handler.py),
+      # and their test modules share names (test_handler.py,
+      # test_agent_package.py). A single pytest process collecting all five
+      # fails with 9 collection errors -- `handler` resolves to whichever
+      # agent loaded first, plus "import file mismatch" on the duplicate test
+      # module names. mypy has the identical collision. `ruff check` is static
+      # and needs no isolation, so it runs once over the whole tree.
+      - name: Lint Agent Packages (agents/*, not workspace members)
+        run: uv run ruff check agents/
+
+      - name: Type-check and test every Agent Package (one process each)
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          packages=(agents/*/)
+          if [ ${#packages[@]} -eq 0 ]; then
+            echo "::error::No Agent Packages found under agents/ -- expected five."
+            exit 1
+          fi
+          failed=()
+          for dir in "${packages[@]}"; do
+            name=$(basename "$dir")
+            echo "::group::$name"
+            if ( cd "$dir" && uv run mypy src && uv run pytest tests -q ); then
+              echo "$name: OK"
+            else
+              echo "::error::$name failed mypy or pytest"
+              failed+=("$name")
+            fi
+            echo "::endgroup::"
+          done
+          echo "Checked ${#packages[@]} Agent Package(s)."
+          if [ ${#failed[@]} -ne 0 ]; then
+            echo "::error::Agent Packages failed: ${failed[*]}"
+            exit 1
+          fi
+
       - name: Lint every package
         run: pnpm turbo run lint
 

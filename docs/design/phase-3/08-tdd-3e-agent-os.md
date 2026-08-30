@@ -220,11 +220,26 @@ section names — current load, resource availability, and the Cognitive
 Priority Matrix — were not disclosed anywhere until this note.** Recorded
 here so the gap is visible against the section that actually specifies it.
 
-This narrowing has **not** been ratified by the user; it is carried as an
-open condition in
+**RATIFIED (2026-08-29) — an explicit Phase 3E narrowing, by the user's
+decision in the Gate Review closure pass.** The three-step dispatch loop
+is **approved as Phase 3E's scope**; the existing implementation is
+preserved and the scoring step is **not** built by Phase 3E. The
+four-input scoring design above remains the target architecture — the
+narrowing is to Phase 3's scope, not to the design.
+
+Two facts make this a cheap ratification rather than a concession. First,
+**no acceptance criterion in §14 turns on scoring**, so the gate is not
+weakened. Second, **the inputs do not exist to score with**: `agent_package`
+persists no metrics columns (see
+[`16-3e-hot-load-design-decision.md`](16-3e-hot-load-design-decision.md)
+§5), the Kernel tracks no per-instance load or resource figures, and no
+`executive-cognition-engine` RPC for the Cognitive Priority Matrix is
+defined in any document. Building scoring in Phase 3 would therefore mean
+first inventing three data sources — squarely the kind of architectural
+invention this TDD refuses elsewhere. Re-scoped to the phase that gives
+`AgentMetrics` real persistence. Recorded in
 [`phase-3e-agent-os-gate-review.md`](../../roadmap/architecture-reviews/phase-3e-agent-os-gate-review.md)
-§10 and §11, not treated as approved. No acceptance criterion in §14 turns
-on scoring.
+§2 and §10 (condition C-4, now closed).
 
 **RESOLVED (2026-08-19), additive note — Fork 3E-2.** Approved: the
 proposed `agent_os` Postgres schema, `agent_instance` + `agent_package`
@@ -494,9 +509,66 @@ anywhere:
 
 None of these three gaps affects a §14 acceptance criterion, and none was
 introduced by a later slice reversing an earlier one — they were never
-built. They are carried as open conditions in
+built.
+
+**RATIFIED (2026-08-29) — explicit Phase 3E narrowings, by the user's
+decision in the Gate Review closure pass.** DEV-2
+(`agent.<instance_id>.<state>`), DEV-3 (`agent_os.health.snapshot`) and
+DEV-4 (`planning.decompose.request` never called) are **approved as
+Phase 3E narrowings**. The existing implementation is preserved; the
+deferred functionality is **not** built by Phase 3E. The three subjects
+remain specified by this section and by doc 12 §5/§13 as the target
+architecture — the narrowing is to Phase 3's scope, not to the design.
+
+Consequences recorded so nothing is lost:
+
+- **DEV-2 and DEV-3 are re-scoped to the phase that builds the Agent
+  Activity panel.** That panel
+  ([`03-gateway-web-prerequisite.md`](03-gateway-web-prerequisite.md) §5)
+  is the only named consumer of either subject anywhere in the
+  documentation. Publishing lifecycle events and health snapshots with no
+  subscriber would be exactly the build-ahead-of-its-phase discipline §2
+  of this document already refuses for
+  `agent-os/execution-backends/`. Neither payload exists in
+  `nova-contracts`; adding them is that phase's work, not a debt against
+  this one.
+- **DEV-4 costs nothing to ratify.** `planning.decompose.request` is
+  served, contract-tested and exercised by `planning-engine`'s own tests
+  today. Only the `agent-os`-side *caller* is absent. §12's
+  "already-minimal node" row therefore describes a path that does not
+  execute in Phase 3, and is now read as forward-looking rather than as a
+  description of shipped behaviour.
+- **No acceptance criterion in §14 depends on any of the three**, which is
+  why ratification does not weaken the gate.
+
+**Two further narrowings, ratified in the same pass**, both already
+disclosed in source but absent from the original deviation register:
+
+- **`AgentMessage` mailbox transport.** `agent_os.instance.<id>.inbox` has
+  no subscriber in any component — verified against the real allow-lists,
+  `agent-os/kernel`'s `{"planning.task_graph.created"}` and
+  `agent-os/supervisors`' `{"agent_os.supervisor.restart_plan.request",
+  "agent_os.supervisor.peer_review.request"}`. Phase 3's peer-review round
+  delivers its `AgentMessage` **in-process** via
+  `InprocessExecutionBackend.spawn_and_review()`, which is correct for the
+  only enabled backend per §6 and
+  [`01-tdd-preparation-and-fork-resolutions.md`](01-tdd-preparation-and-fork-resolutions.md)
+  §5.5 Fact 4. Ratified as-is.
+- **`DecisionMemoryPort` is a structured-log stub, not a cross-engine
+  call.** Doc 12 §9's "Recorded to Decision Memory either way" is honoured
+  at the Supervisor's own boundary — every conflict resolution really
+  calls the port — but its default implementation
+  (`agent-os/supervisors/clients/decision_memory_client.py`) writes a
+  structured log line. `memory-engine` exposes **no inbound
+  decision-record RPC or subscription** for another engine to call
+  (verified this pass: it *publishes* `memory.decision.recorded` but
+  subscribes to nothing of the kind), and §10 above names no subject for
+  it either. Ratified as a Phase 3E narrowing; wiring a real
+  `memory-engine` inbound path is that engine's own separate follow-up.
+
+All five narrowings are recorded in
 [`phase-3e-agent-os-gate-review.md`](../../roadmap/architecture-reviews/phase-3e-agent-os-gate-review.md)
-§10/§11 and have **not** been ratified as approved narrowings.
+§2 and §10 (condition C-4, now closed).
 
 **Explicitly not published by any agent or Supervisor directly:**
 `communication.intent.*` — per ADR-005/doc 12 §14, an agent's only
@@ -666,3 +738,43 @@ Plus, specific to this TDD's own additions:
 - Any agent category beyond the five named (Bible Part 04's remaining
   ~19 categories are additive packages, per doc 12 §15's own table).
 - Git/HTTP/marketplace Agent Registry discovery (Phase 8+).
+
+**Added 2026-08-29 (Phase 3E Gate Review closure pass) — `agent-os`
+deployment, explicitly deferred, by the user's decision.**
+
+**No Dockerfile, no `build-and-scan.yml` matrix entry, no
+`docker-compose.local.yml` service, and no deployment architecture is
+introduced for any `agent-os` component by Phase 3E.** The four components
+(`kernel`, `registry`, `supervisors`, `sdk/python`) remain buildable and
+testable as workspace packages but are not containerised, not image-scanned
+by Trivy, and not runnable via the local compose stack. This is a
+**deferred obligation for a future phase**, recorded here rather than
+closed.
+
+**Why it is not required by Phase 3E's acceptance criteria.** Checked
+criterion by criterion against §14, not asserted:
+
+| Criterion | Does it need a deployed `agent-os` container? |
+|---|---|
+| 1 — multi-step objective, ≥2 parallel agents, peer review, passing target-repo suite | **No.** Proven by `agent-os/kernel/tests/integration/test_phase_3e_end_to_end_acceptance.py` and its `real_infra` twin, which stand every component up through its own real `create_app()` in-process. The `inprocess` execution backend — the only backend §2 enables — runs agent instances inside the Kernel process by definition, so a container boundary would add nothing the criterion asks about. |
+| 2 — kill and restart resumes in-flight work | **No.** The restart under test is a `create_app()` lifespan restart, exercising `reconcile_running_instances` and the real `agent_os.task.completed` publish. Container orchestration is a different concern from the reconciliation logic the criterion names. |
+| 3 — hot-load without kernel restart | **No.** The criterion turns on which `agent_package` row a new dispatch pins to, proven against the real selection policy, the real served RPC and real Postgres. Nothing about it is containerisation-dependent. |
+| 4 — `GoalsPort` migration transparent | **No.** A Protocol-and-caller invariant, verified by source inspection and a regression test. |
+| 5 — every manifest validates against `AgentHandler` before registration | **No.** Enforced inside the Registry's own install pipeline. |
+
+**Neither TDD 3E nor doc 12 mentions Dockerfiles for `agent-os` anywhere**
+— §0's scope list, §4's Kernel design and §5's Registry design are all
+silent on packaging and deployment. The assumption that everything
+deployable lives under `services/` is `build-and-scan.yml`'s own matrix
+comment ("One entry per `services/<name>/Dockerfile`"), which predates
+`agent-os/` existing; correcting that assumption is part of the deferred
+work, not of Phase 3E.
+
+**What the deferring phase inherits**, so this is a real obligation and not
+a shrug: four Dockerfiles (or a reasoned decision that `sdk/python` is
+library-shaped and needs none), four `build-and-scan.yml` matrix entries
+plus a matrix comment that no longer says `services/*` only, four
+`docker-compose.local.yml` services, the first Trivy results for any
+`agent-os` image, and updates to
+[`14-deployment-architecture.md`](../../architecture/14-deployment-architecture.md)
+and `infra/docker/README.md`. Tracked as Gate Review condition **C-3**.

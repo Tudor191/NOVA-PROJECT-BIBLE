@@ -49,7 +49,10 @@ backends (`agent-os/execution-backends/` intentionally not created, TDD 3E
 agent categories beyond the five; Git/HTTP/marketplace discovery;
 `packages/nova-auth` (TDD 3E §5 item 5, declared-intent-only).
 
-**Not executed and NOT previously sanctioned** — the four deviations in §2.
+**Not executed and NOT previously sanctioned at the time** — the six
+deviations in §2, **all now ratified as explicit Phase 3E narrowings**
+(closure pass, 2026-08-29). **`agent-os` deployment** is separately
+ratified as a deferred obligation (§10 C-3).
 
 ---
 
@@ -130,6 +133,49 @@ recoverable implementation decisions = **fourteen recorded decisions**. The
 gap is specifically in the D-series numbering, not in the project's
 architectural record as a whole.
 
+### 1.3.1 Closure-pass completeness check (condition C-6)
+
+**Question asked:** do the fourteen form the *complete* recoverable
+architectural decision record for Phase 3E?
+
+**Answer: fourteen was very slightly incomplete, and the correction is
+recorded here rather than absorbed silently.** A systematic re-sweep found
+one further item that belongs in the record and one that does not:
+
+- **Added — doc 15 Item B** (`15-3e-supervisor-reconciliation.md`,
+  "Registry Sandbox Test Run — structural conformance vs. behavioral
+  isolation"). It is a **resolved investigation, not an approved decision**:
+  its own text says "resolved as a documented conclusion; no implementation
+  change required", and it concluded that the shipped implementation already
+  matched the intended scope. It carries a full evidence chain against TDD
+  3E §5 and TDD 3C §3. It is part of the recoverable architectural record
+  and was absent from the count.
+- **Not added — DEV-5/DEV-6** (the mailbox transport and `DecisionMemoryPort`
+  narrowings, §2). Both were *disclosed in source* but neither was a decision
+  anyone took at the time; both became decisions only when ratified in this
+  closure pass, and are recorded as ratifications rather than backdated.
+
+**Revised total: fifteen recorded items** — nine approved architectural
+decisions, one resolved investigation, and five recoverable implementation
+decisions (D5–D9). Plus six narrowings ratified in the closure pass
+(DEV-1…DEV-6), which are decisions of this pass, not recoveries.
+
+**The absence of D1–D4 and D10–D12 is now positively verified**, not merely
+unfound. A second, independent search method (word-boundary context
+extraction, distinct from the pattern grep used originally) across `*.py`,
+`*.md`, `*.yml`, `*.yaml` and `*.toml` over `agent-os/`, `agents/`,
+`services/`, `docs/`, `tools/` and `.github/` returns, in full:
+
+| Token | Hits | What they are |
+|---|---|---|
+| D1, D4, D10, D12 | 2 each | **This Gate Review's own prose and the Project Health record's**, both saying the decisions are unrecoverable. Self-referential. |
+| D3 | 1 | `ENGINEERING_ROADMAP.md:637`, "D3 visualizations" — D3.js. A false positive. |
+| D2, D11 | 0 | Nothing at all. |
+
+**No content for any of the seven was invented, inferred from adjacent
+slices, or reconstructed from what the code happens to do.** If the user
+holds their content, it can be added; the repository does not.
+
 ---
 
 ## 2. Deviation register
@@ -137,12 +183,43 @@ architectural record as a whole.
 Protocol §1.1 classification. Four items; **three were undisclosed until
 this review**, and all four are now disclosed additively in the TDD.
 
+> **Closure-pass update, 2026-08-29 — all four are now RATIFIED as explicit
+> Phase 3E narrowings** by the user's decision, recorded in
+> `08-tdd-3e-agent-os.md` §4 and §10. The existing implementation is
+> preserved and none of the deferred functionality is built. **Condition
+> C-4 is closed.** The table below is unchanged as the record of what was
+> found; the "Approved?" column now reads Yes for all four.
+>
+> **The same pass found two further narrowings that this register originally
+> missed** — both already disclosed in source but absent from §2's list.
+> They are added as DEV-5 and DEV-6 below and ratified alongside the others.
+> Recording that omission rather than quietly folding them in: the original
+> register was incomplete.
+
 | # | Deviation | Class | Disclosed at | Approved? |
 |---|---|---|---|---|
 | DEV-1 | **Kernel Scheduler step (2), scoring, is not implemented.** TDD 3E §4 specifies a four-step loop; `dispatch_task_node` performs registry-query, backend-select and dispatch, with the Registry's own highest-healthy-version policy as the sole selection input. No `AgentMetrics` scoring, no load or resource-availability input, and no call to `executive-cognition-engine` (grep: zero references to `executive`/`arbitrate`/`cognitive_priority` under `agent-os/kernel/src/`). | **Partially disclosed drift** — `16-3e-hot-load-design-decision.md` §5 disclosed the `AgentMetrics` half against doc 12 §6; the load / resource / Cognitive-Priority-Matrix inputs TDD 3E §4 names were undisclosed. | TDD 3E §4 (new note, this review) | **No** — condition C-4 |
 | DEV-2 | **`agent.<instance_id>.<state>` lifecycle events are not published.** TDD 3E §10 lists them under "Published"; doc 12 §5 specifies them. No payload in `nova-contracts`, no entry in any `PUBLISHABLE_SUBJECTS`, no publisher. Instance state lives only in `agent_os.agent_instance.status`. | **Undisclosed drift** | TDD 3E §10 + doc 12 §15 (new notes, this review) | **No** — condition C-4 |
 | DEV-3 | **`agent_os.health.snapshot` is not published and has no contract.** TDD 3E §10 lists it under "Published" and §6 states the payload "also lives in `events/agent_os.py`". It does not. Nothing aggregates health. | **Undisclosed drift** | TDD 3E §10 + doc 12 §15 (new notes, this review) | **No** — condition C-4 |
 | DEV-4 | **`planning.decompose.request` is never called by any `agent-os` component.** TDD 3E §10 says "this TDD is the RPC's first real caller"; it is not. §12's already-minimal-node row therefore describes an unexecuted path. The RPC itself is served and tested by `planning-engine`. | **Undisclosed drift** | TDD 3E §10 (new note, this review) | **No** — condition C-4 |
+
+| # | Deviation | Class | Disclosed at | Approved? |
+|---|---|---|---|---|
+| **DEV-5** | **`AgentMessage` mailbox transport is in-process, not over the bus.** Nothing subscribes to `agent_os.instance.*.inbox` — verified against the two real allow-lists, not their docstrings: `agent-os/kernel`'s is `{"planning.task_graph.created"}` and `agent-os/supervisors`' is `{"agent_os.supervisor.restart_plan.request", "agent_os.supervisor.peer_review.request"}`. The peer-review round delivers its `AgentMessage` through `InprocessExecutionBackend.spawn_and_review()` calling `on_message()` directly. | **Disclosed narrowing** — correct for the only enabled backend per TDD 3E §6 and `01-tdd-preparation…` §5.5 Fact 4 | `supervisors/events/published.py` and `domain/ports.py` docstrings; now TDD 3E §10 | **Yes — ratified** |
+| **DEV-6** | **`DecisionMemoryPort` is a structured-log stub, not a cross-engine call.** Doc 12 §9's "Recorded to Decision Memory either way" is honoured at the Supervisor's boundary (every conflict resolution really calls the port), but the default implementation writes a log line. `memory-engine` exposes **no inbound decision-record RPC or subscription** — verified this pass: it *publishes* `memory.decision.recorded` and subscribes to nothing of the kind. | **Disclosed narrowing** | `supervisors/domain/ports.py` and `clients/decision_memory_client.py` docstrings; now TDD 3E §10 | **Yes — ratified** |
+
+**A stale source docstring found and corrected in the closure pass**
+(protocol §1.1/§1.3 — citations inside source are documentation, and one
+that inspection proves false must be corrected).
+`agent-os/supervisors/domain/ports.py`'s `AgentInstancePort` paragraph
+justified the mailbox gap by asserting that "`agent-os/kernel`'s own
+Milestone 2 shipped health-only, with an empty `SUBSCRIBABLE_SUBJECTS` (no
+Scheduler, no `inprocess` execution backend)". **That reason is now false** —
+`domain/scheduler.py` and `domain/execution_backend.py` both exist and the
+Kernel's set is `{"planning.task_graph.created"}`. Its *conclusion* remains
+true for a narrower reason (no component subscribes to the mailbox subject),
+which is what the added dated correction now says. Comment-only change; no
+behaviour altered.
 
 **Already-disclosed narrowings, re-verified and unchanged** (not deviations):
 `outcome="failure"` as terminal (`17-3e-task-node-lifecycle.md`);
@@ -288,6 +365,32 @@ research-agent:      11 passed                       (73 total)
 Their `src/handler.py` files are also not linted and not type-checked.
 **Open condition C-2.**
 
+> **Closure-pass update, 2026-08-29 — C-2 is closed.** Two steps were added
+> to `.github/workflows/pr-checks.yml`, immediately after the existing
+> `tools/tests` step (the same "not a workspace package, so CI runs it
+> separately" precedent):
+>
+> 1. `uv run ruff check agents/` — one static pass over the whole tree.
+> 2. A loop running `uv run mypy src && uv run pytest tests` **inside each
+>    `agents/*/`**, collecting failures and reporting every failing package
+>    rather than stopping at the first.
+>
+> **Why a loop and not one invocation:** all five packages expose a module
+> named `handler` (`agents/<id>/src/handler.py`) and their test modules share
+> names (`test_handler.py`, `test_agent_package.py`). A single pytest process
+> collecting all five fails with **9 collection errors** — `handler` resolves
+> to whichever agent loaded first (observed: `coding-agent`'s test importing
+> `architect-agent`'s `handler`), plus `import file mismatch` on the
+> duplicate test-module names. mypy collides identically. Per-package
+> isolation is inherent to the Agent Package architecture, not a workaround.
+>
+> **Nothing about the agents changed.** No `package.json`, no
+> `pyproject.toml`, no `conftest.py`, no `sys.path` change, no rename. They
+> remain non-workspace-members exactly as doc 02 `:162-169` requires.
+>
+> Verified locally: **5/5 packages, 73 tests, ruff clean, mypy clean, exit
+> 0.** Negative controls in §6.2 (NC-D/E/F).
+
 ### 6.2 Negative controls (protocol §9.2)
 
 Every property-asserting test added by Phase 3E was proven to fail when its
@@ -302,6 +405,14 @@ property was removed:
 | D9 configurable PATH | Restore the hardcoded `/usr/bin:/bin` | 2 tests fail |
 | D-1 fix (reasoning persistence order) | Revert `_resolve_reactive` | 6 unit + 5 of 6 real-Postgres tests fail; the sixth *asserts* the broken behaviour and correctly still passes |
 | D-2 fix (`depends_on` JSONB) | Revert `str()`/`UUID()` pair | 3 of 4 new tests fail; the empty-`depends_on` case correctly still passes — which is exactly why it never caught this |
+| **NC-D** — the new `agents/*` CI step catches a failing test | Append `assert False` to `agents/qa-agent/tests/test_handler.py` | **exit 1**, `::error::qa-agent failed mypy or pytest`, `1 failed, 14 passed`. Restored → green. |
+| **NC-E** — it catches a type error | Append a `-> int` function returning `"not an int"` to `agents/research-agent/src/handler.py` | **exit 1**, `src/handler.py:221: error: Incompatible return value type (got "str", expected "int")`, `::error::research-agent failed`. Restored → green. |
+| **NC-F** — it catches a lint error | Append an unused `import os` to `agents/architect-agent/src/handler.py` | **exit 1** from `uv run ruff check agents/`, `Found 2 errors`. Restored → `All checks passed!` |
+
+NC-D and NC-E also confirm the loop's *reporting* behaviour: it checks all
+five packages and fails at the end naming the broken one, rather than
+aborting at the first failure — so a reviewer sees every failing agent in
+one run.
 
 **One candidate control was rejected rather than reported.** Removing the
 `qa` node's dependency in the E2E does not reliably fail: pytest interpreter
@@ -395,9 +506,15 @@ runs (#69, #70, both `success`) were scheduled runs against `main` at
    bounded retry first.
 7. **Registry uninstall does not exist.** An old version's row is
    structurally permanent in Phase 3 (doc 16 §5).
-8. **The four DEV items in §2** — scoring, lifecycle events, health
-   snapshot, `planning.decompose.request` — are limitations that were not
-   sanctioned in advance.
+8. **The six DEV items in §2** — scoring, lifecycle events, health
+   snapshot, `planning.decompose.request`, in-process mailbox transport,
+   and the `DecisionMemoryPort` log stub. Four were not sanctioned in
+   advance; **all six are now ratified as explicit Phase 3E narrowings**
+   (closure pass, 2026-08-29 — §10 C-4).
+9. **`agent-os` is not deployable** — no Dockerfile, no image scan, no
+   compose service. **Ratified as a deferred deployment obligation**
+   (§10 C-3, `08-tdd-3e-agent-os.md` §15), with a criterion-by-criterion
+   demonstration that no §14 acceptance criterion requires it.
 
 ---
 
@@ -447,19 +564,20 @@ commit → read from `git log`/`git show`, never from the agent's own report.
 
 Each has an owner and a specific discharging event.
 
-| # | Condition | Discharged by |
-|---|---|---|
-| **C-1** | **No GitHub Actions run has ever executed against any Phase 3E commit.** All three workflows trigger on `pull_request` or `push` to `main`; the branch has neither. Every result in §6 and §7 is local. | Opening the PR and observing `pr-checks`, `build-and-scan` and `real-infra-checks` green against `60934ac` (or its successor). **The user has instructed that no PR be opened yet, so this condition is deliberately open.** |
-| **C-2** | **`agents/*` are in no CI gate.** 73 passing tests and 5 `handler.py` files are unlinted, untyped and untested by CI. | A decision on how Agent Packages enter CI (§11 item 2), then the wiring. |
-| **C-3** | **`agent-os/*` has no Dockerfile and appears in neither `build-and-scan.yml` (14 `services/*` entries) nor `docker-compose.local.yml`.** Four components cannot be built, scanned, or run as containers. No Trivy result exists for any of them. | A decision on `agent-os` deployment shape (§11 item 3), then the wiring. |
-| **C-4** | **Four TDD deviations (§2 DEV-1…DEV-4) are now disclosed but not ratified.** | The user either accepting them as narrowings (recorded in TDD 3E) or directing that they be built. |
-| **C-5** | **The `~30,000 Production SLOC` milestone is crossed** (§12). Protocol §3.1 makes this a reminder, not a pause. | The user deciding whether to schedule a Project Health Review. |
-| **C-6** | **D1–D4 and D10–D12 are unrecoverable** (§1.3). | The user supplying their content, or confirming that the nine documented decisions plus the five recoverable D-items are the complete record. |
+**Closure pass, 2026-08-29: five of the six are now closed. C-1 alone
+remains open.**
 
-**None of these is an unmet acceptance criterion**, which is what protocol
-§3.2 forbids CONDITIONAL-GO from covering. C-1 is the standard condition
-this project's environment produces; C-2 through C-6 are gaps this review
-found and is reporting rather than closing.
+| # | Condition | Status | Evidence / discharge |
+|---|---|---|---|
+| **C-1** | **No GitHub Actions run has ever executed against any Phase 3E commit.** All three workflows trigger on `pull_request` or `push` to `main`; the branch has neither. Every result in §6 and §7 is local. | **OPEN** | Discharged only by opening the PR and observing `pr-checks`, `build-and-scan` and `real-infra-checks` against the head SHA. **The user has instructed that no PR be opened yet, so this condition is deliberately open and is the sole remaining barrier to GO.** |
+| **C-2** | **`agents/*` were in no CI gate.** 73 tests and 5 `handler.py` files unlinted, untyped, untested by CI. | **CLOSED** | Two steps added to `.github/workflows/pr-checks.yml`: `uv run ruff check agents/` (one static pass, no isolation needed), and a per-package loop running `uv run mypy src && uv run pytest tests` inside each `agents/*/`. **One process per package is required, not stylistic** — all five expose a module named `handler` and share test-module names, so a single pytest process fails with 9 collection errors and mypy collides identically. No `package.json`, no `pyproject.toml`, no `conftest.py`, no rename: the Agent Package architecture (doc 02 `:162-169`) is untouched and they remain non-workspace-members. Verified locally: 5/5 packages, 73 tests, exit 0. Negative-controlled three ways (§6.2). |
+| **C-3** | **`agent-os/*` has no Dockerfile and appears in neither `build-and-scan.yml` nor `docker-compose.local.yml`.** | **CLOSED as a ratified deferred obligation** | By the user's decision, **no Dockerfile, matrix entry, compose service or deployment architecture is introduced by Phase 3E.** Recorded in `08-tdd-3e-agent-os.md` §15 with a criterion-by-criterion demonstration that **none of §14's five acceptance criteria requires a deployed container** — the `inprocess` backend runs agent instances inside the Kernel process by definition, so a container boundary would add nothing any criterion asks about. Neither TDD 3E nor doc 12 mentions Dockerfiles for `agent-os` anywhere. The deferring phase's inherited work list is enumerated there. |
+| **C-4** | **Four TDD deviations (DEV-1…DEV-4) disclosed but not ratified.** | **CLOSED** | All four **ratified as explicit Phase 3E narrowings** by the user's decision, recorded in `08-tdd-3e-agent-os.md` §4 and §10. Implementation preserved; deferred functionality not built. The closure pass additionally found and ratified **DEV-5 and DEV-6**, which the original register missed (§2). |
+| **C-5** | **The ~30,000 Production SLOC milestone is crossed** (§12). | **CLOSED — review conducted** | [`project-health-review-2026-08-29.md`](project-health-review-2026-08-29.md), addressing all twelve Engineering Review Milestone items. Verdict **HEALTHY**; four findings, none blocking Phase 3E, three of them pre-existing. **It does not discharge the 50,000 SLOC gate** — three of the twelve items are Limited for want of a runtime environment, and that review says so explicitly in its §0. |
+| **C-6** | **D1–D4 and D10–D12 are unrecoverable** (§1.3). | **CLOSED as verified-absent** | Re-searched by a second, independent method in the closure pass (word-boundary context extraction across `*.py`/`*.md`/`*.yml`/`*.yaml`/`*.toml` over `agent-os/`, `agents/`, `services/`, `docs/`, `tools/`, `.github/`). **Every hit for D1, D4, D10 and D12 is this Gate Review's own prose saying they are unrecoverable; D3's single hit is "D3 visualizations" in the roadmap, i.e. D3.js; D2 and D11 have zero hits.** The absence is now confirmed, not merely unfound. **Nothing was invented or reconstructed.** §1.3 additionally now records the completeness finding for the recoverable set. |
+
+**None of these was an unmet acceptance criterion**, which is what protocol
+§3.2 forbids CONDITIONAL-GO from covering.
 
 ---
 
@@ -640,7 +758,7 @@ clean across 26 packages · ruff clean · 7/7 import contracts kept.
 
 | # | Item | Status |
 |---|---|---|
-| 1 | Implementation matches the approved design | **Partial** — nine approved decisions all verified implemented; four TDD deviations found, disclosed, unratified (§2) |
+| 1 | Implementation matches the approved design | **Yes** (closure pass) — nine approved decisions all verified implemented; six TDD deviations found, disclosed, and **all ratified** as Phase 3E narrowings (§2, §10 C-4) |
 | 2 | All acceptance criteria verified with evidence | **Yes** — §9, 3 Met + 2 Met-with-narrowing, every row citing a test |
 | 3 | Full local verification suite green | **Yes** — §6, uncached, real counts |
 | 4 | Coverage gate met per package | **Yes** — §6, every affected package ≥94%, gate 85% |
@@ -649,7 +767,7 @@ clean across 26 packages · ruff clean · 7/7 import contracts kept.
 | 7 | Documentation synchronised | **Yes** — §14 |
 | 8 | Gate Review written | **Yes** — this document |
 | 9 | Project Health record written | **Yes** — `docs/project-health/phase-3e.md` |
-| 10 | CI green against the head SHA | **NO** — no CI run exists. Condition **C-1**. |
+| 10 | CI green against the head SHA | **NO** — no CI run exists. Condition **C-1**, the sole remaining barrier to GO. |
 
 ---
 
@@ -666,6 +784,17 @@ clean across 26 packages · ruff clean · 7/7 import contracts kept.
 | `docs/project-health/phase-3e.md` | **Created** — 23-field record |
 | `docs/project-health/project-health-master.md` | Phase 3E row added |
 | `docs/roadmap/architecture-reviews/phase-3e-agent-os-gate-review.md` | This document |
+
+**Closure pass, 2026-08-29 — six further files:**
+
+| File | Change |
+|---|---|
+| `.github/workflows/pr-checks.yml` | **C-2 closed** — two steps added: `ruff check agents/`, and a per-package `mypy src && pytest tests` loop over `agents/*/`. The only non-documentation change in the closure pass. |
+| `agent-os/supervisors/src/nova_agent_os_supervisors/domain/ports.py` | Dated correction to `AgentInstancePort`'s docstring — its stated reason (Kernel is health-only) is false; its conclusion holds for a narrower reason. Comment-only. |
+| `docs/design/phase-3/08-tdd-3e-agent-os.md` | **C-3 and C-4 closed** — §4 and §10 ratification notes for all six narrowings; §15 deferred-deployment record with the criterion-by-criterion justification |
+| `docs/roadmap/architecture-reviews/project-health-review-2026-08-29.md` | **Created — C-5 closed.** The ~30k Project Health Review, all twelve Engineering Review Milestone items |
+| `docs/project-health/phase-3e.md` | Fields 7, 15, 17, 18, 20, 21, 23 updated for the closure |
+| `docs/project-health/project-health-master.md` | Phase 3E row updated; Project Health Review indexed |
 
 **Inspected and found already accurate** (evidence the sweep was real, not
 selective): `docs/architecture/{00,02,07,09,10,11,15,16,17,20}` — none
@@ -691,14 +820,28 @@ pass against a real PostgreSQL 16.13; and the acceptance objective — a real
 multi-agent coding task ending in a real git commit and a passing test suite
 in the target repository — genuinely executes end to end on the real path.
 
-It is **not GO** because six conditions in §10 are open, of which two are
-structural: **no CI has ever run against this code** (C-1), and **four TDD
-deviations are disclosed but unratified** (C-4). Protocol §3.2's GO
-criteria 7 and 2 are therefore both unmet.
+**Closure pass, 2026-08-29 — five of the six conditions are now closed;
+the verdict remains CONDITIONAL-GO on the strength of one.**
 
-**This is not a Go-with-caveats.** Discharging C-1 requires opening the PR,
-which the user has explicitly deferred; discharging C-4 requires a decision
-only the user can make.
+It is **not GO** for exactly one reason: **no GitHub Actions run has ever
+executed against any Phase 3E commit** (C-1). Protocol §3.2's GO criterion
+7 — "Real GitHub Actions CI green against the exact head SHA" — is
+therefore unmet, and it is unmeetable without opening the PR, which the
+user has explicitly deferred.
+
+Criterion 2 ("no undisclosed deviation") **is now met**: all six deviations
+are disclosed and ratified (§2, §10 C-4). Criteria 1, 3, 4, 5, 6, 8, 9 and
+10 were already met. Criterion 11 ("no open item in category 13 requires a
+user decision") is met for everything except the PR decision itself.
+
+**So the honest statement is narrow: Phase 3E is complete and verified to
+the limit of what can be verified without CI, and CI is the only thing
+left.** Every other condition this review raised has been closed with
+evidence — the `agents/*` CI gap is wired and negative-controlled, the
+`agent-os` deployment obligation is ratified as deferred with a
+criterion-by-criterion justification, the six narrowings are ratified, the
+Project Health Review is conducted, and the unrecoverable decisions are
+positively verified absent rather than invented.
 
 **Completing this Gate Review is not authorization to begin Phase 4**, and
 is not authorization to open the Phase 3E PR. Both are separate decisions,
@@ -706,7 +849,7 @@ and both are the user's.
 
 ---
 
-**Reviewed:** 2026-08-29 · **Branch:** `phase-3e-agent-os` ·
+**Reviewed:** 2026-08-29 · **Closure pass:** 2026-08-29 · **Branch:** `phase-3e-agent-os` ·
 **Verified code SHA:** `60934ac07166acd3635e3bf33dee9462d97f8a04` ·
 **Branch head after this docs-only commit:** `90954aa` ·
 **Working tree:** clean · **PR:** none · **CI:** none

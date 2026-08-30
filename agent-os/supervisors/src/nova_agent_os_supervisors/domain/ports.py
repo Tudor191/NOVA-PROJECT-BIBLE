@@ -17,7 +17,32 @@ caller/callee yet" idiom this project already uses for
 `agent_os.task.completed`'s own consumer gap, `GoalsPort`, and
 `DigitalTwinPort`), but it cannot be exercised end-to-end until Kernel's
 own Scheduler/`inprocess` backend exist -- a disclosed, out-of-scope-this-
-milestone gap, not a silently invented one. Every domain module that
+milestone gap, not a silently invented one.
+
+**Correction to the paragraph above, 2026-08-29 (Phase 3E Gate Review
+closure pass).** Its *conclusion* still holds; its *stated reason* is now
+false and is corrected here rather than left to mislead. The Kernel is no
+longer health-only: `domain/scheduler.py` and
+`domain/execution_backend.py` both exist, and `events/subscribed.py`'s
+`SUBSCRIBABLE_SUBJECTS` is `{"planning.task_graph.created"}`, not empty
+(both re-verified by direct read this pass). Live agent instances **do**
+exist. What remains true is the narrower fact that matters here: **no
+component anywhere subscribes to `agent_os.instance.*.inbox`.** Verified
+against the two real allow-lists, not their docstrings --
+`agent-os/kernel`'s set is `{"planning.task_graph.created"}` and
+`agent-os/supervisors`' is `{"agent_os.supervisor.restart_plan.request",
+"agent_os.supervisor.peer_review.request"}`. The Phase 3 peer-review round
+delivers its `AgentMessage` **in-process**, through
+`InprocessExecutionBackend.spawn_and_review()` calling the reviewer
+Handler's `on_message()` directly -- correct for the only enabled backend,
+per TDD 3E §6 and `01-tdd-preparation-and-fork-resolutions.md` §5.5 Fact 4,
+which establish that `inprocess` passes these objects live rather than
+serialized. So the Protocol is still "real code, no real callee yet", but
+because the mailbox subject has no subscriber, not because the Kernel is
+unbuilt. Recorded as a ratified Phase 3E narrowing in
+`docs/design/phase-3/08-tdd-3e-agent-os.md` §10.
+
+Every domain module that
 depends on this Protocol is fully tested today against `FakeAgentInstancePort`.
 
 **`DecisionMemoryPort`, disclosed.** `memory-engine`'s own Decision Memory
