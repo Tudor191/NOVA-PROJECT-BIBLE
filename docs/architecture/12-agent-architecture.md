@@ -423,7 +423,8 @@ must support hundreds of agents without redesign" are both visibly true at once:
 
 **Implementation status, 2026-08-29 (Phase 3E Gate Review).** Every row of
 the "Phase 3 (v1)" column above is now built, on the unmerged branch
-`phase-3e-agent-os` (head `60934ac`); the "already designed for" column is
+`phase-3e-agent-os` (last production-source commit `60934ac`); the
+"already designed for" column is
 unchanged and still describes future phases. Verified against the source
 this pass, not assumed:
 

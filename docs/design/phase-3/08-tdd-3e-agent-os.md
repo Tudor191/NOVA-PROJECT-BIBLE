@@ -9,7 +9,7 @@ production code authorized.**
 > banner above is preserved as originally written; "no production code
 > authorized" describes the state on 2026-08-19 and is no longer current.
 > Phase 3E was subsequently implemented on branch `phase-3e-agent-os`
-> (head `60934ac`, unmerged, no PR, no CI run). Gate verdict:
+> (last production-source commit `60934ac`, unmerged, no PR, no CI run). Gate verdict:
 > **CONDITIONAL-GO** — see
 > [`phase-3e-agent-os-gate-review.md`](../../roadmap/architecture-reviews/phase-3e-agent-os-gate-review.md).
 > Three sections carry implementation-deviation notes added by that

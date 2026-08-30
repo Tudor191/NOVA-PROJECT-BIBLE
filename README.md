@@ -55,7 +55,8 @@ docker compose -f infra/docker/docker-compose.local.yml up -d   # full local sta
 
 **Phases 0 through 3D are implemented and merged. Phase 3E
 (`agent-os` + the five Agent Packages + the `engineering` Supervisor) is
-implemented on branch `phase-3e-agent-os` (head `60934ac`) but is not
+implemented on branch `phase-3e-agent-os` (last production-source commit
+`60934ac`) but is not
 merged, has no open PR, and has had no GitHub Actions run — its Gate
 Review verdict is CONDITIONAL-GO, not Go.** `nova-core` boots through its
 full 7-phase sequence, exposes `/internal/health`, `/internal/readiness`, and

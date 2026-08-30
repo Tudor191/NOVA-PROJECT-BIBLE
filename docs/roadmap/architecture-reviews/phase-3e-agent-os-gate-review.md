@@ -1,18 +1,22 @@
 # Phase 3E — `agent-os`: Gate Review
 
 **Status: COMPLETE. Verdict: CONDITIONAL-GO (2026-08-29).**
-Branch `phase-3e-agent-os`. **Last code commit —
-`60934ac07166acd3635e3bf33dee9462d97f8a04` — is the SHA every verification
-figure below was produced against**, per
+Branch `phase-3e-agent-os`.
+**`60934ac07166acd3635e3bf33dee9462d97f8a04` is the last commit to change
+production source logic.** Every commit after it changes only documentation,
+one CI workflow (`pr-checks.yml`, a test gate — no production behaviour), and
+one source *docstring*. **This document deliberately does not name a branch
+head**, because each documentation commit would falsify it — that exact drift
+was found and corrected during the pre-PR audit. Use `git rev-parse HEAD` for
+the current head; use `60934ac` for "the code this review verified".
+
+Every verification figure below was produced by a command run against the
+working tree, per
 [`PROJECT_PHASE_COMPLETION_PROTOCOL.md`](../../PROJECT_PHASE_COMPLETION_PROTOCOL.md)
-§0.3.1. This document and the eight other files listed in §14 landed
-immediately after it as `90954aa`, a **documentation-only** commit — no
-production code, schema, contract, migration or configuration change (`git
-status --porcelain` over the change touches only `docs/` and `README.md`).
-`90954aa` is therefore the branch head; `60934ac` remains the verified code
-state, and the two are identical in every non-documentation path. Working
-tree clean, nothing unpushed, **no PR open, and no GitHub Actions run has
-ever executed against any Phase 3E commit.**
+§0.3.1, and the **full uncached suite was re-run at the then-current head in
+the pre-PR audit (2026-08-29) with identical results** — 52/52 tasks, 1,646
+passed, 104 deselected. Working tree clean, nothing unpushed, **no PR open,
+and no GitHub Actions run has ever executed against any Phase 3E commit.**
 
 > **Document history.** From 2026-08-20 to 2026-08-29 this file was an
 > explicitly-marked placeholder ("structure only — not yet applicable",
@@ -849,7 +853,8 @@ and both are the user's.
 
 ---
 
-**Reviewed:** 2026-08-29 · **Closure pass:** 2026-08-29 · **Branch:** `phase-3e-agent-os` ·
-**Verified code SHA:** `60934ac07166acd3635e3bf33dee9462d97f8a04` ·
-**Branch head after this docs-only commit:** `90954aa` ·
+**Reviewed:** 2026-08-29 · **Closure pass:** 2026-08-29 ·
+**Pre-PR audit:** 2026-08-29 · **Branch:** `phase-3e-agent-os` ·
+**Last production-source commit:** `60934ac07166acd3635e3bf33dee9462d97f8a04` ·
+**Branch head:** not named here by design (see §0) ·
 **Working tree:** clean · **PR:** none · **CI:** none
