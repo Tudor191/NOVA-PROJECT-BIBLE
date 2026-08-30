@@ -1,7 +1,23 @@
 # Phase 3E — `agent-os`: Gate Review
 
-**Status: COMPLETE. Verdict: CONDITIONAL-GO (2026-08-29).**
+**Status: COMPLETE. Verdict: GO (2026-08-30).**
 Branch `phase-3e-agent-os`.
+
+> **Verdict change, 2026-08-30 — CONDITIONAL-GO → GO, on one new fact and
+> nothing else.** This review was issued CONDITIONAL-GO on 2026-08-29 for
+> exactly one reason: C-1, no GitHub Actions run had ever executed against
+> any Phase 3E commit. PR #20 was opened on 2026-08-30 and CI ran against
+> head SHA `733a31d58eb1f0f5a0f3b5670d13de9975e5dedf`. **All 27 Check Runs
+> succeeded.** C-1 is discharged (§10), the verdict is now GO (§15), and the
+> real-infrastructure limitation §7 recorded is now partly retired (§7.1).
+>
+> **Nothing else changed.** The 2026-08-29 findings stand as written — the
+> six ratified deviations DEV-1…DEV-6, the two narrowed acceptance criteria
+> (#2 and #3), the nine known limitations in §8, the deferred obligations,
+> and the unrecoverable decisions D1–D4/D10–D12 are all unaltered. **GO is
+> not a claim that those limitations were resolved; it is a claim that the
+> conditions this review attached are now all discharged.** Phase 3E is
+> still **not merged**: PR #20 is open.
 **`60934ac07166acd3635e3bf33dee9462d97f8a04` is the last commit to change
 production source logic.** Every commit after it changes only documentation,
 one CI workflow (`pr-checks.yml`, a test gate — no production behaviour), and
@@ -483,6 +499,34 @@ against any Phase 3E commit**, because it triggers only on `pull_request`,
 runs (#69, #70, both `success`) were scheduled runs against `main` at
 `fe5a5b8`, which contains no Phase 3E code.
 
+### 7.1 Superseded, 2026-08-30 — the testcontainers path has now run
+
+**The paragraph immediately above is retained as the record of what was true
+on 2026-08-29. It is no longer true.** PR #20 opened on 2026-08-30 and
+`real-infra-checks.yml` executed against Phase 3E head SHA
+`733a31d58eb1f0f5a0f3b5670d13de9975e5dedf`.
+
+**Run [33305319396](https://github.com/Tudor191/NOVA-PROJECT-BIBLE/actions/runs/33305319396)
+— `completed` / `success`, all 11 matrix jobs.** Both `agent-os` entries and
+the `reasoning-engine` entry this phase added are among them:
+
+| Matrix job | Conclusion |
+|---|---|
+| `real-infra (kernel, agent-os/kernel)` | **success** |
+| `real-infra (registry, agent-os/registry)` | **success** |
+| `real-infra (reasoning-engine, services/reasoning-engine)` | **success** — the entry this phase added |
+| `real-infra (planning-engine, …)` · `(action-engine, …)` · `(capability-engine, …)` · `(communication-engine, …)` · `(personality-engine, …)` · `(perception-engine, …)` · `(digital-twin-engine, …)` · `(nova-testkit, …)` | **success** (8 further jobs) |
+
+So the specific gap this section disclosed — *"produced against a
+locally-installed PostgreSQL, not against the testcontainers path CI uses"* —
+**is now closed for the CI dimension**: the same suites have since run on the
+real testcontainers path on GitHub-hosted runners and passed.
+
+**What this does not retire:** Docker remains unavailable in the development
+environment, so local verification still cannot use testcontainers, and the
+`nova-testkit` fixture tests were still not exercised locally. Both statements
+above stand.
+
 ---
 
 ## 8. Known limitations
@@ -564,16 +608,19 @@ commit → read from `git log`/`git show`, never from the agent's own report.
 
 ---
 
-## 10. Conditions attached to this CONDITIONAL-GO
+## 10. Conditions attached to the original CONDITIONAL-GO
 
 Each has an owner and a specific discharging event.
 
-**Closure pass, 2026-08-29: five of the six are now closed. C-1 alone
-remains open.**
+**Closure pass, 2026-08-29: five of the six were closed. C-1 alone remained
+open.**
+
+**CI pass, 2026-08-30: C-1 is now discharged. All six conditions are closed,
+which is what converts the verdict to GO (§15).**
 
 | # | Condition | Status | Evidence / discharge |
 |---|---|---|---|
-| **C-1** | **No GitHub Actions run has ever executed against any Phase 3E commit.** All three workflows trigger on `pull_request` or `push` to `main`; the branch has neither. Every result in §6 and §7 is local. | **OPEN** | Discharged only by opening the PR and observing `pr-checks`, `build-and-scan` and `real-infra-checks` against the head SHA. **The user has instructed that no PR be opened yet, so this condition is deliberately open and is the sole remaining barrier to GO.** |
+| **C-1** | **No GitHub Actions run has ever executed against any Phase 3E commit.** All three workflows trigger on `pull_request` or `push` to `main`; the branch had neither. Every result in §6 and §7 was local. | **CLOSED — discharged 2026-08-30** | PR #20 opened against `phase-3b-planning-domain`; all three workflows ran against head SHA `733a31d58eb1f0f5a0f3b5670d13de9975e5dedf`. Full evidence in §10.1 below. |
 | **C-2** | **`agents/*` were in no CI gate.** 73 tests and 5 `handler.py` files unlinted, untyped, untested by CI. | **CLOSED** | Two steps added to `.github/workflows/pr-checks.yml`: `uv run ruff check agents/` (one static pass, no isolation needed), and a per-package loop running `uv run mypy src && uv run pytest tests` inside each `agents/*/`. **One process per package is required, not stylistic** — all five expose a module named `handler` and share test-module names, so a single pytest process fails with 9 collection errors and mypy collides identically. No `package.json`, no `pyproject.toml`, no `conftest.py`, no rename: the Agent Package architecture (doc 02 `:162-169`) is untouched and they remain non-workspace-members. Verified locally: 5/5 packages, 73 tests, exit 0. Negative-controlled three ways (§6.2). |
 | **C-3** | **`agent-os/*` has no Dockerfile and appears in neither `build-and-scan.yml` nor `docker-compose.local.yml`.** | **CLOSED as a ratified deferred obligation** | By the user's decision, **no Dockerfile, matrix entry, compose service or deployment architecture is introduced by Phase 3E.** Recorded in `08-tdd-3e-agent-os.md` §15 with a criterion-by-criterion demonstration that **none of §14's five acceptance criteria requires a deployed container** — the `inprocess` backend runs agent instances inside the Kernel process by definition, so a container boundary would add nothing any criterion asks about. Neither TDD 3E nor doc 12 mentions Dockerfiles for `agent-os` anywhere. The deferring phase's inherited work list is enumerated there. |
 | **C-4** | **Four TDD deviations (DEV-1…DEV-4) disclosed but not ratified.** | **CLOSED** | All four **ratified as explicit Phase 3E narrowings** by the user's decision, recorded in `08-tdd-3e-agent-os.md` §4 and §10. Implementation preserved; deferred functionality not built. The closure pass additionally found and ratified **DEV-5 and DEV-6**, which the original register missed (§2). |
@@ -582,6 +629,44 @@ remains open.**
 
 **None of these was an unmet acceptance criterion**, which is what protocol
 §3.2 forbids CONDITIONAL-GO from covering.
+
+### 10.1 C-1 discharge evidence (2026-08-30)
+
+**Verified SHA: `733a31d58eb1f0f5a0f3b5670d13de9975e5dedf`** — the exact head
+of `phase-3e-agent-os` and of PR #20. Every check below is pinned to it, so
+this is CI against the reviewed commit, not a stale or approximate run.
+
+**The three workflow runs:**
+
+| Workflow | Run | Status / conclusion | Scope |
+|---|---|---|---|
+| **PR Checks** | [33305319352](https://github.com/Tudor191/NOVA-PROJECT-BIBLE/actions/runs/33305319352) | `completed` / **`success`** | All 14 steps, including both `agents/*` steps added by C-2 — `Lint Agent Packages` and `Type-check and test every Agent Package (one process each)` |
+| **Build & Scan** | [33305319349](https://github.com/Tudor191/NOVA-PROJECT-BIBLE/actions/runs/33305319349) | `completed` / **`success`** | 14 build/scan jobs + `dependency-audit` |
+| **Real-Infrastructure Checks** | [33305319396](https://github.com/Tudor191/NOVA-PROJECT-BIBLE/actions/runs/33305319396) | `completed` / **`success`** | All 11 matrix jobs (§7.1) |
+
+**Aggregate: 27 of 27 Check Runs `completed` / `success`. Zero `failure`,
+zero `cancelled`, zero `timed_out`, zero `skipped`, zero still running.**
+
+Protocol §3.2's GO criterion 7 — *"Real GitHub Actions CI green against the
+exact head SHA"* — is therefore met on its own terms.
+
+**One methodological point, recorded so a future reader does not
+mis-verify this.** GitHub exposes two different APIs here, and they disagree
+for this repository:
+
+- The **Check Runs API** is authoritative for GitHub Actions and is what the
+  table above reports: 27/27 success.
+- The **legacy commit-status API** returns
+  `{"state": "pending", "total_count": 0, "statuses": []}` for this SHA.
+  That `"pending"` is **not** a pending check — `total_count: 0` means **no
+  legacy commit statuses exist at all**, because this repository reports
+  exclusively through Check Runs, and the legacy rollup defaults to
+  `pending` when its list is empty. The PR's `mergeable_state` reads
+  `unstable` for the same reason.
+
+**Reading the legacy endpoint as red would be wrong; reading it as
+authoritative in either direction would be wrong.** Verify Phase 3E CI via
+Check Runs, enumerated in full rather than sampled.
 
 ---
 
@@ -814,7 +899,10 @@ about 3E that this phase falsified beyond the 3B one corrected above.
 
 ## 15. Final gate status
 
-# **CONDITIONAL-GO**
+# **GO**
+
+**Verdict as of 2026-08-30. The CONDITIONAL-GO text below is preserved
+verbatim as the 2026-08-29 record; §15.1 states what changed and why.**
 
 Phase 3E is substantively complete. All eight scoped deliverables are built;
 all five acceptance criteria are satisfied (three outright, two with
@@ -851,10 +939,48 @@ positively verified absent rather than invented.
 is not authorization to open the Phase 3E PR. Both are separate decisions,
 and both are the user's.
 
+### 15.1 CI pass, 2026-08-30 — the verdict is now GO
+
+**Everything above this subsection is the 2026-08-29 record and is preserved
+unedited.** One thing has changed since, and it is the one thing that was
+missing.
+
+PR #20 was opened against `phase-3b-planning-domain` on 2026-08-30, and all
+three workflows ran against head SHA
+`733a31d58eb1f0f5a0f3b5670d13de9975e5dedf`:
+**27 of 27 Check Runs `completed` / `success`, zero failed, cancelled,
+timed out, skipped, or still running** (§10.1).
+
+That discharges **C-1**, the sole stated barrier to GO. Protocol §3.2's GO
+criterion 7 is met. All six conditions this review attached are now closed,
+so **the verdict is GO.**
+
+**What GO does and does not assert.** It asserts that every condition this
+review attached is discharged and that CI is green against the reviewed
+commit. It does **not** assert that the disclosed limitations were resolved,
+and none of them was:
+
+- the **six ratified narrowings DEV-1…DEV-6** (§2) stand exactly as ratified;
+- acceptance criteria **#2 and #3 remain Met with disclosed narrowing** (§9)
+  — CI did not change what those tests prove;
+- the **nine known limitations** in §8 stand, including that `agent-os` is
+  not deployable and `nova-auth` enforcement is declared-intent-only;
+- **D1–D4 and D10–D12 remain unrecoverable**, verified absent, not invented;
+- **PHR-1, PHR-2 and PHR-3** remain reported-not-fixed pre-existing defects.
+
+**Phase 3E is not merged.** PR #20 is open and unmerged; this verdict is
+about the phase's readiness, not its integration. **GO is still not
+authorization to begin Phase 4** — that remains a separate decision, and
+the user's.
+
 ---
 
 **Reviewed:** 2026-08-29 · **Closure pass:** 2026-08-29 ·
-**Pre-PR audit:** 2026-08-29 · **Branch:** `phase-3e-agent-os` ·
+**Pre-PR audit:** 2026-08-29 · **CI pass:** 2026-08-30 ·
+**Branch:** `phase-3e-agent-os` ·
 **Last production-source commit:** `60934ac07166acd3635e3bf33dee9462d97f8a04` ·
-**Branch head:** not named here by design (see §0) ·
-**Working tree:** clean · **PR:** none · **CI:** none
+**CI-verified head SHA:** `733a31d58eb1f0f5a0f3b5670d13de9975e5dedf`
+(named here because CI evidence is SHA-pinned; §0's rule against naming a
+*current* head still holds — use `git rev-parse HEAD` for that) ·
+**Working tree:** clean · **PR:** #20, open, unmerged ·
+**CI:** 27/27 Check Runs success
