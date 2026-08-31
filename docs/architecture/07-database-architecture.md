@@ -12,7 +12,7 @@ the Bible's requirements well.
 
 | Store | Owning engine(s) | Data |
 |---|---|---|
-| PostgreSQL | nova-core, capability-engine, autonomy-engine, planning-engine, agent-os-kernel, communication-engine | Service registry, capability registry, action ledger, policies, task graphs, agent registry, conversation sessions, permissions, audit log |
+| PostgreSQL | nova-core, capability-engine, action-engine, autonomy-engine, planning-engine, agent-os-kernel, communication-engine | Service registry, capability registry, action ledger, policies, task graphs, agent registry, conversation sessions, permissions, audit log |
 | PostgreSQL + pgvector | memory-engine, knowledge-engine | Long-term/semantic/episodic memory records + their embeddings; knowledge item text + embeddings |
 | Neo4j | knowledge-engine, world-model-engine | Knowledge Graph (Part 10), Digital Environment Graph / World Object Graph (Part 5, 18) |
 | Redis | memory-engine (working/short-term), cognitive-state-engine, ws-gateway (session/presence) | Working Memory, Active Thoughts, Attention layers, ephemeral caches, pub/sub side-channel |
@@ -30,7 +30,15 @@ migrations, different deployment topology.
 ## 2. Relational schema highlights (PostgreSQL)
 
 ```sql
--- capability-engine
+-- capability-engine (illustrative sketch, pre-TDD -- superseded by the
+-- detailed, phase-scoped schema in
+-- docs/design/phase-3/06-tdd-3c-capability-engine.md §6, which is
+-- authoritative for Phase 3C implementation; that TDD's `Capability`
+-- model deliberately excludes `confidence` (no learning/scoring
+-- mechanism exists in Phase 3) and uses `required_permissions: list[str]`
+-- rather than a singular `permissions` column, among other differences.
+-- The `UNIQUE (name, version)` constraint below is the one element this
+-- sketch and the TDD agree on and is carried forward as real precedent.)
 CREATE TABLE capability.capability (
     id UUID PRIMARY KEY,
     name TEXT NOT NULL,
@@ -42,21 +50,38 @@ CREATE TABLE capability.capability (
     UNIQUE (name, version)
 );
 
--- planning-engine
+-- planning-engine (illustrative sketch, pre-TDD -- superseded by the
+-- detailed, phase-scoped schema in
+-- docs/design/phase-3/05-tdd-3b-planning-engine.md §4, which is
+-- authoritative for the shipped implementation
+-- (`phase-3b-planning-persistence`, see that PR's own Gate Review). The
+-- TDD's schema has no `task_graph.status` column (`approved_at`,
+-- nullable, is the one Phase-3-meaningful status signal, set by
+-- `POST /v1/plans/{id}/approve`); the FK column is named `task_graph_id`,
+-- not `graph_id`; `task_node.estimated_effort` (JSONB) and both tables'
+-- `updated_at` are additional columns this sketch omits; and a third
+-- table, `outbox_event`, implements the transactional-outbox pattern
+-- every other engine's own schema already uses (ADR-034), also absent
+-- from this sketch.
 CREATE TABLE planning.task_graph (
     id UUID PRIMARY KEY,
     root_objective TEXT NOT NULL,
-    status TEXT NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    critical_path JSONB NOT NULL,
+    approved_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE TABLE planning.task_node (
     id UUID PRIMARY KEY,
-    graph_id UUID REFERENCES planning.task_graph(id),
+    task_graph_id UUID NOT NULL REFERENCES planning.task_graph(id),
     objective TEXT NOT NULL,
-    depends_on UUID[] NOT NULL DEFAULT '{}',
+    depends_on JSONB NOT NULL DEFAULT '[]',
     assigned_agent_category TEXT,
-    status TEXT NOT NULL,
-    risk TEXT NOT NULL
+    estimated_effort JSONB NOT NULL,
+    risk TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 -- autonomy-engine
@@ -69,6 +94,32 @@ CREATE TABLE autonomy.decision_log (
     policy_checks JSONB NOT NULL,
     outcome TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- agent-os/kernel (illustrative sketch -- superseded by the detailed,
+-- phase-scoped schema in docs/design/phase-3/08-tdd-3e-agent-os.md §4/§5
+-- and docs/design/phase-3/14-3e-agent-os-research.md §4, which are
+-- authoritative for Phase 3E implementation once approved and built.
+-- Approved 2026-08-19; not yet implemented.)
+CREATE TABLE agent_os.agent_instance (
+    id UUID PRIMARY KEY,
+    agent_package_id UUID NOT NULL,
+    category TEXT NOT NULL,
+    execution_backend TEXT NOT NULL,
+    status TEXT NOT NULL,
+    assigned_task_node_id UUID,
+    supervisor_id UUID,
+    started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    health_status TEXT NOT NULL DEFAULT 'unknown'
+);
+CREATE TABLE agent_os.agent_package (
+    id UUID PRIMARY KEY,
+    category TEXT NOT NULL,
+    version TEXT NOT NULL,
+    manifest_json JSONB NOT NULL,
+    installed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    health_status TEXT NOT NULL DEFAULT 'unknown',
+    UNIQUE (category, version)
 );
 ```
 

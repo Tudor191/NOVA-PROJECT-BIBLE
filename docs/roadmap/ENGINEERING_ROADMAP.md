@@ -502,6 +502,18 @@ user-facing surface.
 
 ## Phase 3 — Planning & the NOVA Agent Operating System (NAOS)
 
+Status (as of 2026-08-18, see `docs/project-health/project-health-master.md`
+§1 and each sub-phase's own Gate Review for full detail — not repeated
+here):
+- **3A** (`reasoning-engine` Multi-step recursion trigger) — Complete. [Gate Review](architecture-reviews/phase-3a-gate-review.md).
+- **3B — Domain Foundation** (`planning-engine` Task Graph model, PR #2) — Complete, merged. [Gate Review](architecture-reviews/phase-3b-domain-foundation-gate-review.md).
+- **3B — Decomposition Orchestration** (PR #7) — Complete, merged. [Gate Review](architecture-reviews/phase-3b-decomposition-orchestration-gate-review.md).
+- **3B — Planning Persistence** (Postgres persistence, `GET`/`POST /v1/plans` API, `planning.task_graph.created`/`planning.decompose.request`, PR #18) — Complete, **merged into canonical `phase-3b-planning-domain` 2026-08-20** (squash commit `a72bd83f69354fa8d262b9c0d68a7cd9125dc8ce`), fully verified locally and via real GitHub Actions (24/24 checks green, including `real-infra (planning-engine)`: 10/10 real-Postgres tests passed). This closes TDD 3B's approved scope entirely except §6.1's `agent_os.task.completed` subscription, correctly deferred to Phase 3E. [Gate Review](architecture-reviews/phase-3b-planning-persistence-gate-review.md).
+- **3C** (`capability-engine`) — Complete, merged (PR #8). [Gate Review](architecture-reviews/phase-3c-capability-engine-gate-review.md).
+- **3D** (`action-engine`) — Implementation complete against all 7 of 7 acceptance criteria, CI green, PR #13 **merged into `phase-3b-planning-domain`** 2026-08-18 (squash commit `ac285bc3533fb24d0434d7675b8fc3af2db1d079`). [Gate Review](architecture-reviews/phase-3d-action-engine-gate-review.md).
+- **3E** (`agent-os` + first agents + supervisor) — **Complete and merged. PR #20 merged into canonical `phase-3b-planning-domain` on 2026-08-30 as true merge commit `59743423f32b3b8f8c470128b30cf4b798b1f46f`; CI green at the reviewed head `258ebe6547bc011fa33eea829303b45337c6a42d` (27/27 Check Runs).** Gate verdict **GO** (2026-08-30, upgraded from CONDITIONAL-GO of 2026-08-29). A merge commit rather than a squash was used deliberately, so all 27 Phase 3E commits remain ancestors of canonical and every SHA cited in the Gate Review and project-health records stays reachable. Delivered: `agent-os/{kernel,registry,supervisors,sdk/python}`, all five Agent Packages under `agents/`, the `engineering` Supervisor, the `GoalsPort` real-RPC migration in both calling engines, and TDD 3B §6.1's `agent_os.task.completed` subscription (which this entry previously recorded as deferred to 3E — now built). Acceptance criteria: **3 of 5 Met** (#1 real-path E2E, #4 `GoalsPort` transparency, #5 manifest validation), **2 Met with disclosed narrowing** (#2 restart-resume and #3 hot-load are proven at unit + integration + real-Postgres level, not by a full-path E2E; #3 is version *pinning*, not concurrent execution of two bytecode versions — see [`16-3e-hot-load-design-decision.md`](../design/phase-3/16-3e-hot-load-design-decision.md)). The architectural decision pass (2026-08-19) that preceded implementation stands unchanged: all four forks (3E-1 through 3E-4) **approved**, plus two additional open items (`nova-auth`/`PermissionGrant` scope, `priority`'s critical-path-position formula) **resolved** — [`14-3e-agent-os-research.md`](../design/phase-3/14-3e-agent-os-research.md) and `08-tdd-3e-agent-os.md` §11 carry the full record. **Closure pass 2026-08-29: five of the six Gate Review conditions are closed; one remains.** Closed: `agents/*` now have a CI gate (`pr-checks.yml` runs `ruff check agents/` plus a per-package `mypy src && pytest tests` loop — per-package isolation is required because all five expose a module named `handler`); `agent-os` deployment is **ratified as a deferred obligation** (no Dockerfile, matrix entry or compose service is introduced by 3E — TDD 3E §15 shows criterion by criterion that none of §14's five requires one); all six TDD deviations are **ratified as explicit Phase 3E narrowings**; the ~30k SLOC [Project Health Review](architecture-reviews/project-health-review-2026-08-29.md) is conducted (**HEALTHY**; it does not discharge the 50k gate); and decisions D1–D4/D10–D12 are **verified absent** by a second independent search rather than invented. **C-1 — the sole barrier to GO — is now discharged (2026-08-30).** PR #20 was opened and all three workflows ran against head SHA `733a31d`: **27 of 27 Check Runs `completed`/`success`**, zero failed, cancelled, timed out, skipped or running (PR Checks 33305319352, Build & Scan 33305319349, Real-Infrastructure Checks 33305319396 — the last covering all 11 matrix jobs, including both `agent-os` entries). Protocol §3.2's GO criterion 7 is met, all six conditions are closed, and the verdict is **GO**. CI then re-ran, equally green, against the final head `258ebe6547bc011fa33eea829303b45337c6a42d` — the SHA that merged. **GO does not retire the disclosed narrowings or known limitations — none changed.** **Phase 3E is now merged** (merge commit `59743423f32b3b8f8c470128b30cf4b798b1f46f`); note that the merge commit itself was **not** CI-executed, because no workflow triggers on `phase-3b-planning-domain` — CI verified the merged *content*, not the merge (Gate Review §13.1). [Gate Review](architecture-reviews/phase-3e-agent-os-gate-review.md) §10.1/§13.1/§15.1 · [Project Health](../project-health/phase-3e.md).
+- The gateway/web-client prerequisite (`docs/design/phase-3/03-gateway-web-prerequisite.md`) and `apps/web-client`'s Planning/Agent Activity panels remain **design-only**, no production code authorized yet.
+
 **Objectives**
 - Implement `planning-engine`, the **NOVA Agent Operating System** ([12](../architecture/12-agent-architecture.md), ADR-008) — Agent Kernel, Agent Registry, Agent SDK, and the `inprocess` execution backend — plus the first concrete agents, `action-engine`, and `capability-engine`. This is the point at which NOVA moves from "answers questions" to "does work," and where NAOS ships as a real but intentionally minimal instance of the full architecture in [12 §15](../architecture/12-agent-architecture.md#15-what-ships-in-phase-3-vs-what-the-architecture-already-supports).
 
@@ -786,3 +798,38 @@ not the channel's first implementation.
   [00](../architecture/00-overview-and-decisions.md#the-10x-test): any new deliverable
   proposed in a later phase must be checked against "will this still be correct at
   10x scale in five years" before it is added, not after.
+
+### Open cross-phase task: repository consolidation and cleanup
+
+**Status: open. Added 2026-08-30. Owner: the user. Deletion is manual and is
+not authorized to any agent.**
+
+**Repository consolidation and cleanup: audit all project repositories,
+identify obsolete repositories superseded by the canonical Phase
+repositories, verify that no active branch, PR, workflow, documentation
+reference, production dependency, or required history depends on them, then
+manually delete approved obsolete repositories.**
+
+*Scoping note from the 2026-08-30 audit, recorded so the task is executed
+against the real topology rather than an assumed one.* That audit found the
+project lives in **exactly one** repository — `Tudor191/NOVA-PROJECT-BIBLE`.
+There are no per-phase repositories: `phase-3`, `phase-3b-planning-domain`
+and their siblings are **branches**, and the canonical Phase 3 integration
+branch is `phase-3b-planning-domain`. The consolidation surface is therefore
+**branches within this one repository** (17 remote branches as of that date,
+most fully merged), and the same verification gate above applies to each
+branch before deletion.
+
+Two verification rules the audit established, which must be honoured before
+any deletion:
+
+1. **Squash-merged branches do not have their commits preserved in
+   canonical.** A branch whose tip is a git ancestor of
+   `phase-3b-planning-domain` can be deleted without losing history. A branch
+   merged by *squash* is not an ancestor: its individual commits become
+   unreachable and eventually garbage-collected. Several project-health and
+   Gate Review records cite those pre-squash SHAs directly, so deleting such
+   a branch silently breaks a documented audit trail.
+2. **An inactive branch is not automatically an obsolete branch.** Check
+   references, open PRs, workflow triggers, documentation citations and
+   repository relationships before classifying, per this task's own wording.

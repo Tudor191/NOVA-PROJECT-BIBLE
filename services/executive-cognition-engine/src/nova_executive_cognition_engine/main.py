@@ -77,7 +77,7 @@ def create_app(
             session_factory = create_session_factory(engine)
             repo = PostgresExecutiveRepository(session_factory)
 
-        goals = goals_port or GoalsClient()
+        goals = goals_port or GoalsClient(bus)
 
         await bus.connect()
         await bus.serve(

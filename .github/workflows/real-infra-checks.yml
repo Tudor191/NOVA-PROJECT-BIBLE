@@ -57,6 +57,23 @@ jobs:
             path: services/perception-engine
           - package: digital-twin-engine
             path: services/digital-twin-engine
+          - package: capability-engine
+            path: services/capability-engine
+          - package: action-engine
+            path: services/action-engine
+          - package: planning-engine
+            path: services/planning-engine
+          # Added after the Phase 3E real-Postgres acceptance E2E found
+          # defect D-1: reasoning-engine had no real-Postgres coverage and
+          # was not in this matrix, so a Reactive-mode foreign-key violation
+          # survived from Phase 2B. Its
+          # `tests/integration/test_repository_real_postgres.py` now runs here.
+          - package: reasoning-engine
+            path: services/reasoning-engine
+          - package: kernel
+            path: agent-os/kernel
+          - package: registry
+            path: agent-os/registry
     steps:
       - uses: actions/checkout@v4
 

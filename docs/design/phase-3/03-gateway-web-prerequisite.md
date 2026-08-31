@@ -17,7 +17,15 @@ already exists and is already Gate-Reviewed. Zero dependency on `3A`-`3E`.
 **`3-P.2` scope.** The Planning panel (depends on `3B`) and the Agent
 Activity panel (depends on `3E`) — additive to `3-P.1`'s already-working
 shell. Can ship independently of each other, whenever their respective
-engine TDD completes.
+engine TDD completes. **Also additive, corrected during the Phase 3C
+reconciliation pass to match what §2/§5 already state:**
+`api-gateway`'s REST-forwarding automatically covers `capability-engine`'s
+(`3C`) stopgap `/v1/capabilities` surface once `3C` ships — this is
+endpoint-fronting only, not a dedicated web-client panel, since Phase 3
+ships no capability panel (`docs/design/phase-3/06-tdd-3c-capability-engine.md` §14
+Non-goals — no Visual Capability Center in Phase 3). This addition was
+previously omitted from this scope statement even though §2/§5 already
+described it, an internal inconsistency this pass corrects.
 
 ---
 
@@ -172,7 +180,7 @@ directly) plus a presence/identity indicator sourced from
 | `ws-gateway` | Same — existing `communication.*`/`personality.*`/`perception.*` subjects for `3-P.1`; `planning.*`/`agent.*`/`agent_os.*` added once `3B`/`3E` ship. |
 | Base shell + Conversation panel | Nothing new — existing engines only. |
 | Planning panel | `3B` (`planning-engine`'s `planning.task_graph.created` + `GET /v1/plans/{id}`). |
-| Agent Activity panel | `3E` (`agent.*`/`agent_os.*` events, `GET /v1/agents`/`GET /v1/agents/{id}/activity`, both already named in doc 11 §2 but not yet implemented by any TDD in this package — flagged as a small, disclosed addition to `3E`'s own API surface, not built by this document). |
+| Agent Activity panel | `3E` (`agent.*`/`agent_os.*` events, `GET /v1/agents`/`GET /v1/agents/{id}/activity`, both already named in doc 11 §2 but not yet implemented by any TDD in this package — flagged as a small, disclosed addition to `3E`'s own API surface, not built by this document). **Correction, 2026-08-29 (Phase 3E Gate Review), additive:** Phase 3E shipped and did **not** add those two endpoints. TDD 3E §4 gives `agent-os/kernel` a health-only surface (`/internal/health`, `/internal/readiness`, `/internal/metrics`) and no `/v1/...` REST surface at all, deliberately — the Kernel's work is Event-Bus- and internal-loop-driven. The `agent.*`/`agent_os.*` **events** this panel needs do exist and are published. The two REST endpoints remain unbuilt and are now an open `3-P` prerequisite with no owning TDD, not a "disclosed addition to `3E`'s own API surface". |
 | **`3A`-`3E` (the engines themselves)** | **Nothing depends on `3-P` in the reverse direction** — every engine is built, unit/integration/real-infra-tested, and independently verifiable exactly as every prior engine in this project has been, with zero UI. |
 
 ---

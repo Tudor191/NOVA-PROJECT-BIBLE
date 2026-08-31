@@ -36,7 +36,7 @@ things"):
 
 ```mermaid
 flowchart LR
-    A[Raw event: perception.*, communication.*, action.result, reasoning.result] --> B[Sensory intake]
+    A[Raw event: perception.*, communication.*, action.result, reasoning.process.completed] --> B[Sensory intake]
     B --> C{Worth retaining?}
     C -- no --> D[Discard]
     C -- yes --> E[Classify memory type]

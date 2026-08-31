@@ -1,6 +1,36 @@
 # TDD 3B — `planning-engine`
 
-**Status: design only, awaiting approval. No production code authorized.**
+**Status: implemented, except one item correctly deferred to Phase 3E.**
+
+> **Additive correction, 2026-08-29 (Phase 3E Gate Review).** The status
+> line above is preserved as originally written but is now superseded on
+> one point: the deferred item — §6.1's `agent_os.task.completed`
+> subscription — **was built by Phase 3E** (commit `b9aed32`, on the
+> unmerged branch `phase-3e-agent-os`). `planning-engine` now consumes
+> that subject through `domain/task_completion.py`, resetting a
+> `TaskNode` to `"ready"` on `outcome in {"interrupted", "failure"}` and
+> republishing the graph. Phase 3E additionally added, to this engine,
+> the TaskNode admission/advancement lifecycle
+> ([`17-3e-task-node-lifecycle.md`](17-3e-task-node-lifecycle.md),
+> approved 2026-08-29), the `planning.goals.current.request`/`.reply` RPC
+> handler (TDD 3E §8), and `PlanningRepository.reset_node_status`. TDD
+> 3B's own approved scope is therefore **fully closed** once
+> `phase-3e-agent-os` merges. No 3B design decision was reopened.
+
+Domain foundation (§2: `TaskNode`/`TaskGraph`/`Estimate`/`RiskLevel`,
+graph invariants, critical-path computation) shipped in PR #2. Objective
+Decomposition (§6.1's `reasoning.process.completed` -> `TaskGraph` path,
+via the `ModelOrchestrationPort` added to §3) shipped in the
+decomposition-orchestration unit that follows PR #2. Persistence (§4),
+the API surface (§5), and `planning.task_graph.created`/
+`planning.decompose.request` (§6.2) shipped in the
+`phase-3b-planning-persistence` precursor PR, **merged 2026-08-20** (PR
+#18, squash commit `a72bd83f69354fa8d262b9c0d68a7cd9125dc8ce`, canonical
+`phase-3b-planning-domain`) -- see that PR's own Gate Review for exact
+scope, tests, and CI evidence. Only the `agent_os.task.completed`
+subscription (§6.1) remains unbuilt, correctly deferred: its only real
+caller (`agent-os/kernel`) does not exist until Phase 3E's own
+implementation PR.
 
 ---
 
@@ -13,7 +43,11 @@ supporting Dynamic Replanning by mutation — per
 `ENGINEERING_ROADMAP.md:509`, doc 06 §3, and Bible Part 9.
 
 **Dependencies.** `reasoning-engine` (existing, Phase 2B —
-`reasoning.result` is the input `planning-engine` consumes) and
+`reasoning.process.completed` is the input `planning-engine` consumes;
+corrected from this TDD's original, nonexistent `reasoning.result`
+reference — see `docs/design/phase-3/09-3b-preimplementation-verification.md`
+§1 and `10-3b-4-resolution-and-preimplementation-verification.md` for the
+full investigation) and
 `communication-engine` (existing, Phase 2D-A — consumes
 `planning.task_graph.created` if it chooses to notify the user; see §6).
 **Does not depend on `capability-engine`, `action-engine`, or `agent-os`
@@ -25,8 +59,10 @@ manually)."*
 
 ## 1. Existing capability vs. what's being built
 
-**Existing:** `reasoning-engine` already publishes `reasoning.result`
-(`nova_contracts.events.reasoning`, Phase 2B); `communication-engine`
+**Existing:** `reasoning-engine` already publishes `reasoning.process.completed`
+(`nova_contracts.events.reasoning.ReasoningProcessCompletedPayload`, Phase 2B,
+additively enriched with `objective_text`/`chosen_description` for this TDD's
+own purposes per Fork 3B-4's resolution); `communication-engine`
 already owns the only legal `communication.intent.*` gate (ADR-005). No
 part of `planning-engine` itself exists — confirmed by directory listing
 (`services/` contains no `planning-engine`) and by `nova-contracts`
@@ -146,6 +182,20 @@ calling engine's own `domain/ports.py`, never centralized):
   "Memory -.consulted by.-> Planning" edge.
 - **`KnowledgePort`** — same pattern, `knowledge.retrieve.request`/`.reply`,
   per doc 10's "Knowledge -.consulted by.-> Planning" edge.
+- **`ModelOrchestrationPort`** (added post-approval, per
+  `docs/design/phase-3/11-3b-decomposition-architecture-research.md` §6/§13
+  and the decomposition-orchestration Gate Review) — ADR-020's sole legal
+  channel to any model, a thin Protocol wrapping `ai_model.generate.request`.
+  Used only by `domain/decomposition.py` (Objective Decomposition, §6.1) to
+  turn `objective_text`/`chosen_description` into a structured `TaskGraph`
+  proposal via the tool-calling mechanism `nova_contracts.events.
+  ai_model_orchestration` already defines — the identical pattern
+  `reasoning-engine`'s own `ModelOrchestrationPort`/`ModelOrchestrationClient`
+  already establishes for Hypothesis Generation. Not a new architectural
+  fork: this TDD's original text left the decomposition mechanism
+  unspecified (Fork 3B-4-adjacent); the research pass resolved it as
+  LLM-backed decomposition through this already-approved channel, not an
+  invented heuristic or placeholder.
 
 **No `GoalsPort` consumer role** — `planning-engine` is the future real
 backing for `GoalsPort` (ADR-026), not a caller of it.
@@ -208,11 +258,15 @@ already-enforced behavior.
 
 ### 6.1 Subscribed
 
-- **`reasoning.result`** (existing payload, Phase 2B) — triggers
-  decomposition: `planning-engine` consumes a completed, sufficiently-
-  confident reasoning result and produces or mutates a `TaskGraph`.
-  Exact confidence threshold for triggering decomposition vs. discarding
-  a low-confidence result is a TDD-implementation-time parameter (not an
+- **`reasoning.process.completed`** (existing payload, Phase 2B, additively
+  enriched with `objective_text`/`chosen_description` per Fork 3B-4 —
+  corrected from this TDD's original, nonexistent `reasoning.result`
+  reference) — triggers decomposition: `planning-engine` consumes a
+  completed, sufficiently-confident reasoning result (`objective_text`
+  seeds `TaskGraph.root_objective`; `chosen_description` shapes the first
+  decomposition pass) and produces or mutates a `TaskGraph`. Exact
+  confidence threshold for triggering decomposition vs. discarding a
+  low-confidence result is a TDD-implementation-time parameter (not an
   architectural fork — mirrors the "implementation-time parameter, not a
   fork" precedent already established for `completed_session_evidence`
   and the proactive-delivery window size in Phase 2D-D).
@@ -253,14 +307,62 @@ already-enforced behavior.
 payload, and no scope creep into `communication-engine`'s own decision
 logic.
 
+**Note (2026-08-19), additive — new `planning.goals.current.request`/`.reply`
+RPC, discovered during Phase 3E's own architecture research pass, not
+originally specified by this TDD.** TDD 3E's `GoalsPort` real-RPC
+migration (both `reasoning-engine` and `executive-cognition-engine`)
+requires `planning-engine` to serve one small, additive RPC mapping each
+of a user's active `TaskGraph`s to a `Goal`:
+`Goal(id=task_graph.id, description=task_graph.root_objective,
+priority=<derived>, goal_tier=<derived>)`. Two new pure derivation
+functions back this RPC, both operating on already-persisted `TaskGraph`
+state and neither persisting a new field:
+
+- **`goal_tier`** — `"established"` iff `len(task_graph.nodes) > 1`, else
+  `"ad_hoc"`, derived at read time, never persisted. Full rationale:
+  [`14-3e-agent-os-research.md`](14-3e-agent-os-research.md) §5,
+  resolution recorded in `08-tdd-3e-agent-os.md` §8.
+- **`priority`** — `1.0 - (rank_index / max(1, len(active_task_graphs) - 1))`,
+  ranking a user's currently active `TaskGraph`s descending by
+  critical-path effort sum (`sum(node.estimated_effort.effort_hours for
+  node in graph.nodes if node.id in graph.critical_path)`), tie-broken by
+  `TaskGraph.id`. Full derivation:
+  [`14-3e-agent-os-research.md`](14-3e-agent-os-research.md) §8b,
+  resolution recorded in `08-tdd-3e-agent-os.md` §8.
+
+This RPC and both derivation functions are **approved and resolved
+(2026-08-19)** as architectural decisions, mirroring the "genuinely
+discovered during implementation/research necessity, disclosed via an
+additive extension" treatment already given to the
+`proactive_delivery_record` precedent (Fork D, Phase 2D-D) — this TDD's
+own `TaskGraph`/`TaskNode`/`Estimate` models are unchanged; only a new
+read-time RPC handler and two pure functions are added. Not yet
+implemented — implementation is authorized only once Phase 3E's own
+implementation PR is separately approved.
+
 ---
 
 ## 7. Open architectural forks
+
+**Note (2026-08-20), additive — all three forks below are now resolved;
+this section's original proposal text is left unchanged (historical
+record of what was proposed), with each fork's resolution and owning PR
+noted inline.** A 2026-08-20 documentation-consistency audit of the
+`phase-3b-planning-persistence` PR found this section still read as if
+all three were open, which could wrongly suggest that PR rests on an
+unapproved decision — it does not; PR #18 only reuses the schemas these
+three forks already fixed, in the Domain Foundation and Decomposition
+Orchestration PRs, both of which shipped before it.
 
 ### Fork 3B-1 — `Estimate`/`RiskLevel` field shape (§2.1)
 
 Already presented above with a concrete proposal. **Requires explicit
 approval** — genuinely undocumented, not extracted.
+
+**Resolved (Domain Foundation PR, `phase-3b-planning-domain`, PR #2):**
+implemented exactly as proposed above. See
+`docs/roadmap/architecture-reviews/phase-3b-domain-foundation-gate-review.md`
+§2 ("Fork 3B-1 ... implemented as approved").
 
 ### Fork 3B-2 — WBS field gaps (§2.3)
 
@@ -272,6 +374,11 @@ roadmap's own narrower-than-Bible scoping pattern found throughout this
 project (§1.3 of `00-research-and-scope.md`) — but **not silently
 decided**; flagged for explicit confirmation.
 
+**Resolved (Domain Foundation PR, `phase-3b-planning-domain`, PR #2):**
+the recommendation (leave absent) was adopted, locked in with a
+regression test. See the Domain Foundation Gate Review §3 ("Fork 3B-2 ...
+implemented as approved").
+
 ### Fork 3B-3 — reasoning-result-to-decomposition confidence threshold
 
 Not an architectural fork so much as a named implementation parameter
@@ -281,14 +388,21 @@ reuse `DEFAULT_VERIFY_THRESHOLD` (0.6, already defined in
 minimum-confidence-to-decompose threshold, avoiding a second, arbitrary
 constant. **Flagged for approval**, not silently assumed.
 
+**Resolved (Decomposition Orchestration PR, `phase-3b-decomposition-orchestration`,
+PR #7):** implemented exactly as proposed
+(`Settings.decomposition_confidence_threshold: float = 0.6`). See the
+decomposition-orchestration Gate Review §6 ("Unconfirmed but precedented
+parameter, flagged").
+
 ---
 
 ## 8. Failure and degraded behavior
 
 | Condition | Behavior |
 |---|---|
-| `reasoning.result` below the decomposition confidence threshold (Fork 3B-3) | No `TaskGraph` created; no error — mirrors the existing "no action" pattern for below-threshold signals elsewhere in this codebase. |
+| `reasoning.process.completed` below the decomposition confidence threshold (Fork 3B-3) | No `TaskGraph` created; no error — mirrors the existing "no action" pattern for below-threshold signals elsewhere in this codebase. |
 | `MemoryPort`/`KnowledgePort` timeout during decomposition | Decomposition proceeds with whatever context was retrieved before the timeout — degrades, never blocks indefinitely (same discipline as every existing port timeout handler in this codebase). |
+| `ModelOrchestrationPort.generate` times out, returns `finish_reason == "error"`, or returns no/malformed structured `propose_task_graph` tool call, or the resulting nodes fail PR #2's structural checks (duplicate IDs, cycle, dangling dependencies) | No `TaskGraph` produced for this `reasoning.process.completed`; the event is logged and metriced as a failed decomposition attempt (labeled by a stable `reason`) and considered handled — never raised as an unhandled exception, which would trigger NATS JetStream redelivery of an event whose failure is not transient (mirrors `reasoning-engine`'s own `HypothesisGenerationError` handling). |
 | `planning.decompose.request` for a subtree that cannot be further decomposed | Replies with the original node unchanged and a structured "already minimal" reason — never a silent no-op reply indistinguishable from success. |
 | Postgres unavailable at `task_graph`/`task_node` write time | Standard per-engine failure mode — the request fails loudly (not silently degraded), consistent with every other engine's persistence-layer error handling; Task Graph correctness (never partially/incorrectly persisted) is a hard requirement given restart-survival depends on it (`ENGINEERING_ROADMAP.md:545`). |
 
@@ -343,7 +457,7 @@ import-linter contracts extended per §11).
 
 ## 12. Testing strategy
 
-**Unit (fake-backed):** decomposition logic (given a `reasoning.result`,
+**Unit (fake-backed):** decomposition logic (given a `reasoning.process.completed`,
 produces a structurally valid `TaskGraph` — no cycles, `critical_path`
 computed correctly for a scripted dependency shape, per
 `ENGINEERING_ROADMAP.md:535`'s own structural-verification framing).
@@ -371,7 +485,7 @@ TDD 3E.
 
 ## 13. Acceptance criteria
 
-1. A scripted `reasoning.result` at or above the decomposition-confidence
+1. A scripted `reasoning.process.completed` at or above the decomposition-confidence
    threshold (Fork 3B-3) produces a structurally valid `TaskGraph` — no
    cycles, `critical_path` non-empty for any graph with more than one
    node.

@@ -51,6 +51,13 @@ A PR may merge only when:
    Part — PR descriptions are required to cite the Bible section(s) implemented, so
    architectural drift from the source specification is visible at review time.
 
+This is a **per-PR** checklist. A Phase or Sub-Phase reaching this bar on every one
+of its PRs is necessary but not sufficient for the phase itself to be considered
+closed — see
+[`docs/project-health/definition-of-done.md`](../project-health/definition-of-done.md)
+for the phase-level completion checklist (Gate Review, Project Health record, and
+seven other items) that applies above and beyond this section.
+
 ## 5. Engine scaffolding
 
 `tools/scaffold-engine.py <name>` generates a new `services/<name>/` from the template

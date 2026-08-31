@@ -5,6 +5,7 @@ from nova_contracts import (
     ContextReplyPayload,
     GenerateReplyPayload,
     GenerateRequestPayload,
+    GoalSnapshot,
     KnowledgeLayer,
     KnowledgeRetrieveReplyPayload,
     KnowledgeSearchResultPayload,
@@ -12,6 +13,8 @@ from nova_contracts import (
     MemoryRetrieveReplyPayload,
     MemorySearchResultPayload,
     MemoryType,
+    PlanningGoalsCurrentReplyPayload,
+    PlanningGoalsCurrentRequestPayload,
 )
 from nova_reasoning_engine.clients.goals_client import GoalsClient
 from nova_reasoning_engine.clients.knowledge_client import KnowledgeClient
@@ -127,8 +130,32 @@ async def test_personal_context_client_returns_none_when_world_model_has_nothing
     assert await client.get_personal_context(user_id=uuid4()) is None
 
 
-async def test_goals_client_returns_empty_placeholder() -> None:
-    client = GoalsClient()
+async def test_goals_client_translates_reply_into_domain_goals() -> None:
+    publisher = FakeEventPublisher()
+    goal_id = uuid4()
+
+    def handler(req: PlanningGoalsCurrentRequestPayload) -> PlanningGoalsCurrentReplyPayload:
+        assert req.requesting_engine == "reasoning-engine"
+        return PlanningGoalsCurrentReplyPayload(
+            goals=[
+                GoalSnapshot(
+                    id=goal_id, description="Ship rate limiting", priority=0.8,
+                    goal_tier="established",
+                )
+            ]
+        )
+
+    publisher.register("planning.goals.current.request", handler)
+    client = GoalsClient(publisher)
+    goals = await client.current_goals(user_id=uuid4())
+    assert len(goals) == 1
+    assert goals[0].id == goal_id
+    assert goals[0].description == "Ship rate limiting"
+    assert goals[0].priority == 0.8
+
+
+async def test_goals_client_degrades_to_empty_list_on_timeout() -> None:
+    client = GoalsClient(FakeEventPublisher())  # nothing registered -> TimeoutError
     assert await client.current_goals(user_id=uuid4()) == []
 
 

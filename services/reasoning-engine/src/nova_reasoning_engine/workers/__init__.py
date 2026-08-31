@@ -63,7 +63,7 @@ async def startup(ctx: dict[str, Any]) -> None:
     ctx["knowledge_port"] = KnowledgeClient(bus)
     ctx["world_model_port"] = world_model_client
     ctx["personal_context_port"] = PersonalContextClient(world_model_client)
-    ctx["goals_port"] = GoalsClient()
+    ctx["goals_port"] = GoalsClient(bus)
     ctx["model_orchestration_port"] = ModelOrchestrationClient(bus)
     ctx["bus"] = bus
     ctx["metrics"] = create_metrics()  # must follow configure_observability, above

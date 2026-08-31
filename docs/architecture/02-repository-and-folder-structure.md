@@ -168,6 +168,29 @@ under `agents/*` may import another agent's internals, and nothing outside
 `agent-os/kernel` may import the kernel's internals — only its published API and the
 Agent SDK.
 
+**Note (2026-08-19), additive — two new scaffold entry points (Phase 3E,
+Fork 3E-4, approved).** `tools/scaffold-engine.py` itself is unchanged
+and remains the only scaffold for `services/<engine-name>/`. Two new,
+separate scripts scaffold the two non-standard-template families named
+above:
+
+- `tools/scaffold-agent-os-component.py` — generates under
+  `agent-os/<name>/`, no `-engine` suffix requirement, minimal
+  health-only skeleton (`/internal/health`, `/internal/readiness`,
+  `/internal/metrics` only — no `/v1/...` REST surface, no
+  events/repository template).
+- `tools/scaffold-agent-package.py` — generates under
+  `agents/<name>-agent/`, the `agent.yaml` + `src/handler.py` + `tests/`
+  layout defined in [12](12-agent-architecture.md) §3.
+
+Both update `root_packages` and the relevant import-linter contracts, the
+same as `scaffold-engine.py` does for a new engine. Full rationale for
+two separate scripts rather than a `--target` flag on the existing one:
+[`14-3e-agent-os-research.md`](../design/phase-3/14-3e-agent-os-research.md)
+§6. Approved 2026-08-19; not yet implemented — implementation is
+authorized only once Phase 3E's own implementation PR is separately
+approved.
+
 ## 4. `nova-contracts` — the schema source of truth
 
 ```

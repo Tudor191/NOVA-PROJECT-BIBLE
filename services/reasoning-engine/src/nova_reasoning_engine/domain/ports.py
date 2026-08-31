@@ -104,10 +104,11 @@ class PersonalContextPort(Protocol):
 
 @runtime_checkable
 class GoalsPort(Protocol):
-    """§7.1 -- Current Goals, used by Goal Evaluation (§8). Phase 2B's honest
-    placeholder: `clients/goals_client.py` returns the caller-supplied
-    `ReasoningRequest.goals` rather than a real Planning Engine RPC, since
-    Planning Engine (Phase 3) does not exist yet."""
+    """§7.1 -- Current Goals, used by Goal Evaluation (§8). Migrated per TDD
+    3E §8: `clients/goals_client.py` now calls `planning-engine`'s real
+    `planning.goals.current.request` RPC. This Protocol's own shape is
+    unchanged by that migration (§25) -- callers still see `list[Goal]`,
+    degrading to `[]` on a timeout exactly as the Phase 2B placeholder did."""
 
     async def current_goals(
         self, *, user_id: UUID, scope: str | None = None, correlation_id: UUID | None = None

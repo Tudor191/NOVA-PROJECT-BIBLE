@@ -21,5 +21,6 @@ PUBLISHABLE_SUBJECTS: frozenset[str] = frozenset(
         "executive.human_override.applied",
         "world_model.context.request",
         "memory.retrieve.request",
+        "planning.goals.current.request",
     }
 )

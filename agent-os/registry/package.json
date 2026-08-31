@@ -1,0 +1,11 @@
+{
+  "name": "@nova/registry",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "lint": "uv run --package registry ruff check . && uv run --package registry mypy src",
+    "test": "uv run --package registry pytest -m \"not real_infra\" --cov=nova_agent_os_registry.domain",
+    "build": "echo 'registry: no build step (container image build deferred until deployment)'",
+    "dev": "uv run --package registry uvicorn nova_agent_os_registry.main:app --reload --port 8000"
+  }
+}

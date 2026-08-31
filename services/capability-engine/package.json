@@ -1,0 +1,11 @@
+{
+  "name": "@nova/capability-engine",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "lint": "uv run --package capability-engine ruff check . && uv run --package capability-engine mypy src",
+    "test": "uv run --package capability-engine pytest -m \"not real_infra\" --cov=nova_capability_engine.domain",
+    "build": "echo 'capability-engine: no build step (container image built via Dockerfile in CI)'",
+    "dev": "uv run --package capability-engine uvicorn nova_capability_engine.main:app --reload --port 8000"
+  }
+}

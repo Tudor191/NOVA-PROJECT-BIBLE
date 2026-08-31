@@ -10,9 +10,12 @@ from uuid import uuid4
 
 from nova_contracts import (
     ContextReplyPayload,
+    GoalSnapshot,
     MemoryRetrieveReplyPayload,
     MemorySearchResultPayload,
     MemoryType,
+    PlanningGoalsCurrentReplyPayload,
+    PlanningGoalsCurrentRequestPayload,
 )
 from nova_executive_cognition_engine.clients.goals_client import GoalsClient
 from nova_executive_cognition_engine.clients.memory_client import MemoryClient, _summarize
@@ -99,6 +102,31 @@ async def test_personal_context_client_returns_none_when_world_model_has_no_snap
     assert await client.get_personal_context(user_id=uuid4()) is None
 
 
-async def test_goals_client_is_an_honest_placeholder_returning_empty() -> None:
-    client = GoalsClient()
+async def test_goals_client_translates_reply_including_goal_tier() -> None:
+    publisher = FakeEventPublisher()
+    goal_id = uuid4()
+
+    def handler(req: PlanningGoalsCurrentRequestPayload) -> PlanningGoalsCurrentReplyPayload:
+        assert req.requesting_engine == "executive-cognition-engine"
+        return PlanningGoalsCurrentReplyPayload(
+            goals=[
+                GoalSnapshot(
+                    id=goal_id, description="Ship rate limiting", priority=0.8,
+                    goal_tier="established",
+                )
+            ]
+        )
+
+    publisher.register("planning.goals.current.request", handler)
+    client = GoalsClient(publisher)
+    goals = await client.current_goals(user_id=uuid4())
+    assert len(goals) == 1
+    assert goals[0].id == goal_id
+    assert goals[0].description == "Ship rate limiting"
+    assert goals[0].priority == 0.8
+    assert goals[0].goal_tier == "established"
+
+
+async def test_goals_client_degrades_to_empty_list_on_timeout() -> None:
+    client = GoalsClient(FakeEventPublisher())  # nothing registered -> TimeoutError
     assert await client.current_goals(user_id=uuid4()) == []

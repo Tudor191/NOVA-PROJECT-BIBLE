@@ -26,5 +26,6 @@ PUBLISHABLE_SUBJECTS: frozenset[str] = frozenset(
         "knowledge.traverse.request",
         "world_model.context.request",
         "ai_model.generate.request",
+        "planning.goals.current.request",
     }
 )

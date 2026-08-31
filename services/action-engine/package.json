@@ -1,0 +1,11 @@
+{
+  "name": "@nova/action-engine",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "lint": "uv run --package action-engine ruff check . && uv run --package action-engine mypy src",
+    "test": "uv run --package action-engine pytest -m \"not real_infra\" --cov=nova_action_engine.domain",
+    "build": "echo 'action-engine: no build step (container image built via Dockerfile in CI)'",
+    "dev": "uv run --package action-engine uvicorn nova_action_engine.main:app --reload --port 8000"
+  }
+}
