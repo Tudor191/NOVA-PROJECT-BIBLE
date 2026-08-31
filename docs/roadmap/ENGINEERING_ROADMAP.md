@@ -798,3 +798,38 @@ not the channel's first implementation.
   [00](../architecture/00-overview-and-decisions.md#the-10x-test): any new deliverable
   proposed in a later phase must be checked against "will this still be correct at
   10x scale in five years" before it is added, not after.
+
+### Open cross-phase task: repository consolidation and cleanup
+
+**Status: open. Added 2026-08-30. Owner: the user. Deletion is manual and is
+not authorized to any agent.**
+
+**Repository consolidation and cleanup: audit all project repositories,
+identify obsolete repositories superseded by the canonical Phase
+repositories, verify that no active branch, PR, workflow, documentation
+reference, production dependency, or required history depends on them, then
+manually delete approved obsolete repositories.**
+
+*Scoping note from the 2026-08-30 audit, recorded so the task is executed
+against the real topology rather than an assumed one.* That audit found the
+project lives in **exactly one** repository — `Tudor191/NOVA-PROJECT-BIBLE`.
+There are no per-phase repositories: `phase-3`, `phase-3b-planning-domain`
+and their siblings are **branches**, and the canonical Phase 3 integration
+branch is `phase-3b-planning-domain`. The consolidation surface is therefore
+**branches within this one repository** (17 remote branches as of that date,
+most fully merged), and the same verification gate above applies to each
+branch before deletion.
+
+Two verification rules the audit established, which must be honoured before
+any deletion:
+
+1. **Squash-merged branches do not have their commits preserved in
+   canonical.** A branch whose tip is a git ancestor of
+   `phase-3b-planning-domain` can be deleted without losing history. A branch
+   merged by *squash* is not an ancestor: its individual commits become
+   unreachable and eventually garbage-collected. Several project-health and
+   Gate Review records cite those pre-squash SHAs directly, so deleting such
+   a branch silently breaks a documented audit trail.
+2. **An inactive branch is not automatically an obsolete branch.** Check
+   references, open PRs, workflow triggers, documentation citations and
+   repository relationships before classifying, per this task's own wording.
