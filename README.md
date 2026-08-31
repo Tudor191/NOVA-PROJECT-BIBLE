@@ -55,11 +55,12 @@ docker compose -f infra/docker/docker-compose.local.yml up -d   # full local sta
 
 **Phases 0 through 3D are implemented and merged. Phase 3E
 (`agent-os` + the five Agent Packages + the `engineering` Supervisor) is
-implemented on branch `phase-3e-agent-os` (last production-source commit
-`60934ac`) and is **not yet merged** — PR #20 is open against the canonical
-Phase 3 branch, CI is green (27 of 27 GitHub Actions Check Runs succeeded
-against head SHA `733a31d`), and its Gate Review verdict is **GO** as of
-2026-08-30. That GO records that every condition the Gate Review attached is
+now merged: PR #20 landed on the canonical Phase 3 branch
+`phase-3b-planning-domain` on 2026-08-30 as a true merge commit,
+`59743423f32b3b8f8c470128b30cf4b798b1f46f`, with CI green — 27 of 27 GitHub
+Actions Check Runs succeeded against the reviewed head
+`258ebe6547bc011fa33eea829303b45337c6a42d` — and a Gate Review verdict of
+GO. That GO records that every condition the Gate Review attached is
 discharged; it does not retire the narrowings and known limitations that
 review discloses, which are unchanged.** `nova-core` boots through its
 full 7-phase sequence, exposes `/internal/health`, `/internal/readiness`, and
@@ -70,8 +71,8 @@ canonical `phase-3b-planning-domain` branch (Memory, Knowledge, World Model, AI 
 Orchestration, Reasoning, Executive Cognition, Communication, Personality,
 Perception, Digital Twin, Planning, Capability, Action); `action-engine`
 (Phase 3D) merged 2026-08-18 via PR #13 (squash commit
-`ac285bc3533fb24d0434d7675b8fc3af2db1d079`). Phase 3E adds, on its own
-unmerged branch, four `agent-os` components (`kernel`, `registry`,
+`ac285bc3533fb24d0434d7675b8fc3af2db1d079`). Phase 3E adds, now on that
+same canonical branch, four `agent-os` components (`kernel`, `registry`,
 `supervisors`, `sdk/python`) and five Agent Packages under `agents/`
 (`research`, `coding`, `qa`, `architect`, `documentation`) — neither
 directory is an engine, and `agent-os/*` has no Dockerfile and is not yet

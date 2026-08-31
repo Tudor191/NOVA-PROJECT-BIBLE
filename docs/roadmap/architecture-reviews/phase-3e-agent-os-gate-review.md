@@ -17,7 +17,10 @@ Branch `phase-3e-agent-os`.
 > and the unrecoverable decisions D1–D4/D10–D12 are all unaltered. **GO is
 > not a claim that those limitations were resolved; it is a claim that the
 > conditions this review attached are now all discharged.** Phase 3E is
-> still **not merged**: PR #20 is open.
+> **merged**: PR #20 was merged into `phase-3b-planning-domain` on
+> 2026-08-30 as merge commit
+> `59743423f32b3b8f8c470128b30cf4b798b1f46f`, and is closed.
+> *(This line read "still **not merged**: PR #20 is open" until that merge.)*
 **`60934ac07166acd3635e3bf33dee9462d97f8a04` is the last commit to change
 production source logic.** Every commit after it changes only documentation,
 one CI workflow (`pr-checks.yml`, a test gate — no production behaviour), and
@@ -33,6 +36,13 @@ working tree, per
 the pre-PR audit (2026-08-29) with identical results** — 52/52 tasks, 1,646
 passed, 104 deselected. Working tree clean, nothing unpushed, **no PR open,
 and no GitHub Actions run has ever executed against any Phase 3E commit.**
+
+> **The sentence immediately above is the state as of 2026-08-29 and is
+> preserved as the record of it. It is no longer true:** PR #20 opened on
+> 2026-08-30, CI ran 27/27 green against
+> `258ebe6547bc011fa33eea829303b45337c6a42d`, and the PR merged into
+> `phase-3b-planning-domain` as `59743423f32b3b8f8c470128b30cf4b798b1f46f`.
+> See §10.1, §13.1 and §15.1.
 
 > **Document history.** From 2026-08-20 to 2026-08-29 this file was an
 > explicitly-marked placeholder ("structure only — not yet applicable",
@@ -620,7 +630,7 @@ which is what converts the verdict to GO (§15).**
 
 | # | Condition | Status | Evidence / discharge |
 |---|---|---|---|
-| **C-1** | **No GitHub Actions run has ever executed against any Phase 3E commit.** All three workflows trigger on `pull_request` or `push` to `main`; the branch had neither. Every result in §6 and §7 was local. | **CLOSED — discharged 2026-08-30** | PR #20 opened against `phase-3b-planning-domain`; all three workflows ran against head SHA `733a31d58eb1f0f5a0f3b5670d13de9975e5dedf`. Full evidence in §10.1 below. |
+| **C-1** | **No GitHub Actions run has ever executed against any Phase 3E commit.** All three workflows trigger on `pull_request` or `push` to `main`; the branch had neither. Every result in §6 and §7 was local. | **CLOSED — discharged 2026-08-30** | PR #20 opened against `phase-3b-planning-domain`; all three workflows ran green, first against `733a31d58eb1f0f5a0f3b5670d13de9975e5dedf` and then against the final head `258ebe6547bc011fa33eea829303b45337c6a42d` — **the authoritative CI-verified content SHA, and the head that merged**. 27/27 Check Runs `success` on each. Full evidence in §10.1; the merge-commit distinction in §13.1. |
 | **C-2** | **`agents/*` were in no CI gate.** 73 tests and 5 `handler.py` files unlinted, untyped, untested by CI. | **CLOSED** | Two steps added to `.github/workflows/pr-checks.yml`: `uv run ruff check agents/` (one static pass, no isolation needed), and a per-package loop running `uv run mypy src && uv run pytest tests` inside each `agents/*/`. **One process per package is required, not stylistic** — all five expose a module named `handler` and share test-module names, so a single pytest process fails with 9 collection errors and mypy collides identically. No `package.json`, no `pyproject.toml`, no `conftest.py`, no rename: the Agent Package architecture (doc 02 `:162-169`) is untouched and they remain non-workspace-members. Verified locally: 5/5 packages, 73 tests, exit 0. Negative-controlled three ways (§6.2). |
 | **C-3** | **`agent-os/*` has no Dockerfile and appears in neither `build-and-scan.yml` nor `docker-compose.local.yml`.** | **CLOSED as a ratified deferred obligation** | By the user's decision, **no Dockerfile, matrix entry, compose service or deployment architecture is introduced by Phase 3E.** Recorded in `08-tdd-3e-agent-os.md` §15 with a criterion-by-criterion demonstration that **none of §14's five acceptance criteria requires a deployed container** — the `inprocess` backend runs agent instances inside the Kernel process by definition, so a container boundary would add nothing any criterion asks about. Neither TDD 3E nor doc 12 mentions Dockerfiles for `agent-os` anywhere. The deferring phase's inherited work list is enumerated there. |
 | **C-4** | **Four TDD deviations (DEV-1…DEV-4) disclosed but not ratified.** | **CLOSED** | All four **ratified as explicit Phase 3E narrowings** by the user's decision, recorded in `08-tdd-3e-agent-os.md` §4 and §10. Implementation preserved; deferred functionality not built. The closure pass additionally found and ratified **DEV-5 and DEV-6**, which the original register missed (§2). |
@@ -632,11 +642,26 @@ which is what converts the verdict to GO (§15).**
 
 ### 10.1 C-1 discharge evidence (2026-08-30)
 
-**Verified SHA: `733a31d58eb1f0f5a0f3b5670d13de9975e5dedf`** — the exact head
-of `phase-3e-agent-os` and of PR #20. Every check below is pinned to it, so
-this is CI against the reviewed commit, not a stale or approximate run.
+**Authoritative verified SHA: `258ebe6547bc011fa33eea829303b45337c6a42d`** —
+the **final** head of `phase-3e-agent-os` and the head PR #20 was merged
+from. **27 of 27 Check Runs `completed`/`success`**: PR Checks
+[33326242931](https://github.com/Tudor191/NOVA-PROJECT-BIBLE/actions/runs/33326242931),
+Build & Scan
+[33326242949](https://github.com/Tudor191/NOVA-PROJECT-BIBLE/actions/runs/33326242949),
+Real-Infrastructure Checks
+[33326242919](https://github.com/Tudor191/NOVA-PROJECT-BIBLE/actions/runs/33326242919)
+— all three `completed`/`success`, zero failed, cancelled, timed out,
+skipped or still running.
 
-**The three workflow runs:**
+**Two green runs exist, and this is deliberate.** CI first ran against
+`733a31d58eb1f0f5a0f3b5670d13de9975e5dedf` (the table below), which was the
+head when PR #20 opened. The commit recording this verdict then became a new
+head, `258ebe6`, and CI re-ran against it with the same result. **`258ebe6`
+is the SHA that matters** — it is what merged. The `733a31d` run is retained
+below as the original C-1 discharge evidence, not superseded in substance:
+the two runs differ only by that documentation commit.
+
+**The three workflow runs against `733a31d` (the first green run):**
 
 | Workflow | Run | Status / conclusion | Scope |
 |---|---|---|---|
@@ -856,7 +881,34 @@ clean across 26 packages · ruff clean · 7/7 import contracts kept.
 | 7 | Documentation synchronised | **Yes** — §14 |
 | 8 | Gate Review written | **Yes** — this document |
 | 9 | Project Health record written | **Yes** — `docs/project-health/phase-3e.md` |
-| 10 | CI green against the head SHA | **NO** — no CI run exists. Condition **C-1**, the sole remaining barrier to GO. |
+| 10 | CI green against the head SHA | **Yes** — condition **C-1** is **CLOSED**. **27 of 27 Check Runs `completed`/`success` against `258ebe6547bc011fa33eea829303b45337c6a42d`**, the final reviewed head of `phase-3e-agent-os` and of PR #20 (§10.1). *(This row read "**NO** — no CI run exists. Condition **C-1**, the sole remaining barrier to GO." through 2026-08-29, when no CI run existed; corrected 2026-08-30 when C-1 was discharged.)* **The later merge commit `59743423f32b3b8f8c470128b30cf4b798b1f46f` was not itself independently executed by CI** — see §13.1. |
+
+### 13.1 What CI verified, and what it did not (2026-08-30)
+
+The distinction matters and is easy to blur, so it is stated explicitly.
+
+**CI verified the Phase 3E content.** All three workflows ran against
+`258ebe6547bc011fa33eea829303b45337c6a42d` — the final head of
+`phase-3e-agent-os` and the head PR #20 was merged from — and returned
+**27 of 27 Check Runs `completed`/`success`** (§10.1). That is the evidence
+C-1 required, and it is pinned to a real commit.
+
+**CI did not independently verify the merge commit.** PR #20 was merged into
+`phase-3b-planning-domain` on 2026-08-30 as a **true merge commit**,
+`59743423f32b3b8f8c470128b30cf4b798b1f46f`, whose two parents are
+`c6c6c5931091e3830e9c1a2437c6b056cf686eb8` (canonical before the merge) and
+`258ebe6…` (the CI-verified Phase 3E head). **No GitHub Actions run exists
+against `5974342` itself, and none can**, because all three workflows
+trigger only on `pull_request` and `push: branches: [main]` — and
+`phase-3b-planning-domain` is neither. This is a property of the workflow
+configuration, not a failure, and this review does not change that
+configuration.
+
+**So the honest claim is:** the content that merged is CI-green; the merge
+commit is not independently CI-verified. **Nothing here should be read as
+claiming CI ran against `5974342`.** The merge introduced no content beyond
+its two parents, so the residual risk is confined to merge resolution
+itself — and this merge had no conflicts to resolve.
 
 ---
 
@@ -946,10 +998,12 @@ unedited.** One thing has changed since, and it is the one thing that was
 missing.
 
 PR #20 was opened against `phase-3b-planning-domain` on 2026-08-30, and all
-three workflows ran against head SHA
-`733a31d58eb1f0f5a0f3b5670d13de9975e5dedf`:
-**27 of 27 Check Runs `completed` / `success`, zero failed, cancelled,
-timed out, skipped, or still running** (§10.1).
+three workflows ran green — first against `733a31d58eb1f0f5a0f3b5670d13de9975e5dedf`,
+then against the final head
+`258ebe6547bc011fa33eea829303b45337c6a42d` once this verdict was recorded:
+**27 of 27 Check Runs `completed` / `success` on each, zero failed,
+cancelled, timed out, skipped, or still running** (§10.1). `258ebe6` is the
+authoritative CI-verified content SHA, because it is what merged.
 
 That discharges **C-1**, the sole stated barrier to GO. Protocol §3.2's GO
 criterion 7 is met. All six conditions this review attached are now closed,
@@ -968,8 +1022,15 @@ and none of them was:
 - **D1–D4 and D10–D12 remain unrecoverable**, verified absent, not invented;
 - **PHR-1, PHR-2 and PHR-3** remain reported-not-fixed pre-existing defects.
 
-**Phase 3E is not merged.** PR #20 is open and unmerged; this verdict is
-about the phase's readiness, not its integration. **GO is still not
+**Phase 3E is merged.** PR #20 was merged into `phase-3b-planning-domain`
+on 2026-08-30 as a **true merge commit**,
+`59743423f32b3b8f8c470128b30cf4b798b1f46f`, and is closed. A merge commit
+rather than a squash was chosen deliberately, so that all 27 Phase 3E
+commits remain ancestors of canonical and every SHA this review and the
+project-health records cite stays reachable. *(This paragraph read "Phase 3E
+is not merged. PR #20 is open and unmerged" until that merge.)* The verdict
+itself is about the phase's readiness; the merge is its integration, and
+**CI verified the merged content, not the merge commit** (§13.1). **GO is still not
 authorization to begin Phase 4** — that remains a separate decision, and
 the user's.
 
@@ -982,5 +1043,8 @@ the user's.
 **CI-verified head SHA:** `733a31d58eb1f0f5a0f3b5670d13de9975e5dedf`
 (named here because CI evidence is SHA-pinned; §0's rule against naming a
 *current* head still holds — use `git rev-parse HEAD` for that) ·
-**Working tree:** clean · **PR:** #20, open, unmerged ·
-**CI:** 27/27 Check Runs success
+**Working tree:** clean · **PR:** #20, **merged and closed** ·
+**Merge commit:** `59743423f32b3b8f8c470128b30cf4b798b1f46f` (true merge,
+two parents) · **CI-verified content SHA:**
+`258ebe6547bc011fa33eea829303b45337c6a42d` ·
+**CI:** 27/27 Check Runs success (merge commit not itself CI-executed, §13.1)

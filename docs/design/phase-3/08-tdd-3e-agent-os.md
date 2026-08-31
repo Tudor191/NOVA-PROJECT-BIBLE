@@ -9,8 +9,10 @@ production code authorized.**
 > banner above is preserved as originally written; "no production code
 > authorized" describes the state on 2026-08-19 and is no longer current.
 > Phase 3E was subsequently implemented on branch `phase-3e-agent-os`
-> (last production-source commit `60934ac`; **PR #20 open, unmerged; CI green
-> — 27/27 Check Runs success against head SHA `733a31d`, 2026-08-30**). Gate
+> (last production-source commit `60934ac`; **PR #20 merged and closed
+> 2026-08-30 into canonical `phase-3b-planning-domain` as true merge commit
+> `59743423f32b3b8f8c470128b30cf4b798b1f46f`; CI green — 27/27 Check Runs
+> success against the reviewed head `258ebe6547bc011fa33eea829303b45337c6a42d`**). Gate
 > verdict: **GO** (2026-08-30; CONDITIONAL-GO on 2026-08-29, upgraded when
 > condition C-1 was discharged by that CI run — the six ratified narrowings
 > in §4/§10 and the deferred obligation in §15 are unchanged by it) — see
