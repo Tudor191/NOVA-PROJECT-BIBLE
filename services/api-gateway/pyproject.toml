@@ -1,7 +1,7 @@
 [project]
 name = "api-gateway"
 version = "0.1.0"
-description = "TODO: describe api-gateway's responsibility (one Bible Part -- see docs/architecture/00)."
+description = "External API surface: fronts each engine's /v1 REST surface, applies the doc 11 envelope, terminates the Phase-4 session model."
 requires-python = ">=3.12"
 dependencies = [
     "nova-contracts",
@@ -10,6 +10,7 @@ dependencies = [
     "fastapi>=0.115",
     "uvicorn[standard]>=0.32",
     "pydantic-settings>=2.6",
+    "httpx>=0.27",
 ]
 
 [build-system]

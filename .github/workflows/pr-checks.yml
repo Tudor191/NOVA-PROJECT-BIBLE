@@ -103,6 +103,13 @@ jobs:
       - name: Lint every package
         run: pnpm turbo run lint
 
+      # Type-checks the generated TypeScript contract surface and every
+      # workspace package that declares a `typecheck` script. Added in Phase
+      # 4A: nothing had ever compiled the codegen output, which is how 395
+      # TS2308 collisions in the generated barrel stayed invisible.
+      - name: Type-check TypeScript
+        run: pnpm turbo run typecheck
+
       - name: Test every package
         run: pnpm turbo run test
 
