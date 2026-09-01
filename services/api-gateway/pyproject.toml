@@ -1,0 +1,37 @@
+[project]
+name = "api-gateway"
+version = "0.1.0"
+description = "TODO: describe api-gateway's responsibility (one Bible Part -- see docs/architecture/00)."
+requires-python = ">=3.12"
+dependencies = [
+    "nova-contracts",
+    "nova-eventbus-sdk",
+    "nova-observability",
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "pydantic-settings>=2.6",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/nova_api_gateway"]
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.uv.sources]
+nova-contracts = { workspace = true }
+nova-eventbus-sdk = { workspace = true }
+nova-observability = { workspace = true }
+nova-testkit = { workspace = true }
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "httpx>=0.27",
+    "nova-testkit",
+]

@@ -261,7 +261,17 @@ def main() -> int:
             return result.returncode
         generated.append(model.__name__)
 
-    index_lines = [f'export * from "./{name}";' for name in generated]
+    # Re-export each payload interface by name rather than with `export *`.
+    # `json2ts` emits a scalar alias per property alongside the root interface, so
+    # nearly every module also exports `SchemaVersion` (94 of 97), `CorrelationId`
+    # (31), `UserId` (25) and so on. A barrel of `export *` lines therefore collides
+    # on those incidental names -- 395 `TS2308` errors, which went unnoticed because
+    # nothing had ever type-checked this output. The model names are unique, so
+    # named re-exports are unambiguous. Consumers that need a property alias import
+    # it from the module that owns it, which is correct anyway: `SchemaVersion` in
+    # `HeartbeatPayload` and in `ActionResultPayload` are unrelated types that merely
+    # share a name.
+    index_lines = [f'export type {{ {name} }} from "./{name}";' for name in generated]
     (OUT_DIR / "index.ts").write_text("\n".join(index_lines) + "\n")
 
     shutil.rmtree(SCHEMA_DIR)

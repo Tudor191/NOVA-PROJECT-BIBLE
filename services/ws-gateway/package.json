@@ -1,0 +1,11 @@
+{
+  "name": "@nova/ws-gateway",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "lint": "uv run --package ws-gateway ruff check . && uv run --package ws-gateway mypy src",
+    "test": "uv run --package ws-gateway pytest",
+    "build": "echo 'ws-gateway: no build step (container image built via Dockerfile in CI)'",
+    "dev": "uv run --package ws-gateway uvicorn nova_ws_gateway.main:app --reload --port 8000"
+  }
+}
