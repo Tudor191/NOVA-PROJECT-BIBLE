@@ -12,11 +12,22 @@ importers:
         specifier: ^2.10.8
         version: 2.10.8
 
+  agent-os/kernel: {}
+
+  agent-os/registry: {}
+
+  agent-os/sdk/python: {}
+
+  agent-os/supervisors: {}
+
   packages/nova-contracts:
     devDependencies:
       json-schema-to-typescript:
         specifier: ^15.0.4
         version: 15.0.4
+      typescript:
+        specifier: ^5.7.0
+        version: 5.9.3
 
   packages/nova-embeddings-sdk: {}
 
@@ -35,6 +46,8 @@ importers:
   services/action-engine: {}
 
   services/ai-model-orchestration-engine: {}
+
+  services/api-gateway: {}
 
   services/capability-engine: {}
 
@@ -59,6 +72,8 @@ importers:
   services/reasoning-engine: {}
 
   services/world-model-engine: {}
+
+  services/ws-gateway: {}
 
 packages:
 
@@ -157,6 +172,11 @@ packages:
     resolution: {integrity: sha512-9+8YX5QOkGXzZxcIykTHgaooRHGMWO+jfdyRK0o+rN0U7hBIig2MrJ8r/aNzIPDPhdA73SGb0O+tIztaModTMg==}
     hasBin: true
 
+  typescript@5.9.3:
+    resolution: {integrity: sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==}
+    engines: {node: '>=14.17'}
+    hasBin: true
+
 snapshots:
 
   '@apidevtools/json-schema-ref-parser@11.9.3':
@@ -238,3 +258,5 @@ snapshots:
       '@turbo/linux-arm64': 2.10.8
       '@turbo/windows-64': 2.10.8
       '@turbo/windows-arm64': 2.10.8
+
+  typescript@5.9.3: {}
