@@ -171,11 +171,52 @@ jobs:
         env:
           NOVA_SESSION_TOKEN: ${{ env.NOVA_SESSION_TOKEN }}
         run: |
+          # `migrations` is named explicitly for the log, though compose would
+          # pull it in regardless: every engine below gates on it through
+          # `service_completed_successfully`, so compose runs it to completion
+          # first and holds the engines until it exits 0.
           docker compose -f infra/docker/docker-compose.local.yml up -d --build \
-            nats postgres redis \
+            nats postgres redis migrations \
             world-model-engine personality-engine reasoning-engine \
             ai-model-orchestration-engine communication-engine \
             api-gateway ws-gateway
+
+      - name: Confirm the schema migration completed
+        run: |
+          set -euo pipefail
+          compose="docker compose -f infra/docker/docker-compose.local.yml"
+          echo "--- migrator output ---"
+          $compose logs migrations
+          code=$(docker inspect -f '{{.State.ExitCode}}' "$($compose ps -aq migrations)")
+          if [ "$code" != "0" ]; then
+            echo "::error::the schema migrator exited $code; engines were never started"
+            exit 1
+          fi
+          echo "schema migrator exited 0"
+
+      - name: Confirm the engines are running rather than crash-looping
+        run: |
+          set -euo pipefail
+          compose="docker compose -f infra/docker/docker-compose.local.yml"
+          # The original defect presented as repeated restarts, not as an
+          # absent container, so counting restarts is the check that would
+          # actually have caught it.
+          failed=()
+          for svc in world-model-engine personality-engine reasoning-engine \
+                     ai-model-orchestration-engine communication-engine; do
+            cid=$($compose ps -aq "$svc")
+            state=$(docker inspect -f '{{.State.Status}}' "$cid")
+            restarts=$(docker inspect -f '{{.RestartCount}}' "$cid")
+            echo "$svc: $state (restarts=$restarts)"
+            if [ "$state" != "running" ] || [ "$restarts" -gt 0 ]; then
+              failed+=("$svc")
+            fi
+          done
+          if [ ${#failed[@]} -ne 0 ]; then
+            echo "::error::engines not healthy: ${failed[*]}"
+            $compose logs --tail=200 "${failed[@]}"
+            exit 1
+          fi
 
       - name: Wait for both gateways to answer
         run: |

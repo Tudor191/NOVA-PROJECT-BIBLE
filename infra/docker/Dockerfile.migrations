@@ -1,0 +1,35 @@
+# The local stack's one-shot schema migrator.
+#
+# Build context is the repo root:
+#   docker build -f infra/docker/Dockerfile.migrations .
+#
+# Unlike `services/<name>/Dockerfile`, which each install a single engine via
+# `uv sync --package <engine>`, this installs the whole workspace. That is the
+# entire reason it exists: a migrator has to reach all thirteen engines'
+# `alembic/` trees and their `Settings` classes, and no per-engine image can.
+#
+# It runs to completion and exits. Nothing depends on it at runtime, it exposes
+# no port, and it is not a deployed service -- so it is deliberately not in
+# `build-and-scan.yml`'s matrix, which is keyed on `services/<name>/Dockerfile`
+# and covers images that actually serve traffic. Stated here rather than left
+# to look like an oversight.
+
+FROM python:3.12-slim
+RUN apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/*
+RUN pip install --no-cache-dir uv
+RUN useradd --create-home --uid 1000 nova
+WORKDIR /app
+
+# The whole workspace, because the migrator needs every engine's alembic tree
+# and every engine's `Settings`. `--no-dev` keeps test-only dependencies out;
+# `alembic>=1.13` is a main dependency of each engine, so it is present.
+COPY --chown=nova:nova . .
+RUN uv sync --frozen --no-dev --all-packages
+
+COPY --chown=nova:nova infra/docker/run-migrations.sh /usr/local/bin/run-migrations.sh
+RUN chmod +x /usr/local/bin/run-migrations.sh
+
+ENV PATH="/app/.venv/bin:$PATH"
+USER nova
+
+ENTRYPOINT ["/usr/local/bin/run-migrations.sh"]

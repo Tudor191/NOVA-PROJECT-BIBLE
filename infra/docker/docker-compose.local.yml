@@ -171,6 +171,38 @@ services:
       - loki
 
   # ---------------------------------------------------------------------------
+  # Schema bootstrap
+  # ---------------------------------------------------------------------------
+
+  # One-shot: brings all thirteen Postgres-backed engine schemas to head, in
+  # sequence, then exits. Every engine below gates on it completing
+  # successfully, so none of them can start against an empty or
+  # partially-migrated database.
+  #
+  # This closes a defect that predates Phase 4: the stack had no migration step
+  # of any kind, so engines crash-looped on their first query
+  # (`relation "communication.conversation_session" does not exist`). It had
+  # never been observed because nothing had ever started the stack -- CI's
+  # "Validate docker-compose.local.yml" step runs `config --quiet`, which parses
+  # the YAML and starts nothing. Phase 4A's Playwright job was the first thing
+  # to actually run it.
+  #
+  # See `run-migrations.sh` for why this is one container rather than thirteen,
+  # and why thirteen alembic histories share one database safely.
+  migrations:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.migrations
+    # A completed one-shot must not be resurrected; `service_completed_
+    # successfully` depends on it staying exited.
+    restart: "no"
+    environment:
+      NOVA_POSTGRES_DSN: postgresql+asyncpg://${POSTGRES_USER:-nova}:${POSTGRES_PASSWORD:-nova_dev_password}@postgres:5432/${POSTGRES_DB:-nova}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # ---------------------------------------------------------------------------
   # NOVA itself (docs/architecture/03-backend-architecture.md, Roadmap Phase 0)
   # ---------------------------------------------------------------------------
 
@@ -219,6 +251,8 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
 
@@ -246,6 +280,8 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
       neo4j:
         condition: service_healthy
 
@@ -272,6 +308,8 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
       neo4j:
@@ -297,6 +335,8 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
 
   reasoning-engine:
     build:
@@ -317,6 +357,8 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
 
@@ -339,6 +381,8 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
 
@@ -360,6 +404,8 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
 
   communication-engine:
     build:
@@ -380,6 +426,8 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
 
@@ -402,6 +450,8 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
 
@@ -439,6 +489,8 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
 
@@ -461,6 +513,8 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
 
@@ -490,6 +544,8 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
 
@@ -512,6 +568,8 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
 
   action-engine:
     build:
@@ -531,6 +589,8 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
 
   planning-engine:
     build:
@@ -551,6 +611,8 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
 
@@ -574,6 +636,8 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
 
