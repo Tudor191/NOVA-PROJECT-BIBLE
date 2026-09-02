@@ -115,3 +115,113 @@ jobs:
 
       - name: Validate docker-compose.local.yml
         run: docker compose -f infra/docker/docker-compose.local.yml config --quiet
+
+  # Phase 4 AC-1's golden path: open the web client, authenticate, hold a live
+  # text conversation, see it rendered. TDD 4A §11 requires this to be its own
+  # job -- it needs a browser and a running stack, and a failure here must not
+  # be able to mask a unit-suite failure (or vice versa) by sharing one job's
+  # exit status.
+  #
+  # STAGED, like `real-infra-checks.yml`, and for the same reason: Docker has
+  # been unavailable in the development environment throughout Phase 3 and
+  # Phase 4A, so this job has NEVER been executed anywhere. Its correctness
+  # rests on GitHub-hosted runners' standard Docker Engine, not on an
+  # empirical run. Treat the first real executions as the actual verification,
+  # and do NOT add it to branch protection until it has demonstrated stable,
+  # non-flaky runs -- the same discipline the real-infra workflow adopted.
+  #
+  # What a green run here does and does not prove: it exercises the whole
+  # transport loop -- browser -> api-gateway -> communication-engine -> bus ->
+  # ws-gateway -> browser -- including `communication.intent.delivered`, the
+  # event without which NOVA's reply never reaches a subscriber. It does NOT
+  # prove model generation: with no LLM provider configured, reasoning-engine
+  # cannot generate and `conversation_orchestration` delivers its honest
+  # fallback message instead. The reply is real and really travelled the loop;
+  # its *content* came from the fallback, not from a model.
+  e2e:
+    name: Playwright golden path (staged, non-blocking)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+
+      - name: Install JS dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browser
+        run: pnpm --filter @nova/web-client exec playwright install --with-deps chromium
+
+      - name: Provision the instance session token
+        # Decision D-3: one long-lived local token, shared by both gateways
+        # because they are two external surfaces of a single instance. Both
+        # fail closed when it is empty, so it has to exist before they start.
+        run: |
+          echo "NOVA_SESSION_TOKEN=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+
+      - name: Start the stack
+        env:
+          NOVA_SESSION_TOKEN: ${{ env.NOVA_SESSION_TOKEN }}
+        run: |
+          docker compose -f infra/docker/docker-compose.local.yml up -d --build \
+            nats postgres redis \
+            world-model-engine personality-engine reasoning-engine \
+            ai-model-orchestration-engine communication-engine \
+            api-gateway ws-gateway
+
+      - name: Wait for both gateways to answer
+        run: |
+          set -euo pipefail
+          for url in http://localhost:8014/internal/readiness http://localhost:8015/internal/readiness; do
+            echo "waiting for $url"
+            for attempt in $(seq 1 60); do
+              if curl -fsS "$url" >/dev/null 2>&1; then
+                echo "$url is ready"
+                break
+              fi
+              if [ "$attempt" -eq 60 ]; then
+                echo "::error::$url did not become ready within 5 minutes"
+                docker compose -f infra/docker/docker-compose.local.yml logs --tail=200
+                exit 1
+              fi
+              sleep 5
+            done
+          done
+
+      - name: Run the golden path
+        env:
+          NOVA_SESSION_TOKEN: ${{ env.NOVA_SESSION_TOKEN }}
+          # The client is served single-origin and Vite's `preview` proxy
+          # forwards `/v1` and `/ws` to the gateways -- the same shape a real
+          # deployment has. Pointing the client straight at the gateway ports
+          # instead would break it outright: the session cookie is
+          # `SameSite=Strict`, so a cross-origin request would never carry it
+          # and every call would 401.
+          NOVA_API_GATEWAY_URL: http://localhost:8014
+          NOVA_WS_GATEWAY_URL: http://localhost:8015
+        run: pnpm --filter @nova/web-client run test:e2e
+
+      - name: Collect stack logs on failure
+        if: failure()
+        run: docker compose -f infra/docker/docker-compose.local.yml logs --tail=400
+
+      - name: Upload the Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: apps/web-client/playwright-report/
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Tear down
+        if: always()
+        run: docker compose -f infra/docker/docker-compose.local.yml down -v

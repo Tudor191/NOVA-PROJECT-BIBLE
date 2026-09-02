@@ -66,6 +66,12 @@ jobs:
           - capability-engine
           - action-engine
           - planning-engine
+          # Phase 4A. Not engines -- the two external surfaces of an instance
+          # (doc 11 §1, doc 09 §6) -- but they ship as container images from
+          # `services/<name>/Dockerfile` like everything else here, so they
+          # are built and CVE-scanned on the same terms.
+          - api-gateway
+          - ws-gateway
     steps:
       - uses: actions/checkout@v4
 

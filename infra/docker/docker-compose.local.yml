@@ -577,6 +577,56 @@ services:
       redis:
         condition: service_healthy
 
+  # --- Phase 4A gateways ----------------------------------------------------
+  # The only two services a browser ever talks to. `api-gateway` fronts the
+  # engines' `/v1` surfaces (doc 11 §1) and `ws-gateway` is the sole bridge
+  # from the Event Bus to a browser (doc 09 §6). Both are external surfaces of
+  # one instance, so they share the single local session token (decision D-3);
+  # an empty value means "not configured" and both refuse every request rather
+  # than allowing them, so a missing secret fails closed.
+
+  api-gateway:
+    build:
+      context: ../..
+      dockerfile: services/api-gateway/Dockerfile
+    restart: unless-stopped
+    environment:
+      EVENT_BUS_BACKEND: nats
+      NATS_URL: nats://nats:4222
+      NOVA_ENGINE_NAME: api-gateway
+      API_GATEWAY_COMMUNICATION_ENGINE_URL: http://communication-engine:8000
+      API_GATEWAY_REDIS_URL: redis://redis:6379/0
+      API_GATEWAY_SESSION_TOKEN: ${NOVA_SESSION_TOKEN:-}
+      # Local development is plain HTTP, so a Secure-only cookie would never
+      # be sent back. Deployments that terminate TLS leave this at its
+      # default of true.
+      API_GATEWAY_SESSION_COOKIE_SECURE: "false"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+    ports:
+      - "8014:8000"
+    depends_on:
+      redis:
+        condition: service_healthy
+      communication-engine:
+        condition: service_started
+
+  ws-gateway:
+    build:
+      context: ../..
+      dockerfile: services/ws-gateway/Dockerfile
+    restart: unless-stopped
+    environment:
+      EVENT_BUS_BACKEND: nats
+      NATS_URL: nats://nats:4222
+      NOVA_ENGINE_NAME: ws-gateway
+      WS_GATEWAY_SESSION_TOKEN: ${NOVA_SESSION_TOKEN:-}
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+    ports:
+      - "8015:8000"
+    depends_on:
+      nats:
+        condition: service_healthy
+
 volumes:
   postgres-data:
   neo4j-data:

@@ -1,6 +1,16 @@
 [tool.uv.workspace]
 members = ["packages/*", "services/*", "agent-os/*", "agent-os/sdk/*"]
-exclude = ["agent-os/sdk"]
+# `agent-os/sdk` is a container directory, not a package.
+#
+# `packages/nova-ui` is the first workspace member with no Python in it at
+# all -- it is a TypeScript design-system package (Phase 4A). The `packages/*`
+# glob matches it, and `uv` then fails the whole workspace with "missing a
+# pyproject.toml", which breaks every `uv run --package ...` script including
+# nova-contracts' TypeScript codegen. Excluding it is the correct answer
+# rather than giving it a vestigial `pyproject.toml`: it genuinely is not a
+# Python package. `apps/*` is deliberately absent from `members` for the same
+# reason, so `apps/web-client` needs no entry here.
+exclude = ["agent-os/sdk", "packages/nova-ui"]
 
 [tool.uv]
 dev-dependencies = [
