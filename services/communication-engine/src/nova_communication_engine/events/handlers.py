@@ -42,10 +42,12 @@ target."
 from __future__ import annotations
 
 import contextlib
+from datetime import UTC, datetime
 from uuid import UUID
 
 from fastapi import FastAPI
 from nova_contracts import (
+    CommunicationIntentDeliveredPayload,
     CommunicationIntentDeliverReplyPayload,
     CommunicationIntentDeliverRequestPayload,
     CommunicationSessionCloseReplyPayload,
@@ -67,6 +69,7 @@ from nova_communication_engine.domain.addressee_fusion import (
 )
 from nova_communication_engine.domain.intent_gate import IntentDeliveryOutcome, deliver_intent
 from nova_communication_engine.domain.models import ConversationDecisionTrace, ConversationSession
+from nova_communication_engine.domain.ports import OutboxEvent
 from nova_communication_engine.domain.state_machine import InvalidTransitionError
 
 __all__ = [
@@ -161,6 +164,40 @@ async def deliver_content_to_session(
                 questions=[clarification.resume_offer(objective=session.objective)],
             )
             await state.repository.set_interrupted_content(session.session_id, content=None)
+
+    if (
+        outcome.delivered
+        and outcome.delivered_content is not None
+        and outcome.turn_id is not None
+    ):
+        # Phase 4A: broadcast what NOVA actually said, so a subscriber --
+        # `ws-gateway`, and through it the Conversation panel -- can observe
+        # the reply half of the conversation. Until this event existed only
+        # the user's own turn was ever published, and a reply reached the
+        # user solely over this engine's own channel adapter.
+        #
+        # Guarded on `delivered`, and sourced from `delivered_content` rather
+        # than the requested `content`: a rejected utterance is never
+        # published, and what ships is the post-personality-validation text.
+        # `confidence_tier` is forwarded verbatim -- no numeric confidence is
+        # synthesised here or anywhere downstream.
+        await state.repository.enqueue_outbox(
+            OutboxEvent(
+                subject="communication.intent.delivered",
+                payload=CommunicationIntentDeliveredPayload(
+                    session_id=session.session_id,
+                    turn_id=outcome.turn_id,
+                    user_id=session.user_id,
+                    content=outcome.delivered_content,
+                    channel=session.channel,
+                    confidence_tier=confidence_tier,
+                    personality_validated=outcome.personality_validated,
+                    degraded=outcome.degraded,
+                    delivered_at=datetime.now(UTC),
+                ).model_dump(mode="json"),
+                correlation_id=correlation_id,
+            )
+        )
 
     state.metrics.intent_deliveries_total.add(
         1, {"outcome": "delivered" if outcome.delivered else "rejected"}

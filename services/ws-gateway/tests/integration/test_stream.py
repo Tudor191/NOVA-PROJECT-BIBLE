@@ -21,6 +21,7 @@ from nova_contracts import EventEnvelope
 from nova_eventbus_sdk import SubjectNotAllowedError
 from nova_ws_gateway.api.stream import ConnectionBridge
 from nova_ws_gateway.config import Settings
+from nova_ws_gateway.domain.protocol import PUBLIC_TOPICS
 from nova_ws_gateway.main import create_app
 
 TOKEN = "ws-test-token"
@@ -39,18 +40,12 @@ class FakeSubscription:
 class FakeBus:
     """Records subscriptions and lets a test push an event to the handler."""
 
-    allowed: set[str] = field(
-        default_factory=lambda: {
-            "communication.intent.delivered",
-            "communication.turn.received",
-            "nova.heartbeat",
-            "perception.identity.present",
-            "personality.style.selected",
-            "communication.session.created",
-            "communication.session.state_changed",
-            "communication.session.completed",
-        }
-    )
+    # Derived from `PUBLIC_TOPICS` rather than restated. A hand-copied list
+    # here drifted once already: it carried three topics no engine publishes,
+    # and because the fake happily served them the integration suite stayed
+    # green while the real bridge offered dead topics. Tests that need a
+    # subject the bridge must *not* reach pass it explicitly instead.
+    allowed: set[str] = field(default_factory=lambda: set(PUBLIC_TOPICS))
     handlers: dict[str, Any] = field(default_factory=dict)
     subscriptions: list[FakeSubscription] = field(default_factory=list)
     credentials_seen: list[Any] = field(default_factory=list)

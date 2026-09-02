@@ -30,15 +30,33 @@ from pydantic import BaseModel, Field, ValidationError
 
 #: Every topic a browser may name in 4A. Extended per milestone; see
 #: `events/subscribed.py` for the matching bus-side declaration.
+#:
+#: Every entry is a subject some engine's own `events/published.py` actually
+#: declares, asserted by `test_every_public_topic_is_actually_published`.
+#: The first draft of this list did not hold that property: it named
+#: `communication.intent.delivered`, `perception.identity.present` and
+#: `personality.style.selected`, and **none of the three existed**. Only the
+#: first was made real (4A added it to communication-engine, because without
+#: it the Conversation panel had no source for NOVA's replies at all); the
+#: published identity subject is `perception.identity.observed`; and
+#: personality-engine broadcasts nothing -- `personality.style.select` is a
+#: request/reply RPC whose reply goes to one caller and is not subscribable.
+#:
+#: A dead topic is not harmless here: the client subscribes successfully and
+#: then waits forever. The original prefix-only test passed against all
+#: three, which is why the guard is now a publication check.
 PUBLIC_TOPICS: frozenset[str] = frozenset(
     {
+        # Conversation panel -- both halves of the exchange.
+        "communication.turn.received",
         "communication.intent.delivered",
         "communication.session.created",
         "communication.session.state_changed",
         "communication.session.completed",
-        "communication.turn.received",
-        "perception.identity.present",
-        "personality.style.selected",
+        # Presence/identity indicator.
+        "perception.identity.observed",
+        "perception.presence.observed",
+        # System Pulse (doc 04 §4).
         "nova.heartbeat",
     }
 )

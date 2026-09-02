@@ -790,3 +790,222 @@ async def test_maybe_activate_listening_ignores_text_channel_sessions(
             t for t in repository.decision_traces if t.decision_type == "listening_activation"
         ]
         assert traces[0].outcome == "no_eligible_session"
+
+
+# --- communication.intent.delivered (Phase 4A) ------------------------------
+#
+# Before 4A only the user's half of a conversation was ever broadcast
+# (`communication.turn.received`); a reply reached the user solely over this
+# engine's own channel adapter, so nothing on the bus -- and therefore no web
+# client, which doc 11 Sec1 forbids from calling an engine directly -- could
+# observe what NOVA said. These tests pin the event that closes that, and the
+# two properties that make it safe to put on a browser-reachable topic.
+
+
+def _delivered_events(repository: FakeCommunicationRepository) -> list[object]:
+    return [e for e in repository.outbox if e.subject == "communication.intent.delivered"]
+
+
+async def test_a_delivered_reply_is_published_for_subscribers(
+    monkeypatch,  # type: ignore[no-untyped-def]
+) -> None:
+    monkeypatch.setenv("EVENT_BUS_BACKEND", "in_memory")
+    repository = FakeCommunicationRepository()
+    reasoning_port = FakeReasoningPort(
+        result=ReasoningOutcomeResult(
+            outcome="decided", content="The build finished.", confidence_score=0.9
+        )
+    )
+    app = _make_app(repository=repository, reasoning_port=reasoning_port)
+
+    async with app.router.lifespan_context(app):
+        session = await repository.create_session(_thinking_session())
+        app.state.session_registry.register(session.session_id, FakeChannelAdapter())
+
+        outcome = await handle_conversation_turn(
+            app,
+            session_id=session.session_id,
+            user_id=session.user_id,
+            content="How did the build go?",
+            correlation_id=session.session_id,
+        )
+        assert outcome is not None and outcome.delivered is True
+
+        published = _delivered_events(repository)
+        assert len(published) == 1
+        payload = published[0].payload  # type: ignore[attr-defined]
+        assert payload["content"] == "The build finished."
+        assert payload["session_id"] == str(session.session_id)
+        assert payload["user_id"] == str(session.user_id)
+        assert payload["turn_id"] == str(outcome.turn_id)
+        assert payload["personality_validated"] is True
+        assert payload["degraded"] is False
+
+
+async def test_a_rejected_utterance_is_never_published(
+    monkeypatch,  # type: ignore[no-untyped-def]
+) -> None:
+    """The gate exists to stop content reaching the user (Sec7 step 2).
+
+    Publishing a hard-stopped utterance would route it straight back to the
+    user through the very subscriber the event was added for, defeating the
+    gate entirely.
+    """
+    monkeypatch.setenv("EVENT_BUS_BACKEND", "in_memory")
+    repository = FakeCommunicationRepository()
+    app = _make_app(
+        repository=repository,
+        reasoning_port=FakeReasoningPort(
+            result=ReasoningOutcomeResult(outcome="decided", content="Act now, don't wait.")
+        ),
+        personality_port=FakePersonalityPort(
+            outcome=ValidationOutcome(passed=False, rejection_reason="forbidden_pattern: x")
+        ),
+    )
+
+    async with app.router.lifespan_context(app):
+        session = await repository.create_session(_thinking_session())
+        app.state.session_registry.register(session.session_id, FakeChannelAdapter())
+
+        outcome = await handle_conversation_turn(
+            app,
+            session_id=session.session_id,
+            user_id=session.user_id,
+            content="What should I do?",
+            correlation_id=session.session_id,
+        )
+        assert outcome is not None and outcome.delivered is False
+        assert _delivered_events(repository) == []
+
+
+async def test_nothing_is_published_when_no_channel_was_reached(
+    monkeypatch,  # type: ignore[no-untyped-def]
+) -> None:
+    monkeypatch.setenv("EVENT_BUS_BACKEND", "in_memory")
+    repository = FakeCommunicationRepository()
+    app = _make_app(repository=repository, reasoning_port=FakeReasoningPort())
+
+    async with app.router.lifespan_context(app):
+        session = await repository.create_session(_thinking_session())
+        # No adapter registered: the turn is recorded but never delivered.
+        outcome = await handle_conversation_turn(
+            app,
+            session_id=session.session_id,
+            user_id=session.user_id,
+            content="Hello?",
+            correlation_id=session.session_id,
+        )
+        assert outcome is not None and outcome.delivered is False
+        assert _delivered_events(repository) == []
+
+
+async def test_the_published_content_is_the_adjusted_text_not_the_requested_text(
+    monkeypatch,  # type: ignore[no-untyped-def]
+) -> None:
+    """02-personality-engine.md Sec8 may rewrite an utterance.
+
+    A subscriber that saw the pre-validation text would render something NOVA
+    never said -- so the event must carry what actually went to the channel.
+    """
+    monkeypatch.setenv("EVENT_BUS_BACKEND", "in_memory")
+    repository = FakeCommunicationRepository()
+    adapter = FakeChannelAdapter()
+    app = _make_app(
+        repository=repository,
+        reasoning_port=FakeReasoningPort(
+            result=ReasoningOutcomeResult(outcome="decided", content="raw phrasing")
+        ),
+        personality_port=FakePersonalityPort(
+            outcome=ValidationOutcome(passed=True, adjusted_content="adjusted phrasing")
+        ),
+    )
+
+    async with app.router.lifespan_context(app):
+        session = await repository.create_session(_thinking_session())
+        app.state.session_registry.register(session.session_id, adapter)
+
+        await handle_conversation_turn(
+            app,
+            session_id=session.session_id,
+            user_id=session.user_id,
+            content="anything",
+            correlation_id=session.session_id,
+        )
+
+        published = _delivered_events(repository)
+        assert len(published) == 1
+        assert published[0].payload["content"] == "adjusted phrasing"  # type: ignore[attr-defined]
+        # ...and that is exactly what the channel received.
+        assert adapter.delivered[0].content == "adjusted phrasing"
+
+
+async def test_a_degraded_delivery_is_published_as_degraded(
+    monkeypatch,  # type: ignore[no-untyped-def]
+) -> None:
+    """Sec9's fallback delivers unvalidated content when personality times out.
+
+    That is a disclosure, not a secret: a consumer must be able to tell this
+    apart from a clean answer ("never silence, always disclose degradation").
+    """
+    monkeypatch.setenv("EVENT_BUS_BACKEND", "in_memory")
+    repository = FakeCommunicationRepository()
+    app = _make_app(
+        repository=repository,
+        reasoning_port=FakeReasoningPort(
+            result=ReasoningOutcomeResult(outcome="decided", content="Unvalidated answer.")
+        ),
+        personality_port=FakePersonalityPort(raise_timeout=True),
+    )
+
+    async with app.router.lifespan_context(app):
+        session = await repository.create_session(_thinking_session())
+        app.state.session_registry.register(session.session_id, FakeChannelAdapter())
+
+        await handle_conversation_turn(
+            app,
+            session_id=session.session_id,
+            user_id=session.user_id,
+            content="anything",
+            correlation_id=session.session_id,
+        )
+
+        published = _delivered_events(repository)
+        assert len(published) == 1
+        payload = published[0].payload  # type: ignore[attr-defined]
+        assert payload["degraded"] is True
+        assert payload["personality_validated"] is False
+
+
+async def test_no_numeric_confidence_is_invented_for_the_published_event(
+    monkeypatch,  # type: ignore[no-untyped-def]
+) -> None:
+    """The engine has a tier string, not a number.
+
+    `OutboxEvent` carries no `confidence`, so the envelope's numeric field
+    stays unset and the tier travels verbatim in the payload. Deriving a
+    float here would corrupt the exact signal Part 8 surfaces it for.
+    """
+    monkeypatch.setenv("EVENT_BUS_BACKEND", "in_memory")
+    repository = FakeCommunicationRepository()
+    app = _make_app(
+        repository=repository,
+        reasoning_port=FakeReasoningPort(
+            result=ReasoningOutcomeResult(outcome="decided", content="An answer.")
+        ),
+    )
+
+    async with app.router.lifespan_context(app):
+        session = await repository.create_session(_thinking_session())
+        app.state.session_registry.register(session.session_id, FakeChannelAdapter())
+
+        await handle_conversation_turn(
+            app,
+            session_id=session.session_id,
+            user_id=session.user_id,
+            content="anything",
+            correlation_id=session.session_id,
+        )
+
+        payload = _delivered_events(repository)[0].payload  # type: ignore[attr-defined]
+        assert isinstance(payload["confidence_tier"], str)
+        assert "confidence" not in payload

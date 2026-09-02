@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import ast
 from datetime import UTC, datetime
+from pathlib import Path
 from uuid import uuid4
 
 import pytest
@@ -79,6 +81,61 @@ def test_every_public_topic_is_reachable_on_the_bus() -> None:
         assert (
             topic in SUBSCRIBABLE_SUBJECTS or f"{prefix}.*" in SUBSCRIBABLE_SUBJECTS
         ), f"{topic!r} is public but not declared in events/subscribed.py"
+
+
+def _declared_publishable_subjects() -> set[str]:
+    """Every subject any engine's own `events/published.py` declares.
+
+    Read from source rather than imported: `lint-imports` forbids this
+    service from importing another service's package (ADR-004), and the
+    files are a flat `frozenset` of string literals, so a literal scan is
+    exact -- no engine builds this set dynamically.
+    """
+    repo_root = Path(__file__).resolve().parents[4]
+    subjects: set[str] = set()
+    published_files = list(repo_root.glob("services/*/src/*/events/published.py"))
+    published_files += list(repo_root.glob("agent-os/*/src/*/events/published.py"))
+    assert published_files, "found no events/published.py files; the glob is wrong"
+    for path in published_files:
+        tree = ast.parse(path.read_text())
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Constant) and isinstance(node.value, str):
+                subjects.add(node.value)
+    return subjects
+
+
+def test_every_public_topic_is_actually_published() -> None:
+    """A browser must never be offered a topic nothing emits.
+
+    The prefix check above is necessary but not sufficient, and the gap was
+    not hypothetical: it passed against `communication.intent.delivered`,
+    `perception.identity.present` and `personality.style.selected` while all
+    three matched a subscribable *pattern* and none was published by any
+    engine. Subscribing to one of those succeeded and then delivered nothing,
+    forever -- the Conversation panel would have rendered the user's own
+    turns and never a reply.
+    """
+    publishable = _declared_publishable_subjects()
+    dead = sorted(topic for topic in PUBLIC_TOPICS if topic not in publishable)
+    assert not dead, (
+        f"public topics that no engine publishes: {dead}. Either some engine "
+        "must declare the subject in its events/published.py and emit it, or "
+        "the topic must come out of PUBLIC_TOPICS -- a browser subscribing to "
+        "it would wait forever."
+    )
+
+
+def test_the_publication_scan_finds_a_known_subject() -> None:
+    """Anti-decoration control for the scan above.
+
+    A `_declared_publishable_subjects` that silently returned everything (or
+    globbed nothing and was rescued by the `assert`) would make the test
+    above vacuous. Pin it to one subject that is definitely published and one
+    string that is definitely not a subject.
+    """
+    publishable = _declared_publishable_subjects()
+    assert "communication.turn.received" in publishable
+    assert "communication.definitely.not.a.real.subject" not in publishable
 
 
 @pytest.mark.parametrize(

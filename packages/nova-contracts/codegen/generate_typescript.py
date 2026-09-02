@@ -35,6 +35,7 @@ from nova_contracts import (
     CapabilityInvokeRequestPayload,
     CapabilityResolveReplyPayload,
     CapabilityResolveRequestPayload,
+    CommunicationIntentDeliveredPayload,
     CommunicationIntentDeliverReplyPayload,
     CommunicationIntentDeliverRequestPayload,
     CommunicationSessionCloseReplyPayload,
@@ -67,6 +68,10 @@ from nova_contracts import (
     ExecutiveOutcomeReportPayload,
     ExecutiveOutcomeReportReplyPayload,
     ExecutiveRequestPayload,
+    FaceEmbedReplyPayload,
+    FaceEmbedRequestPayload,
+    GazeEstimateReplyPayload,
+    GazeEstimateRequestPayload,
     GenerateReplyPayload,
     GenerateRequestPayload,
     HeartbeatPayload,
@@ -91,6 +96,13 @@ from nova_contracts import (
     ModelHealthChangedPayload,
     ModelRegistryChangedPayload,
     ModuleStatusChangedPayload,
+    PerceptionAddresseeSignalCandidatePayload,
+    PerceptionAttentionObservedPayload,
+    PerceptionConsentChangedPayload,
+    PerceptionIdentityObservedPayload,
+    PerceptionPresenceObservedPayload,
+    PerceptionSensorHealthChangedPayload,
+    PerceptionWakeDetectedPayload,
     PersonalityMemoryUpdatePayload,
     PersonalityStyleSelectReplyPayload,
     PersonalityStyleSelectRequestPayload,
@@ -108,11 +120,16 @@ from nova_contracts import (
     ReasoningRequestPayload,
     RequestCompletedPayload,
     RequestFailedPayload,
+    ResponseShapingDirectivePayload,
     ShortTermMemoryCreatedPayload,
     SynthesizeReplyPayload,
     SynthesizeRequestPayload,
     TranscribeReplyPayload,
     TranscribeRequestPayload,
+    VoiceEmbedReplyPayload,
+    VoiceEmbedRequestPayload,
+    WakePhraseDetectReplyPayload,
+    WakePhraseDetectRequestPayload,
     WorldObjectChangedPayload,
 )
 from pydantic import BaseModel
@@ -185,6 +202,7 @@ MODELS: list[type[BaseModel]] = [
     CommunicationSessionCloseRequestPayload,
     CommunicationSessionCloseReplyPayload,
     CommunicationIntentDeliverRequestPayload,
+    CommunicationIntentDeliveredPayload,
     CommunicationIntentDeliverReplyPayload,
     CommunicationSessionCreatedPayload,
     CommunicationSessionStateChangedPayload,
@@ -215,6 +233,29 @@ MODELS: list[type[BaseModel]] = [
     AgentOsPeerReviewReplyPayload,
     AgentOsRestartPlanRequestPayload,
     AgentOsRestartPlanReplyPayload,
+    # Phase 2D-B/2D-C contracts that were registered on the bus but never
+    # added here, so they had no TypeScript type at all -- the whole
+    # `perception.*` surface plus `ResponseShapingDirectivePayload`. Found by
+    # `test_every_registered_payload_reaches_the_typescript_surface`, which
+    # now compares this list against the runtime registry so the gap cannot
+    # reopen silently. `PerceptionIdentityObservedPayload` is what the 4A
+    # presence indicator binds to.
+    FaceEmbedRequestPayload,
+    FaceEmbedReplyPayload,
+    VoiceEmbedRequestPayload,
+    VoiceEmbedReplyPayload,
+    GazeEstimateRequestPayload,
+    GazeEstimateReplyPayload,
+    WakePhraseDetectRequestPayload,
+    WakePhraseDetectReplyPayload,
+    PerceptionPresenceObservedPayload,
+    PerceptionIdentityObservedPayload,
+    PerceptionAttentionObservedPayload,
+    PerceptionWakeDetectedPayload,
+    PerceptionAddresseeSignalCandidatePayload,
+    PerceptionConsentChangedPayload,
+    PerceptionSensorHealthChangedPayload,
+    ResponseShapingDirectivePayload,
 ]
 
 PACKAGE_ROOT = Path(__file__).resolve().parent.parent

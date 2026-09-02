@@ -149,3 +149,38 @@ def test_no_module_reexports_another_module(forbidden: str) -> None:
     """Payload modules are standalone; only the barrel aggregates them."""
     offenders = [p.name for p in _payload_modules() if forbidden in p.read_text()]
     assert not offenders, f"payload modules must not re-export: {offenders}"
+
+
+def test_every_registered_payload_reaches_the_typescript_surface() -> None:
+    """`MODELS` in the codegen is hand-maintained, and drifts silently.
+
+    A payload decorated with `@register_payload` is live on the bus the
+    moment an engine publishes it, but it only acquires a TypeScript type if
+    someone also remembered to add it to `codegen/generate_typescript.py`'s
+    `MODELS` list. Nothing connected those two facts, so a new contract could
+    ship to every Python consumer while the web client had no type for it --
+    and the failure is invisible, because the generator happily reports
+    success for the models it *was* given.
+
+    Phase 4A hit exactly this: `CommunicationIntentDeliveredPayload` was
+    registered, published, and covered by engine tests, and the regenerated
+    output still contained 97 files rather than 98.
+    """
+    from nova_contracts import registry
+
+    generated = {p.stem for p in _payload_modules()}
+    missing = sorted(
+        model.__name__
+        for subject in registry.known_subjects()
+        if (model := registry.payload_model_for(subject)) is not None
+        # The registry is process-global, so other tests in this suite
+        # register throwaway models into it. Only models that actually ship
+        # from this package are supposed to have a generated counterpart.
+        and model.__module__.startswith("nova_contracts.")
+        and model.__name__ not in generated
+    )
+    assert not missing, (
+        f"registered payloads with no generated TypeScript type: {missing}. "
+        "Add each to MODELS in packages/nova-contracts/codegen/"
+        "generate_typescript.py and re-run the generator."
+    )

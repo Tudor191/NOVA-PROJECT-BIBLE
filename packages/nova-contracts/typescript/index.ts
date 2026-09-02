@@ -65,6 +65,7 @@ export type { CommunicationSessionCreateReplyPayload } from "./CommunicationSess
 export type { CommunicationSessionCloseRequestPayload } from "./CommunicationSessionCloseRequestPayload";
 export type { CommunicationSessionCloseReplyPayload } from "./CommunicationSessionCloseReplyPayload";
 export type { CommunicationIntentDeliverRequestPayload } from "./CommunicationIntentDeliverRequestPayload";
+export type { CommunicationIntentDeliveredPayload } from "./CommunicationIntentDeliveredPayload";
 export type { CommunicationIntentDeliverReplyPayload } from "./CommunicationIntentDeliverReplyPayload";
 export type { CommunicationSessionCreatedPayload } from "./CommunicationSessionCreatedPayload";
 export type { CommunicationSessionStateChangedPayload } from "./CommunicationSessionStateChangedPayload";
@@ -95,3 +96,19 @@ export type { AgentOsPeerReviewRequestPayload } from "./AgentOsPeerReviewRequest
 export type { AgentOsPeerReviewReplyPayload } from "./AgentOsPeerReviewReplyPayload";
 export type { AgentOsRestartPlanRequestPayload } from "./AgentOsRestartPlanRequestPayload";
 export type { AgentOsRestartPlanReplyPayload } from "./AgentOsRestartPlanReplyPayload";
+export type { FaceEmbedRequestPayload } from "./FaceEmbedRequestPayload";
+export type { FaceEmbedReplyPayload } from "./FaceEmbedReplyPayload";
+export type { VoiceEmbedRequestPayload } from "./VoiceEmbedRequestPayload";
+export type { VoiceEmbedReplyPayload } from "./VoiceEmbedReplyPayload";
+export type { GazeEstimateRequestPayload } from "./GazeEstimateRequestPayload";
+export type { GazeEstimateReplyPayload } from "./GazeEstimateReplyPayload";
+export type { WakePhraseDetectRequestPayload } from "./WakePhraseDetectRequestPayload";
+export type { WakePhraseDetectReplyPayload } from "./WakePhraseDetectReplyPayload";
+export type { PerceptionPresenceObservedPayload } from "./PerceptionPresenceObservedPayload";
+export type { PerceptionIdentityObservedPayload } from "./PerceptionIdentityObservedPayload";
+export type { PerceptionAttentionObservedPayload } from "./PerceptionAttentionObservedPayload";
+export type { PerceptionWakeDetectedPayload } from "./PerceptionWakeDetectedPayload";
+export type { PerceptionAddresseeSignalCandidatePayload } from "./PerceptionAddresseeSignalCandidatePayload";
+export type { PerceptionConsentChangedPayload } from "./PerceptionConsentChangedPayload";
+export type { PerceptionSensorHealthChangedPayload } from "./PerceptionSensorHealthChangedPayload";
+export type { ResponseShapingDirectivePayload } from "./ResponseShapingDirectivePayload";
