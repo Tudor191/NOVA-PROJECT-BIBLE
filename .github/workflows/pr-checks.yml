@@ -269,6 +269,7 @@ jobs:
           # and every call would 401.
           NOVA_API_GATEWAY_URL: http://localhost:8014
           NOVA_WS_GATEWAY_URL: http://localhost:8015
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         # `tee` so the reason survives: Playwright's global errors -- a
         # `webServer` that never came up, a config that failed to load -- are
         # not test results and so are absent from the JSON reporter's output.
@@ -279,7 +280,13 @@ jobs:
           # Stamped so a screenshot of this step is self-dating. A superseded
           # run was once read as current because nothing in the output said
           # which commit produced it.
-          echo "golden path @ ${GITHUB_SHA}, webServer target ${NOVA_WEB_CLIENT_URL:-http://127.0.0.1:4173}"
+          #
+          # The head SHA, not `GITHUB_SHA`: on a `pull_request` event the
+          # latter is the ephemeral merge commit GitHub builds for the run,
+          # which appears nowhere in the branch. Stamping it would leave a
+          # reader unable to tie the run to a commit they can check out --
+          # the exact problem this line exists to solve.
+          echo "golden path @ ${HEAD_SHA}, webServer target ${NOVA_WEB_CLIENT_URL:-http://127.0.0.1:4173}"
           pnpm --filter @nova/web-client run test:e2e 2>&1 | tee /tmp/playwright-stdout.log
 
       - name: Collect stack logs on failure
