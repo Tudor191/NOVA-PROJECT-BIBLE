@@ -250,6 +250,14 @@ jobs:
           NOVA_WS_GATEWAY_URL: http://localhost:8015
         run: pnpm --filter @nova/web-client run test:e2e
 
+      - name: Collect stack logs on failure
+        if: failure()
+        # Deliberately short. `--tail=400` per service produced thousands of
+        # lines and buried the actual test failure beyond the log viewer's
+        # reach; the engines' own errors show up in the first few lines when
+        # they matter, and the step above carries the reason that counts.
+        run: docker compose -f infra/docker/docker-compose.local.yml logs --tail=8
+
       - name: Report why the golden path failed
         if: failure()
         run: |
@@ -281,14 +289,6 @@ jobs:
               console.log(f.error);
             }
           '
-
-      - name: Collect stack logs on failure
-        if: failure()
-        # Deliberately short. `--tail=400` per service produced thousands of
-        # lines and buried the actual test failure beyond the log viewer's
-        # reach; the engines' own errors show up in the first few lines when
-        # they matter, and the step above carries the reason that counts.
-        run: docker compose -f infra/docker/docker-compose.local.yml logs --tail=25
 
       - name: Upload the Playwright report
         if: always()
