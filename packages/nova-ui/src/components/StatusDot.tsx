@@ -26,6 +26,16 @@ export type StatusDotProps = {
   animate?: boolean;
   /** Changes on every real signal; restarts the one-shot pulse. */
   pulseKey?: string | number;
+  /**
+   * Which instrument this dot is, for tests that must target one of several.
+   *
+   * A shell header carries more than one of these, so `status-dot` alone
+   * only ever resolves positionally -- and a positional selector reads the
+   * wrong instrument the moment the header gains one. `data-testid` stays
+   * `status-dot` on every dot so "no dot anywhere is animating while
+   * unknown" remains one selector.
+   */
+  instrument?: string;
   className?: string;
 };
 
@@ -41,10 +51,16 @@ export function StatusDot({
   label,
   animate = false,
   pulseKey,
+  instrument,
   className,
 }: StatusDotProps) {
   return (
-    <span className={cn("nova-status", className)} data-testid="status-dot" data-status={status}>
+    <span
+      className={cn("nova-status", className)}
+      data-testid="status-dot"
+      data-instrument={instrument}
+      data-status={status}
+    >
       <span
         key={pulseKey}
         aria-hidden="true"

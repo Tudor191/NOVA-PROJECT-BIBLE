@@ -54,6 +54,18 @@ test.describe("the golden path", () => {
     //    after the ADR-005 intent gate passes the utterance, bridged by
     //    ws-gateway. Without it this assertion could never pass.
     //
+    //    KNOWN TO FAIL, and deliberately left failing rather than skipped.
+    //    ADR-005's gate calls an utterance *delivered* only once it reaches a
+    //    live `ChannelAdapter`, and the only adapters that exist are
+    //    registered by `api/websocket.py` for clients connected to
+    //    communication-engine's own socket. Doc 11 §1 forbids this client
+    //    from being one of those, so `deliver_intent` returns
+    //    `delivered=False, rejection_reason="no_live_channel_connection"`,
+    //    and `handlers.py` guards the publish on `outcome.delivered`. The
+    //    outbound turn is persisted; nothing announces it. Closing this needs
+    //    an architectural decision about whether the bus is itself a delivery
+    //    channel -- not a change this test should presume.
+    //
     //    The timeout is raised from the 15s default deliberately, and the
     //    arithmetic is the reason: with no LLM provider configured,
     //    `communication_engine_reasoning_rpc_timeout_ms` (10s) has to expire
@@ -76,11 +88,18 @@ test.describe("the golden path", () => {
     await page.getByLabel("Session token").fill(SESSION_TOKEN);
     await page.getByRole("button", { name: "Sign in" }).click();
 
-    // The System Pulse binds to `nova.heartbeat`. Against a running stack it
-    // must reach a real status rather than sitting at "no heartbeat yet" --
-    // and a dot that animates while reporting `unknown` would be exactly the
-    // fake animation Bible Part 6 forbids.
-    const pulse = page.getByTestId("status-dot").first();
+    // The System Pulse binds to `nova.heartbeat`, published by `nova-core`
+    // every 5s. Against a running stack it must reach a real status rather
+    // than sitting at "no heartbeat yet" -- and a dot that animates while
+    // reporting `unknown` would be exactly the fake animation Bible Part 6
+    // forbids.
+    //
+    // Addressed by instrument, not by position: the header carries three
+    // dots and `.first()` only happened to be this one. When this assertion
+    // failed against a stack that had no `nova-core` running, the message
+    // named `<span data-status="unknown">` and could not say which of the
+    // three it had read.
+    const pulse = page.locator('[data-testid="status-dot"][data-instrument="system-pulse"]');
     await expect(pulse).toHaveAttribute("data-status", /healthy|degraded|down/);
 
     const stillUnknown = page.locator(
@@ -101,18 +120,45 @@ test.describe("security boundaries", () => {
   test("the browser cannot reach an engine's internal surface", async ({ page }) => {
     await page.goto("/");
 
-    const internal = await page.evaluate(async () => {
-      try {
-        const response = await fetch("/internal/health", { credentials: "include" });
-        return { ok: response.ok, status: response.status };
-      } catch (error) {
-        return { ok: false, status: -1, error: String(error) };
-      }
+    // A path with no route anywhere in the system, fetched the same way, is
+    // the control. The origin serving the client is a single-page app: it
+    // answers *any* unrouted GET with the app shell, 200 and all. So
+    // `response.ok === false` is not the property to assert -- an earlier
+    // version of this test asserted exactly that and failed against a
+    // perfectly correct stack, because the shell answered.
+    //
+    // What must hold is that `/internal/health` is not *special*: it is
+    // handled like any other path the origin does not route, and no engine
+    // is behind it (doc 11 §3, doc 11 §1).
+    const probe = await page.evaluate(async () => {
+      const fetchOnce = async (path: string) => {
+        try {
+          const response = await fetch(path, { credentials: "include" });
+          return {
+            status: response.status,
+            contentType: response.headers.get("content-type") ?? "",
+            body: (await response.text()).slice(0, 2000),
+          };
+        } catch (error) {
+          return { status: -1, contentType: "", body: "", error: String(error) };
+        }
+      };
+      return {
+        internal: await fetchOnce("/internal/health"),
+        unrouted: await fetchOnce("/__nova_no_such_route__"),
+      };
     });
 
-    // Whatever answers the page's own origin, it must not be an engine's
-    // internal health surface reporting success (doc 11 §3).
-    expect(internal.ok).toBe(false);
+    // Indistinguishable from a path that routes nowhere.
+    expect(probe.internal.status).toBe(probe.unrouted.status);
+    expect(probe.internal.contentType).toBe(probe.unrouted.contentType);
+    expect(probe.internal.body).toBe(probe.unrouted.body);
+
+    // And positively not an engine: every service's `/internal/health`
+    // answers `{"status": "healthy"}` as JSON (`api/health.py`). Neither the
+    // content type nor the body may look like that.
+    expect(probe.internal.contentType).not.toContain("application/json");
+    expect(() => JSON.parse(probe.internal.body)).toThrow();
   });
 
   test("the browser cannot open a socket to the event bus", async ({ page }) => {

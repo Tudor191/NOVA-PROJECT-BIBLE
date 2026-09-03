@@ -34,7 +34,7 @@ export function ConnectionState() {
   const { status, lastError } = useRealtime();
   return (
     <span className="flex items-center gap-2">
-      <StatusDot status={TONE[status]} label={LABEL[status]} />
+      <StatusDot status={TONE[status]} label={LABEL[status]} instrument="stream" />
       {lastError ? (
         <span className="nova-correlation" role="status" data-testid="realtime-error">
           {lastError}

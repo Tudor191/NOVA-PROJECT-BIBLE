@@ -17,16 +17,17 @@ export function PresenceIndicator() {
   const { data: identities } = usePresentIdentities();
 
   if (identities === null || identities === undefined) {
-    return <StatusDot status="unknown" label="Presence unknown" />;
+    return <StatusDot status="unknown" label="Presence unknown" instrument="presence" />;
   }
 
   if (identities.length === 0) {
-    return <StatusDot status="degraded" label="Nobody recognised" />;
+    return <StatusDot status="degraded" label="Nobody recognised" instrument="presence" />;
   }
 
   return (
     <StatusDot
       status="healthy"
+      instrument="presence"
       label={
         identities.length === 1
           ? `1 person present`

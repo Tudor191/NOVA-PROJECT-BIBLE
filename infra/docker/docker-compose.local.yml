@@ -442,6 +442,56 @@ services:
       redis:
         condition: service_healthy
 
+  # The same image as communication-engine above, running its Arq
+  # outbox-dispatch worker instead of the FastAPI app.
+  #
+  # Without this container the engine's domain events never leave the
+  # database. `record_inbound_turn` and `deliver_content_to_session` write
+  # `communication.turn.received` and `communication.intent.delivered` into
+  # the outbox table; `repository/outbox_dispatcher.py` is the only thing
+  # that publishes them, and the only caller of it is the Arq cron in
+  # `workers/__init__.py`. The reasoning and personality legs are synchronous
+  # RPCs, so a conversation still *looks* like it works from the engine's
+  # logs -- 202 Accepted, an `ai_model` call, a delivered reply -- while no
+  # subscriber ever sees either half of it. That is precisely how Phase 4A's
+  # first real Playwright run failed: the socket connected, subscribed to
+  # every public topic, and received nothing.
+  #
+  # Same known gap as perception-engine-worker documents above, and the same
+  # narrow fix: this closes it for the one engine whose outbox feeds
+  # `ws-gateway`'s `PUBLIC_TOPICS`. `world-model-engine`, `reasoning-engine`
+  # and `ai-model-orchestration-engine` also have undeployed workers here;
+  # their outbox subjects reach no browser, so closing those stays out of
+  # scope, and `tools/tests/test_e2e_stack_completeness.py` states that
+  # boundary as a test rather than leaving it to this comment.
+  communication-engine-worker:
+    build:
+      context: ../..
+      dockerfile: services/communication-engine/Dockerfile
+    command: ["arq", "nova_communication_engine.workers.WorkerSettings"]
+    restart: unless-stopped
+    # The image's own HEALTHCHECK curls the FastAPI app's /internal/health --
+    # meaningless for this process (no HTTP server here), so it is disabled
+    # rather than left reporting a permanently false "unhealthy".
+    healthcheck:
+      disable: true
+    environment:
+      EVENT_BUS_BACKEND: nats
+      NATS_URL: nats://nats:4222
+      NOVA_ENGINE_NAME: communication-engine
+      COMMUNICATION_ENGINE_POSTGRES_DSN: postgresql+asyncpg://${POSTGRES_USER:-nova}:${POSTGRES_PASSWORD:-nova_dev_password}@postgres:5432/${POSTGRES_DB:-nova}
+      COMMUNICATION_ENGINE_REDIS_URL: redis://redis:6379/0
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+    depends_on:
+      nats:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
   perception-engine:
     build:
       context: ../..

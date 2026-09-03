@@ -45,6 +45,7 @@ export function SystemPulse() {
     <StatusDot
       status={status}
       label={label}
+      instrument="system-pulse"
       // Only a real beat can be a reason to move.
       animate={status !== "unknown"}
       pulseKey={sequence}

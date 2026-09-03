@@ -175,10 +175,24 @@ jobs:
           # pull it in regardless: every engine below gates on it through
           # `service_completed_successfully`, so compose runs it to completion
           # first and holds the engines until it exits 0.
+          #
+          # Two of these are not obvious and are what the first real Playwright
+          # run proved necessary:
+          #
+          # - `nova-core` is the only publisher of `nova.heartbeat`. Without it
+          #   the System Pulse is honestly `unknown` forever, and the shell's
+          #   telemetry assertion has nothing real to report.
+          # - `communication-engine-worker` is the only thing that drains the
+          #   communication outbox, so without it neither
+          #   `communication.turn.received` nor `communication.intent.delivered`
+          #   ever reaches the bus and the transcript stays empty however long
+          #   the test waits.
           docker compose -f infra/docker/docker-compose.local.yml up -d --build \
             nats postgres redis migrations \
+            nova-core \
             world-model-engine personality-engine reasoning-engine \
             ai-model-orchestration-engine communication-engine \
+            communication-engine-worker \
             api-gateway ws-gateway
 
       - name: Confirm the schema migration completed
@@ -202,8 +216,15 @@ jobs:
           # absent container, so counting restarts is the check that would
           # actually have caught it.
           failed=()
-          for svc in world-model-engine personality-engine reasoning-engine \
-                     ai-model-orchestration-engine communication-engine; do
+          # `communication-engine-worker` and `nova-core` are in this list for
+          # the same reason as the engines: a worker that cannot reach Redis
+          # exits and is restarted forever, and the only symptom downstream is
+          # a transcript that never fills -- a 30s assertion timeout that names
+          # nothing. A restart count here names it immediately.
+          for svc in nova-core \
+                     world-model-engine personality-engine reasoning-engine \
+                     ai-model-orchestration-engine communication-engine \
+                     communication-engine-worker; do
             cid=$($compose ps -aq "$svc")
             state=$(docker inspect -f '{{.State.Status}}' "$cid")
             restarts=$(docker inspect -f '{{.RestartCount}}' "$cid")
