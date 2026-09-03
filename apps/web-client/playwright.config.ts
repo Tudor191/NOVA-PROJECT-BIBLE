@@ -23,13 +23,29 @@ export default defineConfig({
   // The golden path exercises a real conversation through real engines;
   // model latency is genuinely variable and a tight timeout would produce
   // flakes that say nothing about the code.
-  timeout: 90_000,
+  // The golden path alone can legitimately spend ~12s waiting for the
+  // reasoning fallback, and its two assertions budget 30s + 45s for it. 90s
+  // would leave the test timeout, not the assertion, as the thing that fires
+  // -- which reports "timed out" instead of naming the step that never
+  // happened.
+  timeout: 180_000,
   expect: { timeout: 15_000 },
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   workers: 1,
-  reporter: process.env.CI ? [["github"], ["html", { open: "never" }]] : [["list"]],
+  // `json` is not decoration: the CI job prints a compact summary from it on
+  // failure. Playwright's own output otherwise scrolls off behind the compose
+  // log dump, and a run whose failure reason is unreadable is barely better
+  // than no run at all -- which is exactly what happened on the first attempt.
+  reporter: process.env.CI
+    ? [
+        ["github"],
+        ["list"],
+        ["json", { outputFile: "playwright-results.json" }],
+        ["html", { open: "never" }],
+      ]
+    : [["list"]],
   use: {
     baseURL: BASE_URL,
     trace: "retain-on-failure",

@@ -250,9 +250,45 @@ jobs:
           NOVA_WS_GATEWAY_URL: http://localhost:8015
         run: pnpm --filter @nova/web-client run test:e2e
 
+      - name: Report why the golden path failed
+        if: failure()
+        run: |
+          set -uo pipefail
+          results=apps/web-client/playwright-results.json
+          if [ ! -f "$results" ]; then
+            echo "no Playwright results file; the failure was before the tests ran"
+            exit 0
+          fi
+          node -e '
+            const r = require("./apps/web-client/playwright-results.json");
+            const failures = [];
+            const walk = (suite) => {
+              (suite.suites ?? []).forEach(walk);
+              (suite.specs ?? []).forEach((spec) =>
+                spec.tests?.forEach((t) =>
+                  t.results?.forEach((res) => {
+                    if (res.status !== "passed" && res.status !== "skipped") {
+                      failures.push({ title: spec.title, status: res.status,
+                        error: (res.error?.message ?? "").split("\n").slice(0, 12).join("\n") });
+                    }
+                  })));
+            };
+            (r.suites ?? []).forEach(walk);
+            if (!failures.length) { console.log("results file lists no failures"); }
+            for (const f of failures) {
+              console.log("=".repeat(72));
+              console.log(`FAILED (${f.status}): ${f.title}`);
+              console.log(f.error);
+            }
+          '
+
       - name: Collect stack logs on failure
         if: failure()
-        run: docker compose -f infra/docker/docker-compose.local.yml logs --tail=400
+        # Deliberately short. `--tail=400` per service produced thousands of
+        # lines and buried the actual test failure beyond the log viewer's
+        # reach; the engines' own errors show up in the first few lines when
+        # they matter, and the step above carries the reason that counts.
+        run: docker compose -f infra/docker/docker-compose.local.yml logs --tail=25
 
       - name: Upload the Playwright report
         if: always()

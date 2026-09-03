@@ -45,14 +45,25 @@ test.describe("the golden path", () => {
     //    `communication.turn.received` through ws-gateway, not an optimistic
     //    render. This assertion is therefore a real round trip.
     const turns = page.getByTestId("transcript-entry");
-    await expect(turns.filter({ hasText: "Hello NOVA, are you there?" })).toHaveCount(1);
+    await expect(turns.filter({ hasText: "Hello NOVA, are you there?" })).toHaveCount(1, {
+      timeout: 30_000,
+    });
 
     // 6. NOVA answers. This is the leg that did not exist before 4A:
     //    `communication.intent.delivered`, published by communication-engine
     //    after the ADR-005 intent gate passes the utterance, bridged by
     //    ws-gateway. Without it this assertion could never pass.
+    //
+    //    The timeout is raised from the 15s default deliberately, and the
+    //    arithmetic is the reason: with no LLM provider configured,
+    //    `communication_engine_reasoning_rpc_timeout_ms` (10s) has to expire
+    //    before `conversation_orchestration` falls back, and personality
+    //    validation can add its own 2s on top. A 15s budget leaves ~3s of
+    //    headroom over a 12s path, which is a flake waiting to happen rather
+    //    than a real signal. This is the *fallback* path's cost, not slowness
+    //    in the transport under test.
     const reply = page.locator('[data-testid="transcript-entry"][data-author="nova"]');
-    await expect(reply.first()).toBeVisible();
+    await expect(reply.first()).toBeVisible({ timeout: 45_000 });
     await expect(reply.first()).not.toHaveText("");
 
     // 7. The envelope is rendered, not hidden (TDD 4A §5.2 property 4).
