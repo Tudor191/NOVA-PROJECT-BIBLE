@@ -276,6 +276,10 @@ jobs:
         # "results file lists no failures" while the step had plainly failed.
         run: |
           set -o pipefail
+          # Stamped so a screenshot of this step is self-dating. A superseded
+          # run was once read as current because nothing in the output said
+          # which commit produced it.
+          echo "golden path @ ${GITHUB_SHA}, webServer target ${NOVA_WEB_CLIENT_URL:-http://127.0.0.1:4173}"
           pnpm --filter @nova/web-client run test:e2e 2>&1 | tee /tmp/playwright-stdout.log
 
       - name: Collect stack logs on failure
@@ -286,36 +290,65 @@ jobs:
         # they matter, and the step above carries the reason that counts.
         run: docker compose -f infra/docker/docker-compose.local.yml logs --tail=8
 
+      # Two failures wear the same red X and mean opposite things:
+      #
+      #   A. the `webServer` never became ready, so NOTHING was tested; or
+      #   B. the browser ran the golden path and an assertion failed.
+      #
+      # A reader who cannot tell them apart draws the wrong conclusion, and
+      # that has already happened once here. So the verdict is stated first,
+      # in one line, before any detail.
       - name: Report why the golden path failed
         if: failure()
         run: |
           set -uo pipefail
           results=apps/web-client/playwright-results.json
           if [ ! -f "$results" ]; then
-            echo "no Playwright results file; the failure was before the tests ran"
+            echo "VERDICT A: no Playwright results file at all."
+            echo "The run died before it could write one -- the webServer never came up,"
+            echo "or the config failed to load. NO browser test executed."
             exit 0
           fi
           node -e '
             const r = require("./apps/web-client/playwright-results.json");
-            for (const e of r.errors ?? []) {
-              console.log("GLOBAL ERROR:", (e.message ?? String(e)).split("\n").slice(0, 20).join("\n"));
-            }
+            const globals = (r.errors ?? []).map((e) => e.message ?? String(e));
+            let specsRun = 0;
+            let specsFailed = 0;
             const failures = [];
             const walk = (suite) => {
               (suite.suites ?? []).forEach(walk);
-              (suite.specs ?? []).forEach((spec) =>
-                spec.tests?.forEach((t) =>
-                  t.results?.forEach((res) => {
-                    if (res.status !== "passed" && res.status !== "skipped") {
-                      failures.push({ title: spec.title, status: res.status,
-                        error: (res.error?.message ?? "").split("\n").slice(0, 12).join("\n") });
-                    }
-                  })));
+              (suite.specs ?? []).forEach((spec) => {
+                const attempts = (spec.tests ?? [])
+                  .flatMap((t) => t.results ?? [])
+                  .filter((res) => res.status !== "skipped");
+                if (!attempts.length) return;
+                specsRun += 1;
+                if (spec.ok === false) specsFailed += 1;
+                for (const res of attempts) {
+                  if (res.status === "passed") continue;
+                  failures.push({ title: spec.title, status: res.status,
+                    error: (res.error?.message ?? "").split("\n").slice(0, 12).join("\n") });
+                }
+              });
             };
             (r.suites ?? []).forEach(walk);
-            if (!failures.length) { console.log("results file lists no failures"); }
+
+            console.log("=".repeat(72));
+            if (specsRun === 0) {
+              console.log("VERDICT A: the webServer never became ready.");
+              console.log("NO browser test executed, so the golden path was not evaluated.");
+              console.log("Nothing below is an assertion failure -- fix the server, not the test.");
+            } else {
+              console.log(`VERDICT B: the webServer came up and ${specsRun} test(s) ran against`);
+              console.log(`the live stack; ${specsFailed} failed. These ARE assertion failures.`);
+            }
+            console.log("=".repeat(72));
+
+            for (const g of globals) {
+              console.log("GLOBAL ERROR:", g.split("\n").slice(0, 20).join("\n"));
+            }
             for (const f of failures) {
-              console.log("=".repeat(72));
+              console.log("-".repeat(72));
               console.log(`FAILED (${f.status}): ${f.title}`);
               console.log(f.error);
             }
