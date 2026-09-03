@@ -12,7 +12,18 @@ services:
   # ---------------------------------------------------------------------------
 
   postgres:
-    image: postgres:16-alpine
+    # pgvector, not plain postgres. `docs/architecture/07-database-architecture.md`
+    # §1 lists memory-engine and knowledge-engine as "PostgreSQL + pgvector" and
+    # §3 is titled "Vector storage (pgvector)"; both engines' migration 0001
+    # opens with `CREATE EXTENSION IF NOT EXISTS vector`. Against
+    # `postgres:16-alpine` that fails with `extension "vector" is not
+    # available`, so those two schemas could never be created -- the image
+    # simply did not satisfy the architecture it was serving.
+    #
+    # Same class of defect as the missing migration step, and invisible for the
+    # same reason: nothing had ever started this stack. Still PostgreSQL 16, so
+    # an existing `postgres-data` volume keeps working.
+    image: pgvector/pgvector:pg16
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-nova}

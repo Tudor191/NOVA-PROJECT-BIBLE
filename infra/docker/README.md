@@ -20,7 +20,7 @@ want to change one.
 
 | Service | Port(s) | Purpose |
 |---|---|---|
-| `postgres` | 5432 | Relational system of record (docs/architecture/07 §1) |
+| `postgres` | 5432 | Relational system of record (docs/architecture/07 §1). Image is `pgvector/pgvector:pg16`, **not** plain `postgres` -- memory-engine and knowledge-engine are "PostgreSQL + pgvector" per doc 07 §1/§3 and their migration 0001 opens with `CREATE EXTENSION IF NOT EXISTS vector`, which plain Postgres cannot satisfy |
 | `neo4j` | 7474, 7687 | Knowledge Graph / World Object Graph (docs/architecture/07 §4) |
 | `redis` | 6379 | Working memory, cache (docs/architecture/07 §5) |
 | `minio` | 9000, 9001 | S3-compatible object storage |
