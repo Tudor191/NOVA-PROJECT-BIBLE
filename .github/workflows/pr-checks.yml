@@ -297,6 +297,45 @@ jobs:
         # they matter, and the step above carries the reason that counts.
         run: docker compose -f infra/docker/docker-compose.local.yml logs --tail=8
 
+      # Where the reply actually stopped, stage by stage.
+      #
+      # The transport has no log line that names the intent gate's outcome --
+      # it is recorded as a metric, not a log -- so `docker compose logs`
+      # cannot answer "did NOVA produce a reply, and was it published?".
+      # Postgres can, exactly:
+      #
+      #   * an `outbox_event` row per subject, and whether it was dispatched,
+      #     separates "never created" from "created but never published";
+      #   * an `outbound` row in `conversation_turn` proves reasoning and
+      #     personality both completed and the reply text exists, because
+      #     `intent_gate.py` persists the turn even when it then refuses to
+      #     call the delivery `delivered`.
+      #
+      # Read-only. It changes nothing and asserts nothing; it reports.
+      - name: Trace the reply through the transport
+        if: failure()
+        run: |
+          set -uo pipefail
+          compose="docker compose -f infra/docker/docker-compose.local.yml"
+          psql="$compose exec -T postgres psql -U ${POSTGRES_USER:-nova} -d ${POSTGRES_DB:-nova} -X"
+
+          echo "--- outbox: what was created, and what actually reached the bus ---"
+          $psql -c "SELECT subject,
+                           count(*) AS rows,
+                           count(dispatched_at) AS dispatched,
+                           count(*) - count(dispatched_at) AS undispatched
+                    FROM communication.outbox_event
+                    GROUP BY subject ORDER BY subject;" || echo "(query failed)"
+
+          echo "--- turns: did NOVA produce a reply at all? ---"
+          $psql -c "SELECT direction, personality_validated,
+                           left(content, 70) AS content
+                    FROM communication.conversation_turn
+                    ORDER BY created_at;" || echo "(query failed)"
+
+          echo "--- outbox dispatcher: is it draining? ---"
+          $compose logs --tail=25 communication-engine-worker || echo "(no worker logs)"
+
       # Two failures wear the same red X and mean opposite things:
       #
       #   A. the `webServer` never became ready, so NOTHING was tested; or
