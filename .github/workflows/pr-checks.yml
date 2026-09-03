@@ -248,7 +248,14 @@ jobs:
           # and every call would 401.
           NOVA_API_GATEWAY_URL: http://localhost:8014
           NOVA_WS_GATEWAY_URL: http://localhost:8015
-        run: pnpm --filter @nova/web-client run test:e2e
+        # `tee` so the reason survives: Playwright's global errors -- a
+        # `webServer` that never came up, a config that failed to load -- are
+        # not test results and so are absent from the JSON reporter's output.
+        # The last run proved that gap exists: the summary step reported
+        # "results file lists no failures" while the step had plainly failed.
+        run: |
+          set -o pipefail
+          pnpm --filter @nova/web-client run test:e2e 2>&1 | tee /tmp/playwright-stdout.log
 
       - name: Collect stack logs on failure
         if: failure()
@@ -269,6 +276,9 @@ jobs:
           fi
           node -e '
             const r = require("./apps/web-client/playwright-results.json");
+            for (const e of r.errors ?? []) {
+              console.log("GLOBAL ERROR:", (e.message ?? String(e)).split("\n").slice(0, 20).join("\n"));
+            }
             const failures = [];
             const walk = (suite) => {
               (suite.suites ?? []).forEach(walk);
@@ -289,6 +299,12 @@ jobs:
               console.log(f.error);
             }
           '
+
+      - name: Show Playwright's own output
+        if: failure()
+        run: |
+          echo "--- last 60 lines of the golden path's stdout ---"
+          tail -n 60 /tmp/playwright-stdout.log || echo "(no stdout captured)"
 
       - name: Upload the Playwright report
         if: always()
