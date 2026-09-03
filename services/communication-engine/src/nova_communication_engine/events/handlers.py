@@ -68,7 +68,11 @@ from nova_communication_engine.domain.addressee_fusion import (
     fuse,
 )
 from nova_communication_engine.domain.intent_gate import IntentDeliveryOutcome, deliver_intent
-from nova_communication_engine.domain.models import ConversationDecisionTrace, ConversationSession
+from nova_communication_engine.domain.models import (
+    ChannelType,
+    ConversationDecisionTrace,
+    ConversationSession,
+)
 from nova_communication_engine.domain.ports import OutboxEvent
 from nova_communication_engine.domain.state_machine import InvalidTransitionError
 
@@ -127,6 +131,21 @@ async def deliver_content_to_session(
         )
 
     adapter = state.session_registry.get_adapter(session.session_id)
+    if adapter is None and session.channel is ChannelType.TEXT:
+        # A text session with no socket of ours is not a session with no
+        # channel: the Event Bus carries it, and `ws-gateway` bridges it to
+        # the browser (doc 09 Sec6). The web client can never appear in the
+        # registry -- doc 11 Sec1 forbids it from connecting to an engine --
+        # so without this the intent gate would refuse every browser reply
+        # as `no_live_channel_connection`, and nothing would ever announce
+        # what NOVA said.
+        #
+        # A live registered adapter always wins: this is the fallback, not a
+        # replacement. Voice is deliberately excluded -- audio has no
+        # representation in `communication.intent.delivered`, so a voice
+        # session with no live socket genuinely cannot be delivered and
+        # keeps its existing rejection.
+        adapter = state.bus_text_adapter
     barge_in_signal = state.session_registry.get_barge_in_signal(session.session_id)
 
     outcome = await deliver_intent(

@@ -36,6 +36,7 @@ from nova_communication_engine.conversation_orchestration import (
     maybe_activate_listening,
 )
 from nova_communication_engine.domain import session_lifecycle
+from nova_communication_engine.domain.addressee_fusion import confidence_tier_label
 from nova_communication_engine.domain.models import (
     ChannelType,
     ConversationSession,
@@ -477,19 +478,24 @@ async def test_personality_hard_stop_rejects_delivery(
         assert adapter.delivered == []
 
 
-async def test_no_live_channel_connection_records_but_does_not_deliver(
+async def test_a_text_session_without_a_socket_is_delivered_over_the_bus_channel(
     monkeypatch,  # type: ignore[no-untyped-def]
 ) -> None:
+    """A text session with no socket of ours is not a session with no channel.
+
+    This is the browser's case, and the only one it can ever have: doc 11
+    Sec1 forbids the web client from connecting to an engine, so it can never
+    appear in `session_registry`. Before `BusTextChannelAdapter` existed the
+    gate refused every such reply as `no_live_channel_connection`, and
+    nothing ever announced what NOVA said.
+    """
     monkeypatch.setenv("EVENT_BUS_BACKEND", "in_memory")
     repository = FakeCommunicationRepository()
     app = _make_app(repository=repository, reasoning_port=FakeReasoningPort())
 
     async with app.router.lifespan_context(app):
         session = await repository.create_session(_thinking_session())
-        # Deliberately never registered in `session_registry` -- no live
-        # WebSocket connection, e.g. `send_message`'s own documented
-        # "acknowledgment now, answer delivered later" case where nothing
-        # is connected yet.
+        # Deliberately never registered in `session_registry`.
         outcome = await handle_conversation_turn(
             app,
             session_id=session.session_id,
@@ -499,8 +505,8 @@ async def test_no_live_channel_connection_records_but_does_not_deliver(
         )
 
         assert outcome is not None
-        assert outcome.delivered is False
-        assert outcome.rejection_reason == "no_live_channel_connection"
+        assert outcome.delivered is True
+        assert outcome.rejection_reason is None
 
 
 async def test_session_gone_before_delivery_returns_none_without_raising(
@@ -878,15 +884,110 @@ async def test_a_rejected_utterance_is_never_published(
         assert _delivered_events(repository) == []
 
 
-async def test_nothing_is_published_when_no_channel_was_reached(
+async def test_a_bus_delivered_reply_carries_the_whole_envelope(
     monkeypatch,  # type: ignore[no-untyped-def]
 ) -> None:
+    """The browser renders `correlation_id`, `confidence_tier` and `degraded`
+    straight out of this payload, so a field lost here is a field the panel
+    silently stops showing. Exactly one row, too: the adapter must not
+    enqueue a second delivery event of its own.
+    """
+    monkeypatch.setenv("EVENT_BUS_BACKEND", "in_memory")
+    repository = FakeCommunicationRepository()
+    reasoning_port = FakeReasoningPort(
+        result=ReasoningOutcomeResult(
+            outcome="decided", content="The build finished.", confidence_score=0.9
+        )
+    )
+    app = _make_app(repository=repository, reasoning_port=reasoning_port)
+
+    async with app.router.lifespan_context(app):
+        session = await repository.create_session(_thinking_session())
+        correlation_id = session.session_id
+
+        outcome = await handle_conversation_turn(
+            app,
+            session_id=session.session_id,
+            user_id=session.user_id,
+            content="How did the build go?",
+            correlation_id=correlation_id,
+        )
+        assert outcome is not None and outcome.delivered is True
+
+        published = _delivered_events(repository)
+        assert len(published) == 1
+        event = published[0]
+        assert event.correlation_id == correlation_id  # type: ignore[attr-defined]
+
+        payload = event.payload  # type: ignore[attr-defined]
+        assert payload["content"] == "The build finished."
+        assert payload["session_id"] == str(session.session_id)
+        assert payload["user_id"] == str(session.user_id)
+        assert payload["turn_id"] == str(outcome.turn_id)
+        assert payload["channel"] == "text"
+        assert payload["confidence_tier"] == confidence_tier_label(0.9)
+        assert payload["personality_validated"] is True
+        assert payload["degraded"] is False
+
+
+async def test_a_live_socket_takes_precedence_over_the_bus_channel(
+    monkeypatch,  # type: ignore[no-untyped-def]
+) -> None:
+    """The bus adapter is a fallback, never a replacement.
+
+    A registered adapter is a live connection to a real client; silently
+    routing past it to the bus would stop delivering to the very connection
+    the user is sitting on.
+    """
+    monkeypatch.setenv("EVENT_BUS_BACKEND", "in_memory")
+    repository = FakeCommunicationRepository()
+    app = _make_app(
+        repository=repository,
+        reasoning_port=FakeReasoningPort(
+            result=ReasoningOutcomeResult(outcome="decided", content="Still here.")
+        ),
+    )
+
+    async with app.router.lifespan_context(app):
+        session = await repository.create_session(_thinking_session())
+        adapter = FakeChannelAdapter()
+        app.state.session_registry.register(session.session_id, adapter)
+
+        outcome = await handle_conversation_turn(
+            app,
+            session_id=session.session_id,
+            user_id=session.user_id,
+            content="Are you there?",
+            correlation_id=session.session_id,
+        )
+
+        assert outcome is not None and outcome.delivered is True
+        # The socket got it, which the bus adapter could never demonstrate.
+        assert [m.content for m in adapter.delivered] == ["Still here."]
+        # And still exactly one event, not one per candidate adapter.
+        assert len(_delivered_events(repository)) == 1
+
+
+async def test_nothing_is_published_when_a_voice_session_has_no_live_channel(
+    monkeypatch,  # type: ignore[no-untyped-def]
+) -> None:
+    """The bus fallback is text-only, and this is the test that holds that line.
+
+    `communication.intent.delivered` carries `content`, not audio, so there
+    is no honest way to deliver a voice utterance through it. A voice session
+    with no live socket therefore keeps the pre-4A rejection exactly.
+
+    Negative control: widen the `ChannelType.TEXT` guard in
+    `events/handlers.py` and this test fails -- the voice branch of
+    `deliver_intent` hands `speak_response` an audio chunk, which
+    `BusTextChannelAdapter` refuses outright.
+    """
     monkeypatch.setenv("EVENT_BUS_BACKEND", "in_memory")
     repository = FakeCommunicationRepository()
     app = _make_app(repository=repository, reasoning_port=FakeReasoningPort())
 
     async with app.router.lifespan_context(app):
-        session = await repository.create_session(_thinking_session())
+        session = await repository.create_session(_voice_session(state=ConversationState.THINKING))
         # No adapter registered: the turn is recorded but never delivered.
         outcome = await handle_conversation_turn(
             app,
@@ -896,6 +997,7 @@ async def test_nothing_is_published_when_no_channel_was_reached(
             correlation_id=session.session_id,
         )
         assert outcome is not None and outcome.delivered is False
+        assert outcome.rejection_reason == "no_live_channel_connection"
         assert _delivered_events(repository) == []
 
 
