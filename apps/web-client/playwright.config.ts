@@ -56,9 +56,20 @@ export default defineConfig({
   webServer: {
     // `preview` serves the real production build rather than the dev server,
     // so the artefact under test is the one that would ship.
-    command: "pnpm run build && pnpm run preview --port 4173 --strictPort",
+    //
+    // No CLI flags: port, host and strictPort all live in `vite.config.ts`,
+    // which keeps `pnpm run`'s argument forwarding out of the picture
+    // entirely and leaves one place where the address is decided.
+    command: "pnpm run build && pnpm run preview",
     url: BASE_URL,
     reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
+    // A cold `vite build` on a runner is slower than the ~2s it takes
+    // locally, and 120s already proved too tight once.
+    timeout: 180_000,
+    // Without these the server's own output is swallowed, so a failed build
+    // presents only as "timed out waiting from config.webServer" -- which is
+    // exactly how the previous run wasted a cycle.
+    stdout: "pipe",
+    stderr: "pipe",
   },
 });

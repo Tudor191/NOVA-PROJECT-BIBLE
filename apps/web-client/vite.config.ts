@@ -41,7 +41,15 @@ const proxy = {
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: { port: 5173, proxy },
-  preview: { port: 4173, proxy },
+  // `host` and `strictPort` are explicit because Playwright polls
+  // `http://127.0.0.1:4173` literally. Vite's default host is `localhost`,
+  // which resolves to `::1` before `127.0.0.1` on the GitHub runners -- the
+  // server comes up on IPv6, the poll never connects, and the run dies with
+  // "Timed out waiting 120000ms from config.webServer" having executed no
+  // tests at all. Binding the same literal address Playwright dials removes
+  // the ambiguity; `strictPort` makes a port clash fail loudly instead of
+  // silently serving somewhere else.
+  preview: { port: 4173, strictPort: true, host: "127.0.0.1", proxy },
   build: {
     outDir: "dist",
     sourcemap: true,
