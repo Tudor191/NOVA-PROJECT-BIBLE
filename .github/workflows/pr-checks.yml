@@ -313,11 +313,7 @@ jobs:
       #
       # Read-only. It changes nothing and asserts nothing; it reports.
       - name: Trace the reply through the transport
-        # TEMPORARY (Phase 4A final verification): `always()` rather than
-        # `failure()`, so a *passing* run prints the outbox table and shows
-        # positively that `communication.intent.delivered` was created and
-        # dispatched. Restored to `failure()` immediately afterwards.
-        if: always()
+        if: failure()
         run: |
           set -uo pipefail
           compose="docker compose -f infra/docker/docker-compose.local.yml"
