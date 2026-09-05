@@ -37,7 +37,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     configure_observability("api-gateway", log_level=settings.log_level)
 
     route_table = build_route_table(
-        communication_engine_url=settings.communication_engine_url
+        communication_engine_url=settings.communication_engine_url,
+        planning_engine_url=settings.planning_engine_url,
+        reasoning_engine_url=settings.reasoning_engine_url,
+        capability_engine_url=settings.capability_engine_url,
+        action_engine_url=settings.action_engine_url,
     )
     session_validator = LocalTokenSessionValidator(settings.session_token)
 

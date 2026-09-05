@@ -104,6 +104,20 @@ def test_token_extraction(
 # --- routing, decision D-6 ------------------------------------------------
 
 
+def _table(**overrides: str) -> RouteTable:
+    """Every fronted engine, so a new route cannot be added without the
+    tests below seeing it."""
+    urls = {
+        "communication_engine_url": "http://comms:8000",
+        "planning_engine_url": "http://planning:8000",
+        "reasoning_engine_url": "http://reasoning:8000",
+        "capability_engine_url": "http://capability:8000",
+        "action_engine_url": "http://action:8000",
+    }
+    urls.update(overrides)
+    return build_route_table(**urls)  # type: ignore[arg-type]
+
+
 def test_route_table_rejects_non_v1_prefixes() -> None:
     """`/internal/*` must be unroutable by construction, not by convention."""
     with pytest.raises(ValueError, match="must start with '/v1/'"):
@@ -111,17 +125,61 @@ def test_route_table_rejects_non_v1_prefixes() -> None:
 
 
 def test_route_table_resolves_prefix_and_subpaths() -> None:
-    table = build_route_table(communication_engine_url="http://comms:8000")
+    table = _table()
     assert table.resolve("/v1/communication") is not None
     assert table.resolve("/v1/communication/sessions") is not None
     assert table.resolve("/v1/communication/sessions/abc/messages") is not None
 
 
 def test_route_table_is_an_allow_list_not_a_pattern() -> None:
-    table = build_route_table(communication_engine_url="http://comms:8000")
-    assert table.resolve("/v1/planning/plans") is None
+    table = _table()
     assert table.resolve("/v1/memories") is None
     assert table.resolve("/v1/communicationXX") is None  # no partial-name match
+
+
+@pytest.mark.parametrize(
+    ("path", "upstream"),
+    [
+        # Planning panel.
+        ("/v1/plans", "planning-engine"),
+        ("/v1/plans/abc", "planning-engine"),
+        ("/v1/plans/abc/approve", "planning-engine"),
+        # Reasoning Trace panel.
+        ("/v1/reasoning/traces", "reasoning-engine"),
+        ("/v1/reasoning/traces/abc", "reasoning-engine"),
+        ("/v1/reasoning/decisions/abc/explain", "reasoning-engine"),
+        # Capabilities panel.
+        ("/v1/capabilities", "capability-engine"),
+        # Approvals panel.
+        ("/v1/action/approvals", "action-engine"),
+        ("/v1/action/approvals/abc/decide", "action-engine"),
+    ],
+)
+def test_every_4b_panel_path_reaches_its_engine(path: str, upstream: str) -> None:
+    """Each entry is one panel's data source. A panel whose prefix is missing
+    fails as a 404 from the gateway, which reads like an engine outage rather
+    than a missing route -- so pin them here instead."""
+    route = _table().resolve(path)
+    assert route is not None, f"{path} has no upstream; the panel cannot load"
+    assert route.upstream_name == upstream
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        # Real engines with real /v1 surfaces that no 4B panel reads. The
+        # table is an allow-list; existing is not a reason to be fronted.
+        "/v1/executive/decisions",
+        "/v1/memories",
+        "/v1/knowledge/nodes",
+        "/v1/world_model/objects",
+        # Never routable at all (doc 11 §3).
+        "/internal/health",
+        "/v1/internal/health",
+    ],
+)
+def test_unfronted_and_internal_paths_have_no_route(path: str) -> None:
+    assert _table().resolve(path) is None
 
 
 def test_longest_prefix_wins_regardless_of_order() -> None:
@@ -137,7 +195,7 @@ def test_longest_prefix_wins_regardless_of_order() -> None:
 
 
 def test_base_url_trailing_slash_is_normalised() -> None:
-    table = build_route_table(communication_engine_url="http://comms:8000/")
+    table = _table(communication_engine_url="http://comms:8000/")
     route = table.resolve("/v1/communication")
     assert route is not None
     assert route.base_url == "http://comms:8000"

@@ -61,11 +61,31 @@ def endpoint_class(method: str) -> str:
     return "read" if method.upper() in READ_METHODS else "write"
 
 
-def build_route_table(*, communication_engine_url: str) -> RouteTable:
-    """4A fronts `communication-engine` only.
+def build_route_table(
+    *,
+    communication_engine_url: str,
+    planning_engine_url: str,
+    reasoning_engine_url: str,
+    capability_engine_url: str,
+    action_engine_url: str,
+) -> RouteTable:
+    """Every engine the gateway fronts, and nothing else.
 
-    Every other engine's `/v1` surface already exists and is ready to be
-    fronted; 4B adds them by appending here. No engine API changes.
+    4A fronted `communication-engine` alone. 4B adds the four the
+    observability panels read from -- exactly as this module predicted, by
+    appending entries rather than changing the mechanism. Each engine's `/v1`
+    surface already existed; no engine API was changed to be fronted.
+
+    Deliberately absent:
+
+    * `executive-cognition-engine` -- it has a `/v1/executive/decisions`
+      surface, but no 4B panel reads it. Fronting an engine no panel uses
+      would widen the external attack surface for nothing.
+    * `nova-core` -- exposes only `/internal/*`, which is never routable
+      (doc 11 §3). The Health panel is fed by bus telemetry instead.
+
+    Every prefix here is a **panel's** data source. Adding one because an
+    engine happens to exist is how an allow-list stops being one.
     """
     return RouteTable(
         [
@@ -73,6 +93,30 @@ def build_route_table(*, communication_engine_url: str) -> RouteTable:
                 prefix="/v1/communication",
                 upstream_name="communication-engine",
                 base_url=communication_engine_url.rstrip("/"),
+            ),
+            # Planning panel.
+            UpstreamRoute(
+                prefix="/v1/plans",
+                upstream_name="planning-engine",
+                base_url=planning_engine_url.rstrip("/"),
+            ),
+            # Reasoning Trace panel.
+            UpstreamRoute(
+                prefix="/v1/reasoning",
+                upstream_name="reasoning-engine",
+                base_url=reasoning_engine_url.rstrip("/"),
+            ),
+            # Capabilities panel.
+            UpstreamRoute(
+                prefix="/v1/capabilities",
+                upstream_name="capability-engine",
+                base_url=capability_engine_url.rstrip("/"),
+            ),
+            # Approvals panel.
+            UpstreamRoute(
+                prefix="/v1/action",
+                upstream_name="action-engine",
+                base_url=action_engine_url.rstrip("/"),
             ),
         ]
     )

@@ -187,12 +187,23 @@ jobs:
           #   `communication.turn.received` nor `communication.intent.delivered`
           #   ever reaches the bus and the transcript stays empty however long
           #   the test waits.
+          #
+          # Phase 4B adds the four engines the observability panels read
+          # through `api-gateway`, plus the two outbox workers that make
+          # their events reach a browser. `action-engine` and
+          # `capability-engine` need no worker -- the first publishes
+          # directly to the bus, the second publishes no domain events at
+          # all -- which `tools/tests/test_e2e_stack_completeness.py`
+          # asserts rather than leaves to memory.
           docker compose -f infra/docker/docker-compose.local.yml up -d --build \
             nats postgres redis migrations \
             nova-core \
             world-model-engine personality-engine reasoning-engine \
             ai-model-orchestration-engine communication-engine \
             communication-engine-worker \
+            planning-engine capability-engine action-engine \
+            planning-engine-worker reasoning-engine-worker \
+            ai-model-orchestration-engine-worker \
             api-gateway ws-gateway
 
       - name: Confirm the schema migration completed
@@ -224,7 +235,10 @@ jobs:
           for svc in nova-core \
                      world-model-engine personality-engine reasoning-engine \
                      ai-model-orchestration-engine communication-engine \
-                     communication-engine-worker; do
+                     communication-engine-worker \
+                     planning-engine capability-engine action-engine \
+                     planning-engine-worker reasoning-engine-worker \
+                     ai-model-orchestration-engine-worker; do
             cid=$($compose ps -aq "$svc")
             state=$(docker inspect -f '{{.State.Status}}' "$cid")
             restarts=$(docker inspect -f '{{.RestartCount}}' "$cid")
