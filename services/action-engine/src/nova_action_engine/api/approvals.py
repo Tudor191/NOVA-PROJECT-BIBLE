@@ -16,6 +16,34 @@ from pydantic import BaseModel
 router = APIRouter(prefix="/v1/action", tags=["approvals"])
 
 
+class PendingApprovalResponse(BaseModel):
+    """One approval still waiting on a human, as the Approvals panel reads it."""
+
+    action_id: UUID
+    risk: str
+    requested_at: datetime
+
+
+@router.get("/approvals", response_model=list[PendingApprovalResponse])
+async def list_approvals(request: Request, limit: int = 50) -> list[PendingApprovalResponse]:
+    """Phase 4B -- the Approvals panel's initial state.
+
+    Undecided only, oldest first. The panel then keeps itself current from
+    `action.approval.requested` / `.decided` over `ws-gateway` rather than
+    re-polling this: doc 04's "reads are pushed, never polled" applies to a
+    queue whose whole purpose is to change while someone is looking at it.
+    """
+    approvals = await request.app.state.repository.list_pending_approvals(limit=limit)
+    return [
+        PendingApprovalResponse(
+            action_id=approval.action_id,
+            risk=approval.risk,
+            requested_at=approval.requested_at,
+        )
+        for approval in approvals
+    ]
+
+
 class ApprovalDecisionRequest(BaseModel):
     approved: bool
     reason: str | None = None

@@ -181,6 +181,17 @@ class ActionRepository(Protocol):
 
     async def find_pending_approval(self, action_id: UUID) -> PendingApproval | None: ...
 
+    async def list_pending_approvals(self, *, limit: int = 50) -> list[PendingApproval]:
+        """Phase 4B -- every approval still awaiting a human decision.
+
+        Undecided only. A panel that also listed settled approvals would be
+        a history view, and the operator's question here is "what is waiting
+        on me", which a mixed list answers worse the longer the instance
+        runs. Oldest first: the one that has been blocked longest is the one
+        most likely to matter.
+        """
+        ...
+
     async def decide_pending_approval(
         self, action_id: UUID, *, decision: Literal["approved", "denied"], decided_at: datetime
     ) -> None: ...
