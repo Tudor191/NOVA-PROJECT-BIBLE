@@ -270,3 +270,42 @@
 
 .nova-degradation-meta dt { opacity: 0.7; }
 .nova-degradation-meta dd { margin: 0; }
+
+/* --- Phase 4B: the observability panels' two shared shapes ---------------
+ *
+ * A list row and a nav link, added because six panels render lists of
+ * things and one nav renders seven links. Both are pure surface -- no
+ * component in `@nova/ui` carries a rule about them -- so they live as
+ * classes here rather than as components, which is the same line 4A drew
+ * when it made `Panel` a component and `.nova-badge` a class.
+ */
+.nova-card {
+  display: flex;
+  flex-direction: column;
+  padding: 10px 12px;
+  border: 1px solid var(--nova-border);
+  border-radius: 8px;
+  background: var(--nova-surface);
+}
+
+.nova-nav-link {
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-family: var(--nova-font);
+  font-size: 0.82rem;
+  color: var(--nova-text);
+  text-decoration: none;
+  opacity: 0.7;
+}
+
+.nova-nav-link:hover {
+  opacity: 1;
+}
+
+/* The active panel is marked by an attribute the router sets, not by a
+ * class this file has to guess the name of. */
+.nova-nav-link[data-active="true"] {
+  opacity: 1;
+  background: var(--nova-surface);
+  border: 1px solid var(--nova-border);
+}
