@@ -1,6 +1,16 @@
 [tool.uv.workspace]
 members = ["packages/*", "services/*", "agent-os/*", "agent-os/sdk/*"]
-exclude = ["agent-os/sdk"]
+# `agent-os/sdk` is a container directory, not a package.
+#
+# `packages/nova-ui` is the first workspace member with no Python in it at
+# all -- it is a TypeScript design-system package (Phase 4A). The `packages/*`
+# glob matches it, and `uv` then fails the whole workspace with "missing a
+# pyproject.toml", which breaks every `uv run --package ...` script including
+# nova-contracts' TypeScript codegen. Excluding it is the correct answer
+# rather than giving it a vestigial `pyproject.toml`: it genuinely is not a
+# Python package. `apps/*` is deliberately absent from `members` for the same
+# reason, so `apps/web-client` needs no entry here.
+exclude = ["agent-os/sdk", "packages/nova-ui"]
 
 [tool.uv]
 dev-dependencies = [
@@ -111,6 +121,8 @@ root_packages = [
     "nova_agent_sdk",
     "nova_agent_os_registry",
     "nova_agent_os_supervisors",
+    "nova_api_gateway",
+    "nova_ws_gateway",
 ]
 include_external_packages = true
 
@@ -135,6 +147,8 @@ modules = [
     "nova_agent_os_kernel",
     "nova_agent_os_registry",
     "nova_agent_os_supervisors",
+    "nova_api_gateway",
+    "nova_ws_gateway",
 ]
 
 [[tool.importlinter.contracts]]
@@ -158,6 +172,8 @@ source_modules = [
     "nova_agent_os_kernel",
     "nova_agent_os_registry",
     "nova_agent_os_supervisors",
+    "nova_api_gateway",
+    "nova_ws_gateway",
 ]
 forbidden_modules = [
     "nats",
@@ -186,6 +202,8 @@ source_modules = [
     "nova_agent_os_kernel",
     "nova_agent_os_registry",
     "nova_agent_os_supervisors",
+    "nova_api_gateway",
+    "nova_ws_gateway",
 ]
 forbidden_modules = [
     "neo4j",
@@ -281,6 +299,8 @@ forbidden_modules = [
     "nova_agent_os_kernel",
     "nova_agent_os_registry",
     "nova_agent_os_supervisors",
+    "nova_api_gateway",
+    "nova_ws_gateway",
 ]
 
 # Mirrors ADR-033/034's shape for a third case with the identical

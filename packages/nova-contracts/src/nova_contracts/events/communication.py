@@ -178,6 +178,47 @@ class CommunicationSessionLookupByUserReplyPayload(BaseModel):
 # --- Published events (Sec11) -------------------------------------------------
 
 
+@register_payload("communication.intent.delivered")
+class CommunicationIntentDeliveredPayload(BaseModel):
+    """What NOVA actually said, after the ADR-005 intent gate passed it.
+
+    Added in Phase 4A. Until now the only broadcast half of a conversation
+    was the user's own (`communication.turn.received`): a reply reached the
+    user solely over this engine's own WebSocket channel adapter, so no
+    subscriber -- and therefore no browser, since doc 11 §1 forbids the
+    frontend from talking to an engine directly -- could observe what NOVA
+    said. That made the Conversation panel's half of Phase 4 **AC-1**
+    unreachable. This event closes it, and it is the *only* engine change
+    4A makes.
+
+    Published **after** delivery succeeds, never before, and never for
+    content the gate rejected: `content` is the post-validation text
+    (02-personality-engine.md Sec8 may adjust it), so a subscriber can never
+    see an utterance the personality layer stopped or rewrote.
+
+    `confidence_tier` is the string the content-source engine supplied,
+    carried verbatim. It is deliberately **not** converted into the
+    envelope's numeric `confidence`: no engine reported a number here, and
+    manufacturing one would corrupt exactly the signal Part 8's Confidence
+    System exists to carry.
+
+    `personality_validated` and `degraded` travel with it so a consumer can
+    disclose a degraded path rather than present it as a clean answer --
+    the project's standing "never silence, always disclose degradation"
+    rule applied to the last hop."""
+
+    session_id: UUID
+    turn_id: UUID
+    user_id: UUID
+    content: str
+    channel: ChannelType
+    confidence_tier: str = "unknown"
+    personality_validated: bool
+    degraded: bool = False
+    delivered_at: datetime
+    schema_version: int = 1
+
+
 @register_payload("communication.session.created")
 class CommunicationSessionCreatedPayload(BaseModel):
     session_id: UUID

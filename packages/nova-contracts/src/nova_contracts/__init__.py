@@ -94,6 +94,7 @@ from nova_contracts.events.capability import (
 )
 from nova_contracts.events.communication import (
     ChannelType,
+    CommunicationIntentDeliveredPayload,
     CommunicationIntentDeliverReplyPayload,
     CommunicationIntentDeliverRequestPayload,
     CommunicationSessionCloseReplyPayload,
@@ -272,6 +273,7 @@ __all__ = [
     "CapabilityResolveRequestPayload",
     "ChannelType",
     "CognitivePriorityScore",
+    "CommunicationIntentDeliveredPayload",
     "CommunicationIntentDeliverReplyPayload",
     "CommunicationIntentDeliverRequestPayload",
     "CommunicationSessionCloseReplyPayload",

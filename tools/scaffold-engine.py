@@ -25,14 +25,20 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 SERVICES_DIR = REPO_ROOT / "services"
 ROOT_PYPROJECT = REPO_ROOT / "pyproject.toml"
 
-_NAME_PATTERN = re.compile(r"^[a-z][a-z0-9]*(-[a-z0-9]+)*-engine$")
+# `-gateway` is accepted alongside `-engine` (Phase 4 decision D-2). `api-gateway`
+# and `ws-gateway` live under `services/` per doc 02 and are ordinary FastAPI
+# services -- they are simply not domain "engines", so the generated skeleton
+# (FastAPI app, health endpoints, Dockerfile) is exactly what they need. This gap
+# was identified in `docs/design/phase-3/03-gateway-web-prerequisite.md` §2 and
+# left unactioned there; without it neither gateway could be scaffolded at all.
+_NAME_PATTERN = re.compile(r"^[a-z][a-z0-9]*(-[a-z0-9]+)*-(engine|gateway)$")
 
 
 def _validate_name(name: str) -> None:
     if not _NAME_PATTERN.match(name):
         raise SystemExit(
-            f"Invalid engine name {name!r}. Expected kebab-case ending in "
-            f"'-engine', e.g. 'memory-engine'."
+            f"Invalid service name {name!r}. Expected kebab-case ending in "
+            f"'-engine' or '-gateway', e.g. 'memory-engine' or 'api-gateway'."
         )
     if (SERVICES_DIR / name).exists():
         raise SystemExit(f"services/{name} already exists.")

@@ -1,0 +1,272 @@
+/*
+ * `@nova/ui` tokens and component styles.
+ *
+ * Plain CSS on custom properties rather than Tailwind `@apply`: the package
+ * then has no build step and no coupling to the consumer's Tailwind version,
+ * while `apps/web-client` still uses Tailwind utilities for layout. Doc 04
+ * §6 asks for a shared design system, not for the app's utility framework to
+ * leak into it.
+ *
+ * The palette is dark-first because the workspace is a monitoring surface
+ * meant to be left open; `prefers-color-scheme: light` re-points the same
+ * tokens rather than introducing a second set of rules.
+ */
+
+:root {
+  --nova-bg: #0b0f14;
+  --nova-surface: #131a22;
+  --nova-surface-raised: #1a232d;
+  --nova-border: #26323f;
+  --nova-text: #e6edf3;
+  --nova-text-muted: #8b9bab;
+  --nova-accent: #3d8bfd;
+  --nova-accent-contrast: #ffffff;
+
+  --nova-healthy: #3fb950;
+  --nova-degraded: #d29922;
+  --nova-down: #f85149;
+  --nova-unknown: #6e7681;
+
+  --nova-radius: 8px;
+  --nova-gap: 12px;
+  --nova-font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --nova-font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --nova-bg: #f6f8fa;
+    --nova-surface: #ffffff;
+    --nova-surface-raised: #eef2f6;
+    --nova-border: #d0d7de;
+    --nova-text: #1f2328;
+    --nova-text-muted: #59636e;
+    --nova-accent: #0969da;
+    --nova-unknown: #8c959f;
+  }
+}
+
+/* --- panel ------------------------------------------------------------- */
+
+.nova-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--nova-surface);
+  border: 1px solid var(--nova-border);
+  border-radius: var(--nova-radius);
+  color: var(--nova-text);
+  font-family: var(--nova-font);
+}
+
+.nova-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--nova-gap);
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--nova-border);
+}
+
+.nova-panel-title {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.nova-panel-accessory {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.nova-panel-body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  padding: 14px;
+}
+
+/* --- status ------------------------------------------------------------ */
+
+.nova-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--nova-font);
+  font-size: 0.78rem;
+  color: var(--nova-text-muted);
+}
+
+.nova-status-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--nova-unknown);
+}
+
+.nova-status-healthy { background: var(--nova-healthy); }
+.nova-status-degraded { background: var(--nova-degraded); }
+.nova-status-down { background: var(--nova-down); }
+.nova-status-unknown { background: var(--nova-unknown); }
+
+/*
+ * One shot per real signal, then still. There is no `infinite` here on
+ * purpose -- a looping indicator would animate while nothing is happening,
+ * which is exactly what Bible Part 6 forbids.
+ */
+.nova-status-dot-pulse {
+  animation: nova-pulse 620ms ease-out 1;
+}
+
+@keyframes nova-pulse {
+  0% { transform: scale(1); opacity: 1; }
+  45% { transform: scale(1.7); opacity: 0.55; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nova-status-dot-pulse { animation: none; }
+}
+
+/* --- badges ------------------------------------------------------------ */
+
+.nova-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border: 1px solid var(--nova-border);
+  border-radius: 999px;
+  font-family: var(--nova-font);
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+.nova-confidence-high { color: var(--nova-healthy); border-color: var(--nova-healthy); }
+.nova-confidence-moderate { color: var(--nova-degraded); border-color: var(--nova-degraded); }
+.nova-confidence-low { color: var(--nova-down); border-color: var(--nova-down); }
+.nova-confidence-absent { color: var(--nova-text-muted); font-style: italic; }
+
+.nova-correlation {
+  font-family: var(--nova-font-mono);
+  font-size: 0.72rem;
+  color: var(--nova-text-muted);
+}
+
+/* --- controls ---------------------------------------------------------- */
+
+.nova-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border: 1px solid var(--nova-border);
+  border-radius: var(--nova-radius);
+  font-family: var(--nova-font);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.nova-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.nova-button-primary {
+  background: var(--nova-accent);
+  border-color: var(--nova-accent);
+  color: var(--nova-accent-contrast);
+}
+
+.nova-button-ghost {
+  background: transparent;
+  color: var(--nova-text);
+}
+
+.nova-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-family: var(--nova-font);
+}
+
+.nova-field-label {
+  font-size: 0.78rem;
+  color: var(--nova-text-muted);
+}
+
+.nova-field-input {
+  padding: 8px 10px;
+  background: var(--nova-surface-raised);
+  border: 1px solid var(--nova-border);
+  border-radius: var(--nova-radius);
+  color: var(--nova-text);
+  font: inherit;
+}
+
+.nova-field-input:focus-visible {
+  outline: 2px solid var(--nova-accent);
+  outline-offset: 1px;
+}
+
+.nova-field-error {
+  margin: 0;
+  color: var(--nova-down);
+  font-size: 0.76rem;
+}
+
+.nova-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* --- degradation ------------------------------------------------------- */
+
+.nova-degradation {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  background: var(--nova-surface-raised);
+  border: 1px solid var(--nova-down);
+  border-radius: var(--nova-radius);
+  color: var(--nova-text);
+  font-family: var(--nova-font);
+}
+
+.nova-degradation-title {
+  margin: 0;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.nova-degradation-detail {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--nova-text-muted);
+}
+
+.nova-degradation-meta {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 2px 10px;
+  margin: 0;
+  font-family: var(--nova-font-mono);
+  font-size: 0.72rem;
+  color: var(--nova-text-muted);
+}
+
+.nova-degradation-meta dt { opacity: 0.7; }
+.nova-degradation-meta dd { margin: 0; }

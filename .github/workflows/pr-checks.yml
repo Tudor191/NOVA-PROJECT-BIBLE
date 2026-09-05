@@ -103,8 +103,318 @@ jobs:
       - name: Lint every package
         run: pnpm turbo run lint
 
+      # Type-checks the generated TypeScript contract surface and every
+      # workspace package that declares a `typecheck` script. Added in Phase
+      # 4A: nothing had ever compiled the codegen output, which is how 395
+      # TS2308 collisions in the generated barrel stayed invisible.
+      - name: Type-check TypeScript
+        run: pnpm turbo run typecheck
+
       - name: Test every package
         run: pnpm turbo run test
 
       - name: Validate docker-compose.local.yml
         run: docker compose -f infra/docker/docker-compose.local.yml config --quiet
+
+  # Phase 4 AC-1's golden path: open the web client, authenticate, hold a live
+  # text conversation, see it rendered. TDD 4A §11 requires this to be its own
+  # job -- it needs a browser and a running stack, and a failure here must not
+  # be able to mask a unit-suite failure (or vice versa) by sharing one job's
+  # exit status.
+  #
+  # STAGED, like `real-infra-checks.yml`, and for the same reason: Docker has
+  # been unavailable in the development environment throughout Phase 3 and
+  # Phase 4A, so this job has NEVER been executed anywhere. Its correctness
+  # rests on GitHub-hosted runners' standard Docker Engine, not on an
+  # empirical run. Treat the first real executions as the actual verification,
+  # and do NOT add it to branch protection until it has demonstrated stable,
+  # non-flaky runs -- the same discipline the real-infra workflow adopted.
+  #
+  # What a green run here does and does not prove: it exercises the whole
+  # transport loop -- browser -> api-gateway -> communication-engine -> bus ->
+  # ws-gateway -> browser -- including `communication.intent.delivered`, the
+  # event without which NOVA's reply never reaches a subscriber. It does NOT
+  # prove model generation: with no LLM provider configured, reasoning-engine
+  # cannot generate and `conversation_orchestration` delivers its honest
+  # fallback message instead. The reply is real and really travelled the loop;
+  # its *content* came from the fallback, not from a model.
+  e2e:
+    name: Playwright golden path (staged, non-blocking)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+
+      - name: Install JS dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browser
+        run: pnpm --filter @nova/web-client exec playwright install --with-deps chromium
+
+      - name: Provision the instance session token
+        # Decision D-3: one long-lived local token, shared by both gateways
+        # because they are two external surfaces of a single instance. Both
+        # fail closed when it is empty, so it has to exist before they start.
+        run: |
+          echo "NOVA_SESSION_TOKEN=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+
+      - name: Start the stack
+        env:
+          NOVA_SESSION_TOKEN: ${{ env.NOVA_SESSION_TOKEN }}
+        run: |
+          # `migrations` is named explicitly for the log, though compose would
+          # pull it in regardless: every engine below gates on it through
+          # `service_completed_successfully`, so compose runs it to completion
+          # first and holds the engines until it exits 0.
+          #
+          # Two of these are not obvious and are what the first real Playwright
+          # run proved necessary:
+          #
+          # - `nova-core` is the only publisher of `nova.heartbeat`. Without it
+          #   the System Pulse is honestly `unknown` forever, and the shell's
+          #   telemetry assertion has nothing real to report.
+          # - `communication-engine-worker` is the only thing that drains the
+          #   communication outbox, so without it neither
+          #   `communication.turn.received` nor `communication.intent.delivered`
+          #   ever reaches the bus and the transcript stays empty however long
+          #   the test waits.
+          docker compose -f infra/docker/docker-compose.local.yml up -d --build \
+            nats postgres redis migrations \
+            nova-core \
+            world-model-engine personality-engine reasoning-engine \
+            ai-model-orchestration-engine communication-engine \
+            communication-engine-worker \
+            api-gateway ws-gateway
+
+      - name: Confirm the schema migration completed
+        run: |
+          set -euo pipefail
+          compose="docker compose -f infra/docker/docker-compose.local.yml"
+          echo "--- migrator output ---"
+          $compose logs migrations
+          code=$(docker inspect -f '{{.State.ExitCode}}' "$($compose ps -aq migrations)")
+          if [ "$code" != "0" ]; then
+            echo "::error::the schema migrator exited $code; engines were never started"
+            exit 1
+          fi
+          echo "schema migrator exited 0"
+
+      - name: Confirm the engines are running rather than crash-looping
+        run: |
+          set -euo pipefail
+          compose="docker compose -f infra/docker/docker-compose.local.yml"
+          # The original defect presented as repeated restarts, not as an
+          # absent container, so counting restarts is the check that would
+          # actually have caught it.
+          failed=()
+          # `communication-engine-worker` and `nova-core` are in this list for
+          # the same reason as the engines: a worker that cannot reach Redis
+          # exits and is restarted forever, and the only symptom downstream is
+          # a transcript that never fills -- a 30s assertion timeout that names
+          # nothing. A restart count here names it immediately.
+          for svc in nova-core \
+                     world-model-engine personality-engine reasoning-engine \
+                     ai-model-orchestration-engine communication-engine \
+                     communication-engine-worker; do
+            cid=$($compose ps -aq "$svc")
+            state=$(docker inspect -f '{{.State.Status}}' "$cid")
+            restarts=$(docker inspect -f '{{.RestartCount}}' "$cid")
+            echo "$svc: $state (restarts=$restarts)"
+            if [ "$state" != "running" ] || [ "$restarts" -gt 0 ]; then
+              failed+=("$svc")
+            fi
+          done
+          if [ ${#failed[@]} -ne 0 ]; then
+            echo "::error::engines not healthy: ${failed[*]}"
+            $compose logs --tail=200 "${failed[@]}"
+            exit 1
+          fi
+
+      - name: Wait for both gateways to answer
+        run: |
+          set -euo pipefail
+          for url in http://localhost:8014/internal/readiness http://localhost:8015/internal/readiness; do
+            echo "waiting for $url"
+            for attempt in $(seq 1 60); do
+              if curl -fsS "$url" >/dev/null 2>&1; then
+                echo "$url is ready"
+                break
+              fi
+              if [ "$attempt" -eq 60 ]; then
+                echo "::error::$url did not become ready within 5 minutes"
+                docker compose -f infra/docker/docker-compose.local.yml logs --tail=200
+                exit 1
+              fi
+              sleep 5
+            done
+          done
+
+      - name: Run the golden path
+        env:
+          NOVA_SESSION_TOKEN: ${{ env.NOVA_SESSION_TOKEN }}
+          # The client is served single-origin and Vite's `preview` proxy
+          # forwards `/v1` and `/ws` to the gateways -- the same shape a real
+          # deployment has. Pointing the client straight at the gateway ports
+          # instead would break it outright: the session cookie is
+          # `SameSite=Strict`, so a cross-origin request would never carry it
+          # and every call would 401.
+          NOVA_API_GATEWAY_URL: http://localhost:8014
+          NOVA_WS_GATEWAY_URL: http://localhost:8015
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        # `tee` so the reason survives: Playwright's global errors -- a
+        # `webServer` that never came up, a config that failed to load -- are
+        # not test results and so are absent from the JSON reporter's output.
+        # The last run proved that gap exists: the summary step reported
+        # "results file lists no failures" while the step had plainly failed.
+        run: |
+          set -o pipefail
+          # Stamped so a screenshot of this step is self-dating. A superseded
+          # run was once read as current because nothing in the output said
+          # which commit produced it.
+          #
+          # The head SHA, not `GITHUB_SHA`: on a `pull_request` event the
+          # latter is the ephemeral merge commit GitHub builds for the run,
+          # which appears nowhere in the branch. Stamping it would leave a
+          # reader unable to tie the run to a commit they can check out --
+          # the exact problem this line exists to solve.
+          echo "golden path @ ${HEAD_SHA}, webServer target ${NOVA_WEB_CLIENT_URL:-http://127.0.0.1:4173}"
+          pnpm --filter @nova/web-client run test:e2e 2>&1 | tee /tmp/playwright-stdout.log
+
+      - name: Collect stack logs on failure
+        if: failure()
+        # Deliberately short. `--tail=400` per service produced thousands of
+        # lines and buried the actual test failure beyond the log viewer's
+        # reach; the engines' own errors show up in the first few lines when
+        # they matter, and the step above carries the reason that counts.
+        run: docker compose -f infra/docker/docker-compose.local.yml logs --tail=8
+
+      # Where the reply actually stopped, stage by stage.
+      #
+      # The transport has no log line that names the intent gate's outcome --
+      # it is recorded as a metric, not a log -- so `docker compose logs`
+      # cannot answer "did NOVA produce a reply, and was it published?".
+      # Postgres can, exactly:
+      #
+      #   * an `outbox_event` row per subject, and whether it was dispatched,
+      #     separates "never created" from "created but never published";
+      #   * an `outbound` row in `conversation_turn` proves reasoning and
+      #     personality both completed and the reply text exists, because
+      #     `intent_gate.py` persists the turn even when it then refuses to
+      #     call the delivery `delivered`.
+      #
+      # Read-only. It changes nothing and asserts nothing; it reports.
+      - name: Trace the reply through the transport
+        if: failure()
+        run: |
+          set -uo pipefail
+          compose="docker compose -f infra/docker/docker-compose.local.yml"
+          psql="$compose exec -T postgres psql -U ${POSTGRES_USER:-nova} -d ${POSTGRES_DB:-nova} -X"
+
+          echo "--- outbox: what was created, and what actually reached the bus ---"
+          $psql -c "SELECT subject,
+                           count(*) AS rows,
+                           count(dispatched_at) AS dispatched,
+                           count(*) - count(dispatched_at) AS undispatched
+                    FROM communication.outbox_event
+                    GROUP BY subject ORDER BY subject;" || echo "(query failed)"
+
+          echo "--- turns: did NOVA produce a reply at all? ---"
+          $psql -c "SELECT direction, personality_validated,
+                           left(content, 70) AS content
+                    FROM communication.conversation_turn
+                    ORDER BY created_at;" || echo "(query failed)"
+
+          echo "--- outbox dispatcher: is it draining? ---"
+          $compose logs --tail=25 communication-engine-worker || echo "(no worker logs)"
+
+      # Two failures wear the same red X and mean opposite things:
+      #
+      #   A. the `webServer` never became ready, so NOTHING was tested; or
+      #   B. the browser ran the golden path and an assertion failed.
+      #
+      # A reader who cannot tell them apart draws the wrong conclusion, and
+      # that has already happened once here. So the verdict is stated first,
+      # in one line, before any detail.
+      - name: Report why the golden path failed
+        if: failure()
+        run: |
+          set -uo pipefail
+          results=apps/web-client/playwright-results.json
+          if [ ! -f "$results" ]; then
+            echo "VERDICT A: no Playwright results file at all."
+            echo "The run died before it could write one -- the webServer never came up,"
+            echo "or the config failed to load. NO browser test executed."
+            exit 0
+          fi
+          node -e '
+            const r = require("./apps/web-client/playwright-results.json");
+            const globals = (r.errors ?? []).map((e) => e.message ?? String(e));
+            let specsRun = 0;
+            let specsFailed = 0;
+            const failures = [];
+            const walk = (suite) => {
+              (suite.suites ?? []).forEach(walk);
+              (suite.specs ?? []).forEach((spec) => {
+                const attempts = (spec.tests ?? [])
+                  .flatMap((t) => t.results ?? [])
+                  .filter((res) => res.status !== "skipped");
+                if (!attempts.length) return;
+                specsRun += 1;
+                if (spec.ok === false) specsFailed += 1;
+                for (const res of attempts) {
+                  if (res.status === "passed") continue;
+                  failures.push({ title: spec.title, status: res.status,
+                    error: (res.error?.message ?? "").split("\n").slice(0, 12).join("\n") });
+                }
+              });
+            };
+            (r.suites ?? []).forEach(walk);
+
+            console.log("=".repeat(72));
+            if (specsRun === 0) {
+              console.log("VERDICT A: the webServer never became ready.");
+              console.log("NO browser test executed, so the golden path was not evaluated.");
+              console.log("Nothing below is an assertion failure -- fix the server, not the test.");
+            } else {
+              console.log(`VERDICT B: the webServer came up and ${specsRun} test(s) ran against`);
+              console.log(`the live stack; ${specsFailed} failed. These ARE assertion failures.`);
+            }
+            console.log("=".repeat(72));
+
+            for (const g of globals) {
+              console.log("GLOBAL ERROR:", g.split("\n").slice(0, 20).join("\n"));
+            }
+            for (const f of failures) {
+              console.log("-".repeat(72));
+              console.log(`FAILED (${f.status}): ${f.title}`);
+              console.log(f.error);
+            }
+          '
+
+      - name: Show Playwright's own output
+        if: failure()
+        run: |
+          echo "--- last 60 lines of the golden path's stdout ---"
+          tail -n 60 /tmp/playwright-stdout.log || echo "(no stdout captured)"
+
+      - name: Upload the Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: apps/web-client/playwright-report/
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Tear down
+        if: always()
+        run: docker compose -f infra/docker/docker-compose.local.yml down -v

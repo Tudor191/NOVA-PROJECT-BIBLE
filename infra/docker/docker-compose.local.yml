@@ -12,7 +12,18 @@ services:
   # ---------------------------------------------------------------------------
 
   postgres:
-    image: postgres:16-alpine
+    # pgvector, not plain postgres. `docs/architecture/07-database-architecture.md`
+    # §1 lists memory-engine and knowledge-engine as "PostgreSQL + pgvector" and
+    # §3 is titled "Vector storage (pgvector)"; both engines' migration 0001
+    # opens with `CREATE EXTENSION IF NOT EXISTS vector`. Against
+    # `postgres:16-alpine` that fails with `extension "vector" is not
+    # available`, so those two schemas could never be created -- the image
+    # simply did not satisfy the architecture it was serving.
+    #
+    # Same class of defect as the missing migration step, and invisible for the
+    # same reason: nothing had ever started this stack. Still PostgreSQL 16, so
+    # an existing `postgres-data` volume keeps working.
+    image: pgvector/pgvector:pg16
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-nova}
@@ -171,6 +182,38 @@ services:
       - loki
 
   # ---------------------------------------------------------------------------
+  # Schema bootstrap
+  # ---------------------------------------------------------------------------
+
+  # One-shot: brings all thirteen Postgres-backed engine schemas to head, in
+  # sequence, then exits. Every engine below gates on it completing
+  # successfully, so none of them can start against an empty or
+  # partially-migrated database.
+  #
+  # This closes a defect that predates Phase 4: the stack had no migration step
+  # of any kind, so engines crash-looped on their first query
+  # (`relation "communication.conversation_session" does not exist`). It had
+  # never been observed because nothing had ever started the stack -- CI's
+  # "Validate docker-compose.local.yml" step runs `config --quiet`, which parses
+  # the YAML and starts nothing. Phase 4A's Playwright job was the first thing
+  # to actually run it.
+  #
+  # See `run-migrations.sh` for why this is one container rather than thirteen,
+  # and why thirteen alembic histories share one database safely.
+  migrations:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.migrations
+    # A completed one-shot must not be resurrected; `service_completed_
+    # successfully` depends on it staying exited.
+    restart: "no"
+    environment:
+      NOVA_POSTGRES_DSN: postgresql+asyncpg://${POSTGRES_USER:-nova}:${POSTGRES_PASSWORD:-nova_dev_password}@postgres:5432/${POSTGRES_DB:-nova}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # ---------------------------------------------------------------------------
   # NOVA itself (docs/architecture/03-backend-architecture.md, Roadmap Phase 0)
   # ---------------------------------------------------------------------------
 
@@ -219,6 +262,8 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
 
@@ -246,6 +291,8 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
       neo4j:
         condition: service_healthy
 
@@ -272,6 +319,8 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
       neo4j:
@@ -297,6 +346,8 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
 
   reasoning-engine:
     build:
@@ -317,6 +368,8 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
 
@@ -339,6 +392,8 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
 
@@ -360,6 +415,8 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
 
   communication-engine:
     build:
@@ -380,6 +437,58 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  # The same image as communication-engine above, running its Arq
+  # outbox-dispatch worker instead of the FastAPI app.
+  #
+  # Without this container the engine's domain events never leave the
+  # database. `record_inbound_turn` and `deliver_content_to_session` write
+  # `communication.turn.received` and `communication.intent.delivered` into
+  # the outbox table; `repository/outbox_dispatcher.py` is the only thing
+  # that publishes them, and the only caller of it is the Arq cron in
+  # `workers/__init__.py`. The reasoning and personality legs are synchronous
+  # RPCs, so a conversation still *looks* like it works from the engine's
+  # logs -- 202 Accepted, an `ai_model` call, a delivered reply -- while no
+  # subscriber ever sees either half of it. That is precisely how Phase 4A's
+  # first real Playwright run failed: the socket connected, subscribed to
+  # every public topic, and received nothing.
+  #
+  # Same known gap as perception-engine-worker documents above, and the same
+  # narrow fix: this closes it for the one engine whose outbox feeds
+  # `ws-gateway`'s `PUBLIC_TOPICS`. `world-model-engine`, `reasoning-engine`
+  # and `ai-model-orchestration-engine` also have undeployed workers here;
+  # their outbox subjects reach no browser, so closing those stays out of
+  # scope, and `tools/tests/test_e2e_stack_completeness.py` states that
+  # boundary as a test rather than leaving it to this comment.
+  communication-engine-worker:
+    build:
+      context: ../..
+      dockerfile: services/communication-engine/Dockerfile
+    command: ["arq", "nova_communication_engine.workers.WorkerSettings"]
+    restart: unless-stopped
+    # The image's own HEALTHCHECK curls the FastAPI app's /internal/health --
+    # meaningless for this process (no HTTP server here), so it is disabled
+    # rather than left reporting a permanently false "unhealthy".
+    healthcheck:
+      disable: true
+    environment:
+      EVENT_BUS_BACKEND: nats
+      NATS_URL: nats://nats:4222
+      NOVA_ENGINE_NAME: communication-engine
+      COMMUNICATION_ENGINE_POSTGRES_DSN: postgresql+asyncpg://${POSTGRES_USER:-nova}:${POSTGRES_PASSWORD:-nova_dev_password}@postgres:5432/${POSTGRES_DB:-nova}
+      COMMUNICATION_ENGINE_REDIS_URL: redis://redis:6379/0
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+    depends_on:
+      nats:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
 
@@ -402,6 +511,8 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
 
@@ -439,6 +550,8 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
 
@@ -461,6 +574,8 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
 
@@ -490,6 +605,8 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
 
@@ -512,6 +629,8 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
 
   action-engine:
     build:
@@ -531,6 +650,8 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
 
   planning-engine:
     build:
@@ -551,6 +672,8 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
 
@@ -574,7 +697,59 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
       redis:
+        condition: service_healthy
+
+  # --- Phase 4A gateways ----------------------------------------------------
+  # The only two services a browser ever talks to. `api-gateway` fronts the
+  # engines' `/v1` surfaces (doc 11 §1) and `ws-gateway` is the sole bridge
+  # from the Event Bus to a browser (doc 09 §6). Both are external surfaces of
+  # one instance, so they share the single local session token (decision D-3);
+  # an empty value means "not configured" and both refuse every request rather
+  # than allowing them, so a missing secret fails closed.
+
+  api-gateway:
+    build:
+      context: ../..
+      dockerfile: services/api-gateway/Dockerfile
+    restart: unless-stopped
+    environment:
+      EVENT_BUS_BACKEND: nats
+      NATS_URL: nats://nats:4222
+      NOVA_ENGINE_NAME: api-gateway
+      API_GATEWAY_COMMUNICATION_ENGINE_URL: http://communication-engine:8000
+      API_GATEWAY_REDIS_URL: redis://redis:6379/0
+      API_GATEWAY_SESSION_TOKEN: ${NOVA_SESSION_TOKEN:-}
+      # Local development is plain HTTP, so a Secure-only cookie would never
+      # be sent back. Deployments that terminate TLS leave this at its
+      # default of true.
+      API_GATEWAY_SESSION_COOKIE_SECURE: "false"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+    ports:
+      - "8014:8000"
+    depends_on:
+      redis:
+        condition: service_healthy
+      communication-engine:
+        condition: service_started
+
+  ws-gateway:
+    build:
+      context: ../..
+      dockerfile: services/ws-gateway/Dockerfile
+    restart: unless-stopped
+    environment:
+      EVENT_BUS_BACKEND: nats
+      NATS_URL: nats://nats:4222
+      NOVA_ENGINE_NAME: ws-gateway
+      WS_GATEWAY_SESSION_TOKEN: ${NOVA_SESSION_TOKEN:-}
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+    ports:
+      - "8015:8000"
+    depends_on:
+      nats:
         condition: service_healthy
 
 volumes:
