@@ -2042,6 +2042,7 @@ name = "nova-service-kit"
 version = "0.1.0"
 source = { editable = "packages/nova-service-kit" }
 dependencies = [
+    { name = "arq" },
     { name = "fastapi" },
     { name = "nova-contracts" },
     { name = "nova-eventbus-sdk" },
@@ -2052,12 +2053,14 @@ dependencies = [
 [package.dev-dependencies]
 dev = [
     { name = "httpx" },
+    { name = "nova-testkit" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "arq", specifier = ">=0.26" },
     { name = "fastapi", specifier = ">=0.115" },
     { name = "nova-contracts", editable = "packages/nova-contracts" },
     { name = "nova-eventbus-sdk", editable = "packages/nova-eventbus-sdk" },
@@ -2068,6 +2071,7 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "httpx", specifier = ">=0.27" },
+    { name = "nova-testkit", editable = "packages/nova-testkit" },
     { name = "pytest", specifier = ">=8.3" },
     { name = "pytest-asyncio", specifier = ">=0.24" },
 ]
