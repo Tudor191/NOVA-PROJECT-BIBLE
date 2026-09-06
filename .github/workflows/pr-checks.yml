@@ -272,9 +272,49 @@ jobs:
             done
           done
 
+      # AC-3's approval clause needs a Critical-risk Action to exist before
+      # the browser can decide it. Nothing in the 4B stack can request one:
+      # `action.execute` is an Event Bus RPC whose only permitted publisher is
+      # `agent-os/kernel`, and `agent-os` has no compose service until Phase
+      # 4C (D-5). This step stands in for the Kernel for that one call, using
+      # the Kernel's own `BoundEventBus` allow-list rather than bypassing it.
+      #
+      # Everything after the request is real and browser-driven -- the
+      # pending approval is read and decided through `api-gateway`, and the
+      # resulting `action.approval.decided` arrives over `ws-gateway`.
+      # `continue-on-error` because the approval spec skips itself when
+      # `NOVA_E2E_ACTION_ID` is unset: a driver that cannot reach the bus must
+      # not turn into a false failure of the golden path.
+      - name: Request a risky action for the approval E2E
+        id: risky_action
+        continue-on-error: true
+        env:
+          EVENT_BUS_BACKEND: nats
+          NATS_URL: nats://localhost:4222
+        run: |
+          set -o pipefail
+          action_id="$(uv run python tools/e2e_request_risky_action.py | tail -n 1)"
+          echo "requested Critical-risk action ${action_id}"
+          echo "action_id=${action_id}" >> "$GITHUB_OUTPUT"
+
+      - name: Confirm the action is blocked pending approval
+        if: steps.risky_action.outcome == 'success'
+        # Before the browser is involved at all: the gate is `action-engine`'s
+        # and it must already have fired. A row here proves the pipeline
+        # stopped at Prepare Resources rather than executing a `delete`.
+        run: |
+          set -uo pipefail
+          compose="docker compose -f infra/docker/docker-compose.local.yml"
+          $compose exec -T postgres \
+            psql -U "${POSTGRES_USER:-nova}" -d "${POSTGRES_DB:-nova}" -X -c \
+            "SELECT action_id, risk, decision, decided_at
+               FROM action.pending_approval
+              WHERE action_id = '${{ steps.risky_action.outputs.action_id }}';"
+
       - name: Run the golden path
         env:
           NOVA_SESSION_TOKEN: ${{ env.NOVA_SESSION_TOKEN }}
+          NOVA_E2E_ACTION_ID: ${{ steps.risky_action.outputs.action_id }}
           # The client is served single-origin and Vite's `preview` proxy
           # forwards `/v1` and `/ws` to the gateways -- the same shape a real
           # deployment has. Pointing the client straight at the gateway ports
