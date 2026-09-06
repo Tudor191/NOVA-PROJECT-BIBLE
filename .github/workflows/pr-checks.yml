@@ -353,7 +353,13 @@ jobs:
       # default doing its job, not a Phase 4B defect -- see the driver step
       # above. The job must not go red for it, but the log must say so.
       - name: Report whether the action reached the approval loop
-        if: steps.risky_action.outcome == 'success'
+        # `outputs.action_id` is deliberately empty when the Action was denied
+        # at stage 3 and no approval row exists (G-7). Without that second
+        # condition this step still ran, interpolated an empty id into the
+        # query, and printed `ERROR: invalid input syntax for type uuid: ""`
+        # plus a red `##[error]` that `continue-on-error` then swallowed --
+        # a scary-looking non-event in an otherwise green log.
+        if: steps.risky_action.outcome == 'success' && steps.risky_action.outputs.action_id != ''
         continue-on-error: true
         # Before the browser is involved at all: the gate is `action-engine`'s
         # and it must already have fired. A row here proves the pipeline

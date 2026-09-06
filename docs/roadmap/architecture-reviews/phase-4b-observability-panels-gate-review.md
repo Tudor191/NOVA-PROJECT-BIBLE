@@ -481,15 +481,33 @@ undispatched. Other engines are reported, not asserted: how much any of them
 publishes is a fact about what the stack was asked to do on the day, and pinning
 that is what made the 4B E2E assertions wrong twice already (§0.1, run #69/#70).
 
-**Re-verification of the `reasoning.process.*` / `ai_model.model.*`
-attribution** (§4 item 3, `phase-4b.md` field 20(b)). Because the worker
-collision stranded *every* engine's outbox, that attribution was re-checked
-rather than assumed to survive the fix. It stands: with no provider configured
-nothing produces a completed or failed reasoning process to write an outbox row
-for, so there was no row to strand. The collision was a second, independent
-reason the same two subjects could not have been delivered. The new
-always-on step above now reports both engines' outbox contents on every run, so
-this no longer rests on reasoning — the next run states it as a fact.
+**Re-verification of the `reasoning.process.*` / `ai_model.model.*` attribution**
+(§4 item 3, `phase-4b.md` field 20(b)). Because the worker collision stranded
+*every* engine's outbox, that attribution was re-checked rather than assumed to
+survive the fix — and **it was half wrong.** Run #80 against `51ce2f9`, the
+first run with the always-on step:
+
+```
+--- communication.outbox_event ---
+ communication.intent.delivered      |    1 |          1 |            0
+ communication.session.created       |    1 |          1 |            0
+ communication.session.state_changed |    4 |          4 |            0
+ communication.turn.received         |    1 |          1 |            0
+--- reasoning.outbox_event ---
+ reasoning.process.failed            |    1 |          1 |            0
+--- model_orchestration.outbox_event ---   (0 rows)
+--- planning.outbox_event ---              (0 rows)
+
+communication.turn.received: 1 row(s), 0 undispatched
+```
+
+| Subject | Original attribution | What the evidence says |
+|---|---|---|
+| `reasoning.process.*` | "no frame because `ANTHROPIC_API_KEY` is unset" | **Incorrect.** A reasoning process *is* started by the golden path's RPC and *does* fail without a provider — `domain/pipeline.py:606` writes a `reasoning.process.failed` outbox row for exactly that. One row exists and is now **dispatched**. Before the fix it was subject to the same ~1-in-4 drain, which is a far better explanation of "no observed frame" than provider absence |
+| `ai_model.model.*` | "no frame because `ANTHROPIC_API_KEY` is unset" | **Stands.** `model_orchestration.outbox_event` is empty — with no provider configured there is no model whose health could change, so no row is created and none could be stranded |
+
+This is why the step reports every engine rather than only the one under
+assertion, and why it runs on green. Field 20(b) is corrected accordingly.
 
 ---
 
@@ -525,9 +543,33 @@ transport, diagnosed in §4.1 and fixed in `26eb4f4`.
 | #75 | `55150fe` | passed | (`approval-lifecycle` failed: G-7) |
 | #76 | `2f0414a` | **passed** | |
 | #77 | `85f7682` | **failed** | G-8 — on a **documentation-only** commit |
-| #78 | `26eb4f4` | **passed** | First run with the fix. Golden-path step 46s, **no retry** |
+| **#78** | `26eb4f4` | **passed** | First run with the fix. Golden-path step 46s, **no retry** |
+| **#79** | `e841618` | **passed** | |
+| **#80** | `51ce2f9` | **passed** | First run with the always-on outbox assertion. Golden-path test 1 in **15.2s**; 12 passed, 1 skipped, 0 failed; `communication.turn.received: 1 row(s), 0 undispatched` |
 
-Three failures in nine runs ≈ 33%, against the ~42% the mechanism predicts.
+Three failures in nine runs before the fix ≈ 33%, against the ~42% the
+mechanism predicts. **Three for three green after it**, with the third run
+carrying a positive assertion rather than an absence of failure.
+
+**How much three green runs are worth, stated honestly.** At the pre-fix rate a
+run passed ~2 times in 3, so three consecutive passes would happen by luck
+about 30% of the time. Three runs alone are **not** a demonstration of
+stability, and this review does not claim they are. What carries the weight is
+the combination: the mechanism is understood and reproduced in a test
+(§6.1), the two halves of it are asserted against a real Redis, a repository
+guard fails if any worker returns to the shared queue, and — the part that
+changes the character of the evidence — **every run from #80 onward positively
+asserts that no `communication.turn.received` row was stranded**, rather than
+merely failing to fail. Before the fix a green run recorded that the run was
+lucky; now a green run records that the outbox drained.
+
+**Neither a re-run nor a manual dispatch was available to this session.** The
+GitHub integration in use is refused both (`403 Resource not accessible by
+integration` on `POST .../rerun` and on `.../dispatches`), and `pr-checks.yml`
+had no `workflow_dispatch` trigger at all. One was added in `e841618` so a
+human can click *Run workflow* and extend this series against an unchanged SHA
+without pushing a commit to do it — which is what C-7 asks for before the job
+is promoted to a required check.
 
 **What this changes about how the job should be read.** Protocol §3.2's GO
 condition 7 requires real CI green against the exact head SHA, and §0.3.3
