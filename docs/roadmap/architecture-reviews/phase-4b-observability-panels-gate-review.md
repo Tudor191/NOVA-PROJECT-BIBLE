@@ -675,16 +675,19 @@ transport, diagnosed in §4.1 and fixed in `26eb4f4`.
 | **#79** | `e841618` | **passed** | |
 | **#80** | `51ce2f9` | **passed** | First run with the always-on outbox assertion. Golden-path test 1 in **15.2s**; 12 passed, 1 skipped, 0 failed; `communication.turn.received: 1 row(s), 0 undispatched` |
 | **#81** | `88fe673` | **passed** | **31/31 Check Runs success** across all three workflows — 31 rather than 30 because `nova-service-kit` joined the real-infra matrix |
-| **#82** | this commit | *pending at the time of writing* | Documentation-only relative to `88fe673`, so its run extends the series without changing what is under test |
+| **#82** | `2fd4396` | **passed** | Documentation-only relative to `88fe673` |
+| **#83** | `adac73e` | **passed** | The Conditional-GO closure pass. **31/31 Check Runs**, including `real-infra (planning-engine)` 19 passed and `real-infra (action-engine)` 16 passed — C-3's eight new tests, green against a real Postgres |
+| **#84** | `1aa40d1` | **passed** | Documentation only. **31/31.** Seven consecutive green |
 
 Three failures in nine runs before the fix ≈ 33%, against the ~42% the
-mechanism predicts. **Four for four green after it**, each of the last two
+mechanism predicts. **Seven for seven green after it**, each from #80 onward
 carrying a positive assertion rather than an absence of failure.
 
-**How much four green runs are worth, stated honestly.** At the pre-fix rate a
-run passed ~2 times in 3, so four consecutive passes would happen by luck about
-20% of the time. Four runs alone are **not** a demonstration of stability, and
-this review does not claim they are. What carries the weight is
+**How much seven green runs are worth, stated honestly.** At the pre-fix rate a
+run passed ~2 times in 3, so seven consecutive passes would happen by luck about
+6% of the time. That is suggestive and it is **not** a demonstration of
+stability; this review does not claim it is, and §7.2's ten-run bar is the one
+it is measured against. What carries the weight is
 the combination: the mechanism is understood and reproduced in a test
 (§6.1), the two halves of it are asserted against a real Redis, a repository
 guard fails if any worker returns to the shared queue, and — the part that
@@ -725,10 +728,17 @@ throughout Phases 3 and 4, so their only execution path is CI — and this
 session cannot trigger a CI run at all (403 on both re-run and dispatch), only
 observe the one each push produces.
 
-**C-7 therefore stays open**, with the remaining work now stated as a number
-instead of a judgement: **five more consecutive green E2E runs** against an
-unchanged SHA, reachable by clicking *Run workflow* on `pr-checks.yml` five
-times. The same click extends the two `real_infra` rows, which run in a
+**C-7 therefore stays open**, with the remaining work now stated as a rule
+rather than a number that goes stale the moment it is written. **The bar is ten
+consecutive green E2E runs; the series starts at PR Checks #78** (`26eb4f4`,
+the first run carrying the G-8 fix) **and every run since has been green.** The
+count is therefore whatever `list_workflow_runs` reports for `pr-checks.yml` on
+this branch from #78 onward — a reader computes it rather than trusting a frozen
+figure, which matters because each documentation commit's own CI run extends the
+series by one after the sentence describing it was written. At the close of this
+pass it stood at **seven** (#78–#84), leaving **three**. `pr-checks.yml` carries
+`workflow_dispatch` (added in `e841618`) so the remainder can be run against an
+unchanged SHA by clicking *Run workflow*, without pushing commits to do it. The same click extends the two `real_infra` rows, which run in a
 different workflow and would need `real-infra-checks.yml` dispatched instead —
 it has no `workflow_dispatch` trigger and none was added here, because adding
 one is a CI change with no protocol condition asking for it.
