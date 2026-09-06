@@ -43,9 +43,24 @@ See `events/published.py` / `events/subscribed.py` for the enforced allow-lists.
 
 ## Owned APIs
 
+Public, reachable through `api-gateway`'s `/v1/plans` prefix:
+
+- `GET /v1/plans` — every task graph, newest first (added in Phase 4B for the
+  Planning panel; ordering is `ORDER BY created_at DESC` in the repository,
+  because the `TaskGraph` domain model carries no `created_at` field)
+- `GET /v1/plans/{task_graph_id}` — one task graph with its nodes
+- `POST /v1/plans/{task_graph_id}/approve` — record an approval
+
+Internal:
+
 - `GET /internal/health`
 - `GET /internal/readiness`
-- `GET /internal/metrics`
+
+*(Corrected 2026-09-06, Phase 4B closure pass: this section previously listed the
+`/internal/*` routes only and omitted the engine's entire public surface. It also
+listed `GET /internal/metrics`, which `api/health.py` does not expose — the same
+scaffold artifact was found in `api-gateway`, `ws-gateway` and `action-engine`,
+and is likely present in the other engine READMEs this phase did not touch.)*
 
 ## Testing
 

@@ -99,14 +99,19 @@ allow-lists.
 
 ## Owned APIs
 
-- `POST /v1/action/approvals/{action_id}/decide` -- the stopgap approval
-  decision endpoint.
+- `GET /v1/action/approvals` -- pending approvals, undecided only, oldest
+  first (added in Phase 4B for the Approvals panel).
+- `POST /v1/action/approvals/{action_id}/decide` -- the approval decision
+  endpoint.
 - `GET /internal/health`
 - `GET /internal/readiness`
-- `GET /internal/metrics`
 
-Exposed directly (no `api-gateway` yet -- same stopgap precedent as every
-other Phase 3 engine).
+**Reachable through `api-gateway`** since Phase 4B, which added a `/v1/action`
+prefix to the gateway's route table. *(Corrected 2026-09-06: this section
+previously said "exposed directly (no `api-gateway` yet)" and called the decide
+endpoint a stopgap; the gateway now exists and fronts this engine. It also listed
+`GET /internal/metrics`, which `api/health.py` does not expose — the same scaffold
+artifact was found in `api-gateway`, `ws-gateway` and `planning-engine`.)*
 
 ## Testing
 

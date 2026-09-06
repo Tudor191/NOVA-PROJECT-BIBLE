@@ -570,6 +570,38 @@ phase **extends** both — additive, not a rewrite, the same pattern already use
 `executive-cognition-engine` between Phase 2C and Phase 6 — rather than building
 either from scratch.
 
+> **Status update — 2026-09-06 (added by the Phase 4B closure pass; the entry below
+> is preserved verbatim as the original planning-stage description).**
+>
+> **Phase 4 was restructured into six milestones, 4A–4F, before implementation
+> began.** The everything-below description remains the plan for 4D/4E/4F, but it
+> predates three prerequisite milestones that were added in front of them:
+>
+> | Milestone | Scope | Status |
+> |---|---|---|
+> | **4A** | `api-gateway` + `ws-gateway` + `apps/web-client` shell + Conversation panel | **Merged** into `phase-4` 2026-09-05 via **PR #23** (merge commit `481ceac`). **No Gate Review and no Project Health record exist** — per [`project-health/README.md`](../project-health/README.md) it is therefore **not fully closed**; see the [Phase 4B Gate Review](architecture-reviews/phase-4b-observability-panels-gate-review.md) §13.1 |
+> | **4B** | The six observability panels (Planning, Reasoning Trace, Capabilities, Approvals, Events, Health) | **Implemented and engineering-verified — gate verdict NO-GO.** 30/30 CI Check Runs green against `0f3412c`, real Docker E2E passing, **but acceptance criterion AC-3 is unmet (0 of 1)** and three approved capabilities were not built. PR #24 open, **not merged**. See the [Gate Review](architecture-reviews/phase-4b-observability-panels-gate-review.md) and [`phase-4b.md`](../project-health/phase-4b.md) |
+> | **4C** | Containerize `agent-os`; `GET /v1/agents`; Agents panel | Not started |
+> | **4D** | `autonomy-engine` Levels 0–1 + Autonomy panel | Not started |
+> | **4E** | `digital-twin-engine` extension + Digital Twin panel | Not started |
+> | **4F** | `nova-companion` senses, `cognitive-state-engine`, Autonomy Level 2 | Not started |
+>
+> **Which acceptance criteria are authoritative.** This entry's four criteria below
+> and [`docs/design/phase-4/00-master-scope.md`](../design/phase-4/00-master-scope.md)
+> §1.1's **AC-1 … AC-8** are different lists, and they diverge: the master scope
+> adds AC-1 (browser conversation), AC-2 (`ws-gateway` as the only bus path), AC-3
+> (Phase 3 exercised from the browser) and AC-4 (`agent-os` under compose), none of
+> which appear here, and it splits this entry's four bullets across AC-5 … AC-8.
+> **The master scope's AC-1 … AC-8 are authoritative for Phase 4.** This entry's
+> four bullets survive within them: bullet 1 and bullet 4 are AC-7, bullet 2 is
+> AC-5 plus AC-8, and bullet 3 is AC-6.
+>
+> **Deliverables added that this entry does not list:** the two gateways, the web
+> client shell and its panel set, and — from 4B — `GET /v1/plans`,
+> `GET /v1/action/approvals`, and the `reasoning-engine-worker` and
+> `ai-model-orchestration-engine-worker` compose services. **Nothing listed below
+> has been dropped or moved to a later phase.**
+
 **Objectives**
 - Extend NOVA's senses beyond voice and presence to the desktop itself
   (`perception-engine` + `nova-companion`) and give it disciplined initiative

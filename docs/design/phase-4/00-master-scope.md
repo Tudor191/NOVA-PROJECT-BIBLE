@@ -156,6 +156,43 @@ no engine owns it — `nova-core` is the natural owner), plus widened
 **Depends on:** 4A. **Satisfies:** AC-3.
 **This is the milestone that makes Phase 3 visible.**
 
+> **Implementation status — 2026-09-06 (added by the Phase 4B closure pass; the
+> text above is preserved verbatim as written).**
+>
+> All six panels were built and are browser-verified against the real Docker
+> stack: 30/30 CI Check Runs green against head `0f3412c`. **The gate verdict is
+> nonetheless NO-GO** — see the
+> [Phase 4B Gate Review](../../roadmap/architecture-reviews/phase-4b-observability-panels-gate-review.md).
+>
+> **Three capabilities named above were not built**, and none had an approval to
+> narrow it:
+>
+> - **Capabilities** shipped as **list only**. "install / uninstall" above was not
+>   built, though `capability-engine` already exposes `POST /v1/capabilities/install`
+>   and `DELETE /v1/capabilities/{id}` and the gateway forwards `/v1/capabilities`.
+> - **Event Stream** shipped **without a filter**. "filterable" above was not built.
+> - **Reasoning Trace** renders `reasoning_level` — the 1–4 reasoning tier — not
+>   "3A's recursion depth", which is a different field
+>   (`MultiStepConfig.max_step_depth` / `multistep_recursion_exhausted`).
+>
+> **`GET /v1/system/health` was not built.** `nova-core` exposes only
+> `/internal/*`, which doc 11 §3 makes permanently unroutable, so building it
+> would mean giving `nova-core` a public HTTP surface — a decision no phase has
+> taken. The Health panel is push-fed from `nova.heartbeat`,
+> `nova.module.status_changed` and `ai_model.model.health_changed` instead. Doc
+> 11 §2 now carries the same note.
+>
+> **AC-3 is therefore not met** (Gate Review §9): of its four sub-clauses, two
+> need an LLM provider Phase 4 does not add, and two need controls that were not
+> built. Whether to defer AC-3 and ratify the three narrowings is an open
+> decision for the user, recorded in Gate Review §13 and §15.
+>
+> **Two backend additions not anticipated above** were required and built:
+> `GET /v1/plans` (planning-engine) and `GET /v1/action/approvals`
+> (action-engine), plus `reasoning-engine-worker` and
+> `ai-model-orchestration-engine-worker` compose services — without which those
+> engines' outbox rows are persisted and never published.
+
 ### 4C — Agent Activity
 
 Discharges **CF-3** by containerizing all four `agent-os` components and
@@ -211,10 +248,20 @@ Doc [04](../../architecture/04-frontend-architecture.md) §2 names twelve
 panels. Phase 4 builds **eight**. The scope line is explicit so it cannot
 drift.
 
+> **Count discrepancy noted 2026-09-06 (Phase 4B closure pass), not resolved
+> here.** The sentence above says eight; the table below lists **eleven** rows
+> assigned to a Phase 4 milestone — `conversation/` (4A), the six 4B panels,
+> `agents/` (4C), `autonomy/` (4D), `digital-twin/` (4E) and `cognitive-state/`
+> (4F). The two cannot both be right. The discrepancy is pre-existing and was not
+> introduced by Phase 4B; which number is correct is recorded as an open question
+> for the user in the
+> [Phase 4B Gate Review](../../roadmap/architecture-reviews/phase-4b-observability-panels-gate-review.md)
+> §13 (G-6). The table, not the prose, is what 4B was built against.
+
 | Panel | Milestone | Primary source |
 |---|---|---|
 | `conversation/` | **4A** | `communication-engine` |
-| `system/` | **4B** | `GET /v1/system/health`, `nova.heartbeat` |
+| `system/` | **4B** | ~~`GET /v1/system/health`~~ (never built — see §5's 4B note), `nova.heartbeat` + `nova.module.status_changed` + `ai_model.model.health_changed` (as built, 2026-09-06) |
 | `planning/` | **4B** | `planning-engine` `/v1/plans`, `planning.task_graph.*` |
 | `reasoning/` | **4B** | `reasoning-engine` `/v1/reasoning`, `/v1/reasoning/decisions` |
 | `capabilities/` | **4B** | `capability-engine` `/v1/capabilities` |
