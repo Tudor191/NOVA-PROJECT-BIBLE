@@ -859,6 +859,23 @@ caller-supplied, so the action-engine tests set it at insert.
 `real_infra` deselected-by-default count moves **107 → 115**;
 `planning-engine` 15 → 19, `action-engine` 12 → 16.
 
+**Executed against a real PostgreSQL, not merely written.** Real-Infrastructure
+Checks run [34063742737](https://github.com/Tudor191/NOVA-PROJECT-BIBLE/actions/runs/34063742737)
+against head `adac73e`, all 12 matrix jobs success:
+
+```
+real-infra (planning-engine)  …  19 passed, 138 deselected, in 17.40s
+   test_list_all_returns_newest_first                        PASSED
+   test_list_all_honours_its_limit_from_the_newest_end       PASSED
+   test_list_all_returns_graphs_with_their_nodes_loaded      PASSED
+   test_list_all_is_empty_before_any_plan_exists             PASSED
+
+real-infra (action-engine)    …  16 passed,  66 deselected, in 12.00s
+```
+
+That is C-3's discharge event — *"a green `real-infra-checks` run covering
+them"* — met literally.
+
 ---
 
 ## 9. Acceptance criteria
