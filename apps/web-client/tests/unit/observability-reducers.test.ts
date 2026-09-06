@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import { reduceDecided, reduceRequested } from "../../src/entities/approvals";
-import { EVENT_FEED_LIMIT, observedFromFrame, reduceEventFeed } from "../../src/entities/events";
+import {
+  EMPTY_EVENT_FILTERS,
+  EVENT_FEED_LIMIT,
+  filterEvents,
+  observedFromFrame,
+  reduceEventFeed,
+} from "../../src/entities/events";
 import {
   HEALTH_STALE_AFTER_MS,
   reduceHeartbeat,
@@ -11,9 +17,11 @@ import {
 } from "../../src/entities/health";
 import { reduceTaskGraphCreated } from "../../src/entities/planning";
 import {
+  type ReasoningTrace,
   processFromCompleted,
   processFromFailed,
   reduceProcess,
+  recursionDepth,
 } from "../../src/entities/reasoning";
 import type { EventFrame } from "../../src/realtime/protocol";
 
@@ -164,6 +172,110 @@ describe("event feed", () => {
       feed = reduceEventFeed(feed, observedFromFrame(frame(), index, AT));
     }
     expect(feed).toHaveLength(EVENT_FEED_LIMIT);
+  });
+});
+
+// --- event filters (DEV-2) -------------------------------------------------
+
+describe("event filters", () => {
+  const feed = [
+    { ...observedFromFrame(frame({ topic: "nova.heartbeat" }), 1, AT), correlationId: "aaa-111" },
+    {
+      ...observedFromFrame(frame({ topic: "action.approval.decided" }), 2, AT),
+      correlationId: "bbb-222",
+    },
+    {
+      ...observedFromFrame(frame({ topic: "action.approval.requested" }), 3, AT),
+      correlationId: "aaa-111",
+    },
+  ];
+
+  it("returns everything when nothing is asked for", () => {
+    expect(filterEvents(feed, EMPTY_EVENT_FILTERS)).toHaveLength(3);
+  });
+
+  it("matches a subject prefix, so one filter covers a whole family", () => {
+    const shown = filterEvents(feed, { ...EMPTY_EVENT_FILTERS, topic: "action.approval" });
+    expect(shown.map((event) => event.seq)).toEqual([2, 3]);
+  });
+
+  it("ignores case, because subjects are typed by hand", () => {
+    expect(filterEvents(feed, { ...EMPTY_EVENT_FILTERS, topic: "NOVA.HEART" })).toHaveLength(1);
+  });
+
+  it("follows one interaction across subjects by correlation id", () => {
+    const shown = filterEvents(feed, { ...EMPTY_EVENT_FILTERS, correlationId: "aaa-111" });
+    expect(shown.map((event) => event.seq)).toEqual([1, 3]);
+  });
+
+  it("intersects the two dimensions rather than unioning them", () => {
+    const shown = filterEvents(feed, { topic: "action.approval", correlationId: "aaa-111" });
+    expect(shown.map((event) => event.seq)).toEqual([3]);
+  });
+
+  it("does not mutate or re-order the feed it filters", () => {
+    const before = [...feed];
+    const shown = filterEvents(feed, { ...EMPTY_EVENT_FILTERS, topic: "action" });
+    expect(feed).toEqual(before);
+    // Arrival order preserved through the filter, same as without it.
+    expect(shown.map((event) => event.seq)).toEqual([2, 3]);
+  });
+
+  it("keeps recording while a filter hides everything", () => {
+    // The property that makes filtering safe: the reducer never sees the
+    // filter, so a frame arriving while nothing matches is still kept and
+    // reappears when the filter clears.
+    const filtered = filterEvents(feed, { ...EMPTY_EVENT_FILTERS, topic: "nothing-matches-this" });
+    expect(filtered).toHaveLength(0);
+    const grown = reduceEventFeed(feed, observedFromFrame(frame({ topic: "nova.heartbeat" }), 4, AT));
+    expect(grown).toHaveLength(4);
+    expect(filterEvents(grown, EMPTY_EVENT_FILTERS)).toHaveLength(4);
+  });
+});
+
+// --- reasoning recursion depth (DEV-3) -------------------------------------
+
+describe("recursion depth", () => {
+  const trace = (overrides: Partial<ReasoningTrace> = {}): ReasoningTrace =>
+    ({
+      id: "t",
+      reasoning_process_id: "p",
+      correlation_id: "c",
+      reasoning_mode: "multi_step",
+      reasoning_level: 2,
+      confidence_score: 0.5,
+      selected_capabilities: [],
+      steps: [],
+      multistep_recursion_exhausted: false,
+      ...overrides,
+    }) as ReasoningTrace;
+
+  it("counts a single-step trace as depth 1, the way max_step_depth counts", () => {
+    // `ModeConfig.max_step_depth` defaults to 1 and ">1 engages recursion",
+    // so an un-recursed trace must read 1 for the two to be comparable.
+    expect(recursionDepth(trace())).toBe(1);
+  });
+
+  it("counts nested steps, not how many there are", () => {
+    // Three siblings at one level is still depth 2 -- breadth is not depth.
+    const wide = trace({ steps: [trace(), trace(), trace()] });
+    expect(recursionDepth(wide)).toBe(2);
+  });
+
+  it("takes the deepest branch when branches differ", () => {
+    const lopsided = trace({
+      steps: [trace(), trace({ steps: [trace({ steps: [trace()] })] })],
+    });
+    expect(recursionDepth(lopsided)).toBe(4);
+  });
+
+  it("is not reasoning_level, which is a different fact", () => {
+    // A level-4 request that never recursed: the dial the caller set is 4,
+    // what the pipeline did is 1. Reporting the level as the depth is the
+    // substitution DEV-3 was raised about.
+    const shallow = trace({ reasoning_level: 4 });
+    expect(shallow.reasoning_level).toBe(4);
+    expect(recursionDepth(shallow)).toBe(1);
   });
 });
 

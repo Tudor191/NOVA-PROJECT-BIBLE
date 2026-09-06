@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -16,6 +16,7 @@ import { EventsPanel } from "../../src/panels/events/EventsPanel";
 import { HealthPanel } from "../../src/panels/health/HealthPanel";
 import { PlanningPanel } from "../../src/panels/planning/PlanningPanel";
 import { ReasoningTracePanel } from "../../src/panels/reasoning/ReasoningTracePanel";
+import { useUiStore } from "../../src/shared/store";
 
 /**
  * The six 4B panels: each renders its data, and each says so honestly when
@@ -151,6 +152,224 @@ describe("CapabilitiesPanel", () => {
   });
 });
 
+describe("CapabilitiesPanel — install and uninstall (DEV-1)", () => {
+  const installed = [
+    {
+      id: "c1",
+      name: "filesystem",
+      description: "Reads files",
+      category: "filesystem",
+      version: "1.0.0",
+      required_permissions: [],
+      dependencies: [],
+    },
+  ];
+
+  const MANIFEST = {
+    name: "probe",
+    description: "d",
+    category: "filesystem",
+    version: "1.0.0",
+    dependencies: [],
+    required_permissions: [],
+    required_resources: [],
+    input_schema: {},
+    output_schema: {},
+    execution_adapter: "filesystem",
+  };
+
+  function seeded() {
+    const queryClient = client();
+    queryClient.setQueryData(capabilityKeys.all, envelope(installed));
+    return queryClient;
+  }
+
+  it("posts the manifest to the engine's own install endpoint", async () => {
+    const fetchMock = vi.fn(
+      async () => new Response(JSON.stringify(envelope(installed[0])), { status: 201 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    render(<CapabilitiesPanel />, { wrapper: wrapper(seeded()) });
+
+    // Set rather than typed: `userEvent.type` reads `{` and `[` as key
+    // descriptors, which a JSON manifest is entirely made of.
+    fireEvent.change(await screen.findByTestId("capability-manifest-input"), {
+      target: { value: JSON.stringify(MANIFEST) },
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Install" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(String(url)).toContain("/v1/capabilities/install");
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(String(init.body))).toEqual(MANIFEST);
+  });
+
+  it("does not add the capability optimistically", async () => {
+    // Shared registry state: the row appears when the engine says it
+    // installed, never when the button was pressed. A manifest that fails
+    // the sandbox probe must never have been drawn as installed.
+    let resolve: ((value: Response) => void) | undefined;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => new Promise<Response>((r) => (resolve = r))),
+    );
+    render(<CapabilitiesPanel />, { wrapper: wrapper(seeded()) });
+
+    fireEvent.change(await screen.findByTestId("capability-manifest-input"), {
+      target: { value: JSON.stringify(MANIFEST) },
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Install" }));
+
+    // In flight: still exactly what the engine last reported.
+    expect(screen.getAllByTestId("capability")).toHaveLength(1);
+    resolve?.(new Response(JSON.stringify(envelope(installed[0])), { status: 201 }));
+  });
+
+  it("shows the engine's refusal, naming the failing stage", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              data: null,
+              meta: {
+                correlation_id: "4f1d9c2a-0000-4000-8000-000000000000",
+                generated_at: "2026-09-05T12:00:00.000Z",
+              },
+              error: {
+                code: "upstream_error",
+                message: "no adapter registered for execution_adapter 'nope'",
+                upstream_status: 422,
+              },
+            }),
+            { status: 422 },
+          ),
+      ),
+    );
+    render(<CapabilitiesPanel />, { wrapper: wrapper(seeded()) });
+
+    fireEvent.change(await screen.findByTestId("capability-manifest-input"), {
+      target: { value: JSON.stringify({ ...MANIFEST, execution_adapter: "nope" }) },
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Install" }));
+
+    const notice = await screen.findByTestId("capability-install-error");
+    expect(notice).toHaveTextContent("nope");
+    // And nothing was added.
+    expect(screen.getAllByTestId("capability")).toHaveLength(1);
+  });
+
+  it("refuses a malformed manifest without calling the gateway", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    render(<CapabilitiesPanel />, { wrapper: wrapper(seeded()) });
+
+    fireEvent.change(await screen.findByTestId("capability-manifest-input"), {
+      target: { value: "{ not json" },
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Install" }));
+
+    expect(await screen.findByTestId("capability-manifest-error")).toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("uninstalls through DELETE and does not remove the row optimistically", async () => {
+    let resolve: ((value: Response) => void) | undefined;
+    const fetchMock = vi.fn(() => new Promise<Response>((r) => (resolve = r)));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<CapabilitiesPanel />, { wrapper: wrapper(seeded()) });
+
+    await userEvent.click(await screen.findByTestId("capability-uninstall"));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(String(url)).toContain("/v1/capabilities/c1");
+    expect(init.method).toBe("DELETE");
+    // Still present until the engine confirms.
+    expect(screen.getAllByTestId("capability")).toHaveLength(1);
+    resolve?.(new Response(null, { status: 204 }));
+  });
+});
+
+describe("EventsPanel — filtering (DEV-2)", () => {
+  const feed = [
+    {
+      seq: 2,
+      topic: "action.approval.decided",
+      correlationId: "bbb-222",
+      generatedAt: "2026-09-05T12:00:00.000Z",
+      receivedAt: "2026-09-05T12:00:01.000Z",
+      confidence: null,
+      data: {},
+    },
+    {
+      seq: 1,
+      topic: "nova.heartbeat",
+      correlationId: "aaa-111",
+      generatedAt: "2026-09-05T12:00:00.000Z",
+      receivedAt: "2026-09-05T12:00:00.000Z",
+      confidence: null,
+      data: {},
+    },
+  ];
+
+  beforeEach(() => {
+    useUiStore.getState().clearEventFilters();
+  });
+
+  it("narrows to the matching subject and says how much is hidden", async () => {
+    const queryClient = client();
+    queryClient.setQueryData(eventKeys.feed, feed);
+    render(<EventsPanel />, { wrapper: wrapper(queryClient) });
+
+    expect(screen.getAllByTestId("event")).toHaveLength(2);
+    fireEvent.change(screen.getByTestId("event-filter-topic"), {
+      target: { value: "action.approval" },
+    });
+
+    expect(screen.getAllByTestId("event")).toHaveLength(1);
+    expect(screen.getByTestId("event-topic")).toHaveTextContent("action.approval.decided");
+    // The count still reports the whole feed, so a filter cannot be mistaken
+    // for a quiet stack.
+    expect(screen.getByTestId("event-count")).toHaveTextContent("1 of 2 shown");
+  });
+
+  it("distinguishes 'nothing matches' from 'nothing arrived'", () => {
+    const queryClient = client();
+    queryClient.setQueryData(eventKeys.feed, feed);
+    render(<EventsPanel />, { wrapper: wrapper(queryClient) });
+
+    fireEvent.change(screen.getByTestId("event-filter-topic"), {
+      target: { value: "planning.task_graph" },
+    });
+    expect(screen.getByTestId("panel-no-matches")).toHaveTextContent("2 received");
+    expect(screen.queryByTestId("panel-empty")).not.toBeInTheDocument();
+  });
+
+  it("still says nothing arrived when the feed is genuinely empty", () => {
+    const queryClient = client();
+    queryClient.setQueryData(eventKeys.feed, []);
+    render(<EventsPanel />, { wrapper: wrapper(queryClient) });
+    expect(screen.getByTestId("panel-empty")).toBeInTheDocument();
+  });
+
+  it("brings everything back when cleared", async () => {
+    const queryClient = client();
+    queryClient.setQueryData(eventKeys.feed, feed);
+    render(<EventsPanel />, { wrapper: wrapper(queryClient) });
+
+    fireEvent.change(screen.getByTestId("event-filter-topic"), {
+      target: { value: "action.approval" },
+    });
+    expect(screen.getAllByTestId("event")).toHaveLength(1);
+
+    await userEvent.click(screen.getByTestId("event-filter-clear"));
+    expect(screen.getAllByTestId("event")).toHaveLength(2);
+  });
+});
+
 describe("ApprovalsPanel", () => {
   it("says nothing is waiting rather than looking empty-because-broken", async () => {
     const queryClient = client();
@@ -208,6 +427,72 @@ describe("ReasoningTracePanel", () => {
     expect(await screen.findByTestId("trace")).toBeInTheDocument();
     expect(screen.getByTestId("trace")).not.toHaveTextContent("0.91");
     expect(screen.getByTestId("trace")).not.toHaveTextContent("91%");
+  });
+
+  it("shows 3A's recursion depth alongside the level, not instead of it", async () => {
+    // DEV-3. `reasoning_level` is the 1-4 dial the caller set;
+    // the depth is what the Multi-step pipeline actually did. A level-4
+    // trace that recursed twice must show both, and they must differ.
+    const queryClient = client();
+    queryClient.setQueryData(
+      reasoningKeys.traces,
+      envelope([
+        {
+          id: "t1",
+          reasoning_process_id: "p1",
+          correlation_id: "c1",
+          reasoning_mode: "multi_step",
+          reasoning_level: 4,
+          confidence_score: 0.7,
+          selected_capabilities: [],
+          multistep_recursion_exhausted: true,
+          steps: [
+            {
+              id: "t2",
+              reasoning_process_id: "p1",
+              correlation_id: "c1",
+              reasoning_mode: "multi_step",
+              reasoning_level: 4,
+              confidence_score: 0.6,
+              selected_capabilities: [],
+              multistep_recursion_exhausted: false,
+              steps: [],
+            },
+          ],
+        },
+      ]),
+    );
+    render(<ReasoningTracePanel />, { wrapper: wrapper(queryClient) });
+
+    const trace = await screen.findByTestId("trace");
+    expect(trace).toHaveTextContent("level 4");
+    expect(screen.getByTestId("trace-depth")).toHaveTextContent("depth 2");
+    // The engine's own flag, surfaced rather than derived.
+    expect(screen.getByTestId("trace-recursion-exhausted")).toBeInTheDocument();
+  });
+
+  it("does not claim recursion was exhausted when the engine did not say so", async () => {
+    const queryClient = client();
+    queryClient.setQueryData(
+      reasoningKeys.traces,
+      envelope([
+        {
+          id: "t1",
+          reasoning_process_id: "p1",
+          correlation_id: "c1",
+          reasoning_mode: "analytical",
+          reasoning_level: 2,
+          confidence_score: 0.9,
+          selected_capabilities: [],
+          multistep_recursion_exhausted: false,
+          steps: [],
+        },
+      ]),
+    );
+    render(<ReasoningTracePanel />, { wrapper: wrapper(queryClient) });
+
+    expect(await screen.findByTestId("trace-depth")).toHaveTextContent("depth 1");
+    expect(screen.queryByTestId("trace-recursion-exhausted")).not.toBeInTheDocument();
   });
 
   it("keeps live processes separate from recorded traces", async () => {

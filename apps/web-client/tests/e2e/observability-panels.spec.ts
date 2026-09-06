@@ -157,6 +157,44 @@ test.describe("the observability panels", () => {
     await expect(times).toContainText("received");
   });
 
+  test("the Events panel filters, and keeps receiving while filtered", async ({ page }) => {
+    await signIn(page);
+    await page.getByTestId("nav-events").click();
+    await expect(page.getByTestId("event").first()).toBeVisible({ timeout: 30_000 });
+
+    // A subject nothing publishes. The feed is not emptied -- it is being
+    // looked at through a lens -- so the panel must say "no matches" rather
+    // than "nothing received", which are different facts about the stack.
+    await page.getByTestId("event-filter-topic").fill("planning.task_graph.created");
+    await expect(page.getByTestId("panel-no-matches")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId("panel-empty")).toHaveCount(0);
+
+    // Narrow to the heartbeat, which `nova-core` emits every five seconds.
+    await page.getByTestId("event-filter-topic").fill("nova.heartbeat");
+    const shown = page.getByTestId("event");
+    await expect(shown.first()).toBeVisible({ timeout: 30_000 });
+    // Every visible row matches; nothing leaks past the filter.
+    for (const topic of await page.getByTestId("event-topic").allTextContents()) {
+      expect(topic).toContain("nova.heartbeat");
+    }
+
+    // Realtime keeps writing *through* the filter: the reducer is unfiltered
+    // and filtering happens at render, so a filtered panel still grows.
+    const before = await shown.count();
+    await expect(async () => {
+      expect(await shown.count()).toBeGreaterThan(before);
+    }).toPass({ timeout: 45_000 });
+
+    // Clearing brings back everything that arrived while it was filtered --
+    // proof that nothing was dropped on the way in.
+    const whileFiltered = await shown.count();
+    await page.getByTestId("event-filter-clear").click();
+    await expect(async () => {
+      expect(await page.getByTestId("event").count()).toBeGreaterThanOrEqual(whileFiltered);
+    }).toPass({ timeout: 15_000 });
+    await expect(page.getByTestId("panel-no-matches")).toHaveCount(0);
+  });
+
   test("the Health panel reports a real module, not an assumed one", async ({ page }) => {
     await signIn(page);
     await page.getByTestId("nav-health").click();
