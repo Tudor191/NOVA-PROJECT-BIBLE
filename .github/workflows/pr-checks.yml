@@ -16,6 +16,14 @@ on:
   pull_request:
   push:
     branches: [main]
+  # Manual re-runs against an unchanged commit. Added by the Phase 4B G-8 fix:
+  # the `e2e` job is staged precisely because it has to *demonstrate* stability
+  # rather than be assumed stable, and one green run of a job that used to fail
+  # ~40% of the time proves the run was lucky, not that the property holds.
+  # Establishing that needs several runs of the same SHA, and without this the
+  # only way to get one is to push another commit -- which changes the SHA and
+  # so answers a different question. This adds no gate and no required check.
+  workflow_dispatch:
 
 concurrency:
   group: pr-checks-${{ github.workflow }}-${{ github.ref }}

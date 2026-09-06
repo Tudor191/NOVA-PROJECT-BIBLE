@@ -126,7 +126,8 @@ async def test_each_worker_drains_only_its_own_queue(redis_dsn: str, drained: li
     finally:
         await alpha_worker.close()
 
-    assert drained == [ALPHA], "alpha drained something other than its own outbox"
+    assert drained, "alpha's own cron tick never ran"
+    assert set(drained) == {ALPHA}, "alpha drained something other than its own outbox"
     assert await pool.zcard(beta_queue) == 1, "alpha consumed beta's queued job"
 
     beta_worker = _worker(redis_dsn, beta_queue, beta_cron)
@@ -135,7 +136,13 @@ async def test_each_worker_drains_only_its_own_queue(redis_dsn: str, drained: li
     finally:
         await beta_worker.close()
 
-    assert drained == [ALPHA, BETA], "beta never drained its own outbox"
+    # Beta's own worker drains beta's outbox, and only beta's. It may do so
+    # more than once -- it consumes the tick placed above *and* the one its own
+    # `run_at_startup` cron enqueues, which is arq behaving correctly and not
+    # the property under test. What must hold is that neither engine ever ran
+    # the other's dispatcher, so this counts rather than pinning a sequence.
+    assert BETA in drained, "beta never drained its own outbox"
+    assert drained.count(ALPHA) == 1, "beta ran alpha's dispatcher"
     assert await pool.zcard(alpha_queue) == 0
     assert await pool.zcard(beta_queue) == 0
     await pool.aclose()
