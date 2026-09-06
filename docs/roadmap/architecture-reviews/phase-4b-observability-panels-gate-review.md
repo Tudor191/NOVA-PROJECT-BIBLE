@@ -152,6 +152,34 @@ engine workers shared one Redis, one arq queue and one cron job name**, so
 is a pre-existing Phase 2/3 defect that Phase 4B's four-worker E2E stack was the
 first configuration to expose.
 
+## 0.5 Update — 2026-09-06, Conditional-GO closure pass: C-1 … C-7 worked individually
+
+The verdict set in §15.1 is **CONDITIONAL-GO with seven conditions**. This pass
+worked each one, closing what is legitimately closable from repository evidence
+and leaving the rest open with the remaining work stated as a number or a named
+artefact rather than a judgement. **The verdict does not change, and
+CONDITIONAL-GO is not reinterpreted as GO.**
+
+| # | Condition | Status after this pass | Where |
+|---|---|---|---|
+| **C-1** | AC-3's approval clause + CF-9 reassigned to Phase 4D | **Open — correctly.** Its discharge event is *Phase 4D's* Gate Review. Verified this pass: the deferral, the three-way ownership attribution and the fail-closed gate are all intact and internally consistent; nothing relabels AC-3 as met | §0.3, §9.2 |
+| **C-2** | The two provider-dependent sub-clauses demonstrated once a provider exists | **Open — and now precisely stated.** A *local* provider path (`OllamaConnector`, an `ollama` compose service, `POST /v1/models`) exists and needs no credential; it is unstarted in the E2E job, unpulled, and unregistered. The earlier "no provider" framing is corrected | §9.3 |
+| **C-3** | A `real_infra` test for `list_all` and `list_pending_approvals` | **CLOSED.** Eight new real-Postgres tests, after confirming no equivalent coverage existed. No mocks | §8.1 |
+| **C-4** | SLOC measured with `cloc` or `scc` before `phase-4` merges to `main` | **CLOSED.** `cloc` v2.06 installed and run: **32,923** comparable / **38,369** full production. **50k gate not crossed** | §16.1 |
+| **C-5** | SAD 15 §9.1 items 2, 3, 7 supplied or explicitly waived | **CLOSED.** Items 2 and 3 supplied as real diagrams; item 7 recorded **not applicable with the reason** — it asserts against a design doc's performance targets, and 4B has no design doc and no stated target. The requirement text is preserved | §1.4, §14.1 |
+| **C-6** | Phase 4A's Gate Review and health record before `phase-4` closes | **Open — correctly.** Re-checked: the protocol scopes that requirement to the phase being gated, and writing 4A's records here would be 4A closure under 4B's gate on a phase this session did not verify. The two missing artefacts and the evidence available for them are now enumerated | §9.4 |
+| **C-7** | The E2E job promoted to a required check only once stable | **Open, with the bar now named.** Protocol §9.2 sets it at **≥10×**, not five. Current: 5 consecutive green. Three timing-sensitive suites are below the bar, all Docker-only, and this session cannot trigger a CI run (403 on re-run and on dispatch) | §7.2 |
+
+**Three closed, four open**, and none of the four is closable from this
+session's evidence: two are owned by later milestones by design (C-1, C-2), one
+is owned by `phase-4` closure (C-6), and one needs CI runs this session cannot
+trigger (C-7).
+
+**Nothing in this pass added product scope.** No `apps/web-client` file, no
+`ws-gateway` file, no `PUBLIC_TOPICS` entry, no security boundary, no
+identity-confidence threshold, no `perception-engine`. The golden path is
+byte-identical.
+
 ---
 
 ## 1. What was implemented
@@ -213,6 +241,101 @@ No optimistic mutation of shared cognitive state.
 
 ---
 
+### 1.4 Diagrams — SAD 15 §9.1 items 2 and 3
+
+*Added 2026-09-06 by the Conditional-GO closure pass (condition C-5). §9.1 asks
+for these "in the design doc"; **Phase 4B has no design doc** —
+`02-tdd-4b-observability-panels.md` is listed as "not yet written / Planned"
+at `00-master-scope.md:520`, and master scope §5/§6 plus D-8 are the
+authoritative acceptance source instead (§4 item 5). They live here rather than
+in a TDD written after the fact, and §14.1 records that displacement rather
+than reporting the requirement met as worded.*
+
+**Both flows are drawn from the code, not from intent.** The second one is
+drawn because of G-8: the defect lived entirely in a hop that no diagram in
+this repository had ever shown, between an engine's outbox row and the bus.
+
+#### The REST read path — every panel except Events
+
+```mermaid
+sequenceDiagram
+    participant B as Browser panel
+    participant Q as React Query cache
+    participant G as api-gateway
+    participant E as Engine
+    participant P as Postgres
+
+    B->>Q: useQuery(key)
+    Q->>G: GET /v1/plans (session cookie, httpOnly)
+    Note over G: allow-list of five prefixes,<br/>forwarded verbatim (D-6)
+    G->>E: GET /v1/plans
+    E->>P: SELECT … ORDER BY created_at DESC LIMIT n
+    P-->>E: rows
+    E-->>G: {data, meta, error}
+    G-->>B: {data, meta, error}
+    B->>B: panel-loading cleared; rows or panel-empty
+    Note over B: a non-2xx renders DegradationNotice —<br/>"could not reach its engine", never "no data"
+```
+
+#### The realtime path — where G-8 lived
+
+```mermaid
+sequenceDiagram
+    participant E as Engine (API process)
+    participant P as Postgres
+    participant W as Engine worker (arq)
+    participant N as NATS
+    participant WS as ws-gateway
+    participant B as Browser
+
+    E->>P: INSERT domain row + outbox_event (one transaction)
+    Note over W: arq cron, second={0,10,20,30,40,50}<br/>on its OWN queue arq:queue:<service><br/>under its OWN job name cron:<service>:<fn>
+    W->>P: SELECT … WHERE dispatched_at IS NULL
+    P-->>W: rows
+    W->>N: publish(EventEnvelope)
+    W->>P: UPDATE dispatched_at
+    N-->>WS: subject in PUBLIC_TOPICS
+    WS-->>B: {type:"event", topic, data, meta}
+    B->>B: applyFrame → reducer → React Query cache
+    Note over W,N: BEFORE 26eb4f4 all ten workers shared<br/>arq:queue and the name cron:arq_run_outbox_dispatch,<br/>so this hop ran for one random engine per tick (G-8, §4.1)
+```
+
+#### Component breakdown — `apps/web-client/src/`
+
+```mermaid
+graph TD
+    main[main.tsx] --> router[app/router.tsx]
+    router --> shell[app/AppShell.tsx]
+    shell --> rt[realtime/provider.tsx]
+    shell --> hdr["app/ConnectionState · SystemPulse · PresenceIndicator"]
+    shell --> outlet[Outlet: one lazily-loaded panel]
+
+    rt --> client[realtime/client.ts<br/>the ONE WebSocket]
+    client --> proto[realtime/protocol.ts<br/>PUBLIC_TOPICS, frame schemas]
+    rt --> rec[realtime/reconcile.ts<br/>applyFrame → reducers]
+
+    outlet --> panels["panels/ conversation · planning · reasoning<br/>capabilities · approvals · events · health"]
+    panels --> ent["entities/ conversation · planning · reasoning · capabilities<br/>approvals · events · health · pulse · presence · session"]
+    rec --> ent
+    ent --> http[entities/http.ts<br/>gatewayFetch → api-gateway only]
+    ent --> env[entities/envelope.ts<br/>the one data/meta/error shape]
+    ent --> contracts[["@nova/nova-contracts<br/>(generated types)"]]
+    panels --> ui[["@nova/ui"]]
+    panels --> store[shared/store.ts<br/>ephemeral UI state only]
+
+    classDef ext fill:#eee,stroke:#999
+    class contracts,ui ext
+```
+
+Two structural facts the tree is drawn to make checkable: `realtime/` has
+exactly one outbound edge to the network (`client.ts`) and `entities/` has
+exactly one (`http.ts`) — the pair of boundaries `tests/unit/security-boundary.test.ts`
+and `eslint.config.js`'s `no-restricted-imports` enforce. `RealtimeProvider`
+sits above `Outlet`, not inside it, which is what stops a panel switch from
+dropping the socket.
+
+---
+
 ## 2. Why each architectural decision was made
 
 | Decision | Alternative | Why this one |
@@ -269,7 +392,12 @@ Every item here is disclosed, none is hidden, and none is presented as resolved.
    either subject, because with `ANTHROPIC_API_KEY` unset
    (`infra/docker/docker-compose.local.yml:340,408`) nothing produces one.
    Subject-level delivery for these two is **verified as reachable, not as
-   delivered**.
+   delivered**. *(Corrected twice since. **§6.1, 2026-09-06:** for
+   `reasoning.process.*` this attribution was **wrong** — a row exists and is
+   dispatched; it was G-8 stranding it, not the absent provider. It stands for
+   `ai_model.model.*`. **§9.3, 2026-09-06:** "provider absent" is itself
+   imprecise — a local `OllamaConnector` path exists in code and in compose and
+   is merely unwired in CI.)*
 4. **`GET /v1/system/health` does not exist** (DEV-4).
 5. **No 4B TDD was ever written.** `docs/design/phase-4/02-tdd-4b-observability-panels.md`
    is listed as *"not yet written / Planned"* at `00-master-scope.md:520`. Master
@@ -573,6 +701,47 @@ human can click *Run workflow* and extend this series against an unchanged SHA
 without pushing a commit to do it — which is what C-7 asks for before the job
 is promoted to a required check.
 
+### 7.2 The protocol's actual stability threshold — 2026-09-06, closure pass
+
+C-7 was written without naming a number. The protocol names one.
+**§9.2, lines 716–717:** *"**Flakiness**, for any test involving timing, async
+scheduling, or I/O: run it repeatedly (**≥10×**) and report the result."*
+
+So the bar is **ten**, not five, and it applies per timing-sensitive test rather
+than per CI run.
+
+| Suite | Timing-sensitive? | Repetitions | Result |
+|---|---|---|---|
+| `observability-panels.test.tsx`, `observability-reducers.test.ts` | yes (async render) | **10×** | 10/10 green (§7, first pass) |
+| `tools/tests/test_worker_queue_isolation.py` | no — static `ast` parsing, no I/O | **10×** | **10/10 green**, run anyway because it is cheap |
+| `packages/nova-service-kit/tests/test_worker.py` | no — pure, no I/O | **10×** | **10/10 green** |
+| `test_worker_real_redis.py` (3 tests) | **yes** — real Redis, real arq worker loops | **1×** (CI only) | green in Real-Infra #108 onward. **Below the bar** |
+| The eight new `real_infra` repository tests | yes — real Postgres | **1×** (CI only) | green. **Below the bar** |
+| `golden-path.spec.ts` | **yes** — Docker stack, sockets, an outbox cron | **5 consecutive** | 5/5 green (#78–#82). **Below the bar** |
+
+**Three rows are below the bar and are not presented as meeting it.** All three
+need Docker, which is unavailable in the development environment and has been
+throughout Phases 3 and 4, so their only execution path is CI — and this
+session cannot trigger a CI run at all (403 on both re-run and dispatch), only
+observe the one each push produces.
+
+**C-7 therefore stays open**, with the remaining work now stated as a number
+instead of a judgement: **five more consecutive green E2E runs** against an
+unchanged SHA, reachable by clicking *Run workflow* on `pr-checks.yml` five
+times. The same click extends the two `real_infra` rows, which run in a
+different workflow and would need `real-infra-checks.yml` dispatched instead —
+it has no `workflow_dispatch` trigger and none was added here, because adding
+one is a CI change with no protocol condition asking for it.
+
+**What the argument does not rest on.** Not statistics: five consecutive greens
+are ~20% likely by luck at the pre-fix rate, and ten would be ~2% — better, but
+still not proof. It rests on the mechanism being understood and reproduced
+(§4.1), asserted against a real Redis in both its halves (§6.1), guarded at
+repository level with a fired negative control, and on every run from #80
+onward *positively asserting* `0 undispatched` rather than merely not failing.
+The consecutive-run count is corroboration on top of that, and §9.2's ten is
+the bar this review is measured against rather than one it sets for itself.
+
 **What this changes about how the job should be read.** Protocol §3.2's GO
 condition 7 requires real CI green against the exact head SHA, and §0.3.3
 requires evidence rather than assertion. Before the fix, a green E2E run was
@@ -649,6 +818,46 @@ Reported as its own section, per protocol §10.2, and never folded into §6.
    degradation notice. **No test anywhere asserts their SQL returns the right rows
    in the right order against a real PostgreSQL.** The 11 `nova-testkit` fixture
    tests (Redis/Neo4j/NATS) remain unrun locally and touch no code 4B changed.
+
+### 8.1 Item 6 closed — 2026-09-06, Conditional-GO closure pass (condition C-3)
+
+**Equivalent coverage was checked for first, and there was none.**
+`grep -rn "list_all\|list_pending_approvals" services/{planning,action}-engine/tests/`
+returns exactly two hits, both in `tests/fakes/repository.py` — the in-memory
+doubles. Neither method appeared in any `real_infra` test, so the eight tests
+below are new coverage rather than duplicates of existing coverage.
+
+**Eight `real_infra` tests added**, appended to the two engines' existing
+`tests/integration/test_repository_real_postgres.py` files and following their
+conventions exactly (same `_migrated_schema` session fixture, same Alembic
+chain, same `postgres_session_factory`, same `pytest.mark.real_infra`). No mock
+or fake is used anywhere in them — the condition is about the real database and
+is discharged only against one.
+
+| Engine | Test | What it asserts against real Postgres |
+|---|---|---|
+| `action-engine` | `test_list_pending_approvals_returns_undecided_rows_oldest_first` | `ORDER BY requested_at` — the queue order an operator works from |
+| | `test_list_pending_approvals_drops_a_row_once_it_is_decided` | `WHERE decision IS NULL`, through a real `UPDATE`; the decided row still exists, it left the queue rather than being deleted |
+| | `test_list_pending_approvals_honours_its_limit` | The limit truncates from the *oldest* end, which is only meaningful because the read is ordered |
+| | `test_list_pending_approvals_is_empty_when_nothing_is_waiting` | The panel's honest empty state — an exception here would present as an unreachable engine |
+| `planning-engine` | `test_list_all_returns_newest_first` | `ORDER BY created_at DESC` against timestamps the test controls |
+| | `test_list_all_honours_its_limit_from_the_newest_end` | A limit on an unordered read returns an arbitrary subset; on this one it returns the most recent plans |
+| | `test_list_all_returns_graphs_with_their_nodes_loaded` | The `selectinload` — asserted by equality with the domain object, which holds only if every node came back |
+| | `test_list_all_is_empty_before_any_plan_exists` | The Planning panel's honest empty state |
+
+**One setup detail worth stating, because getting it wrong would have made the
+ordering tests vacuous.** `task_graph.created_at` is `server_default=func.now()`,
+and Postgres' `now()` is *transaction-start* time — constant for every row
+written inside `postgres_session_factory`'s single outer transaction. Three
+graphs inserted normally would all carry the identical timestamp, the `ORDER BY`
+would have nothing to order, and the assertion would pass or fail on whatever
+order Postgres happened to return. `_stamp_created_at` therefore sets the three
+timestamps explicitly with a real `UPDATE` and the ordering is asserted against
+known values. `pending_approval.requested_at` needs no such treatment — it is
+caller-supplied, so the action-engine tests set it at insert.
+
+`real_infra` deselected-by-default count moves **107 → 115**;
+`planning-engine` 15 → 19, `action-engine` 12 → 16.
 
 ---
 
@@ -737,6 +946,92 @@ criterion requires the user's explicit approval, recorded; it is never the
 agent's call"* is satisfied by recording it here with the approval cited. What
 the approval does **not** do is make the criterion met, and nothing in this
 document says it does.
+
+### 9.3 The provider-dependent clauses, re-examined — 2026-09-06 (condition C-2)
+
+C-2 asked which AC-3 clauses actually require an external LLM provider, and
+whether the repository already has a legitimate **local** provider path. The
+answer corrects what this review had been saying.
+
+**Which clauses.** Exactly two: *"a plan is generated and rendered"* and *"a
+reasoning trace is inspected"*. Both need a model to produce the artefact the
+panel then renders. The other two clauses need no provider — one is met, one is
+deferred by approval.
+
+**What this review said, and why it was imprecise.** §4 item 3 and
+`phase-4b.md` field 20(b) attribute the gap to `ANTHROPIC_API_KEY` being unset.
+That names *an* absent provider, not *the* absence of one, and reads as though
+no provider path exists. One does.
+
+**The local path that exists.** ADR-020 makes
+`ai-model-orchestration-engine/connectors/` the only place an LLM SDK may be
+imported, and that directory contains **`ollama_connector.py`** beside
+`anthropic_connector.py`. `ConnectorFactory` takes `ollama_base_url` and builds
+it by `connector_type`. `config.py:27` defaults it to `http://localhost:11434`
+and its own docstring calls this the *"zero-budget-local-first default"*.
+`docker-compose.local.yml:114` defines an **`ollama` service**, and both
+`ai-model-orchestration-engine` and its worker already receive
+`AI_MODEL_ORCHESTRATION_ENGINE_OLLAMA_BASE_URL: http://ollama:11434`
+(`:339`, `:407`). A model descriptor can be registered through
+`POST /v1/models` (`api/models.py:105`). **No credential is required anywhere
+on this path.**
+
+**Why it is nonetheless not demonstrable in CI today.** Three gaps, each
+verified rather than assumed:
+
+1. **`ollama` is not started by the E2E job.** `pr-checks.yml`'s `up -d` names
+   15 services explicitly and `ollama` is not among them.
+2. **The image ships no weights.** `ollama/ollama:latest` is a runtime; a model
+   has to be pulled, which on a CI runner means downloading and caching
+   hundreds of megabytes at minimum before any generation can happen.
+3. **No model is registered.** `model_registry` is created by the migration and
+   nothing seeds it; no startup path calls `POST /v1/models`. With an empty
+   registry the factory has no `connector_type` to act on.
+
+Closing all three is real work — a compose service added to the E2E stack, a
+model pull budgeted on the runner, and a registration step — and it belongs to
+whoever configures a provider, which is what C-2's discharge event already
+says. **It is not Phase 4B scope and nothing was changed here.**
+
+**The precise limitation, replacing the imprecise one.** *The two clauses are
+unverifiable in this environment not because NOVA has no provider path, but
+because the local one (`OllamaConnector`) is present in code and in compose yet
+unwired in CI: unstarted, unpulled, and unregistered. The external one
+(`AnthropicConnector`) additionally needs a credential, which is not something
+to fabricate.* §4 item 3 and field 20(b) are corrected to this wording. **The
+AC-3 clause text itself is untouched**, and neither clause is softened,
+narrowed, or reported as anything other than *Cannot be verified in this
+environment*.
+
+### 9.4 Phase 4A's records — 2026-09-06 (condition C-6)
+
+Re-checked against the protocol rather than carried forward on the earlier
+finding. The conclusion is unchanged; the reasoning is now stated in terms of
+what C-6 would actually take to close.
+
+- **The protocol does not require them for *this* gate.** §3.2's GO condition 9
+  and §4.4 both scope the Gate-Review-and-health-record requirement to *the
+  phase being gated*. §13.1's repository-wide sweep for any document claiming
+  Phase 4A is complete, closed, merged or GO still returns **0 hits**, so §12
+  has nothing to resolve.
+- **What is missing, enumerated so the work is inheritable:** a
+  `docs/roadmap/architecture-reviews/phase-4a-*-gate-review.md` and a
+  `docs/project-health/phase-4a.md`. The evidence for both exists and is
+  reachable — PR #23, merge commit `481ceac`, that PR's Check Runs, and the 4A
+  code itself, which is an ancestor of this branch.
+- **Why they are not written here.** Writing them would be *Phase 4A's* closure
+  performed under Phase 4B's gate, on a phase this session did not verify — and
+  several of the 23 fields (coverage as measured then, the negative controls run
+  then) cannot be reconstructed from the repository without asserting things
+  nobody checked at the time. Protocol §0.3.3 wants evidence, not
+  reconstruction, and §0.3.5 says to report the gap rather than close it by
+  assumption.
+- **`phase-4a` is untouched**, as it has been throughout: no branch
+  modification, no history rewrite, and it remains a git ancestor of `phase-4`.
+
+**C-6 stays open and stays owned by `phase-4` closure**, which is where it was
+assigned when it was written.
+
 
 ---
 
@@ -928,18 +1223,45 @@ assessed against the extended surface rather than a new one.
 | # | Item | Status |
 |---|---|---|
 | 1 | Architecture documentation | **Present** — doc 11 §2 updated; both gateway READMEs written |
-| 2 | Sequence diagrams | **Absent.** No new diagram for the panel read/realtime paths |
-| 3 | Component diagrams | **Absent** |
+| 2 | Sequence diagrams | **Absent** *(first pass)* → **Supplied 2026-09-06, §1.4** — the REST read path and the realtime path, the latter written because G-8 lived in a hop no diagram had drawn |
+| 3 | Component diagrams | **Absent** *(first pass)* → **Supplied 2026-09-06, §1.4** — `apps/web-client/src/` module tree and its shared-package edges |
 | 4 | API documentation | **Present** — doc 11 §2 + engine READMEs |
 | 5 | Unit tests | **Present** — 30 new frontend tests; 146 tools; gateway/engine suites green |
 | 6 | Integration tests | **Present** — `test_plans_api.py`, `test_approvals_api.py`, plus the Docker E2E |
-| 7 | Performance benchmarks | **Absent.** No benchmark for panel load or socket throughput |
+| 7 | Performance benchmarks | **Absent** *(first pass)* → **Not applicable, with the reason recorded 2026-09-06** — see below. The requirement is preserved verbatim, not waived away |
 | 8 | Failure scenarios | **Present** — `AsyncPanelBody`'s degradation path, asserted in the E2E; health staleness; `/internal` and NATS boundary specs |
 | 9 | Logging strategy | **N/A** — no new backend service; the two endpoints inherit their engines' existing logging |
 | 10 | Observability metrics | **N/A** — same reason; no new metric introduced |
 
 **Three items absent (2, 3, 7).** Recorded, not waived; they are inputs to the §15
 decision.
+
+#### Update — 2026-09-06, Conditional-GO closure pass (condition C-5)
+
+**Items 2 and 3 are supplied** in §1.4 — two sequence diagrams and one component
+diagram, drawn from the code. §9.1 asks for them "in the design doc"; Phase 4B
+has none, so §1.4 records where they live and why, rather than reporting the
+requirement met exactly as worded.
+
+**Item 7 is not applicable, and this is the reason rather than an excuse.** The
+requirement is *"automated tests asserting the subsystem's design doc
+performance targets (its own 'Performance considerations' section) are met, not
+just prose claims"*. It is defined **relative to a design doc's stated targets**.
+Phase 4B has no design doc and therefore no stated target: there is no number
+for panel load, socket throughput, or list-endpoint latency anywhere in
+`00-master-scope.md` §5/§6, in D-8, or in doc 11. A benchmark written now would
+have to invent the threshold it then asserts against, which is a test that
+passes by construction and the decorative-documentation failure this checklist
+exists to prevent.
+
+**What would actually close item 7**, stated so it is inheritable rather than
+lost: a Phase 4B TDD (or an amendment to master scope §6) that states the
+performance targets, followed by benchmarks asserting them. Both belong to
+whoever writes that document. The requirement above is preserved unmodified.
+
+**Item 9 and item 10 remain N/A on their original grounds** — 4B introduced no
+new backend service, so there is no new logging strategy or metric to
+document; the two list endpoints inherit their engines' existing ones.
 
 ---
 
@@ -1016,11 +1338,32 @@ built or decided; each names what discharges it.
 |---|---|---|---|
 | **C-1** | **AC-3's approval-execution clause** is reassigned by name to the milestone that will demonstrate it, together with the **Phase 3D / ADR-032** configuration mechanism it depends on (CF-9). Routed to **Phase 4D** | Phase 4D | 4D's Gate Review records a Critical-risk action blocked pending approval and approved from the browser, against a policy whose threshold the user set |
 | **C-2** | The two provider-dependent AC-3 sub-clauses ("a plan is generated and rendered", "a reasoning trace is inspected") are demonstrated once a provider exists | The milestone that configures a provider | That milestone's Gate Review records both, from the browser |
-| **C-3** | A `real_infra` test for `list_all` and `list_pending_approvals` (§8 item 6) | Phase 4C or the next milestone touching either | A green `real-infra-checks` run covering them |
-| **C-4** | SLOC measured with `cloc` or `scc` before `phase-4` merges to `main` (G-5) | `phase-4` closure | A measured figure in `project-health-master.md` |
-| **C-5** | SAD 15 §9.1 items 2, 3, 7 (§14.1) supplied or explicitly waived | `phase-4` closure | Supplied, or waived with the waiver recorded |
+| **C-3** | ~~A `real_infra` test for `list_all` and `list_pending_approvals` (§8 item 6)~~ | ~~Phase 4C or the next milestone touching either~~ | **CLOSED 2026-09-06** — eight real-Postgres tests added (§8.1), green in Real-Infrastructure Checks against this head |
+| **C-4** | ~~SLOC measured with `cloc` or `scc` before `phase-4` merges to `main` (G-5)~~ | ~~`phase-4` closure~~ | **CLOSED 2026-09-06** — `cloc` v2.06: 32,923 comparable / 38,369 full production; 50k gate not crossed (§16.1) |
+| **C-5** | ~~SAD 15 §9.1 items 2, 3, 7 (§14.1) supplied or explicitly waived~~ | ~~`phase-4` closure~~ | **CLOSED 2026-09-06** — items 2 and 3 supplied (§1.4); item 7 recorded not applicable with its reason, requirement text preserved (§14.1) |
 | **C-6** | Phase 4A's Gate Review and Project Health record written before `phase-4` closes (G-4) | `phase-4` closure | Both exist |
-| **C-7** | The E2E job is promoted to a required check **only** once it has demonstrated stable runs (the workflow's own bar). Branch protection is **not** changed here | `phase-4` closure | The stability series in [`phase-4b.md`](../../project-health/phase-4b.md) field 15 is judged sufficient by the user |
+| **C-7** | The E2E job is promoted to a required check **only** once it has demonstrated stable runs. Branch protection is **not** changed here | `phase-4` closure | **Protocol §9.2's bar is ≥10× (§7.2)**; 5 consecutive green so far, so **five more** against an unchanged SHA. `pr-checks.yml` now carries `workflow_dispatch` so they can be run without pushing commits |
+
+### 15.2 Condition status after the Conditional-GO closure pass — 2026-09-06
+
+**Verdict unchanged: CONDITIONAL-GO.** Three of the seven conditions are now
+discharged; four remain, and each remains for a reason recorded rather than
+deferred by default. The full working is in §0.5.
+
+| # | Status | Why it is where it is |
+|---|---|---|
+| C-1 | **Open** | Discharge event is Phase 4D's Gate Review, by design. Consistency re-verified this pass |
+| C-2 | **Open** | Discharge event is the milestone that configures a provider. The limitation is now stated precisely (§9.3) instead of as "no provider exists" |
+| **C-3** | **CLOSED** | §8.1 — eight real-Postgres tests, no equivalent coverage having existed |
+| **C-4** | **CLOSED** | §16.1 — measured, both milestones assessed, 50k gate not crossed |
+| **C-5** | **CLOSED** | §1.4 / §14.1 — two items supplied, one recorded not applicable with its reason |
+| C-6 | **Open** | Owned by `phase-4` closure; writing 4A's records here would be 4A closure under 4B's gate (§9.4) |
+| C-7 | **Open** | §9.2's bar is ten repetitions; five achieved, and this session cannot trigger a CI run (§7.2) |
+
+**AC-3 is unchanged by all of this** — 1 sub-clause met, 1 deferred by approval,
+2 unverifiable — and is still not met. **CONDITIONAL-GO is not GO**, and
+nothing here upgrades it: GO under §3.2 requires every criterion met or
+deferred-with-approval *and* every condition discharged, and four are not.
 
 **DEV-1/2/3 need no condition** — they are built and verified live (§0.1), which
 is why they appear here as discharged rather than as reassigned narrowings.
@@ -1078,6 +1421,68 @@ TypeScript files, 34 compose services, 30 CI Check Runs.
 **Quality metrics:** 2,105 tests passing, 0 failing; coverage 97–99% on the four
 affected packages against an 85% gate; 3/3 negative controls fired; 10/10 flake
 runs clean.
+
+### 16.1 Production SLOC — measured 2026-09-06 (condition C-4)
+
+*This supersedes the "Not measured" entry above, which is preserved as the
+first pass wrote it. `cloc` was not installed then; it is now.*
+
+**Tool: `cloc` v2.06**, installed via `npm install -g cloc`, code column
+(blanks and comments excluded, which is `cloc`'s default). Scopes are the ones
+Phase 3E's §12 fixed, so the series continues on the same tool and the same
+scope definitions.
+
+| Metric | Value | Files | Scope / command |
+|---|---|---|---|
+| **Production SLOC (comparable scope)** | **32,923** | 551 | `cloc --quiet services/*/src packages/*/src services/*/alembic/versions` — identical to Phase 3E's item-11 scope |
+| — same scope, `--skip-uniqueness` | 32,979 | 581 | Reported beside it because the flag's presence has broken comparability in this project before (`project-health-master.md` §2 items 2–3); the 56-line difference is `cloc`'s cross-engine deduplication of identical scaffolded files |
+| **Production SLOC (Phase 3E full scope)** | **36,050** | 618 | the above **+** `agent-os/{kernel,registry,supervisors}/src` + `agent-os/sdk/python/src` + `agents/*/src` + `agent-os/*/alembic/versions` |
+| **Production SLOC (full, incl. Phase 4's client)** | **38,369** | 653 | the above **+** `apps/*/src` |
+| — `apps/*/src` alone | 2,350 | 37 | The web client, which no pre-Phase-4 scope could have included |
+| **Total SLOC (excl. generated TS)** | **135,118** | 1,365 | whole repository, excluding `node_modules`, `.venv`, `.git`, `dist`, caches, and `packages/nova-contracts/typescript/` |
+| **Total SLOC (incl. generated TS)** | **137,280** | 1,480 | as above, plus the generated contract surface |
+
+**Growth, on the same tool and the same scope as Phase 3E:**
+
+| Against Phase 3E | Then | Now | Δ |
+|---|---|---|---|
+| Comparable scope | 31,319 | **32,923** | **+1,604 (+5.1%)** |
+| 3E full scope | 34,446 | **36,050** | **+1,604 (+4.7%)** |
+
+The identical +1,604 in both is the expected result and a check on the
+measurement: the two scopes differ only by `agent-os/` and `agents/`, which 4A
+and 4B did not touch.
+
+**Comparability, stated rather than assumed** (protocol §4.1): same tool, same
+scope definitions, **different tool version** — `cloc` **2.06** here against
+Phase 3E's **1.98**. `cloc`'s language definitions and comment handling change
+between versions, so some part of the +1,604 may be the tool rather than the
+code. The figures are therefore recorded with the version attached and are
+**not** claimed to be exact-to-the-line comparable; the direction and rough
+magnitude are. The `scc` series (Phases 2D-B → 2D-C) remains a separate,
+non-comparable series, and the Option A / Option B methodology decision in
+`project-health-master.md` §2 **remains open and is not decided here**.
+
+**SLOC milestone status, now measured rather than bounded:**
+
+- **~30,000 reminder** — already crossed at Phase 3E and already discharged by
+  the [Project Health Review 2026-08-29](project-health-review-2026-08-29.md)
+  (verdict HEALTHY). Still above it; **not re-triggered**, because SAD 15 §10's
+  reminder fires on crossing, not on remaining above.
+- **~50,000 gate** — **NOT crossed.** The highest production figure on any
+  scope is **38,369**, leaving ~11,631 of headroom. This replaces the first
+  pass's derived bound with a measurement. Feature development does not pause.
+
+**Implementation statistics for the third pass and this closure pass:** 26 files
+changed, +1,501 / −68 (`26eb4f4..`), plus this pass's tests and documentation.
+
+### 16.2 Definition-of-Done item 7 evidence, refreshed
+
+**Quality metrics (closure pass):** **2,171 tests passing, 0 failing**
+(1,992 via turbo + 179 `tools/tests`), 115 `real_infra` deselected by default;
+coverage unchanged on the affected packages; 4/4 negative controls fired
+(3 from the first pass plus the worker-isolation guard, §6.1); flakiness runs
+recorded in §7.1.
 
 ---
 
