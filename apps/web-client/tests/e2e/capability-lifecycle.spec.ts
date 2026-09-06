@@ -11,6 +11,11 @@ import type { Page } from "@playwright/test";
  * `api-gateway`, which forwards `/v1/capabilities` verbatim to
  * `capability-engine`, which runs its real 8-stage installation pipeline.
  *
+ * **`exact: true` on the Install button is load-bearing.** Playwright matches
+ * accessible names by substring, and "Uninstall" contains "Install" -- so the
+ * inexact locator resolves to the install button plus every uninstall button
+ * on the page and fails strict mode. Found by CI run #73.
+ *
  * Its own spec file rather than more assertions in `observability-panels`,
  * for the reason that file already gives: a criterion should fail on its own
  * terms. This one mutates real registry state, so keeping it separate also
@@ -73,7 +78,7 @@ test.describe("the capability lifecycle", () => {
 
     // --- install ---------------------------------------------------------
     await page.getByTestId("capability-manifest-input").fill(JSON.stringify(MANIFEST));
-    await page.getByRole("button", { name: "Install" }).click();
+    await page.getByRole("button", { name: "Install", exact: true }).click();
 
     // The row appears because the engine confirmed the install and the panel
     // re-read the registry -- never because the button was pressed. There is
@@ -102,7 +107,7 @@ test.describe("the capability lifecycle", () => {
     await page
       .getByTestId("capability-manifest-input")
       .fill(JSON.stringify({ ...MANIFEST, name: "e2e-bad-adapter", execution_adapter: "nope" }));
-    await page.getByRole("button", { name: "Install" }).click();
+    await page.getByRole("button", { name: "Install", exact: true }).click();
 
     const notice = page.getByTestId("capability-install-error");
     await expect(notice).toBeVisible({ timeout: 30_000 });
@@ -118,7 +123,7 @@ test.describe("the capability lifecycle", () => {
     await openCapabilities(page);
 
     await page.getByTestId("capability-manifest-input").fill("{ not json");
-    await page.getByRole("button", { name: "Install" }).click();
+    await page.getByRole("button", { name: "Install", exact: true }).click();
 
     // Caught client-side: "that is not JSON" is something this side already
     // knows, and sending it would come back as an opaque 422.
