@@ -72,3 +72,51 @@ export function reduceEventFeed(
   // Newest first for reading, capped for memory.
   return [entry, ...(existing ?? [])].slice(0, EVENT_FEED_LIMIT);
 }
+
+/**
+ * The two dimensions a raw bus frame is identified by.
+ *
+ * Master scope §5 calls this panel a "filterable raw bus inspector" without
+ * enumerating the dimensions, so they are taken from what a frame actually
+ * is rather than invented: the **subject** it was published on, and the
+ * **correlation id** that threads one interaction across every engine that
+ * touched it. Those are the two questions an inspector gets asked -- "show
+ * me the approval events" and "show me everything from that one request" --
+ * and doc 11 §4 puts `correlation_id` in `meta` precisely so the second one
+ * is answerable.
+ *
+ * Nothing filters on payload contents or on time. Both were considered and
+ * rejected: neither is a property of the envelope, and a filter that reaches
+ * into `data` would couple this panel to payload shapes it deliberately
+ * does not parse.
+ */
+export type EventFilters = {
+  /** Case-insensitive substring of the subject. Empty means no constraint. */
+  topic: string;
+  /** Case-insensitive substring of the correlation id. Empty means no constraint. */
+  correlationId: string;
+};
+
+export const EMPTY_EVENT_FILTERS: EventFilters = { topic: "", correlationId: "" };
+
+/**
+ * Applied at **render**, never at ingest.
+ *
+ * The feed itself always records every frame that arrived, because the
+ * question this panel exists to answer is what reached the browser. Filtering
+ * on the way in would delete the evidence: a frame dropped while a filter was
+ * set would still be missing after the filter was cleared, and "nothing is
+ * arriving" would become indistinguishable from "nothing matches". So the
+ * reducer stays unfiltered and realtime keeps writing through a filter the
+ * same way it does without one.
+ */
+export function filterEvents(events: ObservedEvent[], filters: EventFilters): ObservedEvent[] {
+  const topic = filters.topic.trim().toLowerCase();
+  const correlationId = filters.correlationId.trim().toLowerCase();
+  if (!topic && !correlationId) return events;
+  return events.filter(
+    (event) =>
+      (!topic || event.topic.toLowerCase().includes(topic)) &&
+      (!correlationId || event.correlationId.toLowerCase().includes(correlationId)),
+  );
+}

@@ -1,5 +1,7 @@
 import { create } from "zustand";
 
+import { EMPTY_EVENT_FILTERS, type EventFilters } from "../entities/events";
+
 /**
  * Ephemeral UI state, per doc 04 §5's table.
  *
@@ -32,6 +34,16 @@ type UiState = {
    */
   activeSessionId: string | null;
   setActiveSessionId: (sessionId: string | null) => void;
+  /**
+   * The Events panel's filters — doc 04 §5's table puts "local filters" in
+   * this store by name, and they qualify by this file's own rule: losing
+   * them on reload costs nothing, and they change nothing anyone else can
+   * see. The frames themselves stay in Query, unfiltered; this is only the
+   * lens the operator is currently looking through.
+   */
+  eventFilters: EventFilters;
+  setEventFilter: (dimension: keyof EventFilters, value: string) => void;
+  clearEventFilters: () => void;
 };
 
 export const useUiStore = create<UiState>((set) => ({
@@ -45,4 +57,8 @@ export const useUiStore = create<UiState>((set) => ({
     }),
   activeSessionId: null,
   setActiveSessionId: (activeSessionId) => set({ activeSessionId }),
+  eventFilters: EMPTY_EVENT_FILTERS,
+  setEventFilter: (dimension, value) =>
+    set((state) => ({ eventFilters: { ...state.eventFilters, [dimension]: value } })),
+  clearEventFilters: () => set({ eventFilters: EMPTY_EVENT_FILTERS }),
 }));
