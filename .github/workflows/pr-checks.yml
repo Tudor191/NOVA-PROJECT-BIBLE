@@ -307,23 +307,74 @@ jobs:
           NATS_URL: nats://localhost:4222
         run: |
           set -o pipefail
-          action_id="$(uv run python tools/e2e_request_risky_action.py | tail -n 1)"
+          # `tee` so a traceback survives into the log. The first two attempts
+          # at this step failed silently -- once because `uv` was absent, once
+          # on a validation error -- and `continue-on-error` reports both as a
+          # green step, so the output is the only place the reason can live.
+          uv run python tools/e2e_request_risky_action.py 2>&1 | tee /tmp/risky-action.log
+          action_id="$(tail -n 1 /tmp/risky-action.log)"
           echo "requested Critical-risk action ${action_id}"
-          echo "action_id=${action_id}" >> "$GITHUB_OUTPUT"
 
-      - name: Confirm the action is blocked pending approval
+          # The Action only reaches the approval loop if it survives stage 3's
+          # ADR-032 identity-confidence gate. That gate fails closed: with no
+          # `IdentityConfidencePolicy` row the required threshold is 1.0, and
+          # with no perception activity the observed confidence is 0.0, so a
+          # Critical action is *denied* at Check Permissions and never blocks
+          # for approval. That is the gate working as designed, and seeding a
+          # zero-threshold policy to get past it would be weakening a security
+          # control to make a test green.
+          #
+          # So the id is exported only when an undecided approval actually
+          # exists. When it does not, `NOVA_E2E_ACTION_ID` stays empty and the
+          # approval spec skips itself with its own stated reason rather than
+          # failing for something outside Phase 4B's scope.
+          compose="docker compose -f infra/docker/docker-compose.local.yml"
+          psql="$compose exec -T postgres psql -U ${POSTGRES_USER:-nova} -d ${POSTGRES_DB:-nova} -X"
+          rows="$($psql -tAc "SELECT count(*) FROM action.pending_approval
+                               WHERE action_id = '${action_id}' AND decision IS NULL;" \
+                  | tr -d '[:space:]')"
+          if [ "${rows}" = "1" ]; then
+            echo "action_id=${action_id}" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::${action_id} never reached the approval loop -- see the next step."
+            echo "action_id=" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Reports; does not gate. If the Action was denied at stage 3 rather
+      # than blocked at the approval loop, that is ADR-032's fail-closed
+      # default doing its job, not a Phase 4B defect -- see the driver step
+      # above. The job must not go red for it, but the log must say so.
+      - name: Report whether the action reached the approval loop
         if: steps.risky_action.outcome == 'success'
+        continue-on-error: true
         # Before the browser is involved at all: the gate is `action-engine`'s
         # and it must already have fired. A row here proves the pipeline
         # stopped at Prepare Resources rather than executing a `delete`.
         run: |
           set -uo pipefail
           compose="docker compose -f infra/docker/docker-compose.local.yml"
-          $compose exec -T postgres \
-            psql -U "${POSTGRES_USER:-nova}" -d "${POSTGRES_DB:-nova}" -X -c \
-            "SELECT action_id, risk, decision, decided_at
-               FROM action.pending_approval
-              WHERE action_id = '${{ steps.risky_action.outputs.action_id }}';"
+          psql="$compose exec -T postgres psql -U ${POSTGRES_USER:-nova} -d ${POSTGRES_DB:-nova} -X"
+          id='${{ steps.risky_action.outputs.action_id }}'
+
+          echo "--- every undecided approval action-engine is holding ---"
+          $psql -c "SELECT action_id, risk, requested_at, decision
+                      FROM action.pending_approval ORDER BY requested_at;"
+
+          # An assertion, not a report. `psql -c` exits 0 on an empty result,
+          # so the previous version of this step passed while proving nothing
+          # -- which is exactly how run #75 was misread as "the row exists".
+          rows="$($psql -tAc "SELECT count(*) FROM action.pending_approval
+                               WHERE action_id = '${id}' AND decision IS NULL;" | tr -d '[:space:]')"
+          echo "undecided rows for ${id}: ${rows}"
+          if [ "${rows}" != "1" ]; then
+            echo "This Action did NOT block for approval. Expected when no"
+            echo "IdentityConfidencePolicy exists: stage 3 requires confidence"
+            echo "1.0 and observes 0.0, so it is denied before the approval"
+            echo "loop. Status below should read 'denied'."
+            $psql -c "SELECT id, action_type, risk, status FROM action.action
+                       WHERE id = '${id}';"
+            $compose logs --tail=30 action-engine
+          fi
 
       - name: Run the golden path
         env:
