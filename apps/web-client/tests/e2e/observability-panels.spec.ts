@@ -17,9 +17,17 @@ import type { Page } from "@playwright/test";
  * empty. Asserting otherwise would require fabricating engine activity, and
  * a test that seeded its own data would stop testing the transport.
  *
- * Health and Events are the exceptions and carry the realtime assertions,
- * because `nova-core` beats every five seconds whether or not anyone is
- * watching -- so they are the two panels a live stack can genuinely fill.
+ * Three panels are filled by a live stack on its own, and they carry the
+ * positive assertions:
+ *
+ *   Events, Health   `nova-core` beats every five seconds whether or not
+ *                    anyone is watching, so both fill over the socket.
+ *   Capabilities     `capability-engine` bootstrap-installs four built-ins
+ *                    before reporting ready, so this one is populated over
+ *                    REST -- by construction, not by activity.
+ *
+ * Planning, Reasoning and Approvals are the genuinely activity-driven three,
+ * and empty is their correct live state.
  */
 
 const SESSION_TOKEN = process.env.NOVA_SESSION_TOKEN ?? "";
@@ -73,17 +81,33 @@ test.describe("the observability panels", () => {
     // The four REST-backed panels. If `api-gateway`'s route table is missing
     // a prefix, the gateway 404s and `AsyncPanelBody` renders a degradation
     // notice -- which reads like an engine outage and is in fact a gateway
-    // misconfiguration. This is the assertion that tells them apart.
-    for (const navTestId of [
-      "nav-planning",
-      "nav-reasoning",
-      "nav-capabilities",
-      "nav-approvals",
-    ]) {
+    // misconfiguration. `degradation-notice` absent is the assertion that
+    // tells them apart, and it applies to all four.
+    //
+    // What each panel shows *instead* differs, and the split is not
+    // cosmetic. Plans, traces and approvals are produced by activity: with
+    // no LLM provider and nobody driving the system, there is none, so those
+    // three render their empty label. Capabilities are not produced by
+    // activity at all -- `capability-engine`'s startup bootstrap installs
+    // four built-ins through the real 8-stage pipeline before it reports
+    // ready (`main.py`), so a *healthy* stack always has capabilities and an
+    // empty Capabilities panel would mean the bootstrap did not run.
+    //
+    // Asserting `panel-empty` there was wrong, and wrong in the direction
+    // that matters: it would have passed on a broken bootstrap and failed on
+    // a working one.
+    for (const navTestId of ["nav-planning", "nav-reasoning", "nav-approvals"]) {
       await page.getByTestId(navTestId).click();
       await expect(page.getByTestId("panel-empty").first()).toBeVisible({ timeout: 15_000 });
       await expect(page.getByTestId("degradation-notice")).toHaveCount(0);
     }
+
+    // Capabilities carries the positive half: real rows, read from a real
+    // engine, through the gateway route this milestone added. That is a
+    // stronger statement than any empty panel can make.
+    await page.getByTestId("nav-capabilities").click();
+    await expect(page.getByTestId("capability").first()).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId("degradation-notice")).toHaveCount(0);
   });
 
   test("the Events panel shows frames actually arriving", async ({ page }) => {
