@@ -83,6 +83,11 @@ async def _main() -> int:
         execution_target="filesystem",
         parameters={"operation": _OPERATION, "path": "e2e-approval-probe.txt"},
         timeout_seconds=30,
+        # Required by the contract and easy to miss: CI run #74 failed here,
+        # instantly, on a Pydantic ValidationError for these three.
+        correlation_id=action_id,
+        requesting_engine="kernel",
+        verification_method="manual",
     )
 
     try:
