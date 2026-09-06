@@ -1,6 +1,6 @@
 import { ConfidenceTierBadge, CorrelationTag, Panel } from "@nova/ui";
 
-import { useLiveProcesses, useReasoningTraces } from "../../entities/reasoning";
+import { recursionDepth, useLiveProcesses, useReasoningTraces } from "../../entities/reasoning";
 import { AsyncPanelBody } from "../shared/AsyncPanelBody";
 
 /**
@@ -87,6 +87,20 @@ export function ReasoningTracePanel() {
                       {trace.reasoning_mode}
                     </span>
                     <span className="nova-status">level {trace.reasoning_level}</span>
+                    {/*
+                      Phase 3A's recursion depth -- what the Multi-step
+                      pipeline actually did -- shown beside the level, which
+                      is the dial the caller set. Different facts; see
+                      `entities/reasoning.ts`.
+                    */}
+                    <span className="nova-status" data-testid="trace-depth">
+                      depth {recursionDepth(trace)}
+                    </span>
+                    {trace.multistep_recursion_exhausted ? (
+                      <span className="nova-badge" data-testid="trace-recursion-exhausted">
+                        recursion exhausted
+                      </span>
+                    ) : null}
                     <ConfidenceTierBadge tier={tierOf(trace.confidence_score)} />
                     <CorrelationTag correlationId={trace.correlation_id} />
                   </div>

@@ -24,17 +24,65 @@ import { gatewayFetch } from "./http";
  * different facts.
  */
 
-const traceSchema = z.object({
-  id: z.string(),
-  reasoning_process_id: z.string(),
-  correlation_id: z.string(),
-  reasoning_mode: z.string(),
-  reasoning_level: z.number(),
-  confidence_score: z.number().nullable(),
-  selected_capabilities: z.array(z.string()),
-});
+/**
+ * **`reasoning_level` and recursion depth are two different facts**, and the
+ * panel shows both because substituting one for the other loses the one
+ * Phase 3A added.
+ *
+ * `reasoning_level` is Bible Part 8's "Levels of Reasoning" — a 1–4 cost/depth
+ * *dial the caller sets*, carried on the request as `reasoning_level_hint`.
+ * The recursion depth is *what the Multi-step pipeline actually did*: design
+ * doc §11's `steps` tree, bounded by `ModeConfig.max_step_depth` (default 1,
+ * ">1 engages recursion"). A level-4 request that recursed once and a
+ * level-4 request that recursed three times report the same
+ * `reasoning_level` and different depths.
+ *
+ * Both values are already on the trace the engine returns, so nothing new is
+ * minted here: `steps` is the recursion tree itself, and
+ * `multistep_recursion_exhausted` is the engine's own flag for "hit
+ * `max_step_depth` while still below `verify_threshold`". Depth is derived
+ * from the tree rather than stored, because the tree is the fact and a
+ * stored integer beside it could disagree with it.
+ */
+export type ReasoningTrace = {
+  id: string;
+  reasoning_process_id: string;
+  correlation_id: string;
+  reasoning_mode: string;
+  reasoning_level: number;
+  confidence_score: number | null;
+  selected_capabilities: string[];
+  /** §11's recursion tree. Empty for a single-step trace. */
+  steps: ReasoningTrace[];
+  /** Phase 3A: `max_step_depth` was reached with confidence still too low. */
+  multistep_recursion_exhausted: boolean;
+};
 
-export type ReasoningTrace = z.infer<typeof traceSchema>;
+const traceSchema: z.ZodType<ReasoningTrace> = z.lazy(() =>
+  z.object({
+    id: z.string(),
+    reasoning_process_id: z.string(),
+    correlation_id: z.string(),
+    reasoning_mode: z.string(),
+    reasoning_level: z.number(),
+    confidence_score: z.number().nullable(),
+    selected_capabilities: z.array(z.string()),
+    steps: z.array(traceSchema),
+    multistep_recursion_exhausted: z.boolean(),
+  }),
+);
+
+/**
+ * How many step-levels this trace actually used, counted the way
+ * `max_step_depth` counts them: a trace that never recursed is depth 1, so
+ * the number is directly comparable against the configured cap rather than
+ * being an off-by-one away from it.
+ */
+export function recursionDepth(trace: ReasoningTrace): number {
+  const children = trace.steps ?? [];
+  if (children.length === 0) return 1;
+  return 1 + Math.max(...children.map(recursionDepth));
+}
 
 const tracesSchema = z.array(traceSchema);
 
