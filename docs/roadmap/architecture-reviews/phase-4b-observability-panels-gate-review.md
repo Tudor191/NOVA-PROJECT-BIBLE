@@ -546,15 +546,17 @@ transport, diagnosed in §4.1 and fixed in `26eb4f4`.
 | **#78** | `26eb4f4` | **passed** | First run with the fix. Golden-path step 46s, **no retry** |
 | **#79** | `e841618` | **passed** | |
 | **#80** | `51ce2f9` | **passed** | First run with the always-on outbox assertion. Golden-path test 1 in **15.2s**; 12 passed, 1 skipped, 0 failed; `communication.turn.received: 1 row(s), 0 undispatched` |
+| **#81** | `88fe673` | **passed** | **31/31 Check Runs success** across all three workflows — 31 rather than 30 because `nova-service-kit` joined the real-infra matrix |
+| **#82** | this commit | *pending at the time of writing* | Documentation-only relative to `88fe673`, so its run extends the series without changing what is under test |
 
 Three failures in nine runs before the fix ≈ 33%, against the ~42% the
-mechanism predicts. **Three for three green after it**, with the third run
+mechanism predicts. **Four for four green after it**, each of the last two
 carrying a positive assertion rather than an absence of failure.
 
-**How much three green runs are worth, stated honestly.** At the pre-fix rate a
-run passed ~2 times in 3, so three consecutive passes would happen by luck
-about 30% of the time. Three runs alone are **not** a demonstration of
-stability, and this review does not claim they are. What carries the weight is
+**How much four green runs are worth, stated honestly.** At the pre-fix rate a
+run passed ~2 times in 3, so four consecutive passes would happen by luck about
+20% of the time. Four runs alone are **not** a demonstration of stability, and
+this review does not claim they are. What carries the weight is
 the combination: the mechanism is understood and reproduced in a test
 (§6.1), the two halves of it are asserted against a real Redis, a repository
 guard fails if any worker returns to the shared queue, and — the part that
