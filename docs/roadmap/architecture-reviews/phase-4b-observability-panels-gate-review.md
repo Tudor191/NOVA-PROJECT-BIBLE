@@ -89,6 +89,71 @@ published by `agent-os/kernel`, which has no compose service until 4C (D-5).
 
 ---
 
+## 0.3 Update — 2026-09-06, third pass: AC-3's approval clause is deferred by explicit user approval
+
+The user explicitly approved deferring AC-3's approval-execution clause on
+2026-09-06. Recorded here under [protocol §2.4](../../PROJECT_PHASE_COMPLETION_PROTOCOL.md)
+as **"Deferred by approval (approval cited)"**, which §3.2 requires before an
+unmet criterion can be anything other than a NO-GO. §9 and §9.1 carry the
+status; §15 carries the resulting verdict.
+
+**The approval's own stated reason, which is not the obvious one and must not
+be paraphrased away.** The deferral is **not** because AC-3 depends on Phase
+4D. [`00-master-scope.md`](../../design/phase-4/00-master-scope.md) §1.1 says
+the opposite in as many words — *"AC-1 through AC-4 do not depend on any new
+engine. They depend only on surfacing what Phase 3 already built."* The
+deferral is because the **Phase 3D** `IdentityConfidencePolicy` configuration
+mechanism required by [**ADR-032**](../../architecture/adr/ADR-032-identity-confidence-is-also-an-authorization-signal.md)
+decision point 2 — *"a configurable identity-confidence threshold per
+privileged capability (or per capability class)"* — was never built.
+`domain/models.py:46` defines the model and `repository/models.py:87` defines
+the `action.identity_confidence_policy` table, but the only code path is the
+read (`find_identity_confidence_policy`). There is **no endpoint, no seed, no
+migration insert and no admin surface** that can create a row. Protocol §13.1's
+*"missing mechanisms — a required capability the architecture has no defined
+home for"* is exactly this, and §13.3's stop rule says to report it rather than
+improvise one.
+
+| | |
+|---|---|
+| **Original ownership** | **Phase 3D / ADR-032.** The gate, the model and the table are `action-engine`'s, and ADR-032 point 2 places the obligation to expose a configurable threshold on the gating engine |
+| **Discovering phase** | **Phase 4B.** 4B did not create the gap; building AC-3's E2E is what surfaced it |
+| **Phase 4B deliverable, retained in scope** | The Approvals **panel and surface**: REST reads through `api-gateway`, `action.approval.requested`/`.decided` bound through `ws-gateway`, Approve/Deny controls, and the reducer that removes a row only when the bus says it was decided. All built, all rendering, all verified live |
+| **Deferred clause** | The **end-to-end Critical-risk approval execution demonstration** — "blocked pending approval and then approved", driven from the browser |
+| **Future routing** | **Phase 4D's `autonomy-engine` policy surface** (Policy Engine, Permission Matrix), as the appropriate future home for a per-user, per-risk-tier authorization threshold. Recorded as **CF-9** in master scope §4. This is a **forward routing decision, not a reassignment of historical ownership** |
+| **Security rule** | **No identity-confidence threshold was invented, and the fail-closed default was not weakened** |
+
+**What was deliberately not done, and why.** With no policy row the required
+confidence is 1.0 (TDD 3D §7: *"Absent policy → fails closed"*); with
+`perception-engine` absent from the E2E stack the observed confidence is 0.0.
+Seeding a zero-threshold policy would have made the spec green by disabling the
+ADR-032 gate for that user. `perception-engine` was not added to the stack to
+force the clause green either — and could not have sufficed:
+`identity_fusion.py:46` caps a single-signal identity at
+`SINGLE_SIGNAL_CONFIDENCE_CEILING = 0.75`, below the 1.0 the absent-policy
+default requires. **The gate is passable only *with* a policy row**, which is
+what makes the missing mechanism mandatory rather than optional, and what makes
+choosing its value a security decision reserved to the user by §2.1's *"descoping
+a criterion requires the user's explicit approval, recorded; it is never the
+agent's call"*.
+
+**AC-3 is not "met".** One of its four sub-clauses is met, one is deferred by
+this approval, and two cannot be verified in this environment. §9.1 carries the
+accounting.
+
+### 0.4 G-8: the golden path was red because the outbox never reached the bus
+
+Separately from G-7, the 4A golden path had been intermittently failing since
+Phase 4B — including on `85f7682`, a **documentation-only** commit, where
+`2f0414a` had passed with identical application code. Diagnosed to root cause
+and fixed in `26eb4f4`. Full account in §4.1; the finding in one line: **all ten
+engine workers shared one Redis, one arq queue and one cron job name**, so
+`communication-engine`'s outbox was dispatched on roughly one tick in four. It
+is a pre-existing Phase 2/3 defect that Phase 4B's four-worker E2E stack was the
+first configuration to expose.
+
+---
+
 ## 1. What was implemented
 
 Five commits on `phase-4b`, branched from the merged `phase-4` head `481ceac`.
@@ -218,6 +283,116 @@ Every item here is disclosed, none is hidden, and none is presented as resolved.
    outside this milestone, analysed in §13 (G-4). Not repaired here, and — per
    the protocol as read — not a blocker on 4B.
 
+### 4.1 G-8 — every engine worker shared one arq queue and one cron job name
+
+*Added 2026-09-06 (third pass). Items 2 and 3 above are superseded in part: item
+2 by §0.1, and item 3's attribution by this section — see the re-verification
+note at the end.*
+
+**Symptom.** The Phase 4A golden path (`golden-path.spec.ts:26`) was red in CI
+runs #73, #74 and #77 and green in #69–#72, #75 and #76 — three failures in nine
+runs, with an identical signature every time:
+
+```
+Locator:  getByTestId('transcript-entry').filter({ hasText: 'Hello NOVA, are you there?' })
+Expected: 1   Received: 0   Timeout: 30000ms   64 × locator resolved to 0 elements
+```
+
+Run #77 failed on `85f7682`, a **documentation-only commit**, where #76 on
+`2f0414a` had passed with byte-identical application code. Whatever it was, it
+was not a code regression.
+
+**Root cause, from the repository's own CI diagnostics.** The `Trace the reply
+through the transport` step queries Postgres directly on failure. Run #77:
+
+```
+              subject               | rows | dispatched | undispatched
+-------------------------------------+------+------------+--------------
+ communication.intent.delivered      |    2 |          0 |            2
+ communication.session.created       |    2 |          0 |            2
+ communication.session.state_changed |    8 |          0 |            8
+ communication.turn.received         |    2 |          0 |            2
+```
+
+**Zero of fourteen outbox rows ever reached the Event Bus.** Both turns were
+persisted and NOVA's reply was produced and personality-validated
+(`conversation_turn` shows `outbound | t`). Nothing was published, so nothing
+could arrive over `ws-gateway`, and the transcript was **correctly** empty. The
+browser was never the problem. The worker was alive and had run its cron
+**exactly once**, at 16:07:20 — seven seconds after startup, before the
+conversation existed — then nothing for the remaining 110 seconds. Run #75,
+where the golden path passed, shows the same cron firing every 10s and every
+row dispatched.
+
+**Mechanism.** All ten engine workers use `RedisSettings.from_dsn(redis_url)`
+against one Redis, none set `queue_name` (so all land on arq's global
+`arq:queue`), and all ten schedule a coroutine named `arq_run_outbox_dispatch`
+on `second={0,10,20,30,40,50}`. Two independent failures follow, and each needs
+its own half of the fix:
+
+1. **Enqueue collision.** `arq/cron.py:184` names a cron job
+   `'cron:' + coroutine.__qualname__`, and `arq/worker.py:758` builds the job id
+   as `f'{name}:{to_unix_ms(next_run)}'`. Ten engines derive one id per tick.
+   The duplicate guard is `arq:job:<job_id>` — **not namespaced by queue** — and
+   `arq/connections.py:158-160` returns `None` rather than raising, so nine
+   enqueues vanished with no log line. **Distinct queues alone would not have
+   fixed this**, and the real-Redis test asserts exactly that.
+2. **Consume theft.** That one job sits in the shared queue and whichever worker
+   polls first claims it, running *its own* coroutine of that name — draining
+   its own outbox and no one else's. Where the function is genuinely absent,
+   `arq/worker.py:534-535` logs `function ... not found` and calls `job_failed`:
+   the job is finished and **never re-enqueued**. Run #75's worker log carries
+   that warning verbatim, `communication-engine-worker` discarding
+   `cron:arq_run_health_checks`, which belongs to
+   `ai-model-orchestration-engine`. Cross-engine job theft, in this
+   repository's own CI output. **Distinct names alone would not have fixed
+   this** either.
+
+`communication-engine`'s outbox was therefore drained on roughly one tick in
+four — an expected interval of ~40s against a 30s assertion. P(missing three
+consecutive ticks) = (3/4)³ ≈ 42%; observed 3 red in 9 runs ≈ 33%.
+
+**Why it appeared in Phase 4B, and whose defect it is.** The defect is in
+`services/*/workers/__init__.py`, which are **Phase 2/3 artefacts** — it
+predates Phase 4 entirely and is not a Phase 4A artefact, so no phase-4a
+lineage correction is implied. It was unobservable while the E2E stack ran a
+**single** arq worker, which is what it ran through all of Phase 4A. The
+`phase-4`→`phase-4b` diff of `pr-checks.yml` adds `planning-engine-worker`,
+`reasoning-engine-worker` and `ai-model-orchestration-engine-worker`: 4B took
+the stack from one worker to four and turned a latent defect into a
+~40%-per-run failure. It is also a **production** defect, not a test artefact —
+any deployment running more than one engine worker against one Redis silently
+strands outboxes.
+
+**Fix** (`26eb4f4`), in `nova-service-kit` because that package already owns
+worker boilerplate (Extraction C) and ADR-034 already forbids it any
+engine-specific knowledge:
+
+```
+worker_queue_name("memory-engine") -> "arq:queue:memory-engine"
+service_cron("memory-engine", fn)  -> name "cron:memory-engine:<fn>"
+```
+
+Each engine names itself once in `_SERVICE_NAME` and derives its queue, its
+cron identities and its Event Bus binding from that one string. `service_cron`
+**refuses** a caller-supplied `name=` rather than forwarding it, because a
+hand-written name is exactly how the collision would return. No contract
+changed: no subject, payload, REST path, WebSocket frame, table, migration or
+schedule. `apps/web-client/src/` is untouched, `PUBLIC_TOPICS` is unchanged,
+and the golden path's assertions, timeout, retries, waits and selectors are
+exactly as they were — the point was to make the property hold, not to stop
+asserting it.
+
+**Re-verification of item 3's attribution.** `phase-4b.md` field 20(b) and item
+3 above attribute the unobserved `reasoning.process.*` and `ai_model.model.*`
+frames to the absent `ANTHROPIC_API_KEY` alone. Those two engines' outboxes
+were drained by the same broken mechanism, so the attribution was checked again
+after the fix rather than assumed still correct — see §6.1. It stands: with no
+provider configured nothing *produces* an event for either subject, so there is
+no outbox row for a worker to strand. The worker collision was a second,
+independent reason the same subjects could not have been delivered, and item 3
+is left as written with this note beside it.
+
 ---
 
 ## 5. Technical debt introduced
@@ -256,6 +431,66 @@ No affected package is below the gate.
 appears in `package.json`, `turbo.json`, or any workflow, per protocol §9.2. They
 were not run as gates and nothing was reformatted.
 
+### 6.1 Verification of the G-8 fix (2026-09-06, third pass)
+
+Re-run in full after `26eb4f4`. Nothing in the table above regressed.
+
+| Gate | Command | Result |
+|---|---|---|
+| Lint (uncached) | `pnpm turbo run lint --force` | **30/30 successful, 0 cached** |
+| Tests (uncached) | `pnpm turbo run test --force` | **30/30 successful, 0 cached** — **1,992 passing**, 107 deselected |
+| TypeScript | `pnpm turbo run typecheck --force` | **5/5 successful, 0 cached** |
+| Scaffolding tools | `uv run pytest tools/tests -q` | **179 passed** (was 146; +33 from the new isolation guard) |
+| Import boundaries | `uv run lint-imports` | **7 kept, 0 broken** |
+| Lockfile | `uv sync --all-packages --frozen` | **clean** — the new `arq` and `nova-testkit` edges are locked |
+
+**Total: 2,171 passing, 0 failing** (1,992 + 179), against 2,127 before this
+pass. The delta is exactly **+44**: 11 unit tests for the derivation, 33
+repository-level isolation guards. Coverage figures are unchanged — the fix
+touches worker wiring, not any `domain/` package.
+
+**Tests added, and what each is for:**
+
+| Where | Count | Property |
+|---|---|---|
+| `packages/nova-service-kit/tests/test_worker.py` | 11 | The derivation, checked against arq's **real** `CronJob` and real name derivation — including that the schedule is forwarded untouched, that a caller-supplied `name=` is refused, and that plain `cron()` really does collide across two engines |
+| `tools/tests/test_worker_queue_isolation.py` | 33 | Every `services/*/workers/__init__.py`, parsed with `ast` (never imported — importing one constructs that engine's `Settings()`): each declares `_SERVICE_NAME`, each sets `queue_name = worker_queue_name(_SERVICE_NAME)`, every cron goes through `service_cron(_SERVICE_NAME, …)`, and no two workers share a service name or a derived cron identity |
+| `packages/nova-service-kit/tests/test_worker_real_redis.py` | 3 (`real_infra`) | Real arq workers against a real Redis: a worker leaves another's queued job alone; the un-namespaced `arq:job:` guard swallows a second engine's colliding enqueue **even across distinct queues**; and, as the negative control, the shared default queue really does let one worker claim, fail and discard another's job unrun |
+
+**Negative control on the repository-level guard.** `perception-engine` was
+reverted to a bare `cron(...)` with no `queue_name`; both assertions fired,
+naming the engine and the mechanism:
+
+```
+AssertionError: perception-engine schedules arq_run_outbox_dispatch with `cron(...)`.
+A bare `cron(...)` names the job after the coroutine alone … arq silently drops
+all but the first enqueue.
+2 failed, 31 passed
+```
+
+Restored: 33/33.
+
+**Standing CI evidence.** A new `Confirm no engine outbox was left stranded`
+step runs `if: always()` — on green runs as well as red. That ordering is the
+point: the existing transport trace runs only `on failure()`, so for as long as
+a run was green **nothing ever looked at whether the outboxes had drained**,
+which is exactly how this defect survived nine runs. The step reports every
+engine's outbox (`communication`, `reasoning`, `model_orchestration`,
+`planning`) and **asserts** that no `communication.turn.received` row is left
+undispatched. Other engines are reported, not asserted: how much any of them
+publishes is a fact about what the stack was asked to do on the day, and pinning
+that is what made the 4B E2E assertions wrong twice already (§0.1, run #69/#70).
+
+**Re-verification of the `reasoning.process.*` / `ai_model.model.*`
+attribution** (§4 item 3, `phase-4b.md` field 20(b)). Because the worker
+collision stranded *every* engine's outbox, that attribution was re-checked
+rather than assumed to survive the fix. It stands: with no provider configured
+nothing produces a completed or failed reasoning process to write an outbox row
+for, so there was no row to strand. The collision was a second, independent
+reason the same two subjects could not have been delivered. The new
+always-on step above now reports both engines' outbox contents on every run, so
+this no longer rests on reasoning — the next run states it as a fact.
+
 ---
 
 ## 7. Negative controls and flakiness
@@ -272,6 +507,41 @@ green.
 
 **Flakiness:** the two 4B suites (`observability-panels.test.tsx`,
 `observability-reducers.test.ts`) run **10×, 10/10 green, 0 failures**.
+
+### 7.1 The E2E flakiness, resolved (2026-09-06, third pass)
+
+The statement above covers the **unit** suites and remains accurate. It said
+nothing about the Docker E2E job, which was genuinely unstable — and the
+instinct to call that "flakiness" was wrong. It was a real defect in the
+transport, diagnosed in §4.1 and fixed in `26eb4f4`.
+
+| Run | Head | Golden path | Cause |
+|---|---|---|---|
+| #69 | `24a5cdf` | passed | (`observability-panels` failed: a wrong assertion in the new spec — §0.1) |
+| #70 | `b22ec83` | passed | (same spec, next loop position) |
+| #71–#72 | `0f3412c`, `56f74f4` | **passed** | The outbox tick happened to land on `communication-engine-worker` |
+| #73 | `04fed6d` | **failed** | G-8 |
+| #74 | `a41b846` | **failed** | G-8 |
+| #75 | `55150fe` | passed | (`approval-lifecycle` failed: G-7) |
+| #76 | `2f0414a` | **passed** | |
+| #77 | `85f7682` | **failed** | G-8 — on a **documentation-only** commit |
+| #78 | `26eb4f4` | **passed** | First run with the fix. Golden-path step 46s, **no retry** |
+
+Three failures in nine runs ≈ 33%, against the ~42% the mechanism predicts.
+
+**What this changes about how the job should be read.** Protocol §3.2's GO
+condition 7 requires real CI green against the exact head SHA, and §0.3.3
+requires evidence rather than assertion. Before the fix, a green E2E run was
+not evidence of anything — it recorded that the run was lucky. The workflow's
+own comment set the right bar (*"do NOT add it to branch protection until it has
+demonstrated stable, non-flaky runs"*), and that bar was not met. The stability
+series establishing it is recorded in [`phase-4b.md`](../../project-health/phase-4b.md)
+field 15.
+
+**Nothing in the golden path was changed to achieve this.** Its assertions,
+timeout, retry count, waits, selectors and ordering are byte-identical to what
+they were when it was failing; `apps/web-client/src/` is untouched. The test was
+right and the transport was wrong.
 
 ---
 
@@ -346,7 +616,7 @@ instructions. **4B owns exactly one criterion.**
 
 | # | Criterion (verbatim) | Source | Status | Evidence |
 |---|---|---|---|---|
-| **AC-3** | "Every Phase 3 sub-phase 3A–3D is exercised end-to-end **from the browser**: a plan is generated and rendered, a reasoning trace is inspected, a capability is installed, and a risky action is blocked pending approval and then approved." | `00-master-scope.md:55`, assigned to 4B at `:157` | **Not met** | Four sub-clauses, none satisfied — see below |
+| **AC-3** | "Every Phase 3 sub-phase 3A–3D is exercised end-to-end **from the browser**: a plan is generated and rendered, a reasoning trace is inspected, a capability is installed, and a risky action is blocked pending approval and then approved." | `00-master-scope.md:55`, assigned to 4B at `:157` | **Not met** *(first pass. Superseded by §9.1 and §9.2: the approval clause is now **Deferred by approval (approval cited)**; AC-3 as a whole is still not "met")* | Four sub-clauses, none satisfied — see below |
 
 **Sub-clause accounting:**
 
@@ -393,6 +663,36 @@ binding and is not softened here.
 **AC-1 and AC-2 (Phase 4A) were re-verified as still passing** by the same CI run
 and are not reopened: the four golden-path specs, including `/internal`
 indistinguishability and the refused direct NATS socket, passed against `0f3412c`.
+
+### 9.2 AC-3 after the approved deferral (2026-09-06, third pass)
+
+The user's explicit approval (§0.3) changes the **consequence** of the approval
+sub-clause, not the criterion's own status. Per protocol §2.4 the recordable
+status is *"Deferred by approval (approval cited)"*, and per §2.1 a partially
+met criterion is still not met — so AC-3 is **not** relabelled as met here.
+
+| # | Criterion | Source | Status | Evidence / approval |
+|---|---|---|---|---|
+| **AC-3** | "Every Phase 3 sub-phase 3A–3D is exercised end-to-end **from the browser** …" | `00-master-scope.md:55` | **Not met — one sub-clause Deferred by approval (approval cited)** | Sub-clause table below |
+
+| Sub-clause | Status | Evidence / basis |
+|---|---|---|
+| "a capability is installed" | **Met** | Installed **from the browser**, through `api-gateway`, running `capability-engine`'s real 8-stage pipeline. `capability-lifecycle.spec.ts`, 3 tests green against the live stack (CI #74 onward) |
+| "a risky action is blocked pending approval and then approved" | **Deferred by approval (approval cited)** | User approval, 2026-09-06, recorded in §0.3. The Phase 4B **surface** is delivered and rendering; the **end-to-end execution demonstration** is deferred. Blocked by an unbuilt **Phase 3D / ADR-032** configuration mechanism (CF-9), routed forward to Phase 4D's policy surface. **No threshold was invented and the fail-closed default is unchanged** |
+| "a plan is generated and rendered" | **Cannot be verified in this environment** (no LLM provider) | The panel renders and is unit-tested; `ANTHROPIC_API_KEY` is unset in the E2E stack (`docker-compose.local.yml:340,408`) and Phase 4 does not add a provider |
+| "a reasoning trace is inspected" | **Cannot be verified in this environment** (no LLM provider) | Same cause. The panel renders traces and 3A's recursion depth beside `reasoning_level` |
+
+**1 of AC-3's 4 sub-clauses is met, 1 is deferred by explicit user approval,
+and 2 cannot be verified in this environment. AC-3 as a whole is not met**, and
+is carried as **deferred by approval** rather than as a silent pass.
+
+**What the approval does and does not do.** §3.2's *"an unmet criterion is a
+NO-GO unless the user has explicitly approved deferring it"* is satisfied for
+the approval clause, so that clause no longer forces NO-GO. §2.1's *"descoping a
+criterion requires the user's explicit approval, recorded; it is never the
+agent's call"* is satisfied by recording it here with the approval cited. What
+the approval does **not** do is make the criterion met, and nothing in this
+document says it does.
 
 ---
 
@@ -507,6 +807,34 @@ Phase 4A is consequently left **entirely untouched** — no production code, no
 history, no retroactive Gate Review — and the gap is recorded here (G-4) and in
 [`phase-4b.md`](../../project-health/phase-4b.md) field 21 so `phase-4`'s eventual
 closure inherits it rather than rediscovering it.
+
+### 13.2 Update — 2026-09-06, third pass: G-7 decided, G-8 opened and closed
+
+**G-7 — decided by the user.** The user chose neither of the two options the
+table above offered for making the clause demonstrable, and chose the third:
+**defer the clause**. Recorded in full in §0.3, with the status §2.4 provides
+and the ownership distinction stated explicitly — original ownership **Phase 3D
+/ ADR-032**, discovering phase **4B**, future routing **Phase 4D's policy
+surface**, and **not** a Phase 4D dependency. The approval is explicit that no
+identity-confidence threshold is to be invented, no zero-confidence policy
+seeded, `perception-engine` not added merely to force the clause green, and the
+fail-closed behaviour left unchanged. None of those was done.
+
+The recommendation this table made — *"(a), with the threshold chosen
+deliberately and documented"* — was **not** followed, and that is the correct
+outcome: the recommendation named the mechanism ADR-032 intends, but that
+mechanism does not exist to be used, and choosing its first value is a security
+decision. The missing mechanism is tracked as **CF-9** in master scope §4.
+
+**G-8 — opened and closed in this pass.**
+
+| # | Item | Disposition |
+|---|---|---|
+| **G-8** | **Every engine worker shared one arq queue and one cron job name**, so `communication-engine`'s outbox was dispatched on ~1 tick in 4 and the 4A golden path failed ~40% of runs. A pre-existing Phase 2/3 defect, unobservable until 4B's E2E stack went from one arq worker to four. Also a production defect: any deployment with more than one engine worker on one Redis silently strands outboxes | **Closed by `26eb4f4`.** Per-service queue and cron identity derived in `nova-service-kit` (§4.1), guarded by 33 repository-level tests and 3 real-Redis tests (§6.1). No user decision was required — no contract, threshold or security control is involved, and there was no design ambiguity to resolve once the cause was known |
+
+G-8 needed no entry in the table above because it did not exist when that table
+was written: it was found by taking the E2E instability seriously as a possible
+defect rather than accepting it as flakiness.
 
 ---
 
@@ -625,6 +953,47 @@ becomes CONDITIONAL-GO**, with these conditions:
   `phase-4` closes (G-4).
 
 That decision is the user's and is not taken here.
+
+### 15.1 Verdict after the approved deferral — 2026-09-06, third pass
+
+**The decision the section above described has been taken.** The user
+explicitly approved deferring AC-3's approval-execution clause (§0.3), and
+DEV-1/2/3 were built rather than ratified as narrowings (§0.1), so **B-2 was
+discharged by the work and B-1 is discharged by the approval**.
+
+### **CONDITIONAL-GO**
+
+Under protocol §3.2: an unmet criterion is a NO-GO *"unless the user has
+explicitly approved deferring it"*. That approval now exists and is cited. The
+conditions below are the ones §15 drafted, updated for what has since been
+built or decided; each names what discharges it.
+
+| # | Condition | Owner | Discharged when |
+|---|---|---|---|
+| **C-1** | **AC-3's approval-execution clause** is reassigned by name to the milestone that will demonstrate it, together with the **Phase 3D / ADR-032** configuration mechanism it depends on (CF-9). Routed to **Phase 4D** | Phase 4D | 4D's Gate Review records a Critical-risk action blocked pending approval and approved from the browser, against a policy whose threshold the user set |
+| **C-2** | The two provider-dependent AC-3 sub-clauses ("a plan is generated and rendered", "a reasoning trace is inspected") are demonstrated once a provider exists | The milestone that configures a provider | That milestone's Gate Review records both, from the browser |
+| **C-3** | A `real_infra` test for `list_all` and `list_pending_approvals` (§8 item 6) | Phase 4C or the next milestone touching either | A green `real-infra-checks` run covering them |
+| **C-4** | SLOC measured with `cloc` or `scc` before `phase-4` merges to `main` (G-5) | `phase-4` closure | A measured figure in `project-health-master.md` |
+| **C-5** | SAD 15 §9.1 items 2, 3, 7 (§14.1) supplied or explicitly waived | `phase-4` closure | Supplied, or waived with the waiver recorded |
+| **C-6** | Phase 4A's Gate Review and Project Health record written before `phase-4` closes (G-4) | `phase-4` closure | Both exist |
+| **C-7** | The E2E job is promoted to a required check **only** once it has demonstrated stable runs (the workflow's own bar). Branch protection is **not** changed here | `phase-4` closure | The stability series in [`phase-4b.md`](../../project-health/phase-4b.md) field 15 is judged sufficient by the user |
+
+**DEV-1/2/3 need no condition** — they are built and verified live (§0.1), which
+is why they appear here as discharged rather than as reassigned narrowings.
+**DEV-4** and **DEV-5** remain disclosed and open (§2.1), unchanged by this pass.
+
+**What CONDITIONAL-GO does not claim.** AC-3 is **not** met, and §9.2 says so.
+Protocol §2.1's *"partially met criteria are not met"* is not softened here; the
+approval changes the criterion's consequence for the gate, not its status. A
+reader who wants the one-line summary should read: *0 of 1 acceptance criteria
+met outright; AC-3 deferred by explicit user approval of 2026-09-06, with 1 of
+its 4 sub-clauses met, 1 deferred by that approval, and 2 unverifiable without a
+provider.*
+
+**What changed the verdict, and what did not.** The verdict moved because of the
+user's approval and because DEV-1/2/3 were built — not because of the G-8 fix.
+G-8 was a Phase 4A regression surfaced by 4B's stack, and closing it removed an
+obstacle to *trusting* the evidence, not an obstacle to the criterion.
 
 ---
 
