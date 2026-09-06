@@ -24,6 +24,47 @@ export type RequestOptions = {
   signal?: AbortSignal;
 };
 
+/**
+ * `DELETE /v1/capabilities/{id}` answers 204 with no body, and the gateway
+ * forwards that status through. There is no envelope to parse, so the
+ * envelope contract cannot be applied -- but "succeeded, and said nothing"
+ * must not be reported as a contract violation either.
+ *
+ * Deliberately its own function rather than a flag on `gatewayFetch`: the
+ * two have different return types, and a `T | null` on every call site
+ * would make every caller handle a case only this one can produce.
+ */
+export async function gatewayFetchNoContent(
+  path: string,
+  { method = "DELETE", body, signal }: RequestOptions = {},
+): Promise<void> {
+  const response = await fetch(apiUrl(path), {
+    method,
+    signal,
+    credentials: "include",
+    headers: body === undefined ? undefined : { "content-type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+
+  if (response.ok) return;
+
+  let payload: unknown = null;
+  try {
+    payload = await response.json();
+  } catch {
+    payload = null;
+  }
+  const parsed = envelopeSchema.safeParse(payload);
+  const error = parsed.success ? parsed.data.error : null;
+  throw new GatewayError(
+    error?.code ?? "http_error",
+    error?.message ?? `The gateway returned ${response.status}.`,
+    response.status,
+    correlationOf(payload),
+    error?.upstream_status ?? null,
+  );
+}
+
 function correlationOf(body: unknown): string | null {
   const parsed = envelopeSchema.safeParse(body);
   return parsed.success ? parsed.data.meta.correlation_id : null;
