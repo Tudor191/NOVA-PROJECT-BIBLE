@@ -54,10 +54,8 @@ no domain events at all, only outbound RPC requests, so that panel is REST-only.
 - `WS /v1/stream` — the single realtime endpoint
 - `GET /internal/health`
 - `GET /internal/readiness`
-
-There is deliberately **no `/internal/metrics`** here. The scaffold README that
-this file replaced listed one; the gateway has never exposed it. (Corrected
-2026-09-06, Phase 4B closure pass.)
+- `GET /internal/metrics` — the Prometheus scrape endpoint, mounted as a
+  sub-application in `main.py` rather than declared in `api/health.py`.
 
 ## Testing
 

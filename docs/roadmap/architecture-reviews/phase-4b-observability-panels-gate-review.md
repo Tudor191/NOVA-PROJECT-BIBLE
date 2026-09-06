@@ -448,6 +448,15 @@ closure inherits it rather than rediscovering it.
 | [`services/action-engine/README.md`](../../../services/action-engine/README.md) | `GET /v1/action/approvals` added |
 | [`docs/design/phase-4/00-master-scope.md`](../../design/phase-4/00-master-scope.md) | Additive 4B status note: what was built, DEV-1/2/3, the `system/health` decision, and the eight-vs-eleven count (G-6) |
 
+> **Correction, 2026-09-06 (same day).** The row above for the four READMEs
+> originally also recorded removing a `GET /internal/metrics` claim from each,
+> asserting the route did not exist. **That was wrong.** All four services do
+> expose it — `main.py` mounts `prometheus_asgi_app()` at `/internal/metrics`
+> as a sub-application, which is why it is absent from `api/health.py` where
+> the check had looked. The four READMEs have been corrected back, and the
+> claim that it was a "scaffold artifact" is withdrawn. Recorded here rather
+> than silently reverted, per principle 0.3.4.
+
 **Inspected and found already accurate** — evidence the sweep was not selective:
 `docs/architecture/09-event-bus-architecture.md` §6 (names `ws-gateway` as the sole
 bridge; enumerates no subject list, so nothing went stale) ·

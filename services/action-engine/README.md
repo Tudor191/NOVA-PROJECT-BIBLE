@@ -105,13 +105,12 @@ allow-lists.
   endpoint.
 - `GET /internal/health`
 - `GET /internal/readiness`
+- `GET /internal/metrics`
 
 **Reachable through `api-gateway`** since Phase 4B, which added a `/v1/action`
 prefix to the gateway's route table. *(Corrected 2026-09-06: this section
 previously said "exposed directly (no `api-gateway` yet)" and called the decide
-endpoint a stopgap; the gateway now exists and fronts this engine. It also listed
-`GET /internal/metrics`, which `api/health.py` does not expose — the same scaffold
-artifact was found in `api-gateway`, `ws-gateway` and `planning-engine`.)*
+endpoint a stopgap; the gateway now exists and fronts this engine.)*
 
 ## Testing
 

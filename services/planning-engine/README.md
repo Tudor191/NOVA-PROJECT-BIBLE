@@ -55,12 +55,10 @@ Internal:
 
 - `GET /internal/health`
 - `GET /internal/readiness`
+- `GET /internal/metrics`
 
 *(Corrected 2026-09-06, Phase 4B closure pass: this section previously listed the
-`/internal/*` routes only and omitted the engine's entire public surface. It also
-listed `GET /internal/metrics`, which `api/health.py` does not expose — the same
-scaffold artifact was found in `api-gateway`, `ws-gateway` and `action-engine`,
-and is likely present in the other engine READMEs this phase did not touch.)*
+`/internal/*` routes only and omitted the engine's entire public surface.)*
 
 ## Testing
 
