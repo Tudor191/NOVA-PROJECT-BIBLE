@@ -27,7 +27,11 @@ import type { Page } from "@playwright/test";
  *                    REST -- by construction, not by activity.
  *
  * Planning, Reasoning and Approvals are the genuinely activity-driven three,
- * and empty is their correct live state.
+ * and empty is their correct live state -- but no test below pins that.
+ * How much data a panel happens to hold is a fact about how busy the system
+ * is on the day, and asserting it is what made the check below wrong twice.
+ * What is asserted is that each panel *settles* and does not settle on a
+ * failure notice.
  */
 
 const SESSION_TOKEN = process.env.NOVA_SESSION_TOKEN ?? "";
@@ -96,18 +100,44 @@ test.describe("the observability panels", () => {
     // Asserting `panel-empty` there was wrong, and wrong in the direction
     // that matters: it would have passed on a broken bootstrap and failed on
     // a working one.
-    for (const navTestId of ["nav-planning", "nav-reasoning", "nav-approvals"]) {
+    //
+    // So the check is stated as the property itself rather than as a proxy
+    // for it: the panel must *settle* -- stop reading and commit to
+    // something -- and what it settles on must not be a degradation notice.
+    // Whether it settles on rows or on an empty label is a fact about how
+    // busy the system is, which is not what this test is about, and pinning
+    // it here is what made this test wrong twice.
+    for (const [navTestId, label] of [
+      ["nav-planning", "Planning"],
+      ["nav-reasoning", "Reasoning Trace"],
+      ["nav-approvals", "Approvals"],
+      ["nav-capabilities", "Capabilities"],
+    ] as const) {
       await page.getByTestId(navTestId).click();
-      await expect(page.getByTestId("panel-empty").first()).toBeVisible({ timeout: 15_000 });
-      await expect(page.getByTestId("degradation-notice")).toHaveCount(0);
+
+      // Settled means the reading state is gone. A panel still reading after
+      // 15s has not reached its engine either -- it just has not said so yet,
+      // and left unasserted it would read as success.
+      await expect(
+        page.getByTestId("panel-loading"),
+        `${label} was still reading after 15s -- it never reached its engine`,
+      ).toHaveCount(0, { timeout: 15_000 });
+
+      // The assertion this test is named for. If `api-gateway`'s route table
+      // is missing a prefix, the gateway 404s and this is what renders.
+      await expect(
+        page.getByTestId("degradation-notice"),
+        `${label} reported that it could not reach its engine`,
+      ).toHaveCount(0);
     }
 
-    // Capabilities carries the positive half: real rows, read from a real
-    // engine, through the gateway route this milestone added. That is a
-    // stronger statement than any empty panel can make.
-    await page.getByTestId("nav-capabilities").click();
-    await expect(page.getByTestId("capability").first()).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByTestId("degradation-notice")).toHaveCount(0);
+    // And Capabilities carries a positive half on top, so the loop above
+    // cannot pass by every panel rendering nothing at all: real rows, read
+    // from a real engine, through the gateway route this milestone added.
+    await expect(
+      page.getByTestId("capability").first(),
+      "Capabilities reached its engine but rendered no built-in capabilities",
+    ).toBeVisible({ timeout: 15_000 });
   });
 
   test("the Events panel shows frames actually arriving", async ({ page }) => {
