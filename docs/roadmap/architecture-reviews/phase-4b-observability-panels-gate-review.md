@@ -39,6 +39,56 @@ changes any Phase 4B production code.**
 
 ---
 
+## 0.1 Update — 2026-09-06, second pass (head `2f0414a`)
+
+The three narrowings this review reported as unbuilt (**DEV-1**, **DEV-2**,
+**DEV-3**) have since been **built and verified against the real stack**. The
+register in §2.1 and the criteria table in §9 are preserved verbatim below as
+the first pass wrote them; this section records what changed, per principle
+0.3.4.
+
+| Was | Now |
+|---|---|
+| **DEV-1** Capabilities list-only | **Built.** Install and uninstall through `api-gateway` → `capability-engine`'s existing `POST /v1/capabilities/install` and `DELETE /v1/capabilities/{id}`. No backend change was needed. Three E2E tests green against the live stack: install→appears→uninstall→gone; a 422 surfacing the engine's own failing stage; malformed JSON refused client-side. Not routed through Approvals — the install pipeline's stage 4 is explicitly non-blocking disclosure, unlike `action-engine`'s Critical-risk loop, so routing it there would invent a gate the architecture does not have |
+| **DEV-2** Events unfilterable | **Built.** Filterable by subject and by `correlation_id` — the two dimensions a raw bus frame is identified by, taken from the envelope rather than invented. Filters live in the Zustand store (doc 04 §5's "local filters") and apply **at render, never at ingest**, so the feed keeps recording while filtered and clearing restores everything that arrived meanwhile. E2E green, including that realtime keeps delivering *through* an active filter |
+| **DEV-3** `reasoning_level` shown as depth | **Built.** The panel now shows both, because they are different facts: `reasoning_level` is Bible Part 8's 1–4 dial the caller sets, the depth is what the Multi-step pipeline did. No contract changed and no field invented — `ReasoningTrace.steps` (§11's recursion tree) and `multistep_recursion_exhausted` were already on the trace the engine returns; depth is derived from the tree, counted so that an un-recursed trace reads 1 and is directly comparable with `ModeConfig.max_step_depth` |
+
+**Blocker B-2 is therefore discharged.** Blocker **B-1** (AC-3) is not, and its
+composition has changed — see §9.1.
+
+### 0.2 A new architectural finding: the approval loop is unreachable here
+
+AC-3's remaining clause is *"a risky action is blocked pending approval and then
+approved"*. Building the E2E for it surfaced a mechanism no document had
+connected to this criterion:
+
+```
+threshold = 1.0  # absent-policy fails closed (domain/pipeline.py:182)
+effective_confidence = confidence if confidence is not None else 0.0
+if effective_confidence < threshold:  ->  denied
+```
+
+Stage 3's **ADR-032 identity-confidence gate** requires confidence ≥ 1.0 when no
+`IdentityConfidencePolicy` row exists, and observes 0.0 when no perception
+activity has scored the requesting user. Every Critical-risk Action in the 4B
+stack is therefore **denied at Check Permissions and never reaches the approval
+loop**. Nothing writes a `pending_approval` row, so nothing can appear in the
+Approvals panel.
+
+This is the gate working exactly as designed and documented (TDD 3D §10,
+`action-engine/README.md`), not a Phase 4B defect. **Seeding a zero-threshold
+policy for the test user would have made the spec green by weakening a security
+control**, so it was not done — protocol §13's stop rule applies, and the
+decision is recorded in §13 as **G-7** rather than taken here.
+
+A second, independent blocker on the same clause: `action.execute` may only be
+published by `agent-os/kernel`, which has no compose service until 4C (D-5).
+`tools/e2e_request_risky_action.py` stands in for it using the Kernel's own
+`BoundEventBus` allow-list, and that part works — the request reaches
+`action-engine`, which then denies it at stage 3.
+
+---
+
 ## 1. What was implemented
 
 Five commits on `phase-4b`, branched from the merged `phase-4` head `481ceac`.
@@ -309,6 +359,32 @@ instructions. **4B owns exactly one criterion.**
 
 **0 of 1 acceptance criteria are met. The unmet criterion is AC-3.**
 
+### 9.1 AC-3 re-assessed after the second pass (2026-09-06, head `2f0414a`)
+
+The table above is the first pass's assessment, preserved. After DEV-1 was
+built, the sub-clause accounting is:
+
+| Sub-clause | First pass | Now | Why |
+|---|---|---|---|
+| "a capability is installed" | Not met | **Met** | Installed from the browser, through `api-gateway`, running `capability-engine`'s real 8-stage pipeline. Verified live in CI run #76 |
+| "a risky action is blocked pending approval and then approved" | Not met | **Blocked — cannot be verified in this stack** | ADR-032's fail-closed identity gate denies the Action at stage 3; it never reaches the approval loop (§0.2). Requires a user decision (G-7) |
+| "a plan is generated and rendered" | Not met | **Cannot be verified in this environment** | Requires an LLM provider; `ANTHROPIC_API_KEY` is unset and Phase 4 does not add one |
+| "a reasoning trace is inspected" | Not met | **Cannot be verified in this environment** | Same cause. The panel renders traces and now renders 3A's recursion depth; no trace exists to render |
+
+**1 of AC-3's 4 sub-clauses is met; 1 is blocked by an architectural gate; 2
+cannot be verified without a provider. AC-3 as a whole remains Not met**, per
+protocol §2.1 — "partially met criteria are not met".
+
+**On the two provider-dependent clauses and the protocol.** §2.4 provides the
+status *"Cannot be verified in this environment (reason)"*, so they are
+legitimately reportable rather than failures of the implementation — the panels
+that would render them are built and unit-tested. But §3.2's GO condition 1
+requires every criterion **Met**, "or narrowed/deferred with a cited user
+approval", and §2.1 is explicit that "descoping a criterion requires the user's
+explicit approval, recorded; it is never the agent's call". **The protocol
+therefore permits deferral but not self-granted deferral.** No such approval
+exists, so AC-3 stays unmet and the verdict stays NO-GO.
+
 Protocol §2.1: *"Partially met criteria. These are not met."* Two sub-clauses fail
 for an environment reason (no provider); two fail because the capability was not
 built. The criterion's own wording — "end-to-end **from the browser**" — is
@@ -405,6 +481,7 @@ capabilities), Part 20 (heartbeat, module status). Part 15's capability *lifecyc
 | **G-3** | **`GET /v1/system/health` does not exist**; doc 11 §2 names it, master scope §5 lists it as a 4B backend addition | (a) Ratify the push-fed Health panel as the permanent design and correct doc 11 §2; (b) give `nova-core` a public surface and build it | **(a).** `nova-core` publishing its own heartbeat is already the architecture; a REST aggregate would duplicate it |
 | **G-4** | **Phase 4A has no Gate Review and no Project Health record** | (a) Leave the gap recorded and repair it when `phase-4` closes; (b) write both retroactively now | **(a).** See §13.1 — the protocol as read does not require it before 4B |
 | **G-5** | **SLOC not measured** — neither `cloc` nor `scc` is installed | (a) Install one and re-measure; (b) record "Not measured" | **(b) for this pass, (a) before `phase-4` merges to `main`.** The open Option A/B methodology decision in `project-health-master.md` §2 also remains open |
+| **G-7** | **The approval loop is unreachable in the 4B stack.** ADR-032's gate requires identity confidence 1.0 with no policy row, and no perception activity scores the user, so every Critical-risk Action is denied at stage 3 (§0.2). AC-3's approval clause cannot be demonstrated end-to-end without changing this | (a) Seed an `IdentityConfidencePolicy` for the instance's primary user in the E2E stack, with a per-risk threshold the operator chooses; (b) give the E2E a real identity signal via `perception-engine`; (c) defer the clause to a milestone that has one | **(a), with the threshold chosen deliberately and documented** — it is the mechanism ADR-032 already defines for exactly this, and it configures the gate rather than removing it. It was **not** done here because choosing a confidence threshold for a security control is the user's decision, not the agent's |
 | **G-6** | Master scope prose says *"Phase 4 builds eight"* panels while its own §6 table lists **eleven** Phase-4 rows (conversation, six 4B, agents, autonomy, digital-twin, cognitive-state) | Correct the prose, or the table | Pre-existing, not caused by 4B. Recorded; an additive note has been added. Needs the user's call on which number is right |
 
 ### 13.1 Does the protocol require repairing the Phase 4A gap before 4B can receive GO?
@@ -501,6 +578,14 @@ decision.
 Under protocol §3.2, which is explicit: *"An unmet acceptance criterion is a NO-GO
 unless the user has explicitly approved deferring it,"* and *"CONDITIONAL-GO is not
 a way to pass a phase with an unmet acceptance criterion."*
+
+> **Verdict re-confirmed 2026-09-06 after the second pass (head `2f0414a`).**
+> **B-2 is discharged** — DEV-1, DEV-2 and DEV-3 are built and verified live
+> (§0.1). **B-1 stands**, narrowed: AC-3 is now 1 of 4 sub-clauses met, 1
+> blocked by ADR-032's gate (G-7), 2 unverifiable without a provider. CI is
+> **green, 30/30 Check Runs** against `2f0414a` — PR Checks #76, Build & Scan
+> #76, Real-Infrastructure Checks #105, all `success`. The verdict is NO-GO on
+> the acceptance criterion alone; every engineering gate passes.
 
 **What is blocking:**
 
