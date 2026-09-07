@@ -35,15 +35,27 @@ want to change one.
 | `migrations` | -- | One-shot schema bootstrap; exits when done (see below) |
 | `api-gateway` | 8014 | The one external REST surface (doc 11 §1) |
 | `ws-gateway` | 8015 | The one bus-to-browser bridge (doc 09 §6) |
+| `agent-os-kernel` | 8016 | Agent OS control plane (agent-os/kernel) |
+| `agent-os-registry` | 8017 | Agent Package registry (agent-os/registry) |
+| `agent-os-supervisors` | 8018 | Supervision tree (agent-os/supervisors) |
 
 Thirteen engine services are omitted from the table for brevity; each exposes
 `8001`-`8013` and its own `/internal/health`.
 
+The three `agent-os` services were added in **Phase 4C (4C.1, decision D-5)**,
+discharging the containerization half of Phase 3E's ratified condition **C-3**
+— these components had no Dockerfile, no compose service and no Trivy scan for
+their whole existence. `agent-os/sdk/python` is deliberately absent: it is a
+library, like everything under `packages/`, and ships no image. Their published
+ports are for local `/internal/health` inspection only — none is fronted by
+`api-gateway`, whose route table 4C.1 does not touch.
+
 ## Schema bootstrap
 
-`migrations` is a one-shot service that brings all thirteen Postgres-backed
-engine schemas to head, in sequence, then exits. Every Postgres-backed service
-gates on it with:
+`migrations` is a one-shot service that brings all fifteen Postgres-backed
+component schemas to head, in sequence, then exits — thirteen engines, plus
+`agent-os/kernel` and `agent-os/registry` since Phase 4C. Every Postgres-backed
+service gates on it with:
 
 ```yaml
     depends_on:
@@ -61,20 +73,26 @@ because nothing had ever started the stack: CI's compose check runs `config
 --quiet`, which parses the YAML and starts nothing. Phase 4A's Playwright job
 was the first thing to actually run it.
 
-**Why one container.** Each engine image is built with `uv sync --package
-<engine>` and so contains exactly one engine; none can migrate another.
+**Why one container.** Each component image is built with `uv sync --package
+<name>` and so contains exactly one component; none can migrate another.
 `Dockerfile.migrations` installs the whole workspace, and `run-migrations.sh`
-walks the engines in order -- keeping the sequence in one file, and keeping the
+walks them in order -- keeping the sequence in one file, and keeping the
 migrations strictly sequential by construction rather than by discipline.
 
-**Why one database is safe.** Every engine namespaces its own alembic version
-table (`alembic_version_communication`, `alembic_version_memory`, ... -- 13
+**Why one database is safe.** Every component namespaces its own alembic
+version table (`alembic_version_communication`, `alembic_version_memory`, ...,
+`alembic_version_agent_os_kernel`, `alembic_version_agent_os_registry` -- 15
 distinct names) and each migration `0001` issues its own `CREATE SCHEMA`. The
 histories are independent by design. `alembic upgrade head` is idempotent, so
 re-running the stack is a no-op.
 
-`agent-os/kernel` and `agent-os/registry` have alembic configs but no compose
-service, so they are deliberately not migrated here.
+`agent-os/kernel` and `agent-os/registry` are the only pair that share a schema
+(`agent_os`); both create it with `IF NOT EXISTS`, so either may run first.
+They were excluded from this script until Phase 4C for the reason the script
+itself gave -- neither had a compose service -- and 4C.1 removed that premise.
+`agent-os/supervisors` remains excluded permanently: it has no alembic config,
+no `postgres_dsn` and an empty `repository/` (TDD 3E §7 names no persisted
+state for it), so there is nothing to migrate.
 
 ## Adding a new engine
 
@@ -88,4 +106,29 @@ service, so they are deliberately not migrated here.
    `tools/tests/test_compose_migrations.py`, which fails if a Postgres-backed
    service is missing from either -- the alternative is an engine that
    crash-loops the moment someone starts the stack.
-5. Add it to the `build-and-scan.yml` matrix.
+5. Add it to the `build-and-scan.yml` matrix, as a `{service, dockerfile}`
+   entry. `tools/tests/test_build_and_scan_matrix.py` fails if any Dockerfile
+   in the repository is in neither the matrix nor that file's `UNSCANNED` map
+   -- an unmatrixed image is built by nothing and CVE-scanned by nothing, and
+   nothing else reports its absence.
+
+## Adding an `agent-os` component
+
+`tools/scaffold-agent-os-component.py` deliberately generates no Dockerfile and
+no compose service: doc 02 is explicit that `agent-os` components are
+control-plane infrastructure rather than instances of the standard engine
+template, and container wiring is conditional on a component actually shipping
+as its own image. When one does, the steps are the engine steps above with two
+differences:
+
+- The compose service is named after the full path (`agent-os-kernel`, not
+  `kernel`) -- a service called `registry` beside thirteen `*-engine` services
+  would say nothing about which subsystem it belongs to.
+  `tools/tests/test_compose_migrations.py::_compose_name_for` holds that
+  mapping in one place.
+- If the component resolves Agent Packages from disk (`Settings.agents_root`),
+  its image needs `COPY agents agents`. Skipping it is silent for the Registry:
+  `discover_agent_packages` returns `[]` for a missing directory, so the
+  container starts, passes its healthcheck, and registers nothing.
+
+`agent-os/sdk/python` is a library and gets neither, exactly like `packages/*`.

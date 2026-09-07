@@ -203,6 +203,15 @@ jobs:
           # directly to the bus, the second publishes no domain events at
           # all -- which `tools/tests/test_e2e_stack_completeness.py`
           # asserts rather than leaves to memory.
+          # Phase 4C (4C.1, decision D-5) adds the three `agent-os`
+          # components. They are here because AC-4's first clause is
+          # literally "`agent-os` runs as containers under `docker compose
+          # up`", and this job is the only place in the repository where the
+          # stack is ever brought up -- an image that builds in
+          # `build-and-scan.yml` proves it compiles, not that it starts.
+          # None of the three is reachable from the browser: `api-gateway`'s
+          # route table is unchanged by 4C.1, and the Kernel's read-only
+          # `/v1/agents` surface is 4C.2's work.
           docker compose -f infra/docker/docker-compose.local.yml up -d --build \
             nats postgres redis migrations \
             nova-core \
@@ -212,7 +221,8 @@ jobs:
             planning-engine capability-engine action-engine \
             planning-engine-worker reasoning-engine-worker \
             ai-model-orchestration-engine-worker \
-            api-gateway ws-gateway
+            api-gateway ws-gateway \
+            agent-os-kernel agent-os-registry agent-os-supervisors
 
       - name: Confirm the schema migration completed
         run: |
@@ -227,6 +237,46 @@ jobs:
           fi
           echo "schema migrator exited 0"
 
+      - name: Confirm the agent_os schema reached head
+        run: |
+          set -euo pipefail
+          compose="docker compose -f infra/docker/docker-compose.local.yml"
+          psql="$compose exec -T postgres psql -U ${POSTGRES_USER:-nova} -d ${POSTGRES_DB:-nova} -X"
+
+          # Phase 4C, 4C.1. The migrator's exit code above covers every schema
+          # at once; this names the one 4C.1 introduces. The two `agent-os`
+          # entries are the only pair in `run-migrations.sh` that share a
+          # schema, and each creates it with `CREATE SCHEMA IF NOT EXISTS`, so
+          # a bug in that interaction would show up as one table present and
+          # the other missing -- which the exit code alone would not catch.
+          echo "--- agent_os tables ---"
+          $psql -c "SELECT tablename FROM pg_tables WHERE schemaname = 'agent_os' ORDER BY tablename;"
+          for table in agent_instance agent_package; do
+            present="$($psql -tAc "SELECT count(*) FROM pg_tables
+                                    WHERE schemaname = 'agent_os'
+                                      AND tablename = '${table}';" | tr -d '[:space:]')"
+            if [ "${present}" != "1" ]; then
+              echo "::error::agent_os.${table} does not exist after migration."
+              echo "agent-os-kernel and agent-os-registry would start against a"
+              echo "schema-less database and crash-loop on their first query."
+              exit 1
+            fi
+            echo "agent_os.${table}: present"
+          done
+
+          # Each component stamps its own version table (they are independent
+          # alembic histories that happen to share a schema). The tables live
+          # in the connection's default schema, not `agent_os` -- see each
+          # component's own `alembic/env.py` for why.
+          for version_table in alembic_version_agent_os_kernel alembic_version_agent_os_registry; do
+            head="$($psql -tAc "SELECT version_num FROM public.${version_table};" | tr -d '[:space:]')"
+            if [ -z "${head}" ]; then
+              echo "::error::${version_table} is empty; that component's migration never ran"
+              exit 1
+            fi
+            echo "${version_table}: ${head}"
+          done
+
       - name: Confirm the engines are running rather than crash-looping
         run: |
           set -euo pipefail
@@ -240,13 +290,23 @@ jobs:
           # exits and is restarted forever, and the only symptom downstream is
           # a transcript that never fills -- a 30s assertion timeout that names
           # nothing. A restart count here names it immediately.
+          # The three `agent-os` components (Phase 4C, D-5) are checked here
+          # and not merely started, because "no crash loop" is the whole of
+          # what 4C.1 claims about them. Two failure modes are specifically in
+          # scope: an image whose `uv sync --package` resolved without a
+          # transitively-imported workspace package (which is what
+          # `agent-os/kernel` would have done before 4C.1 declared
+          # `nova-agent-sdk`), and a component started against a database with
+          # no `agent_os` schema. Both present as a restart count, not as an
+          # absent container.
           for svc in nova-core \
                      world-model-engine personality-engine reasoning-engine \
                      ai-model-orchestration-engine communication-engine \
                      communication-engine-worker \
                      planning-engine capability-engine action-engine \
                      planning-engine-worker reasoning-engine-worker \
-                     ai-model-orchestration-engine-worker; do
+                     ai-model-orchestration-engine-worker \
+                     agent-os-kernel agent-os-registry agent-os-supervisors; do
             cid=$($compose ps -aq "$svc")
             state=$(docker inspect -f '{{.State.Status}}' "$cid")
             restarts=$(docker inspect -f '{{.RestartCount}}' "$cid")

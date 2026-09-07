@@ -5,6 +5,15 @@ description = "TODO: describe kernel's responsibility (docs/architecture/12-agen
 requires-python = ">=3.12"
 dependencies = [
     "nova-contracts",
+    # Declared in Phase 4C/4C.1. `src/` has imported it since Phase 3E --
+    # `domain/ports.py`, `domain/scheduler.py` and `domain/execution_backend.py`
+    # all do -- but it was never declared, so `uv sync --package kernel`
+    # resolved without it and only the workspace-wide dev environment made the
+    # import work. Invisible until this component was first containerized:
+    # `uv tree --package kernel --no-dev` returned zero matches for it, and the
+    # image would have raised ModuleNotFoundError at startup. This is the
+    # `uv`-workspace defect class R-2 predicted (PR #4, PR #6).
+    "nova-agent-sdk",
     "nova-eventbus-sdk",
     "nova-observability",
     "nova-service-kit",
@@ -28,6 +37,7 @@ allow-direct-references = true
 
 [tool.uv.sources]
 nova-contracts = { workspace = true }
+nova-agent-sdk = { workspace = true }
 nova-eventbus-sdk = { workspace = true }
 nova-observability = { workspace = true }
 nova-service-kit = { workspace = true }

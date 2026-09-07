@@ -830,6 +830,84 @@ services:
       nats:
         condition: service_healthy
 
+  # --- Phase 4C agent-os -----------------------------------------------------
+  # Decision D-5, discharging the containerization half of Phase 3E's ratified
+  # condition C-3: these three had no Dockerfile, no compose service, and no
+  # Trivy scan. `sdk/python` is deliberately absent -- it is a library, like
+  # everything under `packages/`, and receives no container (master scope §10;
+  # the "all four components" wording in §4C is corrected there).
+  #
+  # None of the three is reachable from a browser. `api-gateway`'s route table
+  # fronts five engines and none of these; the Kernel's read-only `/v1/agents`
+  # surface (D-4) is 4C.2's work, not 4C.1's. The published ports below are for
+  # local inspection of `/internal/health` only, exactly as for every engine.
+
+  agent-os-kernel:
+    build:
+      context: ../..
+      dockerfile: agent-os/kernel/Dockerfile
+    restart: unless-stopped
+    environment:
+      EVENT_BUS_BACKEND: nats
+      NATS_URL: nats://nats:4222
+      NOVA_ENGINE_NAME: agent-os-kernel
+      AGENT_OS_KERNEL_POSTGRES_DSN: postgresql+asyncpg://${POSTGRES_USER:-nova}:${POSTGRES_PASSWORD:-nova_dev_password}@postgres:5432/${POSTGRES_DB:-nova}
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      # `AGENT_OS_KERNEL_AGENTS_ROOT` is left at its `"agents"` default, which
+      # resolves against the image's `/app` WORKDIR. `AGENT_OS_KERNEL_PRIMARY_USER_ID`
+      # is left unset, matching `capability-engine`'s own treatment: no service
+      # in this file sets a primary user id, and the Kernel fails loudly at
+      # dispatch rather than synthesizing one.
+    ports:
+      - "8016:8000"
+    depends_on:
+      nats:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
+
+  agent-os-registry:
+    build:
+      context: ../..
+      dockerfile: agent-os/registry/Dockerfile
+    restart: unless-stopped
+    environment:
+      EVENT_BUS_BACKEND: nats
+      NATS_URL: nats://nats:4222
+      NOVA_ENGINE_NAME: agent-os-registry
+      AGENT_OS_REGISTRY_POSTGRES_DSN: postgresql+asyncpg://${POSTGRES_USER:-nova}:${POSTGRES_PASSWORD:-nova_dev_password}@postgres:5432/${POSTGRES_DB:-nova}
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+    ports:
+      - "8017:8000"
+    depends_on:
+      nats:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
+
+  agent-os-supervisors:
+    build:
+      context: ../..
+      dockerfile: agent-os/supervisors/Dockerfile
+    restart: unless-stopped
+    environment:
+      EVENT_BUS_BACKEND: nats
+      NATS_URL: nats://nats:4222
+      NOVA_ENGINE_NAME: agent-os-supervisors
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+    ports:
+      - "8018:8000"
+    # No `postgres` or `migrations` dependency: this component has no schema
+    # and no DSN (TDD 3E §7, preserved unchanged by Phase 4C). Adding either
+    # would imply persistence it does not have.
+    depends_on:
+      nats:
+        condition: service_healthy
+
 volumes:
   postgres-data:
   neo4j-data:

@@ -49,29 +49,65 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        # One entry per services/<name>/Dockerfile. Add a line here whenever
+        # One entry per deployable Dockerfile. Add a line here whenever
         # tools/scaffold-engine.py creates a new engine.
-        service:
-          - nova-core
-          - memory-engine
-          - knowledge-engine
-          - world-model-engine
-          - ai-model-orchestration-engine
-          - reasoning-engine
-          - executive-cognition-engine
-          - personality-engine
-          - communication-engine
-          - perception-engine
-          - digital-twin-engine
-          - capability-engine
-          - action-engine
-          - planning-engine
+        #
+        # This was a flat list of names with the path hardcoded in the build
+        # step as `services/${{ matrix.service }}/Dockerfile`, which held for
+        # as long as every image lived under `services/`. Phase 4C's D-5 adds
+        # three under `agent-os/`, so the path is now carried per entry rather
+        # than derived from the name. Written out in full instead of layering
+        # an `include:` override on top of the old list: a matrix that gates
+        # every image in the repository should say plainly which file each job
+        # builds, not compute it.
+        include:
+          - service: nova-core
+            dockerfile: services/nova-core/Dockerfile
+          - service: memory-engine
+            dockerfile: services/memory-engine/Dockerfile
+          - service: knowledge-engine
+            dockerfile: services/knowledge-engine/Dockerfile
+          - service: world-model-engine
+            dockerfile: services/world-model-engine/Dockerfile
+          - service: ai-model-orchestration-engine
+            dockerfile: services/ai-model-orchestration-engine/Dockerfile
+          - service: reasoning-engine
+            dockerfile: services/reasoning-engine/Dockerfile
+          - service: executive-cognition-engine
+            dockerfile: services/executive-cognition-engine/Dockerfile
+          - service: personality-engine
+            dockerfile: services/personality-engine/Dockerfile
+          - service: communication-engine
+            dockerfile: services/communication-engine/Dockerfile
+          - service: perception-engine
+            dockerfile: services/perception-engine/Dockerfile
+          - service: digital-twin-engine
+            dockerfile: services/digital-twin-engine/Dockerfile
+          - service: capability-engine
+            dockerfile: services/capability-engine/Dockerfile
+          - service: action-engine
+            dockerfile: services/action-engine/Dockerfile
+          - service: planning-engine
+            dockerfile: services/planning-engine/Dockerfile
           # Phase 4A. Not engines -- the two external surfaces of an instance
           # (doc 11 §1, doc 09 §6) -- but they ship as container images from
           # `services/<name>/Dockerfile` like everything else here, so they
           # are built and CVE-scanned on the same terms.
-          - api-gateway
-          - ws-gateway
+          - service: api-gateway
+            dockerfile: services/api-gateway/Dockerfile
+          - service: ws-gateway
+            dockerfile: services/ws-gateway/Dockerfile
+          # Phase 4C (D-5), discharging the containerization half of Phase 3E's
+          # ratified condition C-3. **This is the first Trivy scan any
+          # `agent-os` component has ever had.** `agent-os/sdk/python` is
+          # deliberately absent: it is a library, like everything under
+          # `packages/`, and ships no container (master scope §10).
+          - service: agent-os-kernel
+            dockerfile: agent-os/kernel/Dockerfile
+          - service: agent-os-registry
+            dockerfile: agent-os/registry/Dockerfile
+          - service: agent-os-supervisors
+            dockerfile: agent-os/supervisors/Dockerfile
     steps:
       - uses: actions/checkout@v4
 
@@ -82,7 +118,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: services/${{ matrix.service }}/Dockerfile
+          file: ${{ matrix.dockerfile }}
           tags: nova-${{ matrix.service }}:${{ github.sha }}
           push: false
           load: true
