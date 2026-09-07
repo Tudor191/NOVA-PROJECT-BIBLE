@@ -182,6 +182,66 @@ byte-identical.
 
 ---
 
+## 0.6 Update — 2026-09-07: the two provider-dependent AC-3 sub-clauses are deferred by explicit user approval
+
+A second explicit user approval, given 2026-09-07, extends the deferral to
+AC-3's remaining two sub-clauses. Recorded under protocol §2.4 as **"Deferred by
+approval (approval cited)"**, the same status §0.3 used for the approval clause.
+
+**Approved, verbatim in substance:**
+
+> I explicitly approve deferring the two provider-dependent AC-3 sub-clauses:
+> 1. *"a plan is generated and rendered"*
+> 2. *"a reasoning trace is inspected"*
+>
+> This is a scope deferral only. It does not mark those sub-clauses as met, does
+> not weaken any security control, does not alter ADR-032, and does not change
+> fail-closed behavior.
+>
+> I also explicitly authorize carrying C-1, C-2 and C-6 forward under
+> CONDITIONAL-GO if and only if the Phase Completion Protocol permits that
+> treatment for Phase 4B.
+
+**What this changes, exactly.** §3.2's GO condition 1 reads *"Every acceptance
+criterion is **Met** (category 2), or **narrowed/deferred with a cited user
+approval**."* Before this approval, two AC-3 sub-clauses were *Cannot be
+verified in this environment* — a legitimate §2.4 status but neither "Met" nor
+"deferred with a cited approval", so condition 1 failed on them. It now holds.
+
+**What it does not change.** **AC-3 is still not met**, and nothing in this
+document says it is. §2.1's *"partially met criteria are not met"* stands
+unaltered. A deferral changes a criterion's **consequence for the gate**, never
+its status. The criterion's wording is untouched.
+
+**Ownership and future milestone, per deferred item.** Recorded where the
+architecture designates one, and recorded as *undesignated* where it does not —
+rather than inventing a milestone to fill the column:
+
+| Deferred sub-clause | Original requirement | Owner of the blocking gap | Designated future milestone |
+|---|---|---|---|
+| *"a risky action is blocked pending approval and then approved"* | `00-master-scope.md:55`, unchanged | **Phase 3D / ADR-032** — decision point 2's configurable identity-confidence threshold has no implementation | **Phase 4D**, the `autonomy-engine` policy surface. Tracked as **CF-9** in master scope §4. A forward routing decision, **not** a reassignment of ownership |
+| *"a plan is generated and rendered"* | `00-master-scope.md:55`, unchanged | No engine defect. `ai-model-orchestration-engine` (Phase 2A) owns the provider surface and it is complete | **None designated.** A repository-wide search finds no milestone assigned to configuring a provider. Recorded as undesignated rather than guessed |
+| *"a reasoning trace is inspected"* | `00-master-scope.md:55`, unchanged | Same | **None designated**, same |
+
+**For the two undesignated items, what would close them is recorded instead**
+(§9.3), so the work is inheritable by whichever milestone takes it: the local
+`OllamaConnector` path exists and needs **no credential**, and three things stand
+between it and a demonstration — `ollama` is not in the E2E job's `up -d` list,
+the image ships no model weights, and nothing registers a model descriptor
+through `POST /v1/models`.
+
+**Security, unchanged and re-verified this pass.** No `IdentityConfidencePolicy`
+row was seeded and none can be — the type appears in production code only as the
+domain model, the ORM, the port signature and the **read**
+(`postgres_action_repository.py:224`, `session.get`); there is no insert path.
+`pipeline.py`'s `threshold = 1.0` fail-closed default is byte-identical.
+`perception-engine` is still absent from the E2E stack. ADR-032 is unmodified
+apart from its additive implementation-status note (+35 / −0 since `85f7682`).
+The approval gate is not bypassed, and no provider result is fabricated.
+
+---
+
+
 ## 1. What was implemented
 
 Five commits on `phase-4b`, branched from the merged `phase-4` head `481ceac`.
@@ -743,9 +803,11 @@ different workflow and would need `real-infra-checks.yml` dispatched instead —
 it has no `workflow_dispatch` trigger and none was added here, because adding
 one is a CI change with no protocol condition asking for it.
 
-**What the argument does not rest on.** Not statistics: five consecutive greens
-are ~20% likely by luck at the pre-fix rate, and ten would be ~2% — better, but
-still not proof. It rests on the mechanism being understood and reproduced
+**What the argument does not rest on.** Not statistics. At the pre-fix pass rate
+of roughly 2 in 3, **eight** consecutive greens are ~4% likely by luck and ten
+would be ~2% — better, but neither is proof. *(This paragraph read "five
+consecutive greens … ~20%" until 2026-09-07; the count had moved and the
+arithmetic with it.)* It rests on the mechanism being understood and reproduced
 (§4.1), asserted against a real Redis in both its halves (§6.1), guarded at
 repository level with a fired negative control, and on every run from #80
 onward *positively asserting* `0 undispatched` rather than merely not failing.
@@ -1059,6 +1121,42 @@ what C-6 would actually take to close.
 **C-6 stays open and stays owned by `phase-4` closure**, which is where it was
 assigned when it was written.
 
+
+### 9.5 AC-3 — final status after both approvals (2026-09-07)
+
+The criterion's wording is unchanged and is not restated in softened form
+anywhere. **AC-3 is NOT met.** What changed is that every one of its four
+sub-clauses now carries a status §2.4 provides and §3.2's GO condition 1
+accepts.
+
+| # | Criterion (verbatim) | Source | Status |
+|---|---|---|---|
+| **AC-3** | "Every Phase 3 sub-phase 3A–3D is exercised end-to-end **from the browser**: a plan is generated and rendered, a reasoning trace is inspected, a capability is installed, and a risky action is blocked pending approval and then approved." | `00-master-scope.md:55` | **NOT MET — 1 of 4 sub-clauses met, 3 Deferred by approval (approval cited)** |
+
+| Sub-clause | Status | Approval / evidence |
+|---|---|---|
+| "a capability is installed" | **Met** | Installed from the browser through `api-gateway`, running `capability-engine`'s real 8-stage pipeline. `capability-lifecycle.spec.ts`, 3 tests green from CI #74 onward |
+| "a risky action is blocked pending approval and then approved" | **Deferred by approval (approval cited)** | User approval **2026-09-06**, §0.3. Blocking gap owned by **Phase 3D / ADR-032** (CF-9); routed to **Phase 4D** |
+| "a plan is generated and rendered" | **Deferred by approval (approval cited)** | User approval **2026-09-07**, §0.6. Provider-dependent; **no milestone designated** — what would close it is recorded in §9.3 |
+| "a reasoning trace is inspected" | **Deferred by approval (approval cited)** | User approval **2026-09-07**, §0.6. Same |
+
+**Required §2.4 sentence:** *1 of 1 acceptance criteria owned by Phase 4B is
+met. The unmet criterion is AC-3 — 1 of its 4 sub-clauses met and 3 deferred by
+explicit user approval, cited above.* Stated plainly rather than rounded up: the
+phase has **zero** acceptance criteria met outright, and its single criterion
+passes the gate only because three quarters of it is deferred with recorded
+approval.
+
+**Why this is a deferral and not a pass.** §2.1: *"Partially met criteria. These
+are not met."* Unchanged. §3.2 provides the exception that a criterion
+*"narrowed/deferred with a cited user approval"* satisfies GO condition 1 — the
+approval moves the criterion out of the NO-GO trigger, and does nothing else.
+Every downstream document records AC-3 as **not met**.
+
+**AC-1 and AC-2** were re-verified against the same head and remain **Met**:
+the golden path's live conversation, `/internal` byte-identical to an unrouted
+path, and the refused direct NATS socket all pass in PR Checks #85. **AC-4** is
+Phase 4C's via D-5 and is not 4B's to meet.
 
 ---
 
@@ -1408,6 +1506,131 @@ provider.*
 user's approval and because DEV-1/2/3 were built — not because of the G-8 fix.
 G-8 was a Phase 4A regression surfaced by 4B's stack, and closing it removed an
 obstacle to *trusting* the evidence, not an obstacle to the criterion.
+
+### 15.3 Final Gate Review — 2026-09-07, after both approvals
+
+**Verdict: CONDITIONAL-GO.** Unchanged from §15.1, and deliberately **not**
+upgraded to GO.
+
+#### §3.2's eleven GO conditions, one by one
+
+| # | GO condition | Status |
+|---|---|---|
+| 1 | Every acceptance criterion **Met**, or narrowed/deferred with a cited user approval | **Holds** — AC-1 Met, AC-2 Met, AC-3's four sub-clauses are 1 Met + 3 Deferred by approval (§0.3, §0.6), AC-4 is 4C's |
+| 2 | No undisclosed deviation from TDD, ADR or approved decision | **Holds** — DEV-1/2/3 built; DEV-4 and DEV-5 disclosed in §2.1 |
+| 3 | `lint` and `test --force` pass repo-wide, real counts recorded | **Holds** — 30/30 and 30/30, 2,171 passing, 0 failing |
+| 4 | 85% domain-coverage gate for every affected package | **Holds** — 97–99% |
+| 5 | `lint-imports` 0 broken | **Holds** — 7 kept, 0 broken |
+| 6 | Contract/codegen clean, zero unexplained drift | **Holds** — 114 files, zero drift |
+| 7 | Real GitHub Actions CI green against the exact head SHA | **Holds** — 31/31 against `cd4209d` |
+| 8 | Real-infrastructure passed, or its absence disclosed as a named scoped gap | **Holds** — Real-Infra #114, 12/12 |
+| 9 | Gate Review, health record, roadmap entry and README status all exist and are current | **Holds** — all four; the README's Status section describes `main`, where Phase 4 is unmerged, and makes no claim 4B falsifies |
+| 10 | No document contradicts the repository's current state | **Holds as of this pass** — the sweep found **two** live staleness defects, both corrected here: `ENGINEERING_ROADMAP.md`'s 4B row said C-7 had "five consecutive green runs" (it had eight), and §7.2's probability paragraph carried the arithmetic for five rather than eight. Every other hit for that phrase is inside text explicitly preserved as historical |
+| 11 | No open category-13 item requires a user decision **before the phase can be called done** | **Holds, with the reasoning stated** — see below |
+
+**On condition 11.** G-1, G-2, G-5, G-7 and G-8 are resolved or closed. **G-3**
+(`GET /v1/system/health` unbuilt) and **G-6** (master scope's "eight panels"
+prose against its own eleven-row table) remain open and G-6 explicitly *"needs
+the user's call"*. Neither requires that decision **before Phase 4B can be
+called done**: G-3 is DEV-4, a disclosed deviation with no acceptance criterion
+depending on it, and doc 11 §2 now carries an explicit *"NOT IMPLEMENTED"* note
+so no document contradicts the code; G-6 is a Phase-4-wide scope-document
+discrepancy, pre-existing, not caused by 4B, and already carrying a dated
+disclosure note. Both are recorded, neither is closed by assumption.
+
+#### Why the verdict is CONDITIONAL-GO and not GO
+
+All eleven GO conditions hold, **and four conditions remain open**. §3.2 defines
+CONDITIONAL-GO as *"the phase is substantively complete, but one or more of the
+following is true. Each condition must be listed individually, with an owner and
+the specific event that discharges it."* That is exactly this phase's state, and
+the repository's own precedent settles the reading: Phase 3E reached **GO** only
+once *"All six conditions closed"*, and merged after that. Four open conditions
+therefore mean CONDITIONAL-GO, not GO.
+
+Each open condition is mapped to the §3.2 bullet that permits it:
+
+| # | Condition | §3.2 bullet it matches | Owner | Discharge event |
+|---|---|---|---|---|
+| **C-1** | AC-3's approval clause + CF-9 | Deferred with a cited user approval (GO condition 1's own exception, §0.3) | Phase 4D | 4D's Gate Review records the clause demonstrated against a policy whose threshold the user set |
+| **C-2** | AC-3's two provider clauses | Same exception (§0.6) | The milestone that configures a provider — **none designated** | That milestone's Gate Review records both demonstrated from the browser |
+| **C-6** | Phase 4A's Gate Review and health record | *"A known limitation is documented and accepted, and does not affect an acceptance criterion"* | `phase-4` closure | Both documents exist |
+| **C-7** | E2E stability at §9.2's ≥10× | *"A non-blocking CI workflow … has not yet reported"* — the E2E job is staged and non-blocking by its own design, and has not reported the full series | `phase-4` closure | Ten consecutive green runs |
+
+**C-7 is OPEN and is not being treated as satisfied.** The evidence stands at
+**8 of 10** at the moment this section was written — PR Checks #78 → #85, every
+one green, none failed, cancelled, timed out or skipped. §7.2 states the series
+as a rule rather than a frozen number for the reason that applies here too:
+this pass's own documentation commit produces run #86, so the live count is
+whatever `pr-checks.yml`'s run list shows from #78 onward. The remaining two runs are **not obtainable**: both
+`POST .../workflows/pr-checks.yml/dispatches` and `POST .../runs/{id}/rerun`
+return `403 Resource not accessible by integration`, tested on three separate
+occasions. No run was inferred, estimated or fabricated to close the gap, and
+no commit was created to manufacture one. **The bar is ten; the evidence is
+eight; the difference is recorded rather than argued away.**
+
+What the 8-run series does and does not support is unchanged from §7.2: it is
+corroboration on top of a mechanism that is understood, reproduced against a
+real Redis in both its halves, guarded at repository level with a fired negative
+control, and positively asserted (`0 undispatched`) on every run from #80
+onward. It is **not** a statistical demonstration of stability and is not
+claimed as one.
+
+#### Merge eligibility under the protocol
+
+The question was put directly and deserves a direct answer, including where the
+protocol is silent.
+
+**The protocol contains no clause conditioning merge on the gate verdict.** A
+search of every occurrence of "merge" in
+[`PROJECT_PHASE_COMPLETION_PROTOCOL.md`](../../PROJECT_PHASE_COMPLETION_PROTOCOL.md)
+returns four relevant passages and none of them is a merge gate:
+
+- **§11.1** requires *checking* *"PR state … number, base branch, mergeability,
+  review state, and whether a merge conflict or stale base needs resolving"* — a
+  verification obligation, not a permission.
+- **§11.1** also: *"No PR is opened unless the user has explicitly asked for
+  one."* A gate on **opening**, satisfied here, and silent on merging.
+- **`definition-of-done.md` item 10** defines a *procedure*: *"before a phase's
+  PR(s) are merged, an explicit merge-readiness check confirms: the exact head
+  SHA, CI status against that exact SHA, a clean working tree, and that the diff
+  contains only the intended changes."* It says what to check before merging,
+  not who may merge or under which verdict.
+- **§3.2's CONDITIONAL-GO bullet 4** — *"A documentation update is queued but
+  depends on **a merge that has not happened**"* — is the only passage that
+  bears on the question, and it **implies** a CONDITIONAL-GO phase can be merged
+  with a condition still open, since the condition's discharge depends on that
+  merge.
+
+**Determination: the protocol neither forbids nor explicitly authorizes merging
+under CONDITIONAL-GO.** Bullet 4 is an implication, not a permission clause.
+Under the standing instruction that a merge proceeds only where the protocol
+*explicitly* permits it, **that threshold is not met and this review does not
+merge PR #24.** The remaining step is the user's, and it is a decision the
+protocol reserves to them in the same way §2.1 reserves descoping: *"it is never
+the agent's call."*
+
+**What is not the reason.** Merge is not withheld because anything is broken,
+because CI is incomplete against the head SHA, or because C-1/C-2/C-6 are open —
+the user has explicitly authorized carrying those three forward, and §3.2's
+bullets permit it. It is withheld solely because no clause grants the
+permission explicitly.
+
+#### Merge-readiness review — `definition-of-done.md` item 10
+
+Performed and recorded so the user can act on it directly.
+
+| Check | Result |
+|---|---|
+| Exact head SHA | `cd4209da46caf3c5bd9a46412397a59440782bf7` |
+| CI against that exact SHA | **31/31 Check Runs `completed`/`success`** — PR Checks #85 (34064364977), Build & Scan #85 (34064365000), Real-Infrastructure #114 (34064364972, 12/12). Zero failed, cancelled, timed out or skipped. Verified through the Check Runs API; the legacy commit-status endpoint returns `total_count: 0` for this repository and its `pending` is an empty-list default |
+| Clean working tree | Confirmed |
+| Diff contains only intended changes | 79 files, +6,993 / −148. Implementation confined to the six panels, the two list endpoints, the gateway surfaces, and the G-8 worker isolation. No undisclosed scope creep; every deviation is registered in §2.1 |
+| PR state | #24, base `phase-4` (`481ceac`), head `phase-4b` (`cd4209d`), open, unmerged, no reviews. `merge-base == phase-4` tip, so a pure fast-forward; `git merge-tree` reports **0 conflicts** |
+| Trivy | `build-and-scan` green across its full matrix; no Dockerfile was touched by 4B |
+
+**All six checks pass.** PR #24 is *technically* ready to merge; what it lacks is
+an explicit protocol clause authorizing merge under CONDITIONAL-GO.
 
 ---
 
