@@ -11,11 +11,15 @@ from __future__ import annotations
 
 from typing import Any
 
-from arq import cron
 from arq.connections import RedisSettings
 from nova_eventbus_sdk import bind_event_bus
 from nova_observability import configure_observability, get_logger
-from nova_service_kit import create_engine, create_session_factory
+from nova_service_kit import (
+    create_engine,
+    create_session_factory,
+    service_cron,
+    worker_queue_name,
+)
 
 from nova_digital_twin_engine.config import Settings
 from nova_digital_twin_engine.events.published import PUBLISHABLE_SUBJECTS
@@ -25,6 +29,15 @@ from nova_digital_twin_engine.repository.postgres_digital_twin_repository import
     PostgresDigitalTwinRepository,
 )
 from nova_digital_twin_engine.workers.outbox_worker import arq_run_outbox_dispatch
+
+_SERVICE_NAME = "digital-twin-engine"
+"""This worker's own engine identity, single-sourced.
+
+It names three things that must never drift apart: the Event Bus binding
+below, the arq queue this worker exclusively owns, and the arq job names its
+cron ticks are enqueued under. Sharing arq's global default queue and a
+coroutine-derived cron name is what let one engine's worker consume and
+discard another's scheduled jobs -- see `nova_service_kit.worker`."""
 
 _SETTINGS = Settings()
 logger = get_logger("digital-twin-engine-worker")
@@ -41,7 +54,7 @@ async def startup(ctx: dict[str, Any]) -> None:
     session_factory = create_session_factory(engine)
 
     bus = bind_event_bus(
-        "digital-twin-engine",
+        _SERVICE_NAME,
         publishable_subjects=PUBLISHABLE_SUBJECTS,
         subscribable_subjects=SUBSCRIBABLE_SUBJECTS,
     )
@@ -61,10 +74,15 @@ async def shutdown(ctx: dict[str, Any]) -> None:
 
 
 class WorkerSettings:
+    # This worker is the sole enqueuer and sole consumer of its own scheduled
+    # jobs. Without an explicit queue it would share arq's global `arq:queue`
+    # with every other engine's worker and consume whichever job it reached
+    # first (`nova_service_kit.worker`).
+    queue_name = worker_queue_name(_SERVICE_NAME)
     functions: list[Any] = []
     cron_jobs = [
         # Short, fixed poll -- outbox latency should be seconds, not minutes.
-        cron(arq_run_outbox_dispatch, second={0, 10, 20, 30, 40, 50}),
+        service_cron(_SERVICE_NAME, arq_run_outbox_dispatch, second={0, 10, 20, 30, 40, 50}),
     ]
     on_startup = startup
     on_shutdown = shutdown

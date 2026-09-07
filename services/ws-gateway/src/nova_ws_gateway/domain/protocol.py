@@ -58,6 +58,30 @@ PUBLIC_TOPICS: frozenset[str] = frozenset(
         "perception.presence.observed",
         # System Pulse (doc 04 §4).
         "nova.heartbeat",
+        # --- Phase 4B observability panels --------------------------------
+        # Every entry below was checked against the publishing engine's own
+        # `events/published.py` before being added, because this list's
+        # failure mode is silent: a client subscribes to a dead topic
+        # successfully and then waits forever.
+        #
+        # Planning panel -- planning-engine.
+        "planning.task_graph.created",
+        # Reasoning Trace panel -- reasoning-engine.
+        "reasoning.process.completed",
+        "reasoning.process.failed",
+        "reasoning.human_override.applied",
+        # Approvals panel -- action-engine.
+        "action.approval.requested",
+        "action.approval.decided",
+        # Health panel -- nova-core and ai-model-orchestration-engine.
+        "nova.module.status_changed",
+        "ai_model.model.health_changed",
+        "perception.sensor.health_changed",
+        #
+        # The Capabilities panel has no entry on purpose: capability-engine
+        # publishes no domain events at all, only outbound RPC requests. It
+        # is REST-only, and inventing a subject to make the panel symmetric
+        # would put a dead topic back on this list.
     }
 )
 

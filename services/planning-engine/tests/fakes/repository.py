@@ -135,7 +135,11 @@ class FakePlanningRepository:
         return self._hand_off(published_graph)
 
     async def list_all(self, *, limit: int = 1000) -> list[TaskGraph]:
-        return list(self.graphs.values())[:limit]
+        # Newest first, matching the Postgres repository's `ORDER BY
+        # created_at DESC`. Insertion order stands in for wall-clock
+        # order here; a fake that returned an arbitrary order would let
+        # an unordered query pass its tests.
+        return list(reversed(list(self.graphs.values())))[:limit]
 
     async def list_dispatch_ready(self, *, limit: int = 100) -> list[OutboxRow]:
         return sorted(self.outbox.values(), key=lambda row: row.created_at)[:limit]

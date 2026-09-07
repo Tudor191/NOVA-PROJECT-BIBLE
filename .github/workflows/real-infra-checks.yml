@@ -49,6 +49,13 @@ jobs:
         include:
           - package: nova-testkit
             path: packages/nova-testkit
+          # Added by the Phase 4B G-8 fix. `test_worker_real_redis.py` asserts
+          # the arq worker-isolation invariant against a real Redis and real
+          # arq workers -- a Redis keyspace guard and arq's own job-claim loop
+          # are the only layer where it is decidable, so there is no cheaper
+          # tier this could live in.
+          - package: nova-service-kit
+            path: packages/nova-service-kit
           - package: communication-engine
             path: services/communication-engine
           - package: personality-engine

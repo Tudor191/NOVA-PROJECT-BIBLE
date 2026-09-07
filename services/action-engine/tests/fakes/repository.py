@@ -57,6 +57,13 @@ class FakeActionRepository:
     async def find_pending_approval(self, action_id: UUID) -> PendingApproval | None:
         return self.pending_approvals.get(action_id)
 
+    async def list_pending_approvals(self, *, limit: int = 50) -> list[PendingApproval]:
+        # Undecided only, oldest first -- the same contract the Postgres
+        # repository implements. A fake that returned everything in
+        # arbitrary order would let a wrong query pass its tests.
+        undecided = [a for a in self.pending_approvals.values() if a.decision is None]
+        return sorted(undecided, key=lambda a: a.requested_at)[:limit]
+
     async def decide_pending_approval(
         self, action_id: UUID, *, decision: Literal["approved", "denied"], decided_at: datetime
     ) -> None:

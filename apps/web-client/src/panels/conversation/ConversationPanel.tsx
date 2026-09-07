@@ -10,6 +10,7 @@ import {
   useTranscript,
 } from "../../entities/conversation";
 import { GatewayError } from "../../entities/envelope";
+import { useUiStore } from "../../shared/store";
 import { Composer } from "./Composer";
 import { Transcript } from "./Transcript";
 
@@ -23,7 +24,10 @@ import { Transcript } from "./Transcript";
  * confirmed.
  */
 
-export function ConversationPanel({ onSessionChange }: { onSessionChange: (id: string | null) => void }) {
+export function ConversationPanel() {
+  // 4B: the shell and this panel are sibling routes now, so the pointer to
+  // the open conversation lives in the UI store rather than a prop.
+  const onSessionChange = useUiStore((state) => state.setActiveSessionId);
   const { data: session } = useQuery<ConversationSession | undefined>({
     queryKey: conversationKeys.session,
     queryFn: skipToken,

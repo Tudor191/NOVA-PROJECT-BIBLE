@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ast
 from datetime import UTC, datetime
+from fnmatch import fnmatchcase
 from pathlib import Path
 from uuid import uuid4
 
@@ -74,12 +75,41 @@ def test_token_extraction(
 # --- topic allow-list -----------------------------------------------------
 
 
+@pytest.mark.parametrize(
+    ("pattern", "subject", "expected"),
+    [
+        ("reasoning.process.*", "reasoning.process.completed", True),
+        ("reasoning.process.*", "reasoning.human_override.applied", False),
+        ("communication.*", "communication.turn.received", True),
+        ("action.approval.*", "action.approval.requested", True),
+        ("action.approval.*", "action.execution.started", False),
+        ("nova.heartbeat", "nova.heartbeat", True),
+        ("nova.heartbeat", "nova.mode.changed", False),
+    ],
+)
+def test_the_guard_below_matches_subjects_the_way_the_sdk_does(
+    pattern: str, subject: str, expected: bool
+) -> None:
+    """The guard must use the SDK's matcher, not an approximation of it.
+
+    `BoundEventBus` authorises a subscription with `fnmatchcase`, where `*`
+    spans dots -- so `communication.*` really does cover
+    `communication.turn.received`. The earlier version of the guard
+    open-coded `topic in SUBSCRIBABLE_SUBJECTS or f"{first}.*" in ...`,
+    which happened to agree with `fnmatch` for 4A's single-segment patterns
+    and reported a false negative the moment 4B declared a narrower one
+    (`reasoning.process.*`). Widening `events/subscribed.py` to
+    `reasoning.*` would have silenced that at the cost of subscribing to
+    every reasoning subject rather than the finalized ones doc 09 §6 allows.
+    """
+    assert fnmatchcase(subject, pattern) is expected
+
+
 def test_every_public_topic_is_reachable_on_the_bus() -> None:
     """The two allow-lists must agree, or a client could name a dead topic."""
     for topic in PUBLIC_TOPICS:
-        prefix = topic.split(".", 1)[0]
-        assert (
-            topic in SUBSCRIBABLE_SUBJECTS or f"{prefix}.*" in SUBSCRIBABLE_SUBJECTS
+        assert any(
+            fnmatchcase(topic, pattern) for pattern in SUBSCRIBABLE_SUBJECTS
         ), f"{topic!r} is public but not declared in events/subscribed.py"
 
 

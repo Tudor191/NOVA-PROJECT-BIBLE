@@ -51,7 +51,7 @@ describe("ConversationPanel", () => {
   it("says nothing has been said rather than looking broken", () => {
     const client = new QueryClient();
     seedSession(client);
-    render(<ConversationPanel onSessionChange={() => {}} />, { wrapper: wrapper(client) });
+    render(<ConversationPanel />, { wrapper: wrapper(client) });
     expect(screen.getByTestId("transcript-empty")).toBeInTheDocument();
   });
 
@@ -91,7 +91,7 @@ describe("ConversationPanel", () => {
     ];
     for (const frame of frames) applyFrame(client, frame, SESSION);
 
-    render(<ConversationPanel onSessionChange={() => {}} />, { wrapper: wrapper(client) });
+    render(<ConversationPanel />, { wrapper: wrapper(client) });
 
     const entries = screen.getAllByTestId("transcript-entry");
     expect(entries).toHaveLength(2);
@@ -114,7 +114,7 @@ describe("ConversationPanel", () => {
         degraded: false,
       },
     ]);
-    render(<ConversationPanel onSessionChange={() => {}} />, { wrapper: wrapper(client) });
+    render(<ConversationPanel />, { wrapper: wrapper(client) });
 
     const badge = screen.getByTestId("confidence-tier-badge");
     expect(badge).toHaveTextContent("high confidence");
@@ -135,7 +135,7 @@ describe("ConversationPanel", () => {
         degraded: false,
       },
     ]);
-    render(<ConversationPanel onSessionChange={() => {}} />, { wrapper: wrapper(client) });
+    render(<ConversationPanel />, { wrapper: wrapper(client) });
     expect(screen.getByTestId("confidence-tier-badge")).toHaveTextContent("no confidence reported");
   });
 
@@ -153,7 +153,7 @@ describe("ConversationPanel", () => {
         degraded: true,
       },
     ]);
-    render(<ConversationPanel onSessionChange={() => {}} />, { wrapper: wrapper(client) });
+    render(<ConversationPanel />, { wrapper: wrapper(client) });
     expect(screen.getByTestId("degraded-turn")).toBeInTheDocument();
   });
 
@@ -171,7 +171,7 @@ describe("ConversationPanel", () => {
         degraded: false,
       },
     ]);
-    render(<ConversationPanel onSessionChange={() => {}} />, { wrapper: wrapper(client) });
+    render(<ConversationPanel />, { wrapper: wrapper(client) });
     expect(screen.getByTestId("correlation-tag")).toHaveAttribute(
       "data-correlation-id",
       "4f1d9c2a-0000-4000-8000-000000000000",
@@ -192,7 +192,7 @@ describe("ConversationPanel", () => {
 
     const client = new QueryClient();
     seedSession(client);
-    render(<ConversationPanel onSessionChange={() => {}} />, { wrapper: wrapper(client) });
+    render(<ConversationPanel />, { wrapper: wrapper(client) });
 
     await userEvent.type(screen.getByPlaceholderText("Say something to NOVA"), "Hello");
     await userEvent.click(screen.getByRole("button", { name: "Send" }));
@@ -216,7 +216,7 @@ describe("ConversationPanel", () => {
 
     const client = new QueryClient();
     seedSession(client);
-    render(<ConversationPanel onSessionChange={() => {}} />, { wrapper: wrapper(client) });
+    render(<ConversationPanel />, { wrapper: wrapper(client) });
 
     await userEvent.type(screen.getByPlaceholderText("Say something to NOVA"), "Hello");
     await userEvent.click(screen.getByRole("button", { name: "Send" }));
@@ -246,7 +246,7 @@ describe("ConversationPanel", () => {
 
     const client = new QueryClient();
     seedSession(client);
-    render(<ConversationPanel onSessionChange={() => {}} />, { wrapper: wrapper(client) });
+    render(<ConversationPanel />, { wrapper: wrapper(client) });
 
     await userEvent.type(screen.getByPlaceholderText("Say something to NOVA"), "Hello");
     await userEvent.click(screen.getByRole("button", { name: "Send" }));
@@ -261,7 +261,7 @@ describe("ConversationPanel", () => {
     const client = new QueryClient();
     seedSession(client);
     client.setQueryData(conversationKeys.state(SESSION), "speaking");
-    render(<ConversationPanel onSessionChange={() => {}} />, { wrapper: wrapper(client) });
+    render(<ConversationPanel />, { wrapper: wrapper(client) });
     expect(screen.getByTestId("conversation-state")).toHaveTextContent("speaking");
   });
 });

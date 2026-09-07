@@ -23,6 +23,16 @@ export const PUBLIC_TOPICS = [
   "perception.identity.observed",
   "perception.presence.observed",
   "nova.heartbeat",
+  // Phase 4B observability panels.
+  "planning.task_graph.created",
+  "reasoning.process.completed",
+  "reasoning.process.failed",
+  "reasoning.human_override.applied",
+  "action.approval.requested",
+  "action.approval.decided",
+  "nova.module.status_changed",
+  "ai_model.model.health_changed",
+  "perception.sensor.health_changed",
 ] as const;
 
 export type PublicTopic = (typeof PUBLIC_TOPICS)[number];

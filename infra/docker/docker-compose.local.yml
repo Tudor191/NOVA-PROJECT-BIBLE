@@ -373,6 +373,77 @@ services:
       redis:
         condition: service_healthy
 
+  # The same image as reasoning-engine, running its Arq outbox-dispatch
+  # worker. Added in Phase 4B for the same reason
+  # `communication-engine-worker` was added in 4A: the Reasoning Trace panel
+  # subscribes to `reasoning.process.completed` / `.failed` /
+  # `reasoning.human_override.applied`, all of which leave this engine
+  # through its outbox, and `repository/outbox_dispatcher.py` has no caller
+  # but this worker. Without it the engine reasons, records, and announces
+  # nothing -- with every container reporting healthy.
+  #
+  # `tools/tests/test_e2e_stack_completeness.py` demanded this rather than
+  # anyone remembering it: making those three subjects public put
+  # reasoning-engine on the browser-reachable path, and the guard fails if a
+  # started engine whose outbox feeds a public topic has no worker.
+  # Same pattern, for the Health panel's `ai_model.model.health_changed`.
+  # This worker also runs provider health-checks and benchmarks on their own
+  # crons; with no LLM provider configured those find nothing to check,
+  # which is the documented local state and not an error.
+  ai-model-orchestration-engine-worker:
+    build:
+      context: ../..
+      dockerfile: services/ai-model-orchestration-engine/Dockerfile
+    command: ["arq", "nova_ai_model_orchestration_engine.workers.WorkerSettings"]
+    restart: unless-stopped
+    healthcheck:
+      disable: true
+    environment:
+      EVENT_BUS_BACKEND: nats
+      NATS_URL: nats://nats:4222
+      NOVA_ENGINE_NAME: ai-model-orchestration-engine
+      AI_MODEL_ORCHESTRATION_ENGINE_POSTGRES_DSN: postgresql+asyncpg://${POSTGRES_USER:-nova}:${POSTGRES_PASSWORD:-nova_dev_password}@postgres:5432/${POSTGRES_DB:-nova}
+      AI_MODEL_ORCHESTRATION_ENGINE_REDIS_URL: redis://redis:6379/0
+      AI_MODEL_ORCHESTRATION_ENGINE_OLLAMA_BASE_URL: http://ollama:11434
+      AI_MODEL_ORCHESTRATION_ENGINE_ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+    depends_on:
+      nats:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  reasoning-engine-worker:
+    build:
+      context: ../..
+      dockerfile: services/reasoning-engine/Dockerfile
+    command: ["arq", "nova_reasoning_engine.workers.WorkerSettings"]
+    restart: unless-stopped
+    # No HTTP server in this process, so the image's own HEALTHCHECK would
+    # report a permanently false "unhealthy".
+    healthcheck:
+      disable: true
+    environment:
+      EVENT_BUS_BACKEND: nats
+      NATS_URL: nats://nats:4222
+      NOVA_ENGINE_NAME: reasoning-engine
+      REASONING_ENGINE_POSTGRES_DSN: postgresql+asyncpg://${POSTGRES_USER:-nova}:${POSTGRES_PASSWORD:-nova_dev_password}@postgres:5432/${POSTGRES_DB:-nova}
+      REASONING_ENGINE_REDIS_URL: redis://redis:6379/0
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+    depends_on:
+      nats:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
   executive-cognition-engine:
     build:
       context: ../..
@@ -720,6 +791,13 @@ services:
       NATS_URL: nats://nats:4222
       NOVA_ENGINE_NAME: api-gateway
       API_GATEWAY_COMMUNICATION_ENGINE_URL: http://communication-engine:8000
+      # Phase 4B: one upstream per observability panel that reads REST.
+      # `executive-cognition-engine` and `nova-core` are deliberately absent
+      # -- no panel reads them, and the route table is an allow-list.
+      API_GATEWAY_PLANNING_ENGINE_URL: http://planning-engine:8000
+      API_GATEWAY_REASONING_ENGINE_URL: http://reasoning-engine:8000
+      API_GATEWAY_CAPABILITY_ENGINE_URL: http://capability-engine:8000
+      API_GATEWAY_ACTION_ENGINE_URL: http://action-engine:8000
       API_GATEWAY_REDIS_URL: redis://redis:6379/0
       API_GATEWAY_SESSION_TOKEN: ${NOVA_SESSION_TOKEN:-}
       # Local development is plain HTTP, so a Secure-only cookie would never

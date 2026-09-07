@@ -235,13 +235,38 @@ def test_the_worker_requirement_actually_fires_for_communication_engine() -> Non
 def test_the_worker_requirement_does_not_fire_for_engines_off_the_public_path() -> None:
     """The scope boundary, asserted rather than described.
 
-    These three have outboxes and undeployed workers too. Their subjects
-    reach no browser, so the rule above must not demand workers for them --
-    if it did, this file would be quietly widening a scope decision the
-    compose file makes explicitly.
+    These have outboxes and undeployed workers. Their subjects reach no
+    browser, so the rule above must not demand workers for them -- if it
+    did, this file would be quietly widening a scope decision the compose
+    file makes explicitly.
+
+    `reasoning-engine` and `ai-model-orchestration-engine` were on this list
+    until Phase 4B put `reasoning.process.*` and `ai_model.model.*` on
+    `PUBLIC_TOPICS`. That is the rule working: making a subject
+    browser-reachable is what obliges the stack to actually dispatch it, and
+    both gained a compose worker in the same change.
     """
-    for service in ("world-model-engine", "reasoning-engine", "ai-model-orchestration-engine"):
+    for service in ("world-model-engine", "memory-engine", "knowledge-engine"):
         assert _needs_a_worker(service) == frozenset(), (
             f"{service} now publishes a public topic through its outbox; it "
             f"needs its worker started, and this control needs updating"
         )
+
+
+@pytest.mark.parametrize(
+    ("service", "subject"),
+    [
+        ("reasoning-engine", "reasoning.process.completed"),
+        ("ai-model-orchestration-engine", "ai_model.model.health_changed"),
+    ],
+)
+def test_the_4b_panels_put_these_engines_on_the_public_path(
+    service: str, subject: str
+) -> None:
+    """The positive half of the control above.
+
+    If `_needs_a_worker` stopped returning these, the parametrised rule
+    would pass for them by doing nothing -- and the Reasoning Trace and
+    Health panels would silently go back to receiving no events.
+    """
+    assert subject in _needs_a_worker(service)

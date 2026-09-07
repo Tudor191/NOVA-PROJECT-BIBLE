@@ -24,5 +24,17 @@ SUBSCRIBABLE_SUBJECTS: frozenset[str] = frozenset(
         "personality.*",
         # System Pulse -- NOVA Core's heartbeat (doc 04 §4).
         "nova.heartbeat",
+        # --- Phase 4B observability panels --------------------------------
+        # Doc 09 §6 bounds this to "already-finalized events plus read-only
+        # telemetry, never raw internal engine chatter." Each pattern below
+        # is narrowed to the finalized/telemetry subjects the panels read;
+        # `PUBLIC_TOPICS` narrows again to the exact set a browser may name,
+        # so two independent allow-lists still guard the boundary.
+        "planning.task_graph.*",
+        "reasoning.process.*",
+        "reasoning.human_override.*",
+        "action.approval.*",
+        "ai_model.model.*",
+        "nova.module.status_changed",
     }
 )

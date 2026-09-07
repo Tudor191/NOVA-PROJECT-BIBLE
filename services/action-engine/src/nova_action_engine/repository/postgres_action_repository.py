@@ -30,6 +30,7 @@ from typing import Literal
 from uuid import UUID
 
 from nova_contracts import Action, RetryPolicy, RollbackStrategy
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -174,6 +175,25 @@ class PostgresActionRepository:
                 decided_at=row.decided_at,
                 decision=row.decision,
             )
+
+    async def list_pending_approvals(self, *, limit: int = 50) -> list[PendingApproval]:
+        async with self._session_factory() as session:
+            result = await session.execute(
+                select(PendingApprovalORM)
+                .where(PendingApprovalORM.decision.is_(None))
+                .order_by(PendingApprovalORM.requested_at)
+                .limit(limit)
+            )
+            return [
+                PendingApproval(
+                    action_id=row.action_id,
+                    risk=row.risk,
+                    requested_at=row.requested_at,
+                    decided_at=row.decided_at,
+                    decision=row.decision,
+                )
+                for row in result.scalars().all()
+            ]
 
     async def decide_pending_approval(
         self, action_id: UUID, *, decision: Literal["approved", "denied"], decided_at: datetime

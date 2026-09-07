@@ -46,13 +46,16 @@ DELETE /v1/memory/{id}                        # user-initiated forgetting (Part 
 GET    /v1/knowledge/graph?scope=project:<id>
 GET    /v1/world-model/context
 
+GET    /v1/plans                              # list task graphs, newest first (Phase 4B)
 GET    /v1/plans/{task_graph_id}
 POST   /v1/plans/{task_graph_id}/approve      # Part 9 "Collaborative Planning"
 
 GET    /v1/agents
 GET    /v1/agents/{id}/activity
 
-POST   /v1/autonomy/approvals/{id}/decide      # approve/reject a pending autonomous action
+GET    /v1/action/approvals                    # pending approvals, undecided, oldest first (Phase 4B)
+POST   /v1/action/approvals/{id}/decide        # approve/reject — the path actually built (Phase 3D)
+POST   /v1/autonomy/approvals/{id}/decide      # planned Autonomy-Engine equivalent; superseded in practice by /v1/action (Phase 4 D-6)
 GET    /v1/autonomy/policies
 PUT    /v1/autonomy/policies                    # Part 14 "Governance"
 
@@ -63,8 +66,23 @@ DELETE /v1/capabilities/{id}
 GET    /v1/digital-twin/profile
 PATCH  /v1/digital-twin/profile                  # Part 16 "User Control"
 
-GET    /v1/system/health                          # Part 20 dashboard feed
+GET    /v1/system/health                          # Part 20 dashboard feed — NOT IMPLEMENTED, see below
 ```
+
+> **`GET /v1/system/health` is not implemented (noted 2026-09-06, Phase 4B).**
+> Phase 4B's Health panel was the first consumer this endpoint would have had.
+> It was not built, because `nova-core` — the only natural owner of a
+> cross-module health aggregate — exposes its surface exclusively under
+> `/internal/*`, which §3 below makes permanently unroutable through the API
+> Gateway. Building it would mean giving `nova-core` a public HTTP surface,
+> which is an architectural decision no phase has taken.
+>
+> The Health panel is **push-fed** instead, over `ws-gateway`, from the three
+> streams that already carry the same facts: `nova.heartbeat`,
+> `nova.module.status_changed` and `ai_model.model.health_changed`. See the
+> [Phase 4B Gate Review](../roadmap/architecture-reviews/phase-4b-observability-panels-gate-review.md)
+> §2 and §13 (G-3), where whether to keep the push-fed design permanently or
+> build the endpoint is recorded as an open decision for the user.
 
 ## 3. Internal engine API contracts
 

@@ -15,11 +15,17 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
 
     # --- upstream engines -------------------------------------------------
-    # One base URL per engine the gateway fronts. 4A wires communication-engine
-    # only; 4B adds planning/reasoning/capability/action by extending this and
-    # the route table in `domain/routing.py`. Paths are never rewritten
+    # One base URL per engine the gateway fronts. Paths are never rewritten
     # (decision D-6) -- the gateway forwards `/v1/...` verbatim.
+    #
+    # 4A wired communication-engine only. 4B adds the four the observability
+    # panels read from; each already exposed the `/v1` surface being fronted,
+    # so no engine API changed to make this possible.
     communication_engine_url: str = "http://communication-engine:8000"
+    planning_engine_url: str = "http://planning-engine:8000"
+    reasoning_engine_url: str = "http://reasoning-engine:8000"
+    capability_engine_url: str = "http://capability-engine:8000"
+    action_engine_url: str = "http://action-engine:8000"
 
     upstream_timeout_seconds: float = 30.0
 

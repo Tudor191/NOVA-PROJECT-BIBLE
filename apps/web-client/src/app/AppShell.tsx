@@ -1,9 +1,9 @@
 import { Button } from "@nova/ui";
-import { useState } from "react";
+import { Link, Outlet } from "@tanstack/react-router";
 
 import { useEndSession } from "../entities/session";
-import { ConversationPanel } from "../panels/conversation/ConversationPanel";
 import { RealtimeProvider } from "../realtime/provider";
+import { useUiStore } from "../shared/store";
 import { ConnectionState } from "./ConnectionState";
 import { PresenceIndicator } from "./PresenceIndicator";
 import { SystemPulse } from "./SystemPulse";
@@ -11,17 +11,34 @@ import { SystemPulse } from "./SystemPulse";
 /**
  * The workspace frame (doc 04 §2).
  *
- * A header of always-visible instrument readings plus a panel area. 4A fills
- * the panel area with one panel; 4B onward add theirs beside it without
- * touching this file.
+ * A header of always-visible instrument readings, a panel switcher, and one
+ * panel at a time. 4A filled the panel area with a single component; 4B
+ * turns it into an `Outlet` so each panel is its own lazily-loaded route.
+ *
+ * **The socket lives here, above the outlet, and that is load-bearing.**
+ * `RealtimeProvider` must not remount when the operator switches panels: a
+ * remount would drop the WebSocket, resubscribe, and lose every frame in
+ * the gap -- so the Events panel would show a hole exactly when someone
+ * navigated to look at it. One connection serves every panel, and the
+ * panels read the cache it fills.
  *
  * The three header indicators are the shell's whole job: what NOVA's
- * background modules are doing, who it believes is present, and whether what
- * is on screen is live. Each one renders real telemetry or renders that it
- * has none.
+ * background modules are doing, who it believes is present, and whether
+ * what is on screen is live.
  */
+
+const PANELS = [
+  { path: "/", label: "Conversation" },
+  { path: "/planning", label: "Planning" },
+  { path: "/reasoning", label: "Reasoning" },
+  { path: "/capabilities", label: "Capabilities" },
+  { path: "/approvals", label: "Approvals" },
+  { path: "/events", label: "Events" },
+  { path: "/health", label: "Health" },
+] as const;
+
 export function AppShell() {
-  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const activeSessionId = useUiStore((state) => state.activeSessionId);
   const endSession = useEndSession();
 
   return (
@@ -38,18 +55,33 @@ export function AppShell() {
           </div>
           <div className="flex items-center gap-3">
             <ConnectionState />
-            <Button
-              variant="ghost"
-              busy={endSession.isPending}
-              onClick={() => endSession.mutate()}
-            >
+            <Button variant="ghost" busy={endSession.isPending} onClick={() => endSession.mutate()}>
               Sign out
             </Button>
           </div>
         </header>
 
+        <nav
+          className="flex items-center gap-1 border-b px-4 py-1"
+          style={{ borderColor: "var(--nova-border)" }}
+          aria-label="Panels"
+          data-testid="panel-nav"
+        >
+          {PANELS.map((panel) => (
+            <Link
+              key={panel.path}
+              to={panel.path}
+              className="nova-nav-link"
+              activeProps={{ "data-active": "true" }}
+              data-testid={`nav-${panel.label.toLowerCase()}`}
+            >
+              {panel.label}
+            </Link>
+          ))}
+        </nav>
+
         <main className="flex min-h-0 flex-1 gap-4 p-4">
-          <ConversationPanel onSessionChange={setActiveSessionId} />
+          <Outlet />
         </main>
       </div>
     </RealtimeProvider>

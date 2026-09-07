@@ -570,6 +570,38 @@ phase **extends** both — additive, not a rewrite, the same pattern already use
 `executive-cognition-engine` between Phase 2C and Phase 6 — rather than building
 either from scratch.
 
+> **Status update — 2026-09-06 (added by the Phase 4B closure pass; the entry below
+> is preserved verbatim as the original planning-stage description).**
+>
+> **Phase 4 was restructured into six milestones, 4A–4F, before implementation
+> began.** The everything-below description remains the plan for 4D/4E/4F, but it
+> predates three prerequisite milestones that were added in front of them:
+>
+> | Milestone | Scope | Status |
+> |---|---|---|
+> | **4A** | `api-gateway` + `ws-gateway` + `apps/web-client` shell + Conversation panel | **Merged** into `phase-4` 2026-09-05 via **PR #23** (merge commit `481ceac`). **No Gate Review and no Project Health record exist** — per [`project-health/README.md`](../project-health/README.md) it is therefore **not fully closed**; see the [Phase 4B Gate Review](architecture-reviews/phase-4b-observability-panels-gate-review.md) §13.1 |
+> | **4B** | The six observability panels (Planning, Reasoning Trace, Capabilities, Approvals, Events, Health) | **Implemented and engineering-verified — gate verdict CONDITIONAL-GO** (2026-09-06, third pass; *read "NO-GO … and three approved capabilities were not built" through the first two passes*). All six panels built and browser-verified. **DEV-1/2/3 have since been built** — capability install/uninstall, filterable Events, 3A recursion depth — all verified against the real stack, discharging blocker B-2. **AC-3 is still not met (0 of 1)**: of its four sub-clauses 1 is met, **1 is deferred by explicit user approval of 2026-09-06**, and 2 cannot be verified without an LLM provider. The deferral is **not** a Phase 4D dependency — master scope §1.1 says AC-1…AC-4 depend on no new engine — but a Phase 3D / ADR-032 configuration mechanism that was never built (**CF-9**), routed forward to 4D's policy surface; no identity-confidence threshold was invented and the fail-closed gate is unchanged. **G-8 closed:** the 4A golden path's intermittent CI failure was a real transport defect — every engine worker shared one arq queue and one cron job name, stranding outboxes — fixed in `26eb4f4` with no change to the golden path's assertions. Seven conditions, C-1…C-7 — **three now closed** by the 2026-09-06 Conditional-GO closure pass (**C-3** real-Postgres coverage for the two new repository methods, **C-4** SLOC measured with `cloc` v2.06 at 32,923 comparable / 38,369 full with the 50k gate **not** crossed, **C-5** SAD 15 §9.1 items 2 and 3 supplied as diagrams and item 7 recorded not applicable with its reason). **Four remain open, none closable from that pass's evidence:** C-1 and C-2 discharge in later milestones by design, C-6 is owned by `phase-4` closure, and **C-7 stands at 8 of 10** — protocol §9.2's bar is **≥10×**, the qualifying series is PR Checks **#78 → #85** with every run green, and the last two cannot be obtained because `workflow_dispatch` and re-run both return `403 Resource not accessible by integration`. *(This sentence read "five consecutive green runs so far" until 2026-09-07; it was stale by three runs and is corrected here.)* **Final review 2026-09-07** (Gate Review §15.3): a second explicit user approval defers AC-3's two provider-dependent sub-clauses, so **all eleven of §3.2's GO conditions hold** — but the verdict stays **CONDITIONAL-GO**, not GO, because four conditions remain open, and **AC-3 is still NOT MET** (1 of 4 sub-clauses met, 3 deferred by approval). C-1, C-2 and C-6 are carried forward with explicit user authorization. PR #24 passes all six `definition-of-done.md` item-10 merge-readiness checks, but **the protocol contains no clause authorizing merge under CONDITIONAL-GO**, so it is open, **not merged**. See the [Gate Review](architecture-reviews/phase-4b-observability-panels-gate-review.md) §0.3, §4.1, §9.2, §15.1 and [`phase-4b.md`](../project-health/phase-4b.md) |
+> | **4C** | Containerize `agent-os`; `GET /v1/agents`; Agents panel | Not started |
+> | **4D** | `autonomy-engine` Levels 0–1 + Autonomy panel | Not started |
+> | **4E** | `digital-twin-engine` extension + Digital Twin panel | Not started |
+> | **4F** | `nova-companion` senses, `cognitive-state-engine`, Autonomy Level 2 | Not started |
+>
+> **Which acceptance criteria are authoritative.** This entry's four criteria below
+> and [`docs/design/phase-4/00-master-scope.md`](../design/phase-4/00-master-scope.md)
+> §1.1's **AC-1 … AC-8** are different lists, and they diverge: the master scope
+> adds AC-1 (browser conversation), AC-2 (`ws-gateway` as the only bus path), AC-3
+> (Phase 3 exercised from the browser) and AC-4 (`agent-os` under compose), none of
+> which appear here, and it splits this entry's four bullets across AC-5 … AC-8.
+> **The master scope's AC-1 … AC-8 are authoritative for Phase 4.** This entry's
+> four bullets survive within them: bullet 1 and bullet 4 are AC-7, bullet 2 is
+> AC-5 plus AC-8, and bullet 3 is AC-6.
+>
+> **Deliverables added that this entry does not list:** the two gateways, the web
+> client shell and its panel set, and — from 4B — `GET /v1/plans`,
+> `GET /v1/action/approvals`, and the `reasoning-engine-worker` and
+> `ai-model-orchestration-engine-worker` compose services. **Nothing listed below
+> has been dropped or moved to a later phase.**
+
 **Objectives**
 - Extend NOVA's senses beyond voice and presence to the desktop itself
   (`perception-engine` + `nova-companion`) and give it disciplined initiative

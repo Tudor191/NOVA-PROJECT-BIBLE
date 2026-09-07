@@ -16,6 +16,14 @@ on:
   pull_request:
   push:
     branches: [main]
+  # Manual re-runs against an unchanged commit. Added by the Phase 4B G-8 fix:
+  # the `e2e` job is staged precisely because it has to *demonstrate* stability
+  # rather than be assumed stable, and one green run of a job that used to fail
+  # ~40% of the time proves the run was lucky, not that the property holds.
+  # Establishing that needs several runs of the same SHA, and without this the
+  # only way to get one is to push another commit -- which changes the SHA and
+  # so answers a different question. This adds no gate and no required check.
+  workflow_dispatch:
 
 concurrency:
   group: pr-checks-${{ github.workflow }}-${{ github.ref }}
@@ -187,12 +195,23 @@ jobs:
           #   `communication.turn.received` nor `communication.intent.delivered`
           #   ever reaches the bus and the transcript stays empty however long
           #   the test waits.
+          #
+          # Phase 4B adds the four engines the observability panels read
+          # through `api-gateway`, plus the two outbox workers that make
+          # their events reach a browser. `action-engine` and
+          # `capability-engine` need no worker -- the first publishes
+          # directly to the bus, the second publishes no domain events at
+          # all -- which `tools/tests/test_e2e_stack_completeness.py`
+          # asserts rather than leaves to memory.
           docker compose -f infra/docker/docker-compose.local.yml up -d --build \
             nats postgres redis migrations \
             nova-core \
             world-model-engine personality-engine reasoning-engine \
             ai-model-orchestration-engine communication-engine \
             communication-engine-worker \
+            planning-engine capability-engine action-engine \
+            planning-engine-worker reasoning-engine-worker \
+            ai-model-orchestration-engine-worker \
             api-gateway ws-gateway
 
       - name: Confirm the schema migration completed
@@ -224,7 +243,10 @@ jobs:
           for svc in nova-core \
                      world-model-engine personality-engine reasoning-engine \
                      ai-model-orchestration-engine communication-engine \
-                     communication-engine-worker; do
+                     communication-engine-worker \
+                     planning-engine capability-engine action-engine \
+                     planning-engine-worker reasoning-engine-worker \
+                     ai-model-orchestration-engine-worker; do
             cid=$($compose ps -aq "$svc")
             state=$(docker inspect -f '{{.State.Status}}' "$cid")
             restarts=$(docker inspect -f '{{.RestartCount}}' "$cid")
@@ -258,9 +280,120 @@ jobs:
             done
           done
 
+      # AC-3's approval clause needs a Critical-risk Action to exist before
+      # the browser can decide it. Nothing in the 4B stack can request one:
+      # `action.execute` is an Event Bus RPC whose only permitted publisher is
+      # `agent-os/kernel`, and `agent-os` has no compose service until Phase
+      # 4C (D-5). This step stands in for the Kernel for that one call, using
+      # the Kernel's own `BoundEventBus` allow-list rather than bypassing it.
+      #
+      # Everything after the request is real and browser-driven -- the
+      # pending approval is read and decided through `api-gateway`, and the
+      # resulting `action.approval.decided` arrives over `ws-gateway`.
+      # `continue-on-error` because the approval spec skips itself when
+      # `NOVA_E2E_ACTION_ID` is unset: a driver that cannot reach the bus must
+      # not turn into a false failure of the golden path.
+      # This job is otherwise Node-only -- it has never needed Python. The
+      # driver below is Python because it speaks the Event Bus through the
+      # project's own SDK, which is the whole point of it: the allow-list is
+      # enforced by the real `BoundEventBus` rather than re-implemented in a
+      # test.
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          python-version: "3.12"
+
+      - name: Install Python workspace
+        run: uv sync --all-packages --frozen
+
+      - name: Request a risky action for the approval E2E
+        id: risky_action
+        continue-on-error: true
+        env:
+          EVENT_BUS_BACKEND: nats
+          NATS_URL: nats://localhost:4222
+        run: |
+          set -o pipefail
+          # `tee` so a traceback survives into the log. The first two attempts
+          # at this step failed silently -- once because `uv` was absent, once
+          # on a validation error -- and `continue-on-error` reports both as a
+          # green step, so the output is the only place the reason can live.
+          uv run python tools/e2e_request_risky_action.py 2>&1 | tee /tmp/risky-action.log
+          action_id="$(tail -n 1 /tmp/risky-action.log)"
+          echo "requested Critical-risk action ${action_id}"
+
+          # The Action only reaches the approval loop if it survives stage 3's
+          # ADR-032 identity-confidence gate. That gate fails closed: with no
+          # `IdentityConfidencePolicy` row the required threshold is 1.0, and
+          # with no perception activity the observed confidence is 0.0, so a
+          # Critical action is *denied* at Check Permissions and never blocks
+          # for approval. That is the gate working as designed, and seeding a
+          # zero-threshold policy to get past it would be weakening a security
+          # control to make a test green.
+          #
+          # So the id is exported only when an undecided approval actually
+          # exists. When it does not, `NOVA_E2E_ACTION_ID` stays empty and the
+          # approval spec skips itself with its own stated reason rather than
+          # failing for something outside Phase 4B's scope.
+          compose="docker compose -f infra/docker/docker-compose.local.yml"
+          psql="$compose exec -T postgres psql -U ${POSTGRES_USER:-nova} -d ${POSTGRES_DB:-nova} -X"
+          rows="$($psql -tAc "SELECT count(*) FROM action.pending_approval
+                               WHERE action_id = '${action_id}' AND decision IS NULL;" \
+                  | tr -d '[:space:]')"
+          if [ "${rows}" = "1" ]; then
+            echo "action_id=${action_id}" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::${action_id} never reached the approval loop -- see the next step."
+            echo "action_id=" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Reports; does not gate. If the Action was denied at stage 3 rather
+      # than blocked at the approval loop, that is ADR-032's fail-closed
+      # default doing its job, not a Phase 4B defect -- see the driver step
+      # above. The job must not go red for it, but the log must say so.
+      - name: Report whether the action reached the approval loop
+        # `outputs.action_id` is deliberately empty when the Action was denied
+        # at stage 3 and no approval row exists (G-7). Without that second
+        # condition this step still ran, interpolated an empty id into the
+        # query, and printed `ERROR: invalid input syntax for type uuid: ""`
+        # plus a red `##[error]` that `continue-on-error` then swallowed --
+        # a scary-looking non-event in an otherwise green log.
+        if: steps.risky_action.outcome == 'success' && steps.risky_action.outputs.action_id != ''
+        continue-on-error: true
+        # Before the browser is involved at all: the gate is `action-engine`'s
+        # and it must already have fired. A row here proves the pipeline
+        # stopped at Prepare Resources rather than executing a `delete`.
+        run: |
+          set -uo pipefail
+          compose="docker compose -f infra/docker/docker-compose.local.yml"
+          psql="$compose exec -T postgres psql -U ${POSTGRES_USER:-nova} -d ${POSTGRES_DB:-nova} -X"
+          id='${{ steps.risky_action.outputs.action_id }}'
+
+          echo "--- every undecided approval action-engine is holding ---"
+          $psql -c "SELECT action_id, risk, requested_at, decision
+                      FROM action.pending_approval ORDER BY requested_at;"
+
+          # An assertion, not a report. `psql -c` exits 0 on an empty result,
+          # so the previous version of this step passed while proving nothing
+          # -- which is exactly how run #75 was misread as "the row exists".
+          rows="$($psql -tAc "SELECT count(*) FROM action.pending_approval
+                               WHERE action_id = '${id}' AND decision IS NULL;" | tr -d '[:space:]')"
+          echo "undecided rows for ${id}: ${rows}"
+          if [ "${rows}" != "1" ]; then
+            echo "This Action did NOT block for approval. Expected when no"
+            echo "IdentityConfidencePolicy exists: stage 3 requires confidence"
+            echo "1.0 and observes 0.0, so it is denied before the approval"
+            echo "loop. Status below should read 'denied'."
+            $psql -c "SELECT id, action_type, risk, status FROM action.action
+                       WHERE id = '${id}';"
+            $compose logs --tail=30 action-engine
+          fi
+
       - name: Run the golden path
         env:
           NOVA_SESSION_TOKEN: ${{ env.NOVA_SESSION_TOKEN }}
+          NOVA_E2E_ACTION_ID: ${{ steps.risky_action.outputs.action_id }}
           # The client is served single-origin and Vite's `preview` proxy
           # forwards `/v1` and `/ws` to the gateways -- the same shape a real
           # deployment has. Pointing the client straight at the gateway ports
@@ -288,6 +421,58 @@ jobs:
           # the exact problem this line exists to solve.
           echo "golden path @ ${HEAD_SHA}, webServer target ${NOVA_WEB_CLIENT_URL:-http://127.0.0.1:4173}"
           pnpm --filter @nova/web-client run test:e2e 2>&1 | tee /tmp/playwright-stdout.log
+
+      # G-8's standing evidence. Runs on success as well as failure, which is
+      # the whole point: the transport trace below only runs on `failure()`, so
+      # for as long as a run was green nothing ever looked at whether the
+      # outboxes had actually drained. That is how the arq worker collision
+      # survived -- the golden path passed on the ~1-in-4 tick that happened to
+      # land on `communication-engine-worker`, and a green run reported nothing
+      # about the other three quarters.
+      #
+      # `communication` is asserted, because the golden path's own turn depends
+      # on it. Every other engine's outbox is reported rather than asserted: how
+      # much any of them has to publish is a fact about what the stack was asked
+      # to do on the day, and pinning it is how an E2E assertion becomes wrong.
+      - name: Confirm no engine outbox was left stranded
+        if: always()
+        run: |
+          set -uo pipefail
+          compose="docker compose -f infra/docker/docker-compose.local.yml"
+          psql="$compose exec -T postgres psql -U ${POSTGRES_USER:-nova} -d ${POSTGRES_DB:-nova} -X"
+
+          for schema in communication reasoning model_orchestration planning; do
+            echo "--- ${schema}.outbox_event ---"
+            $psql -c "SELECT subject,
+                             count(*) AS rows,
+                             count(dispatched_at) AS dispatched,
+                             count(*) - count(dispatched_at) AS undispatched
+                      FROM ${schema}.outbox_event
+                      GROUP BY subject ORDER BY subject;" || echo "(no ${schema} outbox)"
+          done
+
+          # The assertion. A stranded `communication.turn.received` is exactly
+          # what made the golden path flaky, and it is invisible from the test's
+          # own failure message -- which says only that a transcript entry never
+          # appeared.
+          stranded="$($psql -tAc "SELECT count(*) FROM communication.outbox_event
+                                   WHERE subject = 'communication.turn.received'
+                                     AND dispatched_at IS NULL;" | tr -d '[:space:]')"
+          total="$($psql -tAc "SELECT count(*) FROM communication.outbox_event
+                                WHERE subject = 'communication.turn.received';" \
+                   | tr -d '[:space:]')"
+          echo "communication.turn.received: ${total} row(s), ${stranded} undispatched"
+          if [ "${total}" = "0" ]; then
+            echo "::error::no communication.turn.received row exists at all; the golden path never sent a turn"
+            exit 1
+          fi
+          if [ "${stranded}" != "0" ]; then
+            echo "::error::${stranded} communication.turn.received row(s) never reached the Event Bus."
+            echo "That is G-8's signature: an engine worker consumed another engine's"
+            echo "cron tick, or a colliding cron job id swallowed this engine's enqueue."
+            $compose logs --tail=40 communication-engine-worker
+            exit 1
+          fi
 
       - name: Collect stack logs on failure
         if: failure()

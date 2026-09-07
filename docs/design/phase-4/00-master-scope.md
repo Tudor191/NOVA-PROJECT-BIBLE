@@ -120,6 +120,7 @@ None is a defect introduced by Phase 4.
 | **CF-5** | `PHR-1` / `PHR-2` — pre-existing Phase-1 defects, reported and not fixed | Project Health Review 2026-08-29 | None direct | **Carried forward unchanged** |
 | **CF-6** | Real-Postgres verification of `personality-engine`, `communication-engine`, `perception-engine` repository layers still pending | Open task | 4A's Conversation panel exercises `communication-engine` | **Flagged.** 4A's real-infra job covers it incidentally; not claimed as closure |
 | **CF-7** | **Doc 11 §2's documented paths diverge from the paths actually implemented** — see §8 | doc [11](../../architecture/11-api-architecture.md) §2 vs. code | `api-gateway` must forward *somewhere* | **Resolved by D-6** |
+| **CF-9** | *(added 2026-09-06 by the Phase 4B closure pass)* **ADR-032 decision point 2 has no implementation.** Every gating engine must expose *"a configurable identity-confidence threshold per privileged capability (or per capability class), never a single hardcoded system-wide threshold"*. `action-engine` **enforces** the gate (`domain/pipeline.py:180-192`) and **models** the policy (`domain/models.py:46`; table `action.identity_confidence_policy`), but nothing in the repository can **create** a policy row — no endpoint, no seed, no migration insert, no admin surface. **Originating owner: Phase 3D / ADR-032.** Discovering phase: 4B | [ADR-032](../../architecture/adr/ADR-032-identity-confidence-is-also-an-authorization-signal.md) pt. 2; [TDD 3D](../phase-3/07-tdd-3d-action-engine.md) §7, §8; [Phase 4B Gate Review](../../roadmap/architecture-reviews/phase-4b-observability-panels-gate-review.md) §0.3 | **Every Critical-risk Action is denied at stage 3**, so the Phase 3D approval loop is unreachable from any client. Blocks **AC-3**'s approval clause. Absent policy fails closed at confidence 1.0, and `perception-engine`'s `SINGLE_SIGNAL_CONFIDENCE_CEILING = 0.75` means even a real single-signal identity cannot clear it — the gate is passable *only* with a policy row | **Deferred by explicit user approval, 2026-09-06** (Gate Review §0.3, §9.2, condition C-1). **Routed to 4D** as the appropriate future policy surface — a forward routing decision, **not** a reassignment of historical ownership, and **not** a claim that AC-3 depends on 4D (§1.1 says the opposite). No threshold was invented; the fail-closed default is unchanged |
 | **CF-8** | Six Phase 3E TDD deviations ratified as explicit narrowings (Scheduler scoring; `agent.{instance_id}.{state}` lifecycle events; `agent_os.health.snapshot`; `planning.decompose.request` never called; in-process `AgentMessage` mailbox; `DecisionMemoryPort` log stub) | Phase 3E Gate Review §2 | The Agents panel must render what *is*, not what the TDD described | **Carried forward.** 4C's panel is built against observed behavior |
 
 ---
@@ -155,6 +156,43 @@ no engine owns it — `nova-core` is the natural owner), plus widened
 
 **Depends on:** 4A. **Satisfies:** AC-3.
 **This is the milestone that makes Phase 3 visible.**
+
+> **Implementation status — 2026-09-06 (added by the Phase 4B closure pass; the
+> text above is preserved verbatim as written).**
+>
+> All six panels were built and are browser-verified against the real Docker
+> stack: 30/30 CI Check Runs green against head `0f3412c`. **The gate verdict is
+> nonetheless NO-GO** — see the
+> [Phase 4B Gate Review](../../roadmap/architecture-reviews/phase-4b-observability-panels-gate-review.md).
+>
+> **Three capabilities named above were not built**, and none had an approval to
+> narrow it:
+>
+> - **Capabilities** shipped as **list only**. "install / uninstall" above was not
+>   built, though `capability-engine` already exposes `POST /v1/capabilities/install`
+>   and `DELETE /v1/capabilities/{id}` and the gateway forwards `/v1/capabilities`.
+> - **Event Stream** shipped **without a filter**. "filterable" above was not built.
+> - **Reasoning Trace** renders `reasoning_level` — the 1–4 reasoning tier — not
+>   "3A's recursion depth", which is a different field
+>   (`MultiStepConfig.max_step_depth` / `multistep_recursion_exhausted`).
+>
+> **`GET /v1/system/health` was not built.** `nova-core` exposes only
+> `/internal/*`, which doc 11 §3 makes permanently unroutable, so building it
+> would mean giving `nova-core` a public HTTP surface — a decision no phase has
+> taken. The Health panel is push-fed from `nova.heartbeat`,
+> `nova.module.status_changed` and `ai_model.model.health_changed` instead. Doc
+> 11 §2 now carries the same note.
+>
+> **AC-3 is therefore not met** (Gate Review §9): of its four sub-clauses, two
+> need an LLM provider Phase 4 does not add, and two need controls that were not
+> built. Whether to defer AC-3 and ratify the three narrowings is an open
+> decision for the user, recorded in Gate Review §13 and §15.
+>
+> **Two backend additions not anticipated above** were required and built:
+> `GET /v1/plans` (planning-engine) and `GET /v1/action/approvals`
+> (action-engine), plus `reasoning-engine-worker` and
+> `ai-model-orchestration-engine-worker` compose services — without which those
+> engines' outbox rows are persisted and never published.
 
 ### 4C — Agent Activity
 
@@ -211,10 +249,20 @@ Doc [04](../../architecture/04-frontend-architecture.md) §2 names twelve
 panels. Phase 4 builds **eight**. The scope line is explicit so it cannot
 drift.
 
+> **Count discrepancy noted 2026-09-06 (Phase 4B closure pass), not resolved
+> here.** The sentence above says eight; the table below lists **eleven** rows
+> assigned to a Phase 4 milestone — `conversation/` (4A), the six 4B panels,
+> `agents/` (4C), `autonomy/` (4D), `digital-twin/` (4E) and `cognitive-state/`
+> (4F). The two cannot both be right. The discrepancy is pre-existing and was not
+> introduced by Phase 4B; which number is correct is recorded as an open question
+> for the user in the
+> [Phase 4B Gate Review](../../roadmap/architecture-reviews/phase-4b-observability-panels-gate-review.md)
+> §13 (G-6). The table, not the prose, is what 4B was built against.
+
 | Panel | Milestone | Primary source |
 |---|---|---|
 | `conversation/` | **4A** | `communication-engine` |
-| `system/` | **4B** | `GET /v1/system/health`, `nova.heartbeat` |
+| `system/` | **4B** | ~~`GET /v1/system/health`~~ (never built — see §5's 4B note), `nova.heartbeat` + `nova.module.status_changed` + `ai_model.model.health_changed` (as built, 2026-09-06) |
 | `planning/` | **4B** | `planning-engine` `/v1/plans`, `planning.task_graph.*` |
 | `reasoning/` | **4B** | `reasoning-engine` `/v1/reasoning`, `/v1/reasoning/decisions` |
 | `capabilities/` | **4B** | `capability-engine` `/v1/capabilities` |

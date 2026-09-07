@@ -163,9 +163,7 @@ class PostgresPlanningRepository:
         return graph.model_copy(
             update={
                 "nodes": [
-                    node.model_copy(update={"status": "running"})
-                    if node.id in handed_off
-                    else node
+                    node.model_copy(update={"status": "running"}) if node.id in handed_off else node
                     for node in graph.nodes
                 ]
             }
@@ -213,9 +211,7 @@ class PostgresPlanningRepository:
         return published_graph.model_copy(
             update={
                 "nodes": [
-                    node.model_copy(update={"status": "running"})
-                    if node.id in handed_off
-                    else node
+                    node.model_copy(update={"status": "running"}) if node.id in handed_off else node
                     for node in published_graph.nodes
                 ]
             }
@@ -275,9 +271,7 @@ class PostgresPlanningRepository:
         return published_graph.model_copy(
             update={
                 "nodes": [
-                    node.model_copy(update={"status": "running"})
-                    if node.id in handed_off
-                    else node
+                    node.model_copy(update={"status": "running"}) if node.id in handed_off else node
                     for node in published_graph.nodes
                 ]
             }
@@ -286,7 +280,14 @@ class PostgresPlanningRepository:
     async def list_all(self, *, limit: int = 1000) -> list[TaskGraph]:
         async with self._session_factory() as session:
             result = await session.execute(
-                select(TaskGraphORM).options(selectinload(TaskGraphORM.nodes)).limit(limit)
+                select(TaskGraphORM)
+                .options(selectinload(TaskGraphORM.nodes))
+                # Newest first. `TaskGraph` (the domain model) carries no
+                # timestamp, so a caller cannot sort this itself -- the
+                # column exists only on the row. Without this the order is
+                # whatever Postgres returns, which is not a contract.
+                .order_by(TaskGraphORM.created_at.desc())
+                .limit(limit)
             )
             return [_graph_to_domain(row) for row in result.scalars().all()]
 
