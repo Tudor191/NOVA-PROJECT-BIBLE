@@ -40,6 +40,29 @@ want Docker at all — this second path matters for the Bible's "zero budget" an
 non-technical-user accessibility goals, and is tracked as a Phase 5+ packaging task in
 the [Roadmap](../roadmap/ENGINEERING_ROADMAP.md).
 
+> **`agent-os` became deployable in Phase 4C — noted 2026-09-07 (milestone
+> 4C.1, decision D-5).** The diagram above has named `agent-os-kernel` as part
+> of the local-first topology since this document was written, but no
+> `agent-os` component had a container image for its entire existence: Phase 3E
+> recorded that as a deferred obligation, condition **C-3**
+> ([TDD 3E](../design/phase-3/08-tdd-3e-agent-os.md) §15), which names this
+> document among the updates the discharging phase owes.
+>
+> As of 4C.1, `agent-os/kernel`, `agent-os/registry` and `agent-os/supervisors`
+> each have a `Dockerfile`, a `docker-compose.local.yml` service, and a
+> `build-and-scan.yml` matrix entry — **their first Trivy coverage**.
+> `agent-os/sdk/python` has none and needs none: it is a library, like
+> everything under `packages/`. That is the *"reasoned decision that
+> `sdk/python` is library-shaped"* §15 offered as the alternative to a fourth
+> image.
+>
+> The images follow the same shape as every `services/<name>/Dockerfile` —
+> repo-root build context, `python:3.12-slim`, `uv sync --frozen --no-dev
+> --package <name>`, non-root `nova` uid 1000, `HEALTHCHECK` on
+> `/internal/health` — so §1's *"all three [targets] run the exact same
+> container images"* now holds for `agent-os` too, and no new deployment
+> concept is introduced.
+
 ## 3. Enterprise/cloud topology
 
 ```mermaid

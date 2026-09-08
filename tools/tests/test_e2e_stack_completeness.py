@@ -24,6 +24,16 @@ engine whose outbox subjects never appear in `ws-gateway`'s
 compose, and closing that gap everywhere is out of scope (see
 `perception-engine-worker`'s comment in the compose file). This file states
 that boundary rather than leaving it implicit.
+
+**Phase 4C adds one property that is not about the browser** (see
+`test_every_agent_os_component_is_started_by_the_e2e_job`): AC-4's first
+clause is literally *"`agent-os` runs as containers under `docker compose
+up`"*, and this job is the only place in the repository where the stack is
+ever brought up. A `build-and-scan.yml` matrix entry proves an image builds,
+not that it starts. So for these three components the e2e job's service list
+*is* the acceptance evidence, and it earns a guard here for the same reason
+everything else in this file does: it is a hand-maintained list whose drift is
+invisible without Docker.
 """
 
 from __future__ import annotations
@@ -210,6 +220,64 @@ def test_a_started_worker_actually_runs_its_engines_worker_settings(service: str
 
 
 # --- controls: these parsers must fail loudly, never silently pass -----------
+
+
+def _agent_os_compose_services() -> dict[str, str]:
+    """Compose service -> its Dockerfile path, for services built from `agent-os/`.
+
+    Read from the compose file's own `build.dockerfile` rather than matched by
+    name prefix, so renaming a service cannot quietly drop it from this rule.
+    """
+    found = {}
+    for name, cfg in _compose_services().items():
+        build = cfg.get("build")
+        dockerfile = build.get("dockerfile") if isinstance(build, dict) else None
+        if isinstance(dockerfile, str) and dockerfile.startswith("agent-os/"):
+            found[name] = dockerfile
+    return found
+
+
+def test_every_agent_os_component_is_started_by_the_e2e_job() -> None:
+    """AC-4's first clause, asserted rather than assumed.
+
+    *"`agent-os` runs as containers under `docker compose up`"* is an
+    acceptance criterion, and the e2e job is the only place the stack is ever
+    started. A component that has a Dockerfile and a compose service but is
+    absent from the job's list is scanned, built, and never once run -- which
+    is exactly the state Phase 3E's condition C-3 recorded and Phase 4C's D-5
+    exists to discharge.
+    """
+    agent_os = _agent_os_compose_services()
+    assert agent_os, (
+        "no compose service builds from `agent-os/`. Either D-5 was reverted "
+        "or this parser broke; fix it, do not delete it."
+    )
+    started = set(_started_services())
+    missing = sorted(name for name in agent_os if name not in started)
+    assert not missing, (
+        f"compose defines {missing} from agent-os Dockerfiles, but the e2e job "
+        f"does not start them. AC-4 requires agent-os to run under `docker "
+        f"compose up`; an image that builds is not an image that starts."
+    )
+
+
+def test_the_agent_os_library_has_no_container() -> None:
+    """`agent-os/sdk/python` is a library, and master scope §10 says so.
+
+    §4C's prose said "all four `agent-os` components", which reads as four
+    containers. Three is correct -- the SDK ships like everything under
+    `packages/`, with no Dockerfile and no compose service. Asserted here so
+    the looser wording cannot turn into a fourth image later.
+    """
+    assert not (REPO_ROOT / "agent-os" / "sdk" / "python" / "Dockerfile").exists(), (
+        "agent-os/sdk/python is a library (master scope §10) and must not have "
+        "a Dockerfile"
+    )
+    for name, dockerfile in _agent_os_compose_services().items():
+        assert "sdk" not in dockerfile, (
+            f"compose service {name!r} builds from {dockerfile!r}; the SDK is "
+            "not a deployable component"
+        )
 
 
 def test_the_started_service_list_is_not_empty_and_holds_the_known_stack() -> None:

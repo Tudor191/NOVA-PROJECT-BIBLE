@@ -53,7 +53,7 @@ Digital Twin, and NOVA's own internal attention.
 | **AC-1** | A user opens the web client, authenticates via the Phase-4-scoped session mechanism (§7), and holds a live text conversation rendered through the Conversation panel. This is [`3-P`](../phase-3/03-gateway-web-prerequisite.md) §11 criterion 1, unmet since Phase 2D. | 4A |
 | **AC-2** | `ws-gateway` is provably the only path a browser-originated connection can use to observe bus activity — no direct NATS exposure, verified by test, not by inspection. | 4A |
 | **AC-3** | Every Phase 3 sub-phase 3A–3D is exercised end-to-end **from the browser**: a plan is generated and rendered, a reasoning trace is inspected, a capability is installed, and a risky action is blocked pending approval and then approved. | 4B |
-| **AC-4** | `agent-os` runs as containers under `docker compose up`, and the Agents panel renders live agent instances, supervisor structure, and at least one real peer-review round. | 4C |
+| **AC-4** | `agent-os` runs as containers under `docker compose up`, and the Agents panel renders live agent instances, supervisor structure, and at least one real peer-review round. **Two of its three clauses are Deferred by approval — see below.** | 4C |
 | **AC-5** | An autonomous suggestion at Autonomy Level 1 is **proposed, not executed**, is visible in the Autonomy panel, and executing it requires explicit user approval. | 4D |
 | **AC-6** | The Digital Twin's project model correctly reconstructs "what was I doing on Project X" after a simulated multi-week gap, and the reconstruction is visible in the Digital Twin panel. | 4E |
 | **AC-7** | Opening a known project in the IDE is detected and reflected in the World Model within one second with no user action, and revoking a sensor's OS permission immediately and visibly stops that perception stream in the UI. | 4F |
@@ -61,6 +61,43 @@ Digital Twin, and NOVA's own internal attention.
 
 **AC-1 through AC-4 do not depend on any new engine.** They depend only on
 surfacing what Phase 3 already built.
+
+> **AC-4 — two clauses Deferred by approval, 2026-09-07.** Recorded per
+> protocol §2.4 (*"Deferred by approval (approval cited)"*), with the user's
+> approval of the Phase 4C design decisions as the citation.
+>
+> **The deferred clauses:** *"renders live agent instances"* and *"at least
+> one real peer-review round"*. The remaining clause — *"`agent-os` runs as
+> containers under `docker compose up`"* — is 4C.1's and is not deferred.
+>
+> **Why, traced through code rather than inferred.** Both deferred clauses
+> need an `agent_instance` row to exist, and there is exactly one code path
+> that creates one: `agent-os/kernel`'s `domain/scheduler.py::_spawn_tracked`,
+> reached only from `planning.task_graph.created`, published only by
+> `planning-engine`, written only at `events/handlers.py:107` — whose sole
+> input is `domain/decomposition.py::decompose()`, which calls
+> `ai_model.generate.request` and has **no deterministic fallback** (a model
+> timeout, a `finish_reason == "error"`, or a missing `propose_task_graph`
+> tool call each raise `DecompositionError`). There is no `POST /v1/plans`, no
+> seed, and no other writer. **With no LLM provider configured, `agent_instance`
+> is permanently empty**, so no dispatch and no peer-review round can occur.
+>
+> Everything downstream of the task graph is provider-free and already real:
+> `coding-agent`'s handler is scripted with no LLM call, declares
+> `peer_reviewer_category: architect`, and `architect-agent` reviews without a
+> model. Only the *trigger* is provider-dependent.
+>
+> **This is the same dependency as condition C-2** from the
+> [Phase 4B Gate Review](../../roadmap/architecture-reviews/phase-4b-observability-panels-gate-review.md)
+> §9.3, which deferred two AC-3 sub-clauses for it. Its discharge event is
+> unchanged: the milestone that configures a provider, still undesignated.
+>
+> **What was explicitly rejected**, at the user's direction: introducing
+> Ollama, model weights, or provider non-determinism into Phase 4C solely to
+> force the acceptance test; fabricating agent instances; seeding task graphs;
+> and mocking peer-review rounds for acceptance. **This is a scope deferral
+> only. AC-4 remains NOT MET, its deferred clauses must not be represented as
+> met, and the provider dependency is not weakened.**
 
 ---
 
@@ -115,7 +152,7 @@ None is a defect introduced by Phase 4.
 |---|---|---|---|---|
 | **CF-1** | `3-P` gateways + web-client remain design-only | `ENGINEERING_ROADMAP.md:515` | The entire UI track starts here | **Resolved by 4A** |
 | **CF-2** | `GET /v1/agents` and `GET /v1/agents/{id}/activity` are named in doc [11](../../architecture/11-api-architecture.md) §2 but unbuilt, and explicitly *"an open `3-P` prerequisite with no owning TDD"* | [`3-P`](../phase-3/03-gateway-web-prerequisite.md) §5 | **Blocks the Agents panel** | **Resolved by 4C via D-4** |
-| **CF-3** | Phase 3E condition **C-3**, ratified as a *deferred obligation*: `agent-os` has no Dockerfile, no compose service, no `build-and-scan` matrix entry, and therefore no Trivy scan | [Phase 3E Gate Review](../../roadmap/architecture-reviews/phase-3e-agent-os-gate-review.md) §10; [`phase-3e.md`](../../project-health/phase-3e.md) field 20(b) | **`agent-os` cannot run under `docker compose up`** — blocks any live agent panel | **Discharged by 4C via D-5** |
+| **CF-3** | Phase 3E condition **C-3**, ratified as a *deferred obligation*: `agent-os` has no Dockerfile, no compose service, no `build-and-scan` matrix entry, and therefore no Trivy scan | [Phase 3E Gate Review](../../roadmap/architecture-reviews/phase-3e-agent-os-gate-review.md) §10; [`phase-3e.md`](../../project-health/phase-3e.md) field 20(b) | **`agent-os` cannot run under `docker compose up`** — blocks any live agent panel | **Discharged by 4C.1, 2026-09-07** (§10's implementation note). Three Dockerfiles, three compose services, three `build-and-scan` matrix entries with first-ever Trivy coverage, migrator wiring, and all three started and restart-checked by the e2e job |
 | **CF-4** | Phase 3E narrowings: restart-resume (AC-2) and hot-load (AC-3) are proven at unit + integration + real-Postgres level, **not by a full-path E2E**; hot-load is version *pinning*, not concurrent execution of two bytecode versions | [16-3e-hot-load-design-decision.md](../phase-3/16-3e-hot-load-design-decision.md) | A UI makes both newly demonstrable | **Opportunity, not a blocker.** Phase 4 does not claim to close them |
 | **CF-5** | `PHR-1` / `PHR-2` — pre-existing Phase-1 defects, reported and not fixed | Project Health Review 2026-08-29 | None direct | **Carried forward unchanged** |
 | **CF-6** | Real-Postgres verification of `personality-engine`, `communication-engine`, `perception-engine` repository layers still pending | Open task | 4A's Conversation panel exercises `communication-engine` | **Flagged.** 4A's real-infra job covers it incidentally; not claimed as closure |
@@ -196,13 +233,41 @@ no engine owns it — `nova-core` is the natural owner), plus widened
 
 ### 4C — Agent Activity
 
-Discharges **CF-3** by containerizing all four `agent-os` components and
-adding them to `docker-compose.local.yml` and the `build-and-scan.yml`
-matrix. Closes **CF-2** by adding a minimal read-only `/v1` surface to
-`agent-os/kernel` (§9). Adds the **Agents** panel: registered packages,
-live instances, supervisor tree, per-instance activity, peer-review rounds.
+Discharges **CF-3** by containerizing the three deployable `agent-os`
+components and adding them to `docker-compose.local.yml` and the
+`build-and-scan.yml` matrix. Closes **CF-2** by adding a minimal read-only
+`/v1` surface to `agent-os/kernel` (§9). Adds the **Agents** panel:
+registered packages, live instances, supervisor tree, per-instance
+activity, peer-review rounds.
 
 **Depends on:** 4B, D-4, D-5. **Satisfies:** AC-4.
+
+> **Wording corrected 2026-09-07 (user approval, Phase 4C design decision
+> 5).** The paragraph above read *"containerizing all four `agent-os`
+> components"*, which contradicted §10 item 1 — *"a Dockerfile for `kernel`,
+> `registry`, and `supervisors`. (`sdk/python` is a library — no Dockerfile,
+> consistent with `packages/*`.)"* — and would have read as a mandate for a
+> fourth container. **§10 is authoritative: three containers, not four.**
+> `agent-os` does have four *components* (§3 says so, and that count stands);
+> only three are deployable. The original wording is preserved here as the
+> superseded record, per the project's documentation protocol. Enforced rather
+> than only written down: `tools/tests/test_e2e_stack_completeness.py::test_the_agent_os_library_has_no_container`.
+
+> **Implementation status — 2026-09-07 (milestone 4C.1).** Containerization is
+> built: three Dockerfiles, three `docker-compose.local.yml` services, three
+> `build-and-scan.yml` matrix entries — **the first Trivy coverage any
+> `agent-os` component has ever had** — `agent-os/kernel` and
+> `agent-os/registry` added to `run-migrations.sh`, and all three started and
+> restart-checked by `pr-checks.yml`'s e2e job.
+>
+> **4C.1 discharges the containerization portion of AC-4, but AC-4 remains
+> NOT MET** until the remaining required clauses are demonstrated or
+> explicitly deferred. Nothing else in this milestone's list is built: no
+> `/v1/agents`, no activity persistence, no peer-review persistence, no Agents
+> panel, no new realtime exposure, no supervisor tree.
+>
+> **AC-4's remaining two clauses are deferred by explicit user approval,
+> 2026-09-07** — see the AC-4 row in §1.1.
 
 ### 4D — Autonomy
 
@@ -246,18 +311,34 @@ by design (D-1).**
 ## 6. UI panel scope by milestone
 
 Doc [04](../../architecture/04-frontend-architecture.md) §2 names twelve
-panels. Phase 4 builds **eight**. The scope line is explicit so it cannot
+panels. Phase 4 builds **eleven**. The scope line is explicit so it cannot
 drift.
 
-> **Count discrepancy noted 2026-09-06 (Phase 4B closure pass), not resolved
-> here.** The sentence above says eight; the table below lists **eleven** rows
-> assigned to a Phase 4 milestone — `conversation/` (4A), the six 4B panels,
-> `agents/` (4C), `autonomy/` (4D), `digital-twin/` (4E) and `cognitive-state/`
-> (4F). The two cannot both be right. The discrepancy is pre-existing and was not
-> introduced by Phase 4B; which number is correct is recorded as an open question
-> for the user in the
+> **Count discrepancy resolved 2026-09-08 by explicit user approval (Phase 4C
+> design decision 6); G-6 is closed.** The sentence above **read "eight"** and
+> the table below lists **eleven** rows assigned to a Phase 4 milestone —
+> `conversation/` (4A), the six 4B panels, `agents/` (4C), `autonomy/` (4D),
+> `digital-twin/` (4E) and `cognitive-state/` (4F). The two could not both be
+> right.
+>
+> **The table is authoritative and the prose was wrong.** Eleven is the number
+> the arithmetic closes on: doc 04 §2 names twelve panels, §13's non-goals defer
+> five of them to Phase 5 (`memory-timeline/`, `knowledge-graph/`,
+> `world-model/`, `personality/`, `executive/`), leaving seven, and Phase 4 adds
+> four that doc 04 predates (`capabilities/`, `approvals/`, `events/`,
+> `cognitive-state/`) — 12 − 5 + 4 = **11**. Nothing reconciles to eight.
+>
+> **This is a documentation-only correction.** No acceptance criterion depends
+> on the count: AC-1…AC-8 name panels individually and never a number. **D-8's
+> "all six 4B panels" is a different, correct count and is unchanged.** The
+> discrepancy was pre-existing, not introduced by Phase 4B, and the table — not
+> the prose — is what 4B was built against, so no shipped scope changes. The
+> original wording is preserved here as the superseded record, per the project's
+> documentation protocol. It **was** recorded as an open question needing the
+> user's call in the
 > [Phase 4B Gate Review](../../roadmap/architecture-reviews/phase-4b-observability-panels-gate-review.md)
-> §13 (G-6). The table, not the prose, is what 4B was built against.
+> §13 (G-6), which still describes it that way: that Gate Review is a dated
+> record of the 4B gate and is deliberately left as written.
 
 | Panel | Milestone | Primary source |
 |---|---|---|
@@ -412,6 +493,47 @@ Work required in 4C:
 engine Dockerfiles required two separate `uv`-workspace fixes historically
 (PR #4, PR #6). See **R-2**.
 
+> **Implemented 2026-09-07 (milestone 4C.1). Four things this list did not
+> name were required; recorded here rather than left as undocumented work.**
+>
+> 1. **`run-migrations.sh` — a fifth work item.** The script's own comment
+>    stated the exclusion: *"agent-os/kernel and agent-os/registry are
+>    deliberately absent: both have alembic configs, and neither has a service
+>    in docker-compose.local.yml."* Adding the compose services removes that
+>    premise. Without the corresponding `ENGINES` entries both containers would
+>    start against a database with no `agent_os` schema and crash-loop — the
+>    exact failure that script exists to prevent.
+>    `agent-os/supervisors` stays out, and for a different reason: it has no
+>    alembic config, no `postgres_dsn` and an empty `repository/` (TDD 3E §7).
+>
+> 2. **Item 3 understated the matrix change.** `build-and-scan.yml`'s matrix
+>    was a flat list of names consumed as
+>    `file: services/${{ matrix.service }}/Dockerfile`, so three entries could
+>    not simply be appended — the path is now carried per entry.
+>
+> 3. **R-2 was correct, and the defect it predicted was real.**
+>    `agent-os/kernel` imports `nova_agent_sdk` in `domain/ports.py`,
+>    `domain/scheduler.py` and `domain/execution_backend.py` but never declared
+>    it, so `uv sync --frozen --no-dev --package kernel` resolved without it
+>    (`uv tree --package kernel --no-dev` returned zero matches) and the image
+>    would have raised `ModuleNotFoundError` at startup. Invisible until this
+>    component was first containerized, because the workspace-wide dev
+>    environment installs everything. Declared in 4C.1; `uv.lock` changes by
+>    two lines and no version moves.
+>
+> 4. **Both `kernel` and `registry` need `agents/` inside the image.**
+>    `Settings.agents_root` defaults to `"agents"`, resolved against the
+>    process CWD. For Registry the consequence is the quieter one:
+>    `discover_agent_packages` returns `[]` for a missing directory rather than
+>    raising, so the container would have started, passed its healthcheck, and
+>    registered zero Agent Packages. Agent Packages are not workspace members
+>    (doc 02 :162-169), so they are copied as plain files, after `uv sync` so
+>    an Agent Package edit does not invalidate the dependency layer.
+>
+> Item 4 of the original list — *"Real-infra CI coverage already exists for
+> `kernel` and `registry` and is unaffected"* — was verified and holds:
+> `real-infra-checks.yml`'s matrix is unchanged by 4C.1.
+
 ---
 
 ## 11. Decisions D-1 … D-8 — approved status
@@ -445,7 +567,7 @@ explicitly deferred rather than cancelled.
 | **R-2** | `agent-os` has **never been containerized**. The first build may surface `uv`-workspace issues — the same defect class that broke engine Dockerfiles twice (PR #4, PR #6). | **Medium** | Containerize **early in 4C**, before the Agents panel depends on it. Treat a failed first build as expected, not as a blocker. |
 | **R-3** | The **98 generated TypeScript contract types have never been compiled by any consumer.** They may not typecheck under a real `tsconfig`, or may reference types the generator does not emit. | **Medium** | **De-risk in step 1 of §7, before any application code.** A throwaway `tsconfig` + `tsc --noEmit` over all 98 files is a minutes-long check that de-risks the entire `entities/` layer. |
 | **R-4** | **No TypeScript-aware CI exists.** `pr-checks.yml` runs `pnpm turbo run lint`/`test` but nothing type-checks or runs a browser. | **Medium** | Add `tsc --noEmit`, `vitest`, and a Playwright job in 4A. `apps/*` is already in the pnpm workspace, so the wiring is small. |
-| **R-5** | **Scope creep.** Doc 04 names twelve panels; Phase 4 builds eight. Panels are individually cheap and collectively unbounded. | **Medium** | §6's table is the contract. `memory-timeline`, `knowledge-graph`, `world-model`, `personality`, `executive` are **Phase 5** and are named in §13's non-goals. |
+| **R-5** | **Scope creep.** Doc 04 names twelve panels; Phase 4 builds eleven *(corrected from "eight" 2026-09-08, decision 6 — see §6)*. Panels are individually cheap and collectively unbounded. | **Medium** | §6's table is the contract. `memory-timeline`, `knowledge-graph`, `world-model`, `personality`, `executive` are **Phase 5** and are named in §13's non-goals. |
 | **R-6** | **Phase 4 as scoped is larger than Phase 3** — two gateways, one application, one design system, two new engines, and a Rust component. | **High** | The 4A–4F split exists for exactly this. Each milestone is independently shippable and independently valuable; work can stop after any one of them with a coherent system. |
 
 ---
@@ -458,7 +580,7 @@ explicitly deferred rather than cancelled.
 - **Full RBAC and permission-derived subscription allow-lists** — depends on Phase 7's `nova-auth`. Phase 4's allow-list is a fixed, bounded list, not a policy engine.
 - **Multi-user support of any kind.** ADR-025 governs.
 - **Voice UI presentation** — waveform, listening/speaking indicators, wake-word UX polish are Phase 5. The voice *channel* already exists from Phase 2D-A/2D-B; Phase 4 neither builds nor visualizes it.
-- **`@nova/ui` as a finished design system** — Phase 4 builds only what its eight panels need. Finalization, idle-state animation driven by real telemetry, and the full System Pulse treatment are Phase 5.
+- **`@nova/ui` as a finished design system** — Phase 4 builds only what its eleven panels need *(corrected from "eight" 2026-09-08, decision 6 — see §6)*. Finalization, idle-state animation driven by real telemetry, and the full System Pulse treatment are Phase 5.
 - **Mobile, third-party API access, marketplace features.**
 - **Closing CF-4.** Phase 4 does not claim to convert Phase 3E's restart-resume or hot-load narrowings into full-path E2E proofs, even though the UI makes them more demonstrable.
 - **Phase 5 work of any kind.**
