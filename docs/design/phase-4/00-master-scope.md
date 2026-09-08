@@ -311,18 +311,34 @@ by design (D-1).**
 ## 6. UI panel scope by milestone
 
 Doc [04](../../architecture/04-frontend-architecture.md) §2 names twelve
-panels. Phase 4 builds **eight**. The scope line is explicit so it cannot
+panels. Phase 4 builds **eleven**. The scope line is explicit so it cannot
 drift.
 
-> **Count discrepancy noted 2026-09-06 (Phase 4B closure pass), not resolved
-> here.** The sentence above says eight; the table below lists **eleven** rows
-> assigned to a Phase 4 milestone — `conversation/` (4A), the six 4B panels,
-> `agents/` (4C), `autonomy/` (4D), `digital-twin/` (4E) and `cognitive-state/`
-> (4F). The two cannot both be right. The discrepancy is pre-existing and was not
-> introduced by Phase 4B; which number is correct is recorded as an open question
-> for the user in the
+> **Count discrepancy resolved 2026-09-08 by explicit user approval (Phase 4C
+> design decision 6); G-6 is closed.** The sentence above **read "eight"** and
+> the table below lists **eleven** rows assigned to a Phase 4 milestone —
+> `conversation/` (4A), the six 4B panels, `agents/` (4C), `autonomy/` (4D),
+> `digital-twin/` (4E) and `cognitive-state/` (4F). The two could not both be
+> right.
+>
+> **The table is authoritative and the prose was wrong.** Eleven is the number
+> the arithmetic closes on: doc 04 §2 names twelve panels, §13's non-goals defer
+> five of them to Phase 5 (`memory-timeline/`, `knowledge-graph/`,
+> `world-model/`, `personality/`, `executive/`), leaving seven, and Phase 4 adds
+> four that doc 04 predates (`capabilities/`, `approvals/`, `events/`,
+> `cognitive-state/`) — 12 − 5 + 4 = **11**. Nothing reconciles to eight.
+>
+> **This is a documentation-only correction.** No acceptance criterion depends
+> on the count: AC-1…AC-8 name panels individually and never a number. **D-8's
+> "all six 4B panels" is a different, correct count and is unchanged.** The
+> discrepancy was pre-existing, not introduced by Phase 4B, and the table — not
+> the prose — is what 4B was built against, so no shipped scope changes. The
+> original wording is preserved here as the superseded record, per the project's
+> documentation protocol. It **was** recorded as an open question needing the
+> user's call in the
 > [Phase 4B Gate Review](../../roadmap/architecture-reviews/phase-4b-observability-panels-gate-review.md)
-> §13 (G-6). The table, not the prose, is what 4B was built against.
+> §13 (G-6), which still describes it that way: that Gate Review is a dated
+> record of the 4B gate and is deliberately left as written.
 
 | Panel | Milestone | Primary source |
 |---|---|---|
@@ -551,7 +567,7 @@ explicitly deferred rather than cancelled.
 | **R-2** | `agent-os` has **never been containerized**. The first build may surface `uv`-workspace issues — the same defect class that broke engine Dockerfiles twice (PR #4, PR #6). | **Medium** | Containerize **early in 4C**, before the Agents panel depends on it. Treat a failed first build as expected, not as a blocker. |
 | **R-3** | The **98 generated TypeScript contract types have never been compiled by any consumer.** They may not typecheck under a real `tsconfig`, or may reference types the generator does not emit. | **Medium** | **De-risk in step 1 of §7, before any application code.** A throwaway `tsconfig` + `tsc --noEmit` over all 98 files is a minutes-long check that de-risks the entire `entities/` layer. |
 | **R-4** | **No TypeScript-aware CI exists.** `pr-checks.yml` runs `pnpm turbo run lint`/`test` but nothing type-checks or runs a browser. | **Medium** | Add `tsc --noEmit`, `vitest`, and a Playwright job in 4A. `apps/*` is already in the pnpm workspace, so the wiring is small. |
-| **R-5** | **Scope creep.** Doc 04 names twelve panels; Phase 4 builds eight. Panels are individually cheap and collectively unbounded. | **Medium** | §6's table is the contract. `memory-timeline`, `knowledge-graph`, `world-model`, `personality`, `executive` are **Phase 5** and are named in §13's non-goals. |
+| **R-5** | **Scope creep.** Doc 04 names twelve panels; Phase 4 builds eleven *(corrected from "eight" 2026-09-08, decision 6 — see §6)*. Panels are individually cheap and collectively unbounded. | **Medium** | §6's table is the contract. `memory-timeline`, `knowledge-graph`, `world-model`, `personality`, `executive` are **Phase 5** and are named in §13's non-goals. |
 | **R-6** | **Phase 4 as scoped is larger than Phase 3** — two gateways, one application, one design system, two new engines, and a Rust component. | **High** | The 4A–4F split exists for exactly this. Each milestone is independently shippable and independently valuable; work can stop after any one of them with a coherent system. |
 
 ---
@@ -564,7 +580,7 @@ explicitly deferred rather than cancelled.
 - **Full RBAC and permission-derived subscription allow-lists** — depends on Phase 7's `nova-auth`. Phase 4's allow-list is a fixed, bounded list, not a policy engine.
 - **Multi-user support of any kind.** ADR-025 governs.
 - **Voice UI presentation** — waveform, listening/speaking indicators, wake-word UX polish are Phase 5. The voice *channel* already exists from Phase 2D-A/2D-B; Phase 4 neither builds nor visualizes it.
-- **`@nova/ui` as a finished design system** — Phase 4 builds only what its eight panels need. Finalization, idle-state animation driven by real telemetry, and the full System Pulse treatment are Phase 5.
+- **`@nova/ui` as a finished design system** — Phase 4 builds only what its eleven panels need *(corrected from "eight" 2026-09-08, decision 6 — see §6)*. Finalization, idle-state animation driven by real telemetry, and the full System Pulse treatment are Phase 5.
 - **Mobile, third-party API access, marketplace features.**
 - **Closing CF-4.** Phase 4 does not claim to convert Phase 3E's restart-resume or hot-load narrowings into full-path E2E proofs, even though the UI makes them more demonstrable.
 - **Phase 5 work of any kind.**
