@@ -113,6 +113,147 @@ def test_every_public_topic_is_reachable_on_the_bus() -> None:
         ), f"{topic!r} is public but not declared in events/subscribed.py"
 
 
+#: Internal request/reply subjects. A browser must never be able to name one,
+#: nor may this gateway subscribe to one: an RPC request carries a caller's
+#: arguments and an RPC reply is addressed to exactly one caller, so neither is
+#: "an already-finalized event plus read-only telemetry" (doc 09 §6).
+#:
+#: Read from the components' own `events/` declarations rather than typed out,
+#: so a subject added there is covered here without anyone remembering to.
+_RPC_SUFFIXES = (".request", ".reply")
+
+
+def _declared_rpc_subjects() -> set[str]:
+    """Every `*.request`/`*.reply` subject any component declares."""
+    repo_root = Path(__file__).resolve().parents[4]
+    paths = list(repo_root.glob("services/*/src/*/events/*.py"))
+    paths += list(repo_root.glob("agent-os/*/src/*/events/*.py"))
+    assert paths, "found no events/ modules; the glob is wrong"
+    subjects: set[str] = set()
+    for path in paths:
+        for node in ast.walk(ast.parse(path.read_text())):
+            if (
+                isinstance(node, ast.Constant)
+                and isinstance(node.value, str)
+                and node.value.endswith(_RPC_SUFFIXES)
+            ):
+                subjects.add(node.value)
+    return subjects
+
+
+def test_no_internal_rpc_subject_is_publicly_nameable() -> None:
+    """A browser may not name an RPC subject, ever.
+
+    `domain/protocol.py`'s own docstring states this as the reason
+    `PUBLIC_TOPICS` is an allow-list rather than a pattern language. This
+    asserts it against every RPC subject the repository actually declares --
+    including `agent_os.registry.list_packages.request`, added in Phase 4C
+    milestone 4C.2a, whose whole design depends on staying internal.
+    """
+    rpc_subjects = _declared_rpc_subjects()
+    assert rpc_subjects, "no RPC subjects found; the parser broke, do not delete it"
+    leaked = sorted(rpc_subjects & set(PUBLIC_TOPICS))
+    assert not leaked, (
+        f"internal RPC subjects exposed to browsers: {leaked}. An RPC request "
+        "carries a caller's arguments and an RPC reply is addressed to one "
+        "caller; neither may cross to a client."
+    )
+
+
+#: RPC subjects a *currently declared* subscribable pattern already matches.
+#:
+#: **These are a disclosed, pre-existing defect, not an approved exception.**
+#: Found 2026-09-08 by the test below, which was written for Phase 4C 4C.2a.
+#: 4A's `communication.*` and `personality.*` are broad enough to match these
+#: six request subjects, so this gateway's *bus-side* allow-list is wider than
+#: doc 09 §6's "already-finalized events plus read-only telemetry".
+#:
+#: No browser can reach them: `PUBLIC_TOPICS` is an exact-string allow-list and
+#: names none of them, and `test_no_internal_rpc_subject_is_publicly_nameable`
+#: below asserts that. The exposure is that the gateway *process* may receive
+#: internal RPC traffic, not that a client may see it.
+#:
+#: Narrowing the two patterns is a `ws-gateway` behaviour change, out of scope
+#: for 4C.2a (which is forbidden from touching WebSocket behaviour) and needing
+#: its own verification of which finalized `communication.*`/`personality.*`
+#: subjects the 4A/4B panels actually consume. Pinned here rather than fixed or
+#: ignored, per protocol §13.1: the list may shrink, and must never grow.
+_KNOWN_OVERBROAD_RPC_MATCHES = frozenset(
+    {
+        "communication.intent.deliver.request",
+        "communication.session.close.request",
+        "communication.session.create.request",
+        "communication.session.lookup_by_user.request",
+        "personality.style.select.request",
+        "personality.validate_response.request",
+    }
+)
+
+
+def test_no_subscribable_pattern_matches_an_internal_rpc_subject() -> None:
+    """The subtler half, and the one a widened pattern would break silently.
+
+    `BoundEventBus` matches with `fnmatchcase`, where `*` spans dots -- so
+    `agent_os.*` would match `agent_os.registry.list_packages.request` and
+    subscribe this gateway to every RPC in that family. `PUBLIC_TOPICS` would
+    still stop a browser naming it, but the gateway process would be
+    receiving internal RPC traffic it has no business seeing, and the next
+    person to add a topic would find it already arriving.
+
+    This is exactly why Phase 4C's planned realtime exposure is
+    `agent_os.task.*` and not `agent_os.*`.
+
+    Six pre-existing matches are pinned above rather than asserted away; this
+    test fails on a seventh.
+    """
+    offenders: dict[str, list[str]] = {}
+    for subject in sorted(_declared_rpc_subjects()):
+        matching = [p for p in SUBSCRIBABLE_SUBJECTS if fnmatchcase(subject, p)]
+        if matching and subject not in _KNOWN_OVERBROAD_RPC_MATCHES:
+            offenders[subject] = matching
+    assert not offenders, (
+        f"internal RPC subjects matched by a subscribable pattern: {offenders}. "
+        "Narrow the pattern; do not add it to _KNOWN_OVERBROAD_RPC_MATCHES."
+    )
+
+
+def test_no_agent_os_rpc_subject_is_subscribable() -> None:
+    """4C.2a's own guarantee, stated separately so it cannot be weakened by
+    editing the pinned list above.
+
+    Every `agent_os.*` RPC subject -- the two Registry ones, the two
+    Supervisor ones, and any added later -- must match no subscribable
+    pattern at all. There are no grandfathered exceptions here, and there
+    must never be.
+    """
+    agent_os_rpc = sorted(s for s in _declared_rpc_subjects() if s.startswith("agent_os."))
+    assert agent_os_rpc, "no agent_os RPC subjects found; the parser broke"
+    for subject in agent_os_rpc:
+        matching = [p for p in SUBSCRIBABLE_SUBJECTS if fnmatchcase(subject, p)]
+        assert not matching, (
+            f"{subject!r} is an internal agent-os RPC subject but matches "
+            f"subscribable pattern(s) {matching}."
+        )
+
+
+def test_the_pinned_overbroad_list_is_not_stale() -> None:
+    """A pinned defect that has been fixed must be unpinned.
+
+    Without this, the list above would quietly outlive the problem and start
+    granting exceptions nothing needs.
+    """
+    still_matching = {
+        subject
+        for subject in _KNOWN_OVERBROAD_RPC_MATCHES
+        if any(fnmatchcase(subject, pattern) for pattern in SUBSCRIBABLE_SUBJECTS)
+    }
+    resolved = sorted(_KNOWN_OVERBROAD_RPC_MATCHES - still_matching)
+    assert not resolved, (
+        f"these no longer match any subscribable pattern: {resolved}. "
+        "Remove them from _KNOWN_OVERBROAD_RPC_MATCHES."
+    )
+
+
 def _declared_publishable_subjects() -> set[str]:
     """Every subject any engine's own `events/published.py` declares.
 

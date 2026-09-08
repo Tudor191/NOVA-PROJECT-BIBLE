@@ -96,13 +96,38 @@ class KernelRepository(Protocol):
 
 @runtime_checkable
 class RegistryPort(Protocol):
-    """TDD 3E §4 step 1: "query Registry for healthy candidates in the
-    required category." Wraps `agent_os.registry.find_healthy_package.request`
-    (disclosed addition, `nova_contracts.events.agent_os`)."""
+    """Everything the Kernel needs from Registry -- not only what the
+    Scheduler needs. `find_healthy_package` serves dispatch (TDD 3E §4 step
+    1); `list_packages` serves the read-only `/v1` surface D-4 authorises.
+    Both wrap disclosed RPC subjects in `nova_contracts.events.agent_os`."""
 
     async def find_healthy_package(
         self, *, category: str, correlation_id: UUID | None = None
-    ) -> AgentPackageSnapshot | None: ...
+    ) -> AgentPackageSnapshot | None:
+        """TDD 3E §4 step 1: "query Registry for healthy candidates in the
+        required category." Wraps
+        `agent_os.registry.find_healthy_package.request`."""
+        ...
+
+    async def list_packages(
+        self, *, correlation_id: UUID | None = None
+    ) -> list[AgentPackageSnapshot]:
+        """Every installed Agent Package. Wraps
+        `agent_os.registry.list_packages.request` (Phase 4C milestone
+        4C.2a, approved 2026-09-08).
+
+        **An empty list means Registry is healthy and holds nothing.** An
+        unreachable or failing Registry must **raise**, never return `[]` --
+        that separation is what lets `GET /v1/agents` answer 503 for a
+        degraded Registry and `200 []` for a healthy empty one (decision
+        **D-1**). An implementation that swallowed the failure would collapse
+        the two into one indistinguishable response, which is the exact
+        shape `api-gateway`'s own `domain/envelope.py` forbids: "a degraded
+        upstream must never look like an empty success."
+
+        This slice (4C.2a) adds the port and its client; the endpoint that
+        turns a raised error into 503 is 4C.2c's."""
+        ...
 
 
 @runtime_checkable
