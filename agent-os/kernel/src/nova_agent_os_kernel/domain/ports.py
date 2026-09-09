@@ -24,6 +24,7 @@ from nova_agent_sdk import AgentContext, AgentHealth, AgentMessage
 from nova_contracts import AgentPackageSnapshot, AgentResult, EventEnvelope
 from pydantic import BaseModel
 
+from nova_agent_os_kernel.domain.activity import ActivityPage, AgentActivity
 from nova_agent_os_kernel.domain.models import AgentInstance, AgentInstanceHandle
 
 __all__ = [
@@ -68,29 +69,99 @@ class EventPublisher(Protocol):
 
 @runtime_checkable
 class KernelRepository(Protocol):
-    """Persistence port for the `agent_os` Postgres schema's
-    `agent_instance` table (TDD 3E §4)."""
+    """Persistence port for the `agent_os` schema's `agent_instance` (TDD 3E
+    §4) and, since Phase 4C milestone 4C.2b, its append-only
+    `agent_activity` table.
+
+    **One port for both tables, deliberately.** `action-engine`'s own
+    `ActionRepository` already owns four tables under one Protocol, and here
+    it is load-bearing rather than stylistic: an activity row that records a
+    state transition must commit in the *same transaction* as the transition
+    itself, and that is only possible when one implementation owns the
+    session for both. Splitting them would force a second transaction
+    abstraction to coordinate the two -- which 4C.2b was explicitly scoped
+    not to invent.
+
+    The activity table is **append-only at this boundary**: `append_activity`
+    and `list_activity` are the entire surface. There is no update, no
+    delete, and no method that takes an existing activity id to modify. That
+    is asserted by `tests/unit/test_activity.py`, so a mutation cannot be
+    added without a test failing.
+    """
 
     async def find_by_id(self, instance_id: UUID) -> AgentInstance | None: ...
 
-    async def insert(self, instance: AgentInstance) -> AgentInstance:
+    async def insert(
+        self, instance: AgentInstance, *, activity: AgentActivity | None = None
+    ) -> AgentInstance:
         """Inserts a new row. An `id` collision must be caught by the
         caller and raises `AgentInstanceAlreadyExistsError`, mirroring
         every other Phase 3 repository's own idempotency-guard
-        translation."""
+        translation.
+
+        `activity`, when given, is written **in the same transaction** as the
+        instance row. That is what makes "an instance was dispatched" and
+        "the dispatch was recorded" one fact rather than two that can
+        disagree: a crash between two separate commits would leave a running
+        instance with no record of starting. Passing `None` (the default,
+        and every existing caller's behaviour) writes the instance alone.
+
+        The activity's `agent_instance_id` is not checked against
+        `instance.id` here -- the foreign key does that, and a repository
+        re-deriving what the database already enforces would be a second
+        place for the rule to live."""
         ...
 
     async def list_by_status(self, status: str) -> list[AgentInstance]: ...
 
     async def update_status(
-        self, instance_id: UUID, *, status: str, health_status: str | None = None
+        self,
+        instance_id: UUID,
+        *,
+        status: str,
+        health_status: str | None = None,
+        activity: AgentActivity | None = None,
     ) -> None:
         """Transitions an already-inserted `agent_instance` row. `Scheduler`
         uses it to move a row from `"running"` (written before `spawn()`, so
         restart reconciliation has a real orphan to recover -- TDD 3E §4) to
         its terminal `"completed"`/`"failed"`. `health_status` is left
         unchanged when `None`; an unknown `instance_id` is a no-op, never an
-        error."""
+        error.
+
+        `activity`, when given, is written in the same transaction as the
+        status change, for the reason `insert` gives. **An unknown
+        `instance_id` writes neither**: a no-op transition must not leave an
+        activity row claiming a transition that did not happen."""
+        ...
+
+    async def append_activity(self, activity: AgentActivity) -> None:
+        """Records an activity that is **not** part of an `agent_instance`
+        mutation -- `restart_planned` and `peer_review` today, both of which
+        happen between transitions rather than at one.
+
+        Its own transaction, and correctly so: there is no other write to be
+        atomic with. Activity that *does* accompany a transition goes through
+        `insert`/`update_status` instead, which is why this method takes no
+        status argument and cannot be used to fake one."""
+        ...
+
+    async def list_activity(
+        self,
+        agent_instance_id: UUID,
+        *,
+        limit: int = 50,
+        cursor: str | None = None,
+    ) -> ActivityPage:
+        """One page of an instance's activity, newest first, ordered by
+        `(occurred_at DESC, id DESC)` -- the composite key `domain/activity.py`
+        documents and the index matches.
+
+        Keyset, never offset: `cursor` is an opaque `encode_cursor` value and
+        an invalid one raises `InvalidCursorError` rather than silently
+        restarting at the first page. The returned `next_cursor` is `None`
+        exactly when no further row exists, so a caller never follows a
+        cursor to an empty page."""
         ...
 
 
