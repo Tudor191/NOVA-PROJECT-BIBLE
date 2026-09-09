@@ -617,3 +617,77 @@ async def test_update_status_without_activity_still_persists_only_the_status(
     assert fetched.status == "failed"
     assert fetched.health_status == "unhealthy"
     assert (await repository.list_activity(instance.id)).items == []
+
+
+# --- list_instances, Phase 4C milestone 4C.2c -------------------------------
+#
+# The query behind `GET /v1/agents`' instance half. Ordered in SQL, so the
+# in-memory fake cannot prove it -- a Python `sorted()` agreeing with an
+# `ORDER BY` is exactly the agreement that holds until it does not.
+
+
+async def test_list_instances_returns_every_status_not_only_running(
+    repository: PostgresKernelRepository,
+) -> None:
+    """Deliberately unfiltered. A list that could only contain running rows
+    would make the response's `status` field constant while hiding every
+    instance that had just finished -- which, with Phase 3's synchronous
+    `inprocess` backend, is nearly all of them nearly all of the time."""
+    running = await repository.insert(_instance(status="running"))
+    completed = await repository.insert(_instance(status="completed"))
+    failed = await repository.insert(_instance(status="failed"))
+
+    rows = await repository.list_instances()
+
+    assert {row.id for row in rows} == {running.id, completed.id, failed.id}
+
+
+async def test_list_instances_returns_an_empty_list_on_a_provider_free_runtime(
+    repository: PostgresKernelRepository,
+) -> None:
+    """No dispatch has occurred, so no instance exists. A successful empty
+    result -- never an error, and never something a panel should render as
+    degraded."""
+    assert await repository.list_instances() == []
+
+
+async def test_list_instances_orders_newest_started_first(
+    repository: PostgresKernelRepository,
+) -> None:
+    base = datetime(2026, 9, 9, 12, 0, tzinfo=UTC)
+    # Inserted out of order so insertion order cannot produce the answer.
+    middle = await repository.insert(_instance(started_at=base + timedelta(minutes=5)))
+    oldest = await repository.insert(_instance(started_at=base))
+    newest = await repository.insert(_instance(started_at=base + timedelta(minutes=10)))
+
+    rows = await repository.list_instances()
+
+    assert [row.id for row in rows] == [newest.id, middle.id, oldest.id]
+
+
+async def test_list_instances_breaks_a_started_at_tie_by_id(
+    repository: PostgresKernelRepository,
+) -> None:
+    """Two instances dispatched in one batch share `started_at` to the
+    microsecond more often than is comfortable; without the `id` tie-break the
+    order would not be total and repeated reads could disagree."""
+    shared = datetime(2026, 9, 9, 12, 0, tzinfo=UTC)
+    ids = sorted(uuid4() for _ in range(4))
+    for instance_id in ids:
+        await repository.insert(_instance(id=instance_id, started_at=shared))
+
+    first = [row.id for row in await repository.list_instances()]
+    second = [row.id for row in await repository.list_instances()]
+
+    assert first == list(reversed(ids))
+    assert first == second, "repeated reads disagreed; the order is not total"
+
+
+async def test_list_instances_respects_its_limit(
+    repository: PostgresKernelRepository,
+) -> None:
+    base = datetime(2026, 9, 9, 12, 0, tzinfo=UTC)
+    for minutes in range(5):
+        await repository.insert(_instance(started_at=base + timedelta(minutes=minutes)))
+
+    assert len(await repository.list_instances(limit=2)) == 2

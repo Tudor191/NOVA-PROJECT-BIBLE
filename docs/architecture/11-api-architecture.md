@@ -50,8 +50,9 @@ GET    /v1/plans                              # list task graphs, newest first (
 GET    /v1/plans/{task_graph_id}
 POST   /v1/plans/{task_graph_id}/approve      # Part 9 "Collaborative Planning"
 
-GET    /v1/agents
-GET    /v1/agents/{id}/activity
+GET    /v1/agents                             # packages + instances + supervisors (Phase 4C)
+GET    /v1/agents/{id}                        # one agent instance (4C.2c; ratified, master scope §9.1)
+GET    /v1/agents/{id}/activity               # per-instance activity, cursor-paginated
 
 GET    /v1/action/approvals                    # pending approvals, undecided, oldest first (Phase 4B)
 POST   /v1/action/approvals/{id}/decide        # approve/reject — the path actually built (Phase 3D)

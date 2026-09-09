@@ -126,6 +126,20 @@ class PostgresKernelRepository:
             )
             return [_to_domain(row) for row in result.scalars().all()]
 
+    async def list_instances(self, *, limit: int = 50) -> list[AgentInstance]:
+        """Ordered in SQL. `id` breaks a `started_at` tie so the sequence is
+        total and repeated reads agree -- the same reason the activity cursor
+        carries `id`, and the same failure mode if it did not: two instances
+        dispatched in one batch share a `started_at` to the microsecond more
+        often than is comfortable."""
+        async with self._session_factory() as session:
+            result = await session.execute(
+                select(AgentInstanceORM)
+                .order_by(AgentInstanceORM.started_at.desc(), AgentInstanceORM.id.desc())
+                .limit(limit)
+            )
+            return [_to_domain(row) for row in result.scalars().all()]
+
     async def update_status(
         self,
         instance_id: UUID,

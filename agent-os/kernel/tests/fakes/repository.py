@@ -74,6 +74,14 @@ class FakeKernelRepository:
     async def list_by_status(self, status: str) -> list[AgentInstance]:
         return [row for row in self._rows.values() if row.status == status]
 
+    async def list_instances(self, *, limit: int = 50) -> list[AgentInstance]:
+        """Sorted the way `PostgresKernelRepository.list_instances` sorts, so
+        an ordering test cannot pass here and fail against real Postgres."""
+        ordered = sorted(
+            self._rows.values(), key=lambda row: (row.started_at, row.id), reverse=True
+        )
+        return ordered[:limit]
+
     async def update_status(
         self,
         instance_id: UUID,

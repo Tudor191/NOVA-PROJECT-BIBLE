@@ -151,7 +151,7 @@ None is a defect introduced by Phase 4.
 | ID | Carry-forward | Source | Phase 4 impact | Disposition |
 |---|---|---|---|---|
 | **CF-1** | `3-P` gateways + web-client remain design-only | `ENGINEERING_ROADMAP.md:515` | The entire UI track starts here | **Resolved by 4A** |
-| **CF-2** | `GET /v1/agents` and `GET /v1/agents/{id}/activity` are named in doc [11](../../architecture/11-api-architecture.md) §2 but unbuilt, and explicitly *"an open `3-P` prerequisite with no owning TDD"* | [`3-P`](../phase-3/03-gateway-web-prerequisite.md) §5 | **Blocks the Agents panel** | **Resolved by 4C via D-4** |
+| **CF-2** | `GET /v1/agents` and `GET /v1/agents/{id}/activity` are named in doc [11](../../architecture/11-api-architecture.md) §2 but unbuilt, and explicitly *"an open `3-P` prerequisite with no owning TDD"* | [`3-P`](../phase-3/03-gateway-web-prerequisite.md) §5 | **Blocks the Agents panel** | **Discharged by 4C.2c, 2026-09-09** (§9.1). Both named routes are built on `agent-os/kernel`, plus a third resource read; all three are forwarded by `api-gateway` under the `/v1/agents` prefix, so the panel has a reachable data source. Note that the *data* behind `instances` and `activity` stays empty without a model provider — AC-4 clauses 2 and 3 remain Deferred (§1.1), and that is a provider gap, not a CF-2 one |
 | **CF-3** | Phase 3E condition **C-3**, ratified as a *deferred obligation*: `agent-os` has no Dockerfile, no compose service, no `build-and-scan` matrix entry, and therefore no Trivy scan | [Phase 3E Gate Review](../../roadmap/architecture-reviews/phase-3e-agent-os-gate-review.md) §10; [`phase-3e.md`](../../project-health/phase-3e.md) field 20(b) | **`agent-os` cannot run under `docker compose up`** — blocks any live agent panel | **Discharged by 4C.1, 2026-09-07** (§10's implementation note). Three Dockerfiles, three compose services, three `build-and-scan` matrix entries with first-ever Trivy coverage, migrator wiring, and all three started and restart-checked by the e2e job |
 | **CF-4** | Phase 3E narrowings: restart-resume (AC-2) and hot-load (AC-3) are proven at unit + integration + real-Postgres level, **not by a full-path E2E**; hot-load is version *pinning*, not concurrent execution of two bytecode versions | [16-3e-hot-load-design-decision.md](../phase-3/16-3e-hot-load-design-decision.md) | A UI makes both newly demonstrable | **Opportunity, not a blocker.** Phase 4 does not claim to close them |
 | **CF-5** | `PHR-1` / `PHR-2` — pre-existing Phase-1 defects, reported and not fixed | Project Health Review 2026-08-29 | None direct | **Carried forward unchanged** |
@@ -466,6 +466,47 @@ Constraints on the amendment, all binding:
 This is recorded as an **explicit Phase 4 amendment to a ratified Phase 3E
 narrowing**, not a correction of it — TDD 3E's decision was right on the
 evidence available in Phase 3.
+
+### 9.1 The third route — implemented and ratified (4C.2c, 2026-09-09)
+
+D-4 as originally approved names **two** routes. The surface built in 4C.2c
+has **three**:
+
+```
+GET /v1/agents                             # overview
+GET /v1/agents/{agent_instance_id}         # individual instance lookup
+GET /v1/agents/{agent_instance_id}/activity
+```
+
+**`GET /v1/agents/{agent_instance_id}` is explicitly ratified by the user
+(2026-09-09) as an approved part of the 4C.2c read-only REST surface.** It
+was flagged before implementation as a widening of an approved decision,
+implemented, and then ratified on review rather than absorbed silently.
+
+The ratified reasoning:
+
+- `GET /v1/agents` provides the **overview**.
+- `GET /v1/agents/{id}` provides **individual instance lookup**.
+- `GET /v1/agents/{id}/activity` **requires existence validation**, so that
+  an unknown instance returns `404` rather than being confused with a valid
+  instance that simply has no activity. The single-instance lookup that
+  check needs is what this route is the external expression of.
+
+It violates none of D-4's binding constraints: still `GET`-only, still
+behind `api-gateway`, still no mutation, `/internal/*` still unexposed. It
+is a read of a single row already returned in bulk by `GET /v1/agents`,
+exposing no field the list endpoint does not and no data D-4 did not
+already authorise. It also matches the shape doc 11 §2 already uses for
+every other collection — `/v1/plans` + `/v1/plans/{task_graph_id}`,
+`/v1/memory/search` + `/v1/memory/{id}`; `/v1/agents` was the one
+collection in that document with a sub-resource but no resource read.
+
+Doc 11 §2's endpoint list is amended in the same slice to name all three,
+so the document and the code do not diverge again.
+
+**What was *not* added, and why:** no `GET /v1/agents/packages`, no
+supervisor-scoped route, no per-instance mutation. Each would have widened
+D-4 further with no consumer asking for it.
 
 ---
 

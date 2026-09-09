@@ -114,6 +114,24 @@ class KernelRepository(Protocol):
 
     async def list_by_status(self, status: str) -> list[AgentInstance]: ...
 
+    async def list_instances(self, *, limit: int = 50) -> list[AgentInstance]:
+        """Every agent instance, newest `started_at` first.
+
+        Added in Phase 4C milestone 4C.2c to serve `GET /v1/agents`, which had
+        no method returning more than one status. Deliberately **not** filtered
+        to `"running"`: the response carries each instance's `status`, and a
+        list that could only ever contain running rows would make that field
+        constant while hiding every instance that had just finished -- which,
+        with Phase 3's synchronous `inprocess` backend, is nearly all of them
+        nearly all of the time.
+
+        `limit` bounds an unbounded table, matching `/v1/plans`' and
+        `/v1/action/approvals`' own `limit: int = 50` convention. Newest first
+        for the same reason `/v1/plans` is: a panel opening on a long history
+        should show current work, not the first instance the system ever ran.
+        """
+        ...
+
     async def update_status(
         self,
         instance_id: UUID,
