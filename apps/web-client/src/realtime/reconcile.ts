@@ -3,6 +3,7 @@ import type { QueryClient } from "@tanstack/react-query";
 import type {
   ActionApprovalDecidedPayload,
   ActionApprovalRequestedPayload,
+  AgentOsTaskCompletedPayload,
   CommunicationIntentDeliveredPayload,
   CommunicationSessionStateChangedPayload,
   CommunicationTurnReceivedPayload,
@@ -23,6 +24,7 @@ import {
 } from "../entities/conversation";
 import type { PresentIdentity } from "../entities/presence";
 import { entryFromObservation, presenceKeys, reducePresence } from "../entities/presence";
+import { agentKeys } from "../entities/agents";
 import type { PendingApproval } from "../entities/approvals";
 import { approvalKeys, reduceDecided, reduceRequested } from "../entities/approvals";
 import type { ObservedEvent } from "../entities/events";
@@ -231,18 +233,49 @@ export function applyFrame(
       return;
     }
 
+    // --- Phase 4C panel ----------------------------------------------------
+
+    case "agent_os.task.completed": {
+      const payload = frame.data as unknown as AgentOsTaskCompletedPayload;
+      const instanceId = payload.agent_instance_id;
+      if (typeof instanceId !== "string") return;
+
+      // **Refetched, not patched, and deliberately so.**
+      //
+      // Every other case here writes the cache directly, because its payload
+      // carries the row the panel renders. This one does not.
+      // `AgentOsTaskCompletedPayload` carries `outcome` -- `"success"`,
+      // `"failure"`, `"needs_revision"`, `"interrupted"` -- while an
+      // `AgentInstanceView` carries `status`, which is `"completed"` or
+      // `"failed"`. The mapping between them is the Kernel's own
+      // `_handle_outcome` policy (a `"needs_revision"` outcome still lands on
+      // a `"completed"` instance), and re-deriving it here would put a copy
+      // of a backend rule in the browser, free to drift. The payload also
+      // carries no `health_status` and no activity row, so even a correct
+      // status guess would leave the rest of the card stale.
+      //
+      // So the event says *which* instance changed, and the server says
+      // *what* it changed to. That is a refetch, not polling: nothing is on a
+      // timer, and nothing is invalidated until an event names it.
+      //
+      // Scoped to the affected instance. `exact: true` on the overview stops
+      // the prefix match from sweeping every other instance's detail and
+      // activity queries along with it.
+      void queryClient.invalidateQueries({ queryKey: agentKeys.all, exact: true });
+      void queryClient.invalidateQueries({ queryKey: agentKeys.instance(instanceId) });
+      void queryClient.invalidateQueries({ queryKey: agentKeys.activity(instanceId) });
+      return;
+    }
+
     default:
       // Subscribed but not yet rendered by a dedicated panel
       // (`communication.session.created`/`.completed`,
-      // `perception.presence.observed`, and -- since 4C.2e --
-      // `agent_os.task.completed`). Ignored deliberately, and deliberately
-      // not an error.
+      // `perception.presence.observed`). Ignored deliberately, and
+      // deliberately not an error.
       //
       // These frames are not lost: the Events panel recorded each one above,
-      // before this switch, so an agent task completion is visible in the raw
-      // feed with its correlation id the moment 4C.2e lands. Giving it a
-      // `case` here would mean inventing the Agents entity and its query keys,
-      // which is 4C.2f's work, not this slice's.
+      // before this switch, so a topic with no panel is still visibly
+      // arriving.
       return;
   }
 }

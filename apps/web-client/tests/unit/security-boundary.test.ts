@@ -84,6 +84,65 @@ describe("the browser cannot reach the event bus", () => {
   );
 });
 
+// --- 1b. the Agents surface adds no new boundary (Phase 4C, 4C.2f) ---------
+//
+// The scan above already covers these two files -- they live under `src/`.
+// What it cannot check is the rule specific to this surface: `agent-os/kernel`
+// is control-plane infrastructure the browser must never address, and its
+// `/v1/agents` routes are reachable only because `api-gateway` fronts them.
+
+const AGENTS_SOURCES = [
+  fileURLToPath(new URL("../../src/entities/agents.ts", import.meta.url)),
+  fileURLToPath(new URL("../../src/panels/agents/AgentsPanel.tsx", import.meta.url)),
+];
+
+describe("the Agents surface introduces no new external boundary", () => {
+  it("never names the kernel host, an internal path, or a bus scheme", () => {
+    for (const path of AGENTS_SOURCES) {
+      const source = readFileSync(path, "utf8");
+      const code = source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+      expect(code).not.toMatch(/agent-os-kernel/);
+      expect(code).not.toMatch(/\/internal\//);
+      expect(code).not.toMatch(/nats:\/\//);
+      expect(code).not.toMatch(/:\d{4}\b/);
+    }
+  });
+
+  it("reaches the backend only through the shared gateway client", () => {
+    const entity = readFileSync(AGENTS_SOURCES[0], "utf8");
+    // No second API client: a bare `fetch(` here would bypass the session
+    // cookie, the envelope contract, and `apiUrl`'s prefix guard at once.
+    expect(entity.replace(/\/\*[\s\S]*?\*\//g, "")).not.toMatch(/[^a-zA-Z]fetch\(/);
+    expect(entity).toMatch(/gatewayFetch/);
+  });
+
+  it("calls only the three GET routes 4C.2c built", () => {
+    // Comments stripped first: the module's own docstring cites `/v1/plans`
+    // and `/v1/reasoning/traces` while explaining why its schemas are
+    // hand-written, and a test that could not tell a citation from a request
+    // would force the code to stop explaining itself.
+    const entity = readFileSync(AGENTS_SOURCES[0], "utf8")
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/^\s*\/\/.*$/gm, "");
+    const paths = [...entity.matchAll(/["`]\/v1\/[^"`$]*/g)].map((m) => m[0].slice(1));
+    expect(paths.length).toBeGreaterThan(0);
+    for (const path of paths) {
+      expect(path.startsWith("/v1/agents")).toBe(true);
+    }
+  });
+
+  it("issues no mutating request and adds no polling", () => {
+    for (const path of AGENTS_SOURCES) {
+      const source = readFileSync(path, "utf8");
+      // The Kernel exposes GET only; a mutation here would call an endpoint
+      // that does not exist.
+      expect(source).not.toMatch(/method:\s*"(POST|PUT|PATCH|DELETE)"/);
+      expect(source).not.toMatch(/useMutation/);
+      expect(source).not.toMatch(/refetchInterval|setInterval/);
+    }
+  });
+});
+
 // --- 2. /internal/* and engines are unaddressable ---------------------------
 
 describe("the client can only call the versioned public surface", () => {

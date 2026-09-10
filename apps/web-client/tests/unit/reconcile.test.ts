@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import type { TranscriptEntry } from "../../src/entities/conversation";
 import { conversationKeys } from "../../src/entities/conversation";
+import { agentKeys } from "../../src/entities/agents";
 import type { ObservedEvent } from "../../src/entities/events";
 import { eventKeys } from "../../src/entities/events";
 import { presenceKeys } from "../../src/entities/presence";
@@ -24,6 +25,7 @@ import { applyFrame, reduceTranscript } from "../../src/realtime/reconcile";
 
 const SESSION = "11111111-1111-4111-8111-111111111111";
 const OTHER_SESSION = "22222222-2222-4222-8222-222222222222";
+const INSTANCE = "44444444-4444-4444-8444-444444444444";
 
 function frame(topic: string, data: Record<string, unknown>, generatedAt = "2026-09-02T10:00:00Z"): EventFrame {
   return {
@@ -51,7 +53,7 @@ function agentTaskFrame(overrides: Record<string, unknown> = {}) {
   // publishes (4C.2e).
   return frame("agent_os.task.completed", {
     task_node_id: "33333333-3333-4333-8333-333333333333",
-    agent_instance_id: "44444444-4444-4444-8444-444444444444",
+    agent_instance_id: INSTANCE,
     outcome: "success",
     result: null,
     correlation_id: "corr-1",
@@ -224,10 +226,8 @@ describe("applyFrame", () => {
   // --- Phase 4C milestone 4C.2e ------------------------------------------
 
   it("records an agent task completion in the raw event feed", () => {
-    // The whole client-side effect of 4C.2e. The Agents panel is 4C.2f, so
-    // this frame has no panel of its own yet -- but it must still be visibly
-    // arriving, or "the panel is not built" and "the topic is not flowing"
-    // would look identical when 4C.2f starts.
+    // Every frame reaches the feed before the switch, so "the panel is empty"
+    // and "the topic is not flowing" stay distinguishable.
     const client = new QueryClient();
     applyFrame(client, agentTaskFrame(), SESSION);
 
@@ -238,31 +238,77 @@ describe("applyFrame", () => {
     expect(feed[0].data.outcome).toBe("success");
   });
 
-  it("does not mutate any panel cache for an agent task completion", () => {
-    // No optimistic write into shared cognitive state. 4C.2f introduces the
-    // Agents entity and its query keys; until then this frame must touch
-    // nothing but the raw feed, so a half-built panel cannot read a shape
-    // nobody defined.
+  it("writes no agent entity state from the event payload", () => {
+    // 4C.2f's central reconciliation decision, asserted rather than
+    // described. The payload carries `outcome`, the cache holds `status`, and
+    // the mapping between them is the Kernel's `_handle_outcome` policy. This
+    // frame must therefore never *write* an instance -- no optimistic
+    // mutation of shared cognitive state, no backend rule copied into the
+    // browser.
     const client = new QueryClient();
     applyFrame(client, agentTaskFrame(), SESSION);
 
-    const touched = client
-      .getQueryCache()
-      .getAll()
-      .map((query) => JSON.stringify(query.queryKey))
-      .sort();
-    expect(touched).toEqual([JSON.stringify(eventKeys.feed)]);
+    expect(client.getQueryData(agentKeys.all)).toBeUndefined();
+    expect(client.getQueryData(agentKeys.instance(INSTANCE))).toBeUndefined();
+    expect(client.getQueryData(agentKeys.activity(INSTANCE))).toBeUndefined();
+  });
+
+  it("invalidates exactly the affected agent queries and no others", () => {
+    const client = new QueryClient();
+    const other = "55555555-5555-4555-8555-555555555555";
+    // Seed the queries a panel would already hold, so invalidation has
+    // something to mark.
+    client.setQueryData(agentKeys.all, { data: { packages: [], instances: [], supervisors: [] } });
+    client.setQueryData(agentKeys.instance(INSTANCE), { data: { id: INSTANCE } });
+    client.setQueryData(agentKeys.activity(INSTANCE), { pages: [] });
+    client.setQueryData(agentKeys.instance(other), { data: { id: other } });
+    client.setQueryData(agentKeys.activity(other), { pages: [] });
+
+    applyFrame(client, agentTaskFrame(), SESSION);
+
+    const staleness = (key: readonly unknown[]) =>
+      client.getQueryCache().find({ queryKey: key })?.state.isInvalidated;
+
+    expect(staleness(agentKeys.all)).toBe(true);
+    expect(staleness(agentKeys.instance(INSTANCE))).toBe(true);
+    expect(staleness(agentKeys.activity(INSTANCE))).toBe(true);
+    // A different instance is untouched: `exact: true` on the overview stops
+    // the prefix match sweeping every other instance along with it.
+    expect(staleness(agentKeys.instance(other))).toBe(false);
+    expect(staleness(agentKeys.activity(other))).toBe(false);
+  });
+
+  it("ignores an agent task completion with no instance id", () => {
+    const client = new QueryClient();
+    client.setQueryData(agentKeys.all, { data: { packages: [], instances: [], supervisors: [] } });
+
+    applyFrame(client, frame("agent_os.task.completed", { outcome: "success" }), SESSION);
+
+    expect(
+      client.getQueryCache().find({ queryKey: agentKeys.all })?.state.isInvalidated,
+    ).toBe(false);
   });
 
   it("is not routed by a prefix match on the topic", () => {
     // `applyFrame` switches on the exact topic string. A near-miss must fall
     // through to the feed only -- never into the handler for a real subject.
     const client = new QueryClient();
-    applyFrame(client, frame("agent_os.task.completed.extra", { outcome: "success" }), SESSION);
+    client.setQueryData(agentKeys.all, { data: { packages: [], instances: [], supervisors: [] } });
+
+    applyFrame(
+      client,
+      frame("agent_os.task.completed.extra", {
+        agent_instance_id: INSTANCE,
+        outcome: "success",
+      }),
+      SESSION,
+    );
 
     const feed = client.getQueryData<ObservedEvent[]>(eventKeys.feed) ?? [];
     expect(feed.map((e) => e.topic)).toEqual(["agent_os.task.completed.extra"]);
-    expect(client.getQueryCache().getAll()).toHaveLength(1);
+    expect(
+      client.getQueryCache().find({ queryKey: agentKeys.all })?.state.isInvalidated,
+    ).toBe(false);
   });
 });
 
