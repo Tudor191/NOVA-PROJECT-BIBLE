@@ -143,7 +143,7 @@ application.**
 | `nova.heartbeat` | System Pulse | **4A** |
 | `planning.task_graph.*` | Planning panel | 4B |
 | `action.*` | Approvals panel | 4B |
-| `agent.*`, `agent_os.*` | Agents panel | 4C |
+| `agent_os.task.*` | Agents panel | 4C |
 | `autonomy.*` | Autonomy panel | 4D |
 
 Each later milestone **extends the allow-list only** — the bridging
@@ -152,12 +152,28 @@ mechanism itself is never redesigned. Under **ADR-025** and D-3, the
 to "this instance's one trusted user's subjects." Full RBAC-scoped
 allow-lists depend on Phase 7's `nova-auth` and are a stated non-goal.
 
+> **The 4C row corrected, 2026-09-10 (4C.2g closure).** It read
+> *"`agent.*`, `agent_os.*`"*. 4C shipped **`agent_os.task.*`** on the bus and
+> exactly one browser-nameable topic under it, `agent_os.task.completed`.
+> `agent.*` is the lifecycle family Phase 3E never built (CF-8), and
+> `agent_os.*` would have matched every Registry and Supervisor RPC subject —
+> `*` spans dots in `fnmatchcase`. The prediction is corrected; the mechanism
+> is unchanged, exactly as this section says it would be.
+
 ### 3.3 What is deliberately not bridged
 
 Raw inter-engine RPC subjects, `/internal/*` traffic, and any subject not
 on the list above. **A subject absent from the allow-list is not
 forwarded**, and the gateway fails closed on an unknown subject rather than
 defaulting to forward.
+
+**Two allow-lists, not one, and they are checked independently.**
+`SUBSCRIBABLE_SUBJECTS` bounds what the gateway *process* may receive from the
+bus (patterns); `PUBLIC_TOPICS` bounds what a browser may *name* (exact
+strings, never a prefix or pattern). 4C.2e is the clearest illustration:
+`agent_os.task.*` reaches the bus, while `agent_os.task.started` — a plausible
+sibling no engine publishes — is refused to a browser because it is not a
+member of the exact set.
 
 ---
 

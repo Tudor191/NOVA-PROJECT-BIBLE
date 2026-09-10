@@ -349,7 +349,7 @@ drift.
 | `capabilities/` | **4B** | `capability-engine` `/v1/capabilities` |
 | `approvals/` | **4B** | `action-engine` `/v1/action/approvals/{id}/decide` |
 | `events/` | **4B** | `ws-gateway` raw allow-listed stream |
-| `agents/` | **4C** | `agent-os/kernel` `/v1/agents` (D-4), `agent.*`/`agent_os.*` |
+| `agents/` | **4C** | `agent-os/kernel` `/v1/agents` (D-4) + `agent_os.task.completed` (**as built, 2026-09-10** — see the note below this table) |
 | `autonomy/` | **4D** | `autonomy-engine` |
 | `digital-twin/` | **4E** | `digital-twin-engine` `/v1/digital-twin` |
 | `cognitive-state/` | **4F** | `cognitive-state-engine` |
@@ -363,6 +363,26 @@ drift.
 additions to doc 04's named set; the first three exist because Phase 3
 built engines that doc 04 predates. **Doc 04 §2 will be amended additively
 in 4B** to record them — it is not being redesigned.
+
+> **The `agents/` row corrected, 2026-09-10 (4C.2g closure).** This row read
+> *"`agent.*`/`agent_os.*`"*. **4C shipped neither pattern**, and the row is
+> corrected rather than the code bent to match a prediction written before the
+> surface existed.
+>
+> - **`agent.*`** is the `agent.{instance_id}.{state}` lifecycle family that
+>   Phase 3E never built. **CF-8** ratified its absence as an explicit
+>   narrowing, and 4C's approved design (decision D-4) declined to revive it:
+>   a public topic nothing publishes is a topic a browser subscribes to and
+>   then waits on forever.
+> - **`agent_os.*`** was never a browser-public pattern and must not be
+>   documented as one. `BoundEventBus` matches with `fnmatchcase`, where `*`
+>   spans dots, so that prefix would cover every Registry and Supervisor RPC
+>   subject — `agent_os.registry.list_packages.request` among them.
+>
+> **What actually ships.** One public topic, `agent_os.task.completed` — the
+> only broadcast event `agent-os/kernel` publishes — reached through the
+> `agent_os.task.*` Event Bus subscription and named exactly by the browser.
+> Full detail in §9.2.
 
 ---
 
@@ -507,6 +527,67 @@ so the document and the code do not diverge again.
 **What was *not* added, and why:** no `GET /v1/agents/packages`, no
 supervisor-scoped route, no per-instance mutation. Each would have widened
 D-4 further with no consumer asking for it.
+
+### 9.2 The Agents surface as built — Phase 4C.2 (closed 2026-09-10)
+
+4C.2 delivered the Agents surface end to end in **six slices**, each reviewed
+and committed separately on `phase-4c.2`:
+
+| Slice | Commit | What it added |
+|---|---|---|
+| **4C.2a** | `8ed7436` | Registry `agent_os.registry.list_packages` RPC — **internal**, never browser-reachable |
+| **4C.2b** | `c1dbd44` | `agent_os.agent_activity` table, append-only, with the transactional repository surface |
+| **4C.2c** | `92ba4d7` | The Kernel's read-only `/v1/agents` REST surface, fronted by `api-gateway` |
+| **4C.2d** | `e0489b9` | Activity writes wired into the real Kernel lifecycle |
+| **4C.2e** | `e97602c` | `agent_os.task.completed` opened to the browser through `ws-gateway` |
+| **4C.2f** | `a405bca` | The Agents entity, panel, `/agents` route and realtime reconciliation |
+
+4C.2g is this closure pass — documentation, verification and the Gate Review.
+It added no product functionality.
+
+**REST — three read-only routes, no mutation path.** `GET /v1/agents`,
+`GET /v1/agents/{agent_instance_id}` (ratified, §9.1) and
+`GET /v1/agents/{agent_instance_id}/activity`. Activity is **keyset**
+paginated on an opaque cursor; there is no offset anywhere. A degraded
+Registry answers **503** and never an empty package list (decision D-1) — `200`
+with `packages: []` means a healthy Registry holding nothing, and the two are
+kept distinct at every layer. An unknown instance is **404**; a known instance
+with no history is a successful **empty page**. `/internal/*` remains
+unroutable.
+
+**Activity — six kinds, all produced by transitions that already existed.**
+`dispatched`, `completed`, `failed`, `restart_planned`, `interrupted`,
+`peer_review`. The first three and `interrupted` are written **in the same
+database transaction** as the `agent_instance` mutation they describe;
+`restart_planned` and `peer_review` are standalone appends, because no state
+transition happens at those points and inventing one to obtain coupling would
+record a change that did not occur. `correlation_id` is propagated, never
+minted: the scheduler carries the id that arrived on
+`planning.task_graph.created`, and reconciliation reuses the exact id its
+published `agent_os.task.completed` carries, storing `NULL` when no event is
+published. All four peer-review verdicts are recorded, `not_required` and
+`timed_out` included.
+
+**Realtime — one public topic.** `agent_os.task.completed`, subscribed on the
+bus as `agent_os.task.*` and named by the browser through exact-string
+membership in `PUBLIC_TOPICS`. Browser → `ws-gateway` → Event Bus is the only
+realtime path; the browser never connects to NATS. Registry and Supervisor RPC
+subjects, `agent_os.health.snapshot`, and the legacy `agent.*` family are all
+rejected from browser subscription.
+
+**Frontend.** An `entities/agents.ts` model, the `agents/` panel, the
+`/agents` route (lazily loaded, nested under the shell) and a navigation
+entry. A completed task **refetches** the affected Agents queries rather than
+patching them — the event payload carries `outcome` while the cache holds
+`status`, and the mapping between them is the Kernel's own policy. No polling,
+no optimistic mutation of shared cognitive state.
+
+**Provider-free behaviour is the steady state, and the panel renders it as
+healthy.** With no model provider configured, `agent_instance` is permanently
+empty (§1.1 traces why), so the panel shows the installed packages and
+explains that no agent has run yet. **AC-4's second and third clauses remain
+Deferred by approval** — 4C.2 makes them *demonstrable the moment a provider
+exists*, and does not make them met.
 
 ---
 
