@@ -337,6 +337,149 @@ def test_partition_splits_mixed_requests() -> None:
     assert rejected == ["secret.topic"]
 
 
+# --- Phase 4C milestone 4C.2e: the agent realtime surface -----------------
+#
+# The whole public addition is one subject. These tests exist to pin the
+# *boundary around* it, because the risk in this slice is not that
+# `agent_os.task.completed` fails to arrive -- that is one assertion -- but
+# that the way it was let in also let something else in.
+
+
+def test_the_approved_agent_task_topic_is_public() -> None:
+    allowed, rejected = partition_topics(["agent_os.task.completed"])
+    assert allowed == ["agent_os.task.completed"]
+    assert rejected == []
+
+
+def test_the_agent_task_topic_is_reachable_on_the_bus() -> None:
+    """Public and subscribable must agree, or the browser subscribes
+    successfully to something the bridge can never receive."""
+    assert any(
+        fnmatchcase("agent_os.task.completed", pattern) for pattern in SUBSCRIBABLE_SUBJECTS
+    )
+
+
+@pytest.mark.parametrize(
+    "topic",
+    [
+        # Internal RPC -- the subject 4C.2a built, and the one whose whole
+        # design depends on never reaching a client.
+        "agent_os.registry.list_packages.request",
+        "agent_os.registry.list_packages.reply",
+        "agent_os.registry.find_healthy_package.request",
+        "agent_os.registry.find_healthy_package.reply",
+        "agent_os.supervisor.restart_plan.request",
+        "agent_os.supervisor.restart_plan.reply",
+        "agent_os.supervisor.peer_review.request",
+        "agent_os.supervisor.peer_review.reply",
+        # Other agent-os internals.
+        "agent_os.instance.inbox",
+        "agent_os.internal.rpc",
+        # CF-8 narrowings. Neither was ever built; naming one would put a
+        # dead topic on the list and a client would wait forever.
+        "agent_os.health.snapshot",
+        "agent.lifecycle.started",
+        "agent.instance.running",
+        "agent.started",
+        # Patterns are not names.
+        "agent_os.*",
+        "agent_os.task.*",
+        "agent.*",
+    ],
+)
+def test_no_other_agent_subject_is_publicly_nameable(topic: str) -> None:
+    allowed, rejected = partition_topics([topic])
+    assert allowed == []
+    assert rejected == [topic]
+
+
+@pytest.mark.parametrize(
+    "topic",
+    [
+        "agent_os.task.completedX",
+        "agent_os.task.completed.extra",
+        "agent_os.task",
+        "agent_os.task.",
+        "agent_os.task.failed",
+        "agent_os.task.started",
+        " agent_os.task.completed",
+        "agent_os.task.completed ",
+        "AGENT_OS.TASK.COMPLETED",
+    ],
+)
+def test_authorization_is_exact_never_approximate(topic: str) -> None:
+    """No prefix, suffix, substring, whitespace-tolerant or case-insensitive
+    match. `partition_topics` is `in` against a `frozenset` of exact strings,
+    and these are the neighbours a prefix check would have admitted.
+
+    `agent_os.task.failed`/`.started` are in this list on purpose: they read
+    like plausible siblings, the *bus-side* pattern `agent_os.task.*` would
+    match them, and no engine publishes either. Exact-string public
+    authorization is what stops a browser subscribing to one and waiting
+    forever."""
+    allowed, rejected = partition_topics([topic])
+    assert allowed == []
+    assert rejected == [topic]
+
+
+@pytest.mark.parametrize(
+    "topic",
+    sorted(_KNOWN_OVERBROAD_RPC_MATCHES),
+)
+def test_the_overbroad_bus_patterns_are_still_not_browser_reachable(topic: str) -> None:
+    """The pre-existing `communication.*`/`personality.*` breadth, re-verified
+    by this slice rather than taken on trust.
+
+    Those two patterns are wide enough to hand the gateway *process* six
+    internal RPC subjects (pinned above, unchanged by 4C.2e). What must remain
+    true -- and is what stops that breadth being a client-visible exposure --
+    is that no browser can name any of them. Asserted per subject so a failure
+    says which one.
+
+    4C.2e did not widen these patterns, and did not narrow them either:
+    narrowing is a `ws-gateway` behaviour change needing its own verification
+    of which finalized subjects the 4A/4B panels consume, and doing it here to
+    tidy a neighbouring list would be exactly the unverified widening-adjacent
+    change this test exists to catch."""
+    allowed, rejected = partition_topics([topic])
+    assert allowed == []
+    assert rejected == [topic]
+
+
+def test_the_public_surface_grew_by_exactly_one_subject_in_4c() -> None:
+    """A guard on the *size* of the change, not only its content.
+
+    Every earlier public topic must still be public -- a slice that added a
+    topic by rewriting the set could silently drop one, and no other test here
+    would notice -- and `agent_os.task.completed` must be the only `agent_os.`
+    entry."""
+    pre_4c = {
+        "communication.turn.received",
+        "communication.intent.delivered",
+        "communication.session.created",
+        "communication.session.state_changed",
+        "communication.session.completed",
+        "perception.identity.observed",
+        "perception.presence.observed",
+        "perception.sensor.health_changed",
+        "nova.heartbeat",
+        "planning.task_graph.created",
+        "reasoning.process.completed",
+        "reasoning.process.failed",
+        "reasoning.human_override.applied",
+        "action.approval.requested",
+        "action.approval.decided",
+        "nova.module.status_changed",
+        "ai_model.model.health_changed",
+    }
+    missing = sorted(pre_4c - set(PUBLIC_TOPICS))
+    assert not missing, f"4C.2e dropped previously-approved public topics: {missing}"
+
+    agent_topics = sorted(t for t in PUBLIC_TOPICS if t.startswith(("agent.", "agent_os.")))
+    assert agent_topics == ["agent_os.task.completed"]
+    assert set(PUBLIC_TOPICS) == pre_4c | {"agent_os.task.completed"}
+
+
 # --- client message parsing ----------------------------------------------
 
 

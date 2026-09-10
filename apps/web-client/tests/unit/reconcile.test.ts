@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 
 import type { TranscriptEntry } from "../../src/entities/conversation";
 import { conversationKeys } from "../../src/entities/conversation";
+import type { ObservedEvent } from "../../src/entities/events";
+import { eventKeys } from "../../src/entities/events";
 import { presenceKeys } from "../../src/entities/presence";
 import type { PresentIdentity } from "../../src/entities/presence";
 import { pulseKeys, summarisePulse } from "../../src/entities/pulse";
@@ -40,6 +42,19 @@ function turnFrame(overrides: Record<string, unknown> = {}) {
     content: "How did the build go?",
     channel: "text",
     created_at: "2026-09-02T10:00:00Z",
+    ...overrides,
+  });
+}
+
+function agentTaskFrame(overrides: Record<string, unknown> = {}) {
+  // `AgentOsTaskCompletedPayload`, the one broadcast event agent-os/kernel
+  // publishes (4C.2e).
+  return frame("agent_os.task.completed", {
+    task_node_id: "33333333-3333-4333-8333-333333333333",
+    agent_instance_id: "44444444-4444-4444-8444-444444444444",
+    outcome: "success",
+    result: null,
+    correlation_id: "corr-1",
     ...overrides,
   });
 }
@@ -204,6 +219,50 @@ describe("applyFrame", () => {
     expect(() =>
       applyFrame(client, frame("communication.session.completed", { session_id: SESSION }), SESSION),
     ).not.toThrow();
+  });
+
+  // --- Phase 4C milestone 4C.2e ------------------------------------------
+
+  it("records an agent task completion in the raw event feed", () => {
+    // The whole client-side effect of 4C.2e. The Agents panel is 4C.2f, so
+    // this frame has no panel of its own yet -- but it must still be visibly
+    // arriving, or "the panel is not built" and "the topic is not flowing"
+    // would look identical when 4C.2f starts.
+    const client = new QueryClient();
+    applyFrame(client, agentTaskFrame(), SESSION);
+
+    const feed = client.getQueryData<ObservedEvent[]>(eventKeys.feed) ?? [];
+    expect(feed).toHaveLength(1);
+    expect(feed[0].topic).toBe("agent_os.task.completed");
+    expect(feed[0].correlationId).toBe("corr-1");
+    expect(feed[0].data.outcome).toBe("success");
+  });
+
+  it("does not mutate any panel cache for an agent task completion", () => {
+    // No optimistic write into shared cognitive state. 4C.2f introduces the
+    // Agents entity and its query keys; until then this frame must touch
+    // nothing but the raw feed, so a half-built panel cannot read a shape
+    // nobody defined.
+    const client = new QueryClient();
+    applyFrame(client, agentTaskFrame(), SESSION);
+
+    const touched = client
+      .getQueryCache()
+      .getAll()
+      .map((query) => JSON.stringify(query.queryKey))
+      .sort();
+    expect(touched).toEqual([JSON.stringify(eventKeys.feed)]);
+  });
+
+  it("is not routed by a prefix match on the topic", () => {
+    // `applyFrame` switches on the exact topic string. A near-miss must fall
+    // through to the feed only -- never into the handler for a real subject.
+    const client = new QueryClient();
+    applyFrame(client, frame("agent_os.task.completed.extra", { outcome: "success" }), SESSION);
+
+    const feed = client.getQueryData<ObservedEvent[]>(eventKeys.feed) ?? [];
+    expect(feed.map((e) => e.topic)).toEqual(["agent_os.task.completed.extra"]);
+    expect(client.getQueryCache().getAll()).toHaveLength(1);
   });
 });
 

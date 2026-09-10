@@ -232,10 +232,17 @@ export function applyFrame(
     }
 
     default:
-      // Subscribed but not yet rendered by any 4A panel
+      // Subscribed but not yet rendered by a dedicated panel
       // (`communication.session.created`/`.completed`,
-      // `perception.presence.observed`). Ignored deliberately, and
-      // deliberately not an error: 4B panels consume them.
+      // `perception.presence.observed`, and -- since 4C.2e --
+      // `agent_os.task.completed`). Ignored deliberately, and deliberately
+      // not an error.
+      //
+      // These frames are not lost: the Events panel recorded each one above,
+      // before this switch, so an agent task completion is visible in the raw
+      // feed with its correlation id the moment 4C.2e lands. Giving it a
+      // `case` here would mean inventing the Agents entity and its query keys,
+      // which is 4C.2f's work, not this slice's.
       return;
   }
 }
