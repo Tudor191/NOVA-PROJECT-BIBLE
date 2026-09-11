@@ -7,7 +7,10 @@ docs/design/phase-3/08-tdd-3e-agent-os.md §4 and, since Phase 4C milestone
 (`sqlalchemy.exc.IntegrityError`) into `AgentInstanceAlreadyExistsError` --
 the natural-key idempotency guard convention every other Phase 3 repository
 already establishes (`action-engine`'s `ActionAlreadyExistsError`,
-`capability-engine`'s `CapabilityAlreadyExistsError`).
+`capability-engine`'s `CapabilityAlreadyExistsError`). **Only that
+violation.** The translation happens around the instance's own flush, where
+nothing else is pending; a constraint the *activity* row violates propagates
+as the `IntegrityError` it is.
 
 **Transactional participation (4C.2b).** `insert` and `update_status` each
 take an optional `activity`, added to the *same session* before the single
@@ -16,6 +19,12 @@ adding a row to it needs no coordination mechanism, which is why the port
 gained a parameter rather than the codebase gaining a unit-of-work
 abstraction. `append_activity` is for activity that accompanies no
 transition and correctly commits alone.
+
+**Ordering inside that transaction (fixed 2026-09-10).** `insert` flushes the
+`agent_instance` row before adding the activity, because SQLAlchemy orders an
+unrelated pair of mappers by name rather than by foreign key -- see the
+comment at the call site. The flush changes *when the INSERT is emitted*, not
+how many transactions there are: still one block, still one `commit()`.
 
 **No update or delete of an activity row exists in this file.** That is the
 append-only guarantee, and `tests/unit/test_activity.py` asserts the
@@ -105,18 +114,45 @@ class PostgresKernelRepository:
         )
         async with self._session_factory() as session:
             session.add(row)
+            # **Flushed before the activity is added, and that ordering is
+            # load-bearing.** `AgentActivityORM` declares a real foreign key to
+            # `agent_instance.id` but no ORM `relationship()`, so SQLAlchemy's
+            # unit of work has no dependency edge between the two mappers and
+            # falls back to sorting them by mapper name. `AgentActivityORM`
+            # sorts before `AgentInstanceORM`, so adding both and committing
+            # once emitted the child INSERT first and the foreign key had no
+            # parent row yet -- a deterministic `ForeignKeyViolationError`,
+            # found by the first CI run that had a real database (4C.2, PR #26).
+            #
+            # `flush()` emits the INSERT inside the *still-open* transaction.
+            # It is not a commit: the single `commit()` below is still the only
+            # one, so the instance and its activity remain one atomic fact
+            # (decision D-3). If the activity write fails, this flushed row
+            # rolls back with it.
+            try:
+                await session.flush()
+            except IntegrityError as exc:
+                # The instance row is the only thing pending here, so an
+                # integrity error at this point can only be its own id
+                # colliding -- which is what makes translating it correct.
+                # The blanket `except` this replaces sat around the commit,
+                # where it also caught the activity's constraint violations and
+                # reported a foreign-key failure as "already exists": the
+                # opposite of the truth, and what hid the defect above.
+                await session.rollback()
+                raise AgentInstanceAlreadyExistsError(
+                    f"agent_instance {instance.id} already exists"
+                ) from exc
+
             if activity is not None:
                 # Same session, therefore the same transaction and the same
                 # commit below. The instance and the record of it appearing
                 # are one fact.
                 session.add(_activity_orm(activity))
-            try:
-                await session.commit()
-            except IntegrityError as exc:
-                await session.rollback()
-                raise AgentInstanceAlreadyExistsError(
-                    f"agent_instance {instance.id} already exists"
-                ) from exc
+            # Any `IntegrityError` from here propagates untranslated. A
+            # constraint the activity violates is not an instance conflict, and
+            # mislabelling it would send the next reader after the wrong bug.
+            await session.commit()
         return instance
 
     async def list_by_status(self, status: str) -> list[AgentInstance]:

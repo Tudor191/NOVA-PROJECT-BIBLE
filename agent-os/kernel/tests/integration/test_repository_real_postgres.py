@@ -528,15 +528,102 @@ async def test_real_activity_is_scoped_to_its_own_instance(
 async def test_insert_commits_the_instance_and_its_activity_together(
     repository: PostgresKernelRepository,
 ) -> None:
+    """Regression: this failed on the first CI run that had a real database.
+
+    `AgentActivityORM` has a real foreign key to `agent_instance.id` but no ORM
+    `relationship()`, so SQLAlchemy sorted the two mappers by name -- putting
+    `AgentActivityORM` first -- and emitted the child INSERT before its parent.
+    A `ForeignKeyViolationError` every time, invisible to every fake-backed
+    test because a dictionary has no constraints. `insert` now flushes the
+    instance first, inside the same transaction.
+    """
     instance = _instance()
+    activity = _activity(instance.id, kind=AgentActivityKind.DISPATCHED)
 
-    await repository.insert(
-        instance, activity=_activity(instance.id, kind=AgentActivityKind.DISPATCHED)
-    )
+    await repository.insert(instance, activity=activity)
 
-    assert await repository.find_by_id(instance.id) is not None
+    # Both rows exist after the single commit...
+    stored = await repository.find_by_id(instance.id)
+    assert stored is not None
+    assert stored.id == instance.id
     page = await repository.list_activity(instance.id)
     assert [a.kind for a in page.items] == [AgentActivityKind.DISPATCHED]
+    # ...and the activity really points at the instance that was inserted,
+    # which is the relationship the foreign key exists to guarantee.
+    assert [a.id for a in page.items] == [activity.id]
+    assert page.items[0].agent_instance_id == instance.id
+
+
+async def test_the_instance_and_its_activity_are_one_transaction(
+    repository: PostgresKernelRepository,
+    postgres_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """The flush must not have turned one transaction into two.
+
+    Checked by the property that distinguishes them: if the instance were
+    committed by its own flush, a failure on the activity would leave the
+    instance behind. It does not -- **neither** row survives. That is only
+    possible if the flushed INSERT was still inside the open transaction.
+
+    The activity here names an `agent_instance_id` that does not exist, so the
+    commit fails on the foreign key rather than on anything the instance did.
+    """
+    instance = _instance()
+    orphaned_parent = uuid4()
+
+    with pytest.raises(IntegrityError):
+        await repository.insert(
+            instance, activity=_activity(orphaned_parent, kind=AgentActivityKind.DISPATCHED)
+        )
+
+    assert await repository.find_by_id(instance.id) is None, (
+        "the instance survived a failed activity write -- the flush committed "
+        "on its own and the two are no longer one transaction"
+    )
+    async with postgres_session_factory() as session:
+        surviving = (
+            await session.execute(
+                text(
+                    "SELECT count(*) FROM agent_os.agent_activity "
+                    "WHERE agent_instance_id = :iid"
+                ),
+                {"iid": str(orphaned_parent)},
+            )
+        ).scalar_one()
+    assert surviving == 0
+
+
+async def test_an_unrelated_integrity_error_is_not_reported_as_a_duplicate_instance(
+    repository: PostgresKernelRepository,
+) -> None:
+    """Regression: the error message used to be the opposite of the truth.
+
+    `insert` wrapped the whole commit in `except IntegrityError` and reported
+    everything as `AgentInstanceAlreadyExistsError`. So the foreign-key
+    violation above surfaced as "agent_instance <id> already exists" for an
+    instance that did **not** exist -- which is what sent the first reader of
+    that CI failure looking for a duplicate-id bug.
+
+    A constraint the *activity* violates must now propagate as the
+    `IntegrityError` it is.
+    """
+    instance = _instance()
+
+    with pytest.raises(IntegrityError) as raised:
+        await repository.insert(
+            instance, activity=_activity(uuid4(), kind=AgentActivityKind.DISPATCHED)
+        )
+
+    assert not isinstance(raised.value, AgentInstanceAlreadyExistsError)
+    assert "agent_activity" in str(raised.value), (
+        "the error should name the constraint that actually failed"
+    )
+
+    # The genuine duplicate-instance case still translates, so narrowing the
+    # handler did not cost the idempotency guard every other repository has.
+    existing = await repository.insert(_instance())
+    with pytest.raises(AgentInstanceAlreadyExistsError):
+        await repository.insert(existing)
 
 
 async def test_a_failed_insert_rolls_back_its_activity_too(
