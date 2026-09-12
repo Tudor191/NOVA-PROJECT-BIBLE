@@ -589,6 +589,33 @@ explains that no agent has run yet. **AC-4's second and third clauses remain
 Deferred by approval** — 4C.2 makes them *demonstrable the moment a provider
 exists*, and does not make them met.
 
+> **Addendum, 2026-09-11 — verified against real PostgreSQL, and what that
+> found.** The paragraphs above were written on 2026-09-10, before any CI run
+> with a real database existed. That run has since happened: **all 12
+> `real-infra` jobs are green against head `1182816`**, the kernel's 50
+> `real_infra` tests passing in a single pytest process alongside the Phase 3E
+> real-Postgres acceptance E2E. **Two defects were exposed and fixed during
+> that verification**, both invisible to every gate that can run without a
+> database:
+>
+> 1. **Transaction ordering.** The same-transaction coupling described above
+>    was correct as a design and broken as code — `agent_activity` has a
+>    foreign key but no ORM `relationship()`, so SQLAlchemy emitted the child
+>    INSERT before its parent and every coupled insert failed. Fixed in
+>    `4eafa80` by flushing the instance inside the still-open transaction.
+>    **Decision D-3 is unchanged**: still one transaction, one commit, one
+>    logical operation.
+> 2. **Test isolation.** The Phase 3E E2E commits permanently, by design, and
+>    its rows were visible to the Kernel repository's unfiltered
+>    `list_instances` tests. Fixed in `388c271` by giving that E2E its own
+>    database. **`list_instances()` production behaviour is unchanged** and no
+>    assertion was weakened.
+>
+> **No acceptance scope was reduced, silently or otherwise.** Everything §9.2
+> describes as built is built, and the transaction property it asserts is now
+> proven against a real database rather than inferred from source. AC-4's
+> deferral is unchanged. Full record: [Gate Review §18](../../roadmap/architecture-reviews/phase-4c2-agents-surface-gate-review.md).
+
 ---
 
 ## 10. `agent-os` Docker and CI integration (D-5)

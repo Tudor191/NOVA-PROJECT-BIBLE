@@ -528,3 +528,192 @@ or whatever follows — is a separate decision, and it is the user's.
 **Every figure in this document was produced by a command run in this session.**
 Nothing is carried over from a previous report without re-verification, and
 nothing that could not be verified is stated as verified.
+
+---
+
+## 18. Closure addendum — 2026-09-11
+
+**Additive. Sections 0–17 and the Sign-off above are unchanged and are left as
+written against head `a405bca`** (protocol §0.3.4, §3.3). Where a figure below
+differs from one above, the one above was correct for its own head and remains
+the historical record; this section supplies the current value and says why it
+moved.
+
+### 18.1 Current state
+
+| Item | Value |
+|---|---|
+| **Head** | `1182816ffea6702a686ec3e5057fc8b5d8e2f9cf` |
+| **PR** | **#26**, `phase-4c.2` → `phase-4`, **open, not merged**, `mergeable_state: clean` |
+| **Base** | `phase-4` = `3433fbea25b19217542cd20155b866ca46589f01` — unchanged |
+| **CI** | **34 of 34 check runs green** against exactly `1182816` |
+| **Topology** | 10 ahead / 0 behind, **0 merge commits**, linear, working tree clean |
+| **Protected refs** | `origin/main` `7e273e6`, `origin/phase-4` `3433fbe`, `origin/phase-4c` `e4900eb` — still byte-identical to §11 |
+
+Four commits landed after `a405bca`. Exactly **one production source file**
+changed across all four — `repository/postgres_kernel_repository.py`:
+
+| Commit | What it did |
+|---|---|
+| `69a9461` | 4C.2g documentation + this Gate Review (no product functionality) |
+| `4eafa80` | **Fixed the transaction-ordering defect** below, and added two kernel regression tests |
+| `388c271` | **Fixed the Phase 3E E2E database-isolation defect** below (test infrastructure only) |
+| `1182816` | Refreshed the `js-yaml` resolution in `pnpm-lock.yaml` (no manifest change) |
+
+Production SLOC moved by **+1 line** on every measured scope — the flush fix.
+The **~50,000 gate remains uncrossed**; §16's conclusion is unaffected.
+
+### 18.2 C-1 — **DISCHARGED**, and not cleanly
+
+`real-infra-checks` ran against `1182816`: **all 12 matrix jobs success.**
+
+```
+real-infra (kernel, agent-os/kernel)   50 passed, 190 deselected, 9 warnings in 21.57s
+real-infra (registry, agent-os/registry)  success
+```
+
+The kernel's 50 ran **in a single pytest process**, which is the only
+configuration able to prove the absence of cross-test contamination. The Phase
+3E real-PostgreSQL acceptance E2E passed at position 8 of 50.
+
+**Current `real_infra` count: 50 kernel + 18 registry = 68.** §8's and §15's
+**48 kernel (66 total) was correct at `a405bca` and stays as written** — the
+count rose because `4eafa80` added two regression tests for the defect below.
+
+**C-1 did not discharge on the first attempt. The first run with a real
+database exposed two defects, which is precisely why the condition existed.**
+
+**Defect A — transaction ordering (production).** `AgentActivityORM` declares a
+real foreign key to `agent_instance.id` but no ORM `relationship()`, so
+SQLAlchemy's unit of work had no dependency edge between the two mappers and
+fell back to sorting them by mapper name — emitting the **child INSERT first**.
+Every `insert(instance, activity=…)` therefore raised
+`ForeignKeyViolationError` against a real database. Compounded by a blanket
+`except IntegrityError` wrapped around `commit()`, which reported that
+foreign-key failure as `AgentInstanceAlreadyExistsError` — the inverse of the
+truth, and what hid the cause. **Fixed in `4eafa80`** by flushing the instance
+inside the still-open transaction before the activity is added, and narrowing
+the translation to that flush. **Decision D-3 is preserved exactly**: one
+`async with` block, one `commit()`, one logical operation; a failure on the
+activity write still rolls the flushed instance back with it.
+
+**Defect B — Phase 3E E2E database isolation (test infrastructure).** The
+Phase 3E real-Postgres E2E is the only test in the repository that commits
+permanently: it must let `create_*_app`'s own lifespan build the real
+repository from `<ENGINE>_POSTGRES_DSN`, which is the production wiring it
+exists to prove, so it cannot use `nova-testkit`'s rollback-isolated
+`postgres_session_factory`. Its three committed `agent_os.agent_instance` rows
+were visible to `test_repository_real_postgres.py`'s four `list_instances`
+tests, which read deliberately unfiltered global state (decision D-4). Latent
+since 4C.2c (`92ba4d7`), masked by Defect A, and exposed the moment A was
+fixed. **Fixed in `388c271`** by giving the E2E its own database inside the
+same session-scoped container. **`list_instances()` production behaviour is
+unchanged**, and no assertion was weakened to accommodate the fix.
+
+### 18.3 Correction to §9, acceptance item 4
+
+§9 records **"Transaction semantics — Met"**, evidenced by source inspection
+and fake-repository tests. **That claim was locally evidenced only, and was not
+true against a real database at `a405bca`**: Defect A meant every coupled
+insert raised. The evidence available at the time — inspection plus a
+fake repository — cannot exercise a foreign key, which is the whole reason
+condition C-1 existed.
+
+**The claim is now genuinely proven** at `1182816`, against real PostgreSQL, by
+`test_insert_commits_the_instance_and_its_activity_together`,
+`test_the_instance_and_its_activity_are_one_transaction` and
+`test_an_unrelated_integrity_error_is_not_reported_as_a_duplicate_instance`.
+The §9 row is left as written per the additive-correction rule and is
+superseded by this paragraph.
+
+### 18.4 C-2 — **DISCHARGED**
+
+**34 of 34 check runs `success` against exactly `1182816`:**
+
+| Group | Result |
+|---|---|
+| `checks` (pr-checks) | success |
+| `build-and-scan` — 19 images, incl. Trivy `CRITICAL,HIGH`, `exit-code: 1` | 19/19 success |
+| `real-infra` — 12 packages | 12/12 success |
+| `Playwright golden path (staged, non-blocking)` | success |
+| `dependency-audit` | success |
+
+§11's *"No PR has been opened"* and *"Real GitHub Actions CI has not run against
+`a405bca`"* were both true when written; PR #26 now exists and CI has run.
+`dependency-audit` was outside C-2's wording and was red on an independent,
+pre-existing `js-yaml` advisory (GHSA-2883-xcg3-v3hh) unrelated to 4C.2; it is
+green at `1182816`, fixed by a lockfile-only resolution refresh within the
+existing semver ranges — no manifest, dependency or version change.
+
+### 18.5 C-3 — **remains OPEN, unchanged**
+
+**AC-4 is still NOT MET.** Its second and third clauses — *"renders live agent
+instances"* and *"at least one real peer-review round"* — remain **Deferred by
+explicit user approval, 2026-09-07**, traced through code in master scope §1.1.
+Nothing in this addendum implements them, and nothing in 4C.2 weakened them.
+The discharge event is unchanged: a milestone that configures a model provider.
+**C-3 is not altered by this pass.**
+
+### 18.6 New condition C-4 — documentation reconciliation
+
+Identified by this pass. The roadmap's `4C` row read **"Not started"**, which
+the repository contradicts. Corrected in the same pass as this addendum; see
+the reconciliation table below.
+
+### 18.7 Condition status after this addendum
+
+| # | Condition | Status |
+|---|---|---|
+| **C-1** | Real-infrastructure suites unverified | **DISCHARGED** — 68/68 green against `1182816`, two defects found and fixed |
+| **C-2** | No GitHub Actions CI against the head | **DISCHARGED** — 34/34 green against `1182816` |
+| **C-3** | AC-4 NOT MET, two clauses Deferred by approval | **OPEN** — unchanged; a provider milestone |
+| **C-4** | Documentation reconciliation | **This pass** — roadmap row corrected; ledger below opened |
+
+### 18.8 Deferred-obligations ledger (protocol §0.2)
+
+These are **documentation and closure obligations, not 4C.2 implementation
+gaps**. Nothing below is a missing feature, a missing test, or an unmet
+milestone criterion, and none is created or modified by this pass.
+
+| Obligation | Current state | Owner / closure point |
+|---|---|---|
+| `docs/project-health/phase-4c.md` | **Does not exist.** Protocol §0.1 makes category 4 deferrable for a Slice; `project-health/README.md` requires it before the **phase** is closed | **Phase 4C closure** |
+| `docs/project-health/project-health-master.md` | No `Phase 4C` row in the summary table; §2 needs no methodology entry (tool and scope unchanged — `cloc` v2.06) | **Phase 4C closure** |
+| `README.md` `## Status` | Makes **zero** Phase 4 claims, so it contradicts nothing today; it will need a Phase 4 status line at phase closure | **Phase 4 closure** |
+
+**A process note, recorded rather than smoothed over.** This document, as
+originally written, contained no explicit §0.2 deferred-obligations ledger —
+§13.3 lists carried-forward *findings*, which is a different thing. That is why
+the three rows above were not visible as owed until the final review. The
+ledger exists from here.
+
+### 18.9 Verdict after this addendum
+
+### **CONDITIONAL-GO — unchanged**
+
+C-1 and C-2 are discharged. **C-3 remains open**, by a prior explicit user
+approval that this document cites rather than grants, and **the verdict is not
+raised to GO.**
+
+Protocol §3.2's GO items 1–8 and 11 now hold, including item 7 (real CI green
+against the exact head SHA) and item 8 (real-infrastructure verification
+**passed**, rather than merely disclosed). The verdict stays CONDITIONAL for
+two reasons, both stated plainly:
+
+1. **C-3 is still open.** This project's recorded convention is that GO
+   requires every condition closed — Phase 3E reached GO only once all six of
+   its conditions were closed, and Phase 4B stayed CONDITIONAL-GO with all
+   eleven §3.2 items holding because four conditions remained open.
+2. **§3.2 item 9 is not yet fully satisfied**: the Phase 4C Project Health
+   record does not exist. It is deferrable for a Slice and is now in the
+   ledger, but it is not done.
+
+**CONDITIONAL-GO is still not being used to pass an unmet criterion.** AC-4's
+deferral is the 2026-09-07 user approval, cited here, not granted here.
+
+**Completing this milestone remains no authorization to begin the next.**
+
+**Prepared:** 2026-09-11, against `phase-4c.2` head
+`1182816ffea6702a686ec3e5057fc8b5d8e2f9cf`, PR #26 open and unmerged. Every
+figure in this addendum was produced by a command run or a CI result read in
+this session.
