@@ -837,7 +837,7 @@ a workflow defect, and must not be worked around.
 | `00-master-scope.md` (this document) | Phase 4 goal, acceptance criteria, milestones 4A–4F, carry-forwards, decisions D-1…D-8, risks R-1…R-6, non-goals, branch workflow | **Design preparation** |
 | [`01-tdd-4a-gateways-and-web-client.md`](01-tdd-4a-gateways-and-web-client.md) | 4A technical design: gateway architecture, security boundaries, session model, web-client architecture, panel scope, testing, acceptance criteria | **Design preparation** |
 | `02-tdd-4b-observability-panels.md` | 4B — not yet written | Planned |
-| `03-tdd-4c-agent-os-api-and-containerization.md` | 4C — not yet written | Planned |
+| `03-tdd-4c-agent-os-api-and-containerization.md` | 4C — **never written; waived at Phase 4C closure, 2026-09-12** (see the note below) | **Waived, not owed** |
 | `04-tdd-4d-autonomy-engine.md` | 4D — not yet written | Planned |
 | `05-tdd-4e-digital-twin-extension.md` | 4E — not yet written | Planned |
 | `06-tdd-4f-companion-and-cognitive-state.md` | 4F — not yet written | Planned |
@@ -845,3 +845,28 @@ a workflow defect, and must not be worked around.
 Each later TDD is written immediately before its milestone begins, not up
 front — the same cadence Phase 3 used, which let each TDD incorporate what
 the previous milestone actually revealed.
+
+> **`03-tdd-4c-…` waived at Phase 4C closure, 2026-09-12.** Phase 4C shipped
+> without it. The row is settled as a **waiver** rather than left reading
+> "Planned", because Phase 4C is now complete and merged (`phase-4` head
+> `b1d7ca5`) and a document written *after* the milestone it was meant to
+> design cannot serve its stated purpose — *"written immediately before its
+> milestone begins"*, so that it can incorporate what the previous milestone
+> revealed. Writing one now would be a retrospective narrative, not a
+> technical design, and this package does not manufacture those.
+>
+> **What carried the design load instead**, and why the waiver is recorded
+> rather than treated as a gap to backfill: §9 and §9.1 hold decision **D-4**
+> and the ratified third route; §9.2 records the surface as built; §10 holds
+> the containerization design (**D-5**); §5's dated implementation notes record
+> 4C.1's scope; and the
+> [Phase 4C.2 Gate Review](../../roadmap/architecture-reviews/phase-4c2-agents-surface-gate-review.md)
+> holds the decisions, tradeoffs, limitations, verification and acceptance
+> assessment a TDD would otherwise carry forward. Between them the milestone is
+> fully specified in this repository — it simply is not specified in one file
+> named `03-…`.
+>
+> **This waiver settles the row; it does not set a precedent.** `04-tdd-4d-…`
+> remains **Planned and owed**, to be written immediately before `phase-4d` is
+> cut, per the cadence above. **`02-tdd-4b-…` is untouched here** — 4B's row is
+> Phase 4B's to settle, not 4C's, and nothing in this pass changes it.

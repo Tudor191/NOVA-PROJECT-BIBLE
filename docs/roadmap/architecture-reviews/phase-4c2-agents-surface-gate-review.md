@@ -717,3 +717,78 @@ deferral is the 2026-09-07 user approval, cited here, not granted here.
 `1182816ffea6702a686ec3e5057fc8b5d8e2f9cf`, PR #26 open and unmerged. Every
 figure in this addendum was produced by a command run or a CI result read in
 this session.
+
+---
+
+## 19. Merge and Phase 4C closure — 2026-09-12
+
+**Additive, like §18. Sections 0–17, the original Sign-off and §18 are all
+unchanged.** Where §18.1 records PR #26 as *"open, not merged"*, that was true
+when written; this section supersedes it.
+
+### 19.1 The merge
+
+| Item | Value |
+|---|---|
+| **Merge commit** | `b1d7ca548e88ddc2fc8d5f56007a8864127cb798` |
+| **Parent 1** | `3433fbea25b19217542cd20155b866ca46589f01` — previous `phase-4` |
+| **Parent 2** | `7360763889b551291e330034443881a865cedd94` — PR #26 head |
+| **Method** | **normal two-parent merge commit, not squashed**, so every SHA this document cites stays reachable |
+| **Merged** | 2026-09-12T19:15:59Z, by `Tudor191` |
+| **`main`** | **unchanged at `7e273e62e942ecd5528ca807e65933d6bb675669`** |
+
+**The merge was made on the user's explicit authorization, with this Gate
+Review's verdict standing at CONDITIONAL-GO**, on the stated basis that **C-3
+is an approved deferral** rather than an unresolved failure. That authorization
+and its reason are recorded in the merge commit body. **The verdict is not
+raised to GO by the merge**, and nothing in this section should be quoted as
+saying it is.
+
+Branches are intact — `phase-4c.2` preserved at `7360763`, none deleted — and
+no history was rewritten.
+
+### 19.2 The §18.8 ledger, settled
+
+| Row | State |
+|---|---|
+| `docs/project-health/phase-4c.md` | **SETTLED** — written 2026-09-12, covering 4C.1 and 4C.2 as two separated sub-units per the Phase 3B multi-unit precedent |
+| `project-health-master.md` Phase 4C row | **SETTLED** — §1 timeline row and §3 index entry added. §2 needs no entry: neither the SLOC tool nor the scope definitions changed |
+| `README.md` Phase 4 status line | **OPEN — owned by Phase 4 closure**, not 4C. It still makes zero Phase 4 claims, so it contradicts nothing today |
+
+Separately, master scope §17's `03-tdd-4c-agent-os-api-and-containerization.md`
+row is **settled as a recorded waiver** in that document, with the reasoning
+written there.
+
+### 19.3 Phase 4C at closure
+
+**Phase 4C is exactly two milestones — 4C.1 and 4C.2 — and both are complete
+and merged.** There is no 4C.3, 4C.4, 4C.5 or 4C.6: searched across all
+branches and all history, those three appear in **zero commits, ever**, and
+`4C.3` appears only in this document's own Sign-off phrase *"4C.3 — or whatever
+follows"*, which was placeholder wording and not a plan. **4C implementation is
+complete**, and none of the remaining work below is implementation work.
+
+**AC-4, restated without reinterpretation.** Clause 1 is **Met** by 4C.1.
+Clauses 2 and 3 remain **Deferred by the user's explicit approval of
+2026-09-07** and are **untouched by this closure**; AC-4 as a whole is
+therefore still **NOT MET**. The only remaining trigger is **provider
+configuration**, and the discharge milestone is still undesignated.
+
+**Conditions at closure:** **C-1 DISCHARGED** · **C-2 DISCHARGED** ·
+**C-4 DISCHARGED** · **C-3 OPEN by approved deferral**.
+
+**One gap found during this closure pass and recorded rather than closed:**
+**milestone 4C.1 has no Gate Review document.** `architecture-reviews/`
+contains only this one for 4C. Protocol §0.1 makes category 3 deferrable for a
+significant Slice, so its absence was permissible at the time; §0.2 makes it a
+ledger row that **Phase 4 closure** inherits, alongside Phase 4A's missing Gate
+Review and health record. It is recorded in `phase-4c.md` sub-unit 1 field 21.
+**No 4C work is reopened by recording it, and no new milestone is created.**
+
+**Verdict after this section: CONDITIONAL-GO — unchanged.**
+
+**This closure is not authorization to begin Phase 4D**, and `phase-4d` has not
+been created.
+
+**Prepared:** 2026-09-12, against `phase-4` head
+`b1d7ca548e88ddc2fc8d5f56007a8864127cb798`.
