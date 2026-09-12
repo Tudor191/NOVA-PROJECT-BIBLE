@@ -463,3 +463,60 @@ Full disclosure and status in
 [`08-tdd-3e-agent-os.md`](../design/phase-3/08-tdd-3e-agent-os.md) §10 and
 [`phase-3e-agent-os-gate-review.md`](../roadmap/architecture-reviews/phase-3e-agent-os-gate-review.md)
 §8/§10.
+
+### 15.1 Agent activity, and what actually feeds the Agents panel (Phase 4C.2, 2026-09-10)
+
+The paragraph above still holds: `agent.<instance_id>.<state>` and
+`agent_os.health.snapshot` remain unbuilt, and Phase 4C **declined to revive
+either**. §13 above describes the health snapshot as *"feeding the frontend's
+Agent Activity panel"* — that panel now exists, and it is fed by something
+else. This subsection records what, so §13 is not read as a description of
+shipped behaviour.
+
+**A durable activity record, not a lifecycle event stream.** Phase 4C.2b added
+`agent_os.agent_activity`, an append-only table the Kernel owns and writes.
+The Agents panel reads it over REST rather than reconstructing it from events,
+because a client joining mid-stream sees no history — the concrete reason
+decision **D-4** added the Kernel's `/v1` surface at all.
+
+**Six kinds, each corresponding to a transition that already existed** in
+`domain/scheduler.py` or `domain/reconciliation.py`. None was invented to give
+the panel something to show:
+
+| Kind | Written when | Write mode |
+|---|---|---|
+| `dispatched` | the `agent_instance` row is written `"running"` before `spawn()` | same transaction as the insert |
+| `completed` | the instance reaches terminal `"completed"` | same transaction as the status update |
+| `failed` | the instance reaches terminal `"failed"` | same transaction as the status update |
+| `interrupted` | Kernel restart reconciliation finds the row still `"running"` | same transaction as the `"failed"` transition |
+| `restart_planned` | the Supervisor returns this instance in its restart plan | standalone append |
+| `peer_review` | a peer-review round returns a verdict | standalone append |
+
+**Transaction coupling is the point of the first four.** A state change and
+the record of it commit together, so there is no window in which an instance
+is running with no record of starting, or is marked `"completed"` while its
+history stops at dispatch. The last two are standalone precisely *because* no
+`agent_instance` mutation happens at those points — inventing a transition to
+couple them to would record a state change that did not occur.
+
+**`correlation_id` is propagated, never minted.** Scheduler-produced activity
+carries the id that arrived on `planning.task_graph.created`. Reconciliation
+reuses the exact id its published `agent_os.task.completed` carries, so the
+row and the event are joinable; an orphan with no assigned `TaskNode`
+publishes no event, so its activity stores `NULL` rather than a fabricated id
+that would link nothing.
+
+**Peer review records all four verdicts** — `approved`, `rejected`,
+`not_required`, `timed_out`. The last two mean "nobody reviewed this" while
+the task still finalises successfully, so suppressing them would make that
+absence invisible.
+
+**Realtime.** One public topic, `agent_os.task.completed`, bridged by
+`ws-gateway` under the `agent_os.task.*` subscription. Every
+`agent_os.registry.*` and `agent_os.supervisor.*` subject stays internal.
+
+**What the panel shows without a model provider.** `agent_instance` rows are
+created only by Kernel dispatch, reached only from an LLM-backed
+decomposition, so with no provider the table is legitimately empty. The panel
+renders that as a healthy empty state naming the reason — it does not render
+an error, and it does not fabricate instances.

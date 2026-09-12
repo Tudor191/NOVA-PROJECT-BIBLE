@@ -92,7 +92,7 @@ knowledge.node.created|updated
 knowledge.contradiction.detected
 reasoning.session.started|step.completed|result
 planning.task_graph.created|updated|completed
-agent.<agent_id>.assigned|started|completed|failed
+agent_os.task.completed                    # see the note below: the agent.<id>.* family was never built
 action.execute|result|rollback
 capability.installed|updated|health_changed
 communication.intent.received|response.ready
@@ -101,6 +101,24 @@ digital_twin.profile.updated
 executive.priority.changed|attention.shifted
 nova.heartbeat|nova.mode.changed|nova.module.status_changed
 ```
+
+> **Corrected 2026-09-10 (Phase 4C.2g closure), additively.** This list
+> previously named `agent.<agent_id>.assigned|started|completed|failed`. **No
+> such subject was ever built.** Phase 3E shipped `agent-os` without the
+> per-instance lifecycle family and without the aggregated
+> `agent_os.health.snapshot`; both were ratified as explicit narrowings in the
+> Phase 3E Gate Review (§2, DEV-2/DEV-3) and carried into Phase 4 as **CF-8**.
+> Neither has a payload in `nova-contracts`, and neither appears in any
+> component's `PUBLISHABLE_SUBJECTS`.
+>
+> `agent-os/kernel` publishes exactly one broadcast subject,
+> `agent_os.task.completed`. Its other declared subjects
+> (`agent_os.registry.*`, `agent_os.supervisor.*`) are request/reply RPC, not
+> events, and are **internal**: `ws-gateway` subscribes to `agent_os.task.*`
+> and nothing wider, so no browser can reach them (Phase 4C.2e).
+>
+> The prediction is corrected here rather than the code changed to match it —
+> a subject nothing publishes is one a subscriber waits on forever.
 
 Every published event carries a common envelope (defined once in `nova-contracts`):
 

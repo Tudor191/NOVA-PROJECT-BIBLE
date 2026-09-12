@@ -100,7 +100,12 @@ CREATE TABLE autonomy.decision_log (
 -- phase-scoped schema in docs/design/phase-3/08-tdd-3e-agent-os.md §4/§5
 -- and docs/design/phase-3/14-3e-agent-os-research.md §4, which are
 -- authoritative for Phase 3E implementation once approved and built.
--- Approved 2026-08-19; not yet implemented.)
+-- Approved 2026-08-19.
+--
+-- Status corrected 2026-09-10 (Phase 4C.2g): the two tables below were
+-- "not yet implemented" when this was written; both shipped in Phase 3E
+-- (kernel migration 0001, registry migration 0001), and agent_activity
+-- below was added by Phase 4C milestone 4C.2b.)
 CREATE TABLE agent_os.agent_instance (
     id UUID PRIMARY KEY,
     agent_package_id UUID NOT NULL,
@@ -121,7 +126,38 @@ CREATE TABLE agent_os.agent_package (
     health_status TEXT NOT NULL DEFAULT 'unknown',
     UNIQUE (category, version)
 );
+
+-- Added by Phase 4C milestone 4C.2b (migration `0002_agent_activity`),
+-- recorded here 2026-09-10. Append-only: the repository exposes insert and
+-- read only -- no update, no delete, and no HTTP write path.
+CREATE TABLE agent_os.agent_activity (
+    id UUID PRIMARY KEY,
+    agent_instance_id UUID NOT NULL REFERENCES agent_os.agent_instance(id),
+    occurred_at TIMESTAMPTZ NOT NULL,
+    kind TEXT NOT NULL CHECK (kind IN (
+        'dispatched', 'completed', 'failed',
+        'restart_planned', 'interrupted', 'peer_review')),
+    correlation_id UUID,
+    detail JSONB NOT NULL DEFAULT '{}'
+);
+CREATE INDEX agent_activity_instance_time_idx
+    ON agent_os.agent_activity (agent_instance_id, occurred_at, id);
 ```
+
+Three details of `agent_activity` are deliberate and worth stating, because
+each would be easy to "fix" into a defect:
+
+- **`occurred_at` has no `DEFAULT now()`.** Postgres `now()` is
+  *transaction-start* time, so a default would stamp every row written in one
+  transaction identically and make the ordering key lie about what happened
+  first. Python supplies the value at the moment of the event.
+- **The index and cursor are `(agent_instance_id, occurred_at, id)`.**
+  Timestamp ties are real, so `id` makes the sort total; the API's keyset
+  cursor carries both fields for exactly that reason.
+- **`correlation_id` is a first-class nullable column, not a key inside
+  `detail`.** It is the join key that makes "reasoning → plan → instance →
+  activity" traversable, so it is typed and queryable. `NULL` means no
+  correlation is known — it is never fabricated to avoid a null.
 
 Every table has a corresponding SQLAlchemy model in `services/<engine>/src/.../models/`
 and an Alembic migration chain scoped to that engine's schema (`alembic/versions/<engine>/`),

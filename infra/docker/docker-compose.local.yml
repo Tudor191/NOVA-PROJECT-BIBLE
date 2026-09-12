@@ -798,6 +798,9 @@ services:
       API_GATEWAY_REASONING_ENGINE_URL: http://reasoning-engine:8000
       API_GATEWAY_CAPABILITY_ENGINE_URL: http://capability-engine:8000
       API_GATEWAY_ACTION_ENGINE_URL: http://action-engine:8000
+      # Phase 4C (D-4): the Agents panel's read-only surface. The only
+      # non-`services/*` upstream; the container itself was added by 4C.1.
+      API_GATEWAY_AGENT_OS_KERNEL_URL: http://agent-os-kernel:8000
       API_GATEWAY_REDIS_URL: redis://redis:6379/0
       API_GATEWAY_SESSION_TOKEN: ${NOVA_SESSION_TOKEN:-}
       # Local development is plain HTTP, so a Secure-only cookie would never
@@ -811,6 +814,11 @@ services:
       redis:
         condition: service_healthy
       communication-engine:
+        condition: service_started
+      # Phase 4C (D-4). `service_started`, matching `communication-engine`
+      # above: the gateway forwards on demand and answers 502 for an upstream
+      # that is not up, so it does not need the Kernel healthy to start.
+      agent-os-kernel:
         condition: service_started
 
   ws-gateway:

@@ -158,6 +158,17 @@ confirmed domain-agnostic in `01-tdd-preparation-and-fork-resolutions.md`
 only — no `/v1/...` public REST surface, since the Kernel's actual work
 is Event-Bus-driven and internal-async-loop-driven, not request/reply.
 
+> **Amended by Phase 4C, 2026-09-09 (recorded here 2026-09-10).** The
+> narrowing above was correct for Phase 3, in which nothing consumed a Kernel
+> API, and it is preserved as written. **Phase 4C decision D-4 amends it**: the
+> Kernel now also serves a minimal, **read-only** `/v1/agents` surface — three
+> `GET` routes, no mutation path — because the Agents panel needs
+> point-in-time queries ("what packages are registered", "what is instance X
+> doing") that an event stream cannot answer for a client joining mid-stream.
+> `/internal/*` is unchanged and remains unroutable through `api-gateway`.
+> This is an explicit Phase 4 amendment to a ratified Phase 3E narrowing, not
+> a correction of it; see Phase 4 master scope §9 and §9.1.
+
 **Kernel Scheduler** (`12-agent-architecture.md:229-238`, implemented
 literally): on `planning.task_graph.created` (subscribed), for each
 `TaskNode` with `status="ready"` (all `depends_on` complete): (1) query

@@ -26,6 +26,10 @@ class Settings(BaseSettings):
     reasoning_engine_url: str = "http://reasoning-engine:8000"
     capability_engine_url: str = "http://capability-engine:8000"
     action_engine_url: str = "http://action-engine:8000"
+    agent_os_kernel_url: str = "http://agent-os-kernel:8000"
+    """Phase 4C (D-4). Matches the compose service name added by 4C.1;
+    `agent-os/kernel` is control-plane infrastructure rather than an
+    engine, but it is fronted on exactly the same terms as one."""
 
     upstream_timeout_seconds: float = 30.0
 

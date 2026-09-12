@@ -70,6 +70,27 @@ sets nothing, so CI gets the testcontainer; the override exists so the test
 can also be pointed at an already-running PostgreSQL 16 when no Docker
 daemon is available. It is a test-only knob -- no engine reads it.
 
+**On the testcontainer, this test gets its own database inside that one
+container** (`_E2E_DATABASE`), created before the migrations run and dropped
+at session teardown. It is the only test in the repository that commits
+permanently: every other real-Postgres test builds its repository from
+`nova-testkit`'s rollback-isolated `postgres_session_factory`, but this one
+must let `create_*_app`'s own lifespan build the real thing from
+`<ENGINE>_POSTGRES_DSN` -- that production wiring is precisely what it
+exists to prove -- so its rows survive the test that wrote them. Sharing the
+container's default database with `test_repository_real_postgres.py` meant
+its three committed `agent_os.agent_instance` rows were visible to that
+file's `list_instances` tests, which read deliberately unfiltered global
+state (decision D-4). A separate database is the boundary; `list_instances`
+itself is unchanged, and so is every assertion's meaning. The container is
+still session-scoped and still started once -- `CREATE DATABASE` inside it
+costs milliseconds, where a second container would cost a second startup.
+
+`NOVA_E2E_POSTGRES_DSN` is handed back untouched: no `CREATE DATABASE`, no
+`DROP DATABASE`, no DDL of any kind is issued against a database this test
+did not create. Only `postgres_container`'s fixture contract guarantees a
+throwaway server, so only that path is allowed to create and drop one.
+
 `@pytest.mark.real_infra`: excluded from the default `pytest`/`turbo run
 test` invocation (ADR-033).
 
@@ -117,6 +138,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 from uuid import UUID, uuid4
@@ -151,7 +173,8 @@ from nova_reasoning_engine.repository.outbox_dispatcher import (
 from nova_service_kit import create_engine, create_session_factory
 from nova_testkit.postgres import run_alembic_upgrade
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import async_sessionmaker
+from sqlalchemy.engine import make_url
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 # The default-tier variant is the single source of truth for the objective,
 # the target repository, the task graph and every stand-in that is identical
@@ -190,18 +213,77 @@ _MIGRATIONS: tuple[tuple[str, Path], ...] = (
 engine's own `Settings.model_config` `env_prefix` plus `POSTGRES_DSN`."""
 
 
+_E2E_DATABASE = "nova_phase_3e_e2e"
+"""This test's own database inside `postgres_container`. A fixed name, not a
+per-run unique one: the container is thrown away with the session, so a
+unique name would buy nothing, while a fixed name plus the `DROP ... IF
+EXISTS` below makes provisioning idempotent -- a session that died before
+its teardown ran cannot leave a database that changes what the next run
+sees."""
+
+
+async def _run_admin_statement(admin_url: str, statement: str) -> None:
+    """One statement against the container's *default* database.
+
+    `CREATE DATABASE` and `DROP DATABASE` cannot run inside a transaction
+    block, which is what `isolation_level="AUTOCOMMIT"` is for here -- and
+    they must be issued from a different database than the one they name,
+    which is why this connects to `admin_url` rather than to the dedicated
+    one."""
+    engine = create_async_engine(admin_url, isolation_level="AUTOCOMMIT")
+    try:
+        async with engine.connect() as connection:
+            await connection.execute(text(statement))
+    finally:
+        await engine.dispose()
+
+
 @pytest.fixture(scope="session")
-def e2e_postgres_url(request: pytest.FixtureRequest) -> str:
+def e2e_postgres_url(request: pytest.FixtureRequest) -> Iterator[str]:
     """The database this whole run uses.
 
     `postgres_container` is only requested when no external DSN is given, so
     a run against an already-provisioned PostgreSQL never needs a Docker
-    daemon to be reachable at all."""
+    daemon to be reachable at all.
+
+    Synchronous, like `_migrated_schemas` below and for the same reason: the
+    work it drives owns its own event loop, so it must not run inside an
+    async test."""
     external = os.environ.get(_EXTERNAL_DSN_ENV)
     if external:
-        return external
+        # Returned exactly as given. A developer-supplied DSN carries no
+        # guarantee that the database behind it is disposable, so nothing
+        # here creates or drops anything on that path -- this test is a
+        # guest on that server, and the isolation below is traded away for
+        # the caller's own control over what it is pointed at.
+        yield external
+        return
+
     container = request.getfixturevalue("postgres_container")
-    return str(container.get_connection_url())
+    admin_url = str(container.get_connection_url())
+    dedicated_url = (
+        make_url(admin_url).set(database=_E2E_DATABASE).render_as_string(hide_password=False)
+    )
+
+    # `IF EXISTS ... WITH (FORCE)` first, so provisioning does not depend on
+    # the previous session having reached its own teardown.
+    asyncio.run(
+        _run_admin_statement(admin_url, f'DROP DATABASE IF EXISTS "{_E2E_DATABASE}" WITH (FORCE)')
+    )
+    asyncio.run(_run_admin_statement(admin_url, f'CREATE DATABASE "{_E2E_DATABASE}"'))
+    try:
+        yield dedicated_url
+    finally:
+        # `WITH (FORCE)` (PostgreSQL 13+, and this container is 16) so the
+        # drop is deterministic rather than dependent on every engine in the
+        # stack having disposed its pool first. Ordered before
+        # `postgres_container`'s own teardown by pytest's reverse-of-setup
+        # rule, so the server is still running when this executes.
+        asyncio.run(
+            _run_admin_statement(
+                admin_url, f'DROP DATABASE IF EXISTS "{_E2E_DATABASE}" WITH (FORCE)'
+            )
+        )
 
 
 @pytest.fixture(scope="session", autouse=True)

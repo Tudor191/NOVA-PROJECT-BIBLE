@@ -42,6 +42,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         reasoning_engine_url=settings.reasoning_engine_url,
         capability_engine_url=settings.capability_engine_url,
         action_engine_url=settings.action_engine_url,
+        agent_os_kernel_url=settings.agent_os_kernel_url,
     )
     session_validator = LocalTokenSessionValidator(settings.session_token)
 

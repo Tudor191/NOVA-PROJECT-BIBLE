@@ -50,8 +50,9 @@ GET    /v1/plans                              # list task graphs, newest first (
 GET    /v1/plans/{task_graph_id}
 POST   /v1/plans/{task_graph_id}/approve      # Part 9 "Collaborative Planning"
 
-GET    /v1/agents
-GET    /v1/agents/{id}/activity
+GET    /v1/agents                             # packages + instances + supervisors (Phase 4C)
+GET    /v1/agents/{id}                        # one agent instance (4C.2c; ratified, master scope §9.1)
+GET    /v1/agents/{id}/activity               # per-instance activity, cursor-paginated
 
 GET    /v1/action/approvals                    # pending approvals, undecided, oldest first (Phase 4B)
 POST   /v1/action/approvals/{id}/decide        # approve/reject — the path actually built (Phase 3D)
@@ -68,6 +69,35 @@ PATCH  /v1/digital-twin/profile                  # Part 16 "User Control"
 
 GET    /v1/system/health                          # Part 20 dashboard feed — NOT IMPLEMENTED, see below
 ```
+
+> **The `/v1/agents` surface, as built (Phase 4C.2c, 2026-09-09; recorded
+> 2026-09-10).** Three routes on `agent-os/kernel`, forwarded 1:1 by
+> `api-gateway` under the `/v1/agents` prefix. Decision **D-4** authorised the
+> first and third; the resource read is ratified in the Phase 4 master scope
+> §9.1.
+>
+> - **Read-only, structurally.** Every route is a `GET`. There is no create,
+>   update or delete: agent lifecycle stays Event-Bus-driven, and
+>   `agent_os.agent_activity` is append-only with no write path from HTTP at
+>   all.
+> - **`GET /v1/agents` — 503 is not an empty list.** A reachable Registry
+>   holding nothing answers `200` with `packages: []`; a Registry that cannot
+>   be reached answers **`503`**. The distinction survives every layer, and no
+>   fallback package data is substituted — reporting "no agents are installed"
+>   when the truth is "the Registry is down" is the failure this rule exists
+>   to prevent.
+> - **`GET /v1/agents/{id}` — `404` for an unknown instance**, never an empty
+>   object a client could mistake for a real instance with unset fields.
+> - **`GET /v1/agents/{id}/activity` — keyset pagination.** An opaque
+>   `cursor`, a bounded `limit` (1–200, default 50), and `next_cursor` that is
+>   `null` exactly when no further row exists. **No offset anywhere**: an
+>   append-only table growing at the head would silently repeat rows between
+>   offset pages. An unparseable cursor is a **`400`**, never a silent restart
+>   at page one. Existence is checked before paging, so an unknown instance is
+>   `404` while a known instance with no history is a successful **empty
+>   page** — two different facts that must not render alike.
+> - **Reachable only through `api-gateway`.** `/internal/*` stays unroutable
+>   (§3), and no browser addresses `agent-os/kernel` directly.
 
 > **`GET /v1/system/health` is not implemented (noted 2026-09-06, Phase 4B).**
 > Phase 4B's Health panel was the first consumer this endpoint would have had.

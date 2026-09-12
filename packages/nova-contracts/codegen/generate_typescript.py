@@ -24,6 +24,8 @@ from nova_contracts import (
     AgentMessage,
     AgentOsFindHealthyPackageReplyPayload,
     AgentOsFindHealthyPackageRequestPayload,
+    AgentOsListPackagesReplyPayload,
+    AgentOsListPackagesRequestPayload,
     AgentOsPeerReviewReplyPayload,
     AgentOsPeerReviewRequestPayload,
     AgentOsRestartPlanReplyPayload,
@@ -229,6 +231,13 @@ MODELS: list[type[BaseModel]] = [
     AgentOsTaskCompletedPayload,
     AgentOsFindHealthyPackageRequestPayload,
     AgentOsFindHealthyPackageReplyPayload,
+    # Phase 4C (4C.2a). Listed for the same reason every other internal RPC
+    # payload above is: this list mirrors the schema source of truth, not the
+    # browser's API surface. `agent_os.registry.list_packages.*` is an
+    # internal subject a browser may never subscribe to, and it still gets a
+    # generated type -- exactly as `find_healthy_package` does.
+    AgentOsListPackagesRequestPayload,
+    AgentOsListPackagesReplyPayload,
     AgentOsPeerReviewRequestPayload,
     AgentOsPeerReviewReplyPayload,
     AgentOsRestartPlanRequestPayload,

@@ -82,6 +82,19 @@ PUBLIC_TOPICS: frozenset[str] = frozenset(
         # publishes no domain events at all, only outbound RPC requests. It
         # is REST-only, and inventing a subject to make the panel symmetric
         # would put a dead topic back on this list.
+        #
+        # --- Phase 4C milestone 4C.2e -------------------------------------
+        # The Agents panel's realtime half. **One topic, because
+        # `agent-os/kernel` publishes exactly one broadcast event** --
+        # `events/published.py`'s other five subjects are outbound RPC
+        # requests, which are addressed to one callee and are not events.
+        #
+        # Decision D-4 ratified reusing this subject rather than reviving the
+        # `agent.{instance_id}.{state}` lifecycle family or
+        # `agent_os.health.snapshot`: CF-8 records both as Phase 3E
+        # narrowings that were never built, and a public topic nothing
+        # publishes is the dead-topic failure this list already learned once.
+        "agent_os.task.completed",
     }
 )
 
