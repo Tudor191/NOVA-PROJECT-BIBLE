@@ -92,6 +92,8 @@ export type { AgentMessage } from "./AgentMessage";
 export type { AgentOsTaskCompletedPayload } from "./AgentOsTaskCompletedPayload";
 export type { AgentOsFindHealthyPackageRequestPayload } from "./AgentOsFindHealthyPackageRequestPayload";
 export type { AgentOsFindHealthyPackageReplyPayload } from "./AgentOsFindHealthyPackageReplyPayload";
+export type { AgentOsListPackagesRequestPayload } from "./AgentOsListPackagesRequestPayload";
+export type { AgentOsListPackagesReplyPayload } from "./AgentOsListPackagesReplyPayload";
 export type { AgentOsPeerReviewRequestPayload } from "./AgentOsPeerReviewRequestPayload";
 export type { AgentOsPeerReviewReplyPayload } from "./AgentOsPeerReviewReplyPayload";
 export type { AgentOsRestartPlanRequestPayload } from "./AgentOsRestartPlanRequestPayload";

@@ -17,15 +17,33 @@ __all__ = ["FakeAgentExecutionBackend", "FakeRegistryPort", "FakeSupervisorPort"
 
 
 class FakeRegistryPort:
-    def __init__(self, *, package: AgentPackageSnapshot | None) -> None:
+    def __init__(
+        self,
+        *,
+        package: AgentPackageSnapshot | None,
+        packages: list[AgentPackageSnapshot] | None = None,
+    ) -> None:
         self._package = package
+        self._packages = packages if packages is not None else []
         self.requested_categories: list[str] = []
+        self.list_packages_calls = 0
 
     async def find_healthy_package(
         self, *, category: str, correlation_id: UUID | None = None
     ) -> AgentPackageSnapshot | None:
         self.requested_categories.append(category)
         return self._package
+
+    async def list_packages(
+        self, *, correlation_id: UUID | None = None
+    ) -> list[AgentPackageSnapshot]:
+        """Present so this fake remains a complete `RegistryPort` after
+        4C.2a extended the Protocol. `domain/scheduler.py` never calls it --
+        listing serves the read-only `/v1` surface (4C.2c), not dispatch --
+        but a fake that implemented only part of the Protocol it stands in
+        for would pass `isinstance` checks it should fail."""
+        self.list_packages_calls += 1
+        return list(self._packages)
 
 
 class FakeSupervisorPort:

@@ -151,7 +151,7 @@ None is a defect introduced by Phase 4.
 | ID | Carry-forward | Source | Phase 4 impact | Disposition |
 |---|---|---|---|---|
 | **CF-1** | `3-P` gateways + web-client remain design-only | `ENGINEERING_ROADMAP.md:515` | The entire UI track starts here | **Resolved by 4A** |
-| **CF-2** | `GET /v1/agents` and `GET /v1/agents/{id}/activity` are named in doc [11](../../architecture/11-api-architecture.md) §2 but unbuilt, and explicitly *"an open `3-P` prerequisite with no owning TDD"* | [`3-P`](../phase-3/03-gateway-web-prerequisite.md) §5 | **Blocks the Agents panel** | **Resolved by 4C via D-4** |
+| **CF-2** | `GET /v1/agents` and `GET /v1/agents/{id}/activity` are named in doc [11](../../architecture/11-api-architecture.md) §2 but unbuilt, and explicitly *"an open `3-P` prerequisite with no owning TDD"* | [`3-P`](../phase-3/03-gateway-web-prerequisite.md) §5 | **Blocks the Agents panel** | **Discharged by 4C.2c, 2026-09-09** (§9.1). Both named routes are built on `agent-os/kernel`, plus a third resource read; all three are forwarded by `api-gateway` under the `/v1/agents` prefix, so the panel has a reachable data source. Note that the *data* behind `instances` and `activity` stays empty without a model provider — AC-4 clauses 2 and 3 remain Deferred (§1.1), and that is a provider gap, not a CF-2 one |
 | **CF-3** | Phase 3E condition **C-3**, ratified as a *deferred obligation*: `agent-os` has no Dockerfile, no compose service, no `build-and-scan` matrix entry, and therefore no Trivy scan | [Phase 3E Gate Review](../../roadmap/architecture-reviews/phase-3e-agent-os-gate-review.md) §10; [`phase-3e.md`](../../project-health/phase-3e.md) field 20(b) | **`agent-os` cannot run under `docker compose up`** — blocks any live agent panel | **Discharged by 4C.1, 2026-09-07** (§10's implementation note). Three Dockerfiles, three compose services, three `build-and-scan` matrix entries with first-ever Trivy coverage, migrator wiring, and all three started and restart-checked by the e2e job |
 | **CF-4** | Phase 3E narrowings: restart-resume (AC-2) and hot-load (AC-3) are proven at unit + integration + real-Postgres level, **not by a full-path E2E**; hot-load is version *pinning*, not concurrent execution of two bytecode versions | [16-3e-hot-load-design-decision.md](../phase-3/16-3e-hot-load-design-decision.md) | A UI makes both newly demonstrable | **Opportunity, not a blocker.** Phase 4 does not claim to close them |
 | **CF-5** | `PHR-1` / `PHR-2` — pre-existing Phase-1 defects, reported and not fixed | Project Health Review 2026-08-29 | None direct | **Carried forward unchanged** |
@@ -349,7 +349,7 @@ drift.
 | `capabilities/` | **4B** | `capability-engine` `/v1/capabilities` |
 | `approvals/` | **4B** | `action-engine` `/v1/action/approvals/{id}/decide` |
 | `events/` | **4B** | `ws-gateway` raw allow-listed stream |
-| `agents/` | **4C** | `agent-os/kernel` `/v1/agents` (D-4), `agent.*`/`agent_os.*` |
+| `agents/` | **4C** | `agent-os/kernel` `/v1/agents` (D-4) + `agent_os.task.completed` (**as built, 2026-09-10** — see the note below this table) |
 | `autonomy/` | **4D** | `autonomy-engine` |
 | `digital-twin/` | **4E** | `digital-twin-engine` `/v1/digital-twin` |
 | `cognitive-state/` | **4F** | `cognitive-state-engine` |
@@ -363,6 +363,26 @@ drift.
 additions to doc 04's named set; the first three exist because Phase 3
 built engines that doc 04 predates. **Doc 04 §2 will be amended additively
 in 4B** to record them — it is not being redesigned.
+
+> **The `agents/` row corrected, 2026-09-10 (4C.2g closure).** This row read
+> *"`agent.*`/`agent_os.*`"*. **4C shipped neither pattern**, and the row is
+> corrected rather than the code bent to match a prediction written before the
+> surface existed.
+>
+> - **`agent.*`** is the `agent.{instance_id}.{state}` lifecycle family that
+>   Phase 3E never built. **CF-8** ratified its absence as an explicit
+>   narrowing, and 4C's approved design (decision D-4) declined to revive it:
+>   a public topic nothing publishes is a topic a browser subscribes to and
+>   then waits on forever.
+> - **`agent_os.*`** was never a browser-public pattern and must not be
+>   documented as one. `BoundEventBus` matches with `fnmatchcase`, where `*`
+>   spans dots, so that prefix would cover every Registry and Supervisor RPC
+>   subject — `agent_os.registry.list_packages.request` among them.
+>
+> **What actually ships.** One public topic, `agent_os.task.completed` — the
+> only broadcast event `agent-os/kernel` publishes — reached through the
+> `agent_os.task.*` Event Bus subscription and named exactly by the browser.
+> Full detail in §9.2.
 
 ---
 
@@ -466,6 +486,135 @@ Constraints on the amendment, all binding:
 This is recorded as an **explicit Phase 4 amendment to a ratified Phase 3E
 narrowing**, not a correction of it — TDD 3E's decision was right on the
 evidence available in Phase 3.
+
+### 9.1 The third route — implemented and ratified (4C.2c, 2026-09-09)
+
+D-4 as originally approved names **two** routes. The surface built in 4C.2c
+has **three**:
+
+```
+GET /v1/agents                             # overview
+GET /v1/agents/{agent_instance_id}         # individual instance lookup
+GET /v1/agents/{agent_instance_id}/activity
+```
+
+**`GET /v1/agents/{agent_instance_id}` is explicitly ratified by the user
+(2026-09-09) as an approved part of the 4C.2c read-only REST surface.** It
+was flagged before implementation as a widening of an approved decision,
+implemented, and then ratified on review rather than absorbed silently.
+
+The ratified reasoning:
+
+- `GET /v1/agents` provides the **overview**.
+- `GET /v1/agents/{id}` provides **individual instance lookup**.
+- `GET /v1/agents/{id}/activity` **requires existence validation**, so that
+  an unknown instance returns `404` rather than being confused with a valid
+  instance that simply has no activity. The single-instance lookup that
+  check needs is what this route is the external expression of.
+
+It violates none of D-4's binding constraints: still `GET`-only, still
+behind `api-gateway`, still no mutation, `/internal/*` still unexposed. It
+is a read of a single row already returned in bulk by `GET /v1/agents`,
+exposing no field the list endpoint does not and no data D-4 did not
+already authorise. It also matches the shape doc 11 §2 already uses for
+every other collection — `/v1/plans` + `/v1/plans/{task_graph_id}`,
+`/v1/memory/search` + `/v1/memory/{id}`; `/v1/agents` was the one
+collection in that document with a sub-resource but no resource read.
+
+Doc 11 §2's endpoint list is amended in the same slice to name all three,
+so the document and the code do not diverge again.
+
+**What was *not* added, and why:** no `GET /v1/agents/packages`, no
+supervisor-scoped route, no per-instance mutation. Each would have widened
+D-4 further with no consumer asking for it.
+
+### 9.2 The Agents surface as built — Phase 4C.2 (closed 2026-09-10)
+
+4C.2 delivered the Agents surface end to end in **six slices**, each reviewed
+and committed separately on `phase-4c.2`:
+
+| Slice | Commit | What it added |
+|---|---|---|
+| **4C.2a** | `8ed7436` | Registry `agent_os.registry.list_packages` RPC — **internal**, never browser-reachable |
+| **4C.2b** | `c1dbd44` | `agent_os.agent_activity` table, append-only, with the transactional repository surface |
+| **4C.2c** | `92ba4d7` | The Kernel's read-only `/v1/agents` REST surface, fronted by `api-gateway` |
+| **4C.2d** | `e0489b9` | Activity writes wired into the real Kernel lifecycle |
+| **4C.2e** | `e97602c` | `agent_os.task.completed` opened to the browser through `ws-gateway` |
+| **4C.2f** | `a405bca` | The Agents entity, panel, `/agents` route and realtime reconciliation |
+
+4C.2g is this closure pass — documentation, verification and the Gate Review.
+It added no product functionality.
+
+**REST — three read-only routes, no mutation path.** `GET /v1/agents`,
+`GET /v1/agents/{agent_instance_id}` (ratified, §9.1) and
+`GET /v1/agents/{agent_instance_id}/activity`. Activity is **keyset**
+paginated on an opaque cursor; there is no offset anywhere. A degraded
+Registry answers **503** and never an empty package list (decision D-1) — `200`
+with `packages: []` means a healthy Registry holding nothing, and the two are
+kept distinct at every layer. An unknown instance is **404**; a known instance
+with no history is a successful **empty page**. `/internal/*` remains
+unroutable.
+
+**Activity — six kinds, all produced by transitions that already existed.**
+`dispatched`, `completed`, `failed`, `restart_planned`, `interrupted`,
+`peer_review`. The first three and `interrupted` are written **in the same
+database transaction** as the `agent_instance` mutation they describe;
+`restart_planned` and `peer_review` are standalone appends, because no state
+transition happens at those points and inventing one to obtain coupling would
+record a change that did not occur. `correlation_id` is propagated, never
+minted: the scheduler carries the id that arrived on
+`planning.task_graph.created`, and reconciliation reuses the exact id its
+published `agent_os.task.completed` carries, storing `NULL` when no event is
+published. All four peer-review verdicts are recorded, `not_required` and
+`timed_out` included.
+
+**Realtime — one public topic.** `agent_os.task.completed`, subscribed on the
+bus as `agent_os.task.*` and named by the browser through exact-string
+membership in `PUBLIC_TOPICS`. Browser → `ws-gateway` → Event Bus is the only
+realtime path; the browser never connects to NATS. Registry and Supervisor RPC
+subjects, `agent_os.health.snapshot`, and the legacy `agent.*` family are all
+rejected from browser subscription.
+
+**Frontend.** An `entities/agents.ts` model, the `agents/` panel, the
+`/agents` route (lazily loaded, nested under the shell) and a navigation
+entry. A completed task **refetches** the affected Agents queries rather than
+patching them — the event payload carries `outcome` while the cache holds
+`status`, and the mapping between them is the Kernel's own policy. No polling,
+no optimistic mutation of shared cognitive state.
+
+**Provider-free behaviour is the steady state, and the panel renders it as
+healthy.** With no model provider configured, `agent_instance` is permanently
+empty (§1.1 traces why), so the panel shows the installed packages and
+explains that no agent has run yet. **AC-4's second and third clauses remain
+Deferred by approval** — 4C.2 makes them *demonstrable the moment a provider
+exists*, and does not make them met.
+
+> **Addendum, 2026-09-11 — verified against real PostgreSQL, and what that
+> found.** The paragraphs above were written on 2026-09-10, before any CI run
+> with a real database existed. That run has since happened: **all 12
+> `real-infra` jobs are green against head `1182816`**, the kernel's 50
+> `real_infra` tests passing in a single pytest process alongside the Phase 3E
+> real-Postgres acceptance E2E. **Two defects were exposed and fixed during
+> that verification**, both invisible to every gate that can run without a
+> database:
+>
+> 1. **Transaction ordering.** The same-transaction coupling described above
+>    was correct as a design and broken as code — `agent_activity` has a
+>    foreign key but no ORM `relationship()`, so SQLAlchemy emitted the child
+>    INSERT before its parent and every coupled insert failed. Fixed in
+>    `4eafa80` by flushing the instance inside the still-open transaction.
+>    **Decision D-3 is unchanged**: still one transaction, one commit, one
+>    logical operation.
+> 2. **Test isolation.** The Phase 3E E2E commits permanently, by design, and
+>    its rows were visible to the Kernel repository's unfiltered
+>    `list_instances` tests. Fixed in `388c271` by giving that E2E its own
+>    database. **`list_instances()` production behaviour is unchanged** and no
+>    assertion was weakened.
+>
+> **No acceptance scope was reduced, silently or otherwise.** Everything §9.2
+> describes as built is built, and the transaction property it asserts is now
+> proven against a real database rather than inferred from source. AC-4's
+> deferral is unchanged. Full record: [Gate Review §18](../../roadmap/architecture-reviews/phase-4c2-agents-surface-gate-review.md).
 
 ---
 

@@ -316,3 +316,205 @@ def test_rate_limit_returns_structured_429(upstream: FakeUpstream) -> None:
         response = limited.get("/v1/communication/sessions")
         assert response.status_code == 429
         assert response.json()["error"]["code"] == "rate_limited"
+
+
+# --- Agents surface, Phase 4C milestone 4C.2c (decision D-4) ----------------
+#
+# The gateway's job here is exactly what it is for every other prefix: forward
+# 1:1 to one upstream, apply doc 11 §4's envelope, and map an upstream failure
+# to a structured error. These assert that the new prefix gets that same
+# treatment and no special-casing -- the Kernel is the first non-`services/*`
+# upstream, and that must change nothing about the mechanism.
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/v1/agents",
+        "/v1/agents/38a83c86-0000-0000-0000-000000000000",
+        "/v1/agents/38a83c86-0000-0000-0000-000000000000/activity",
+    ],
+    ids=["list", "by-id", "activity"],
+)
+def test_agents_paths_forward_to_the_kernel_unrewritten(
+    client: TestClient, upstream: FakeUpstream, path: str
+) -> None:
+    """D-6: paths are forwarded verbatim. The whole `/v1/agents` subtree
+    resolves on one prefix, so `{id}` and `/activity` need no entries of their
+    own."""
+    _auth(client)
+    response = client.get(path)
+
+    assert response.status_code == 200
+    assert upstream.calls[-1]["url"] == f"http://agent-os-kernel:8000{path}"
+
+
+def test_agents_query_parameters_are_forwarded(
+    client: TestClient, upstream: FakeUpstream
+) -> None:
+    """Pagination is the Kernel's; the gateway must pass `limit`/`cursor`
+    through untouched rather than interpreting them."""
+    _auth(client)
+    client.get(
+        "/v1/agents/38a83c86-0000-0000-0000-000000000000/activity?limit=2&cursor=abc"
+    )
+
+    assert upstream.calls[-1]["params"] == [("limit", "2"), ("cursor", "abc")]
+
+
+def test_agents_response_is_wrapped_in_the_standard_envelope(
+    client: TestClient, upstream: FakeUpstream
+) -> None:
+    """Envelope ownership: the Kernel returns bare models, the gateway wraps.
+    If the Kernel ever emitted its own envelope this would show a doubly
+    wrapped payload."""
+    upstream.json_body = {"packages": [], "instances": [], "supervisors": []}
+    _auth(client)
+    response = client.get("/v1/agents")
+
+    body = response.json()
+    assert body["data"] == {"packages": [], "instances": [], "supervisors": []}
+    assert body["error"] is None
+    assert set(body["meta"]) == {"correlation_id", "generated_at", "confidence"}
+
+
+def test_a_healthy_empty_agents_response_is_not_an_error(
+    client: TestClient, upstream: FakeUpstream
+) -> None:
+    """Decision D-1 through the gateway: an empty package list is a 200 whose
+    `error` is null -- distinguishable from the 503 below."""
+    upstream.json_body = {"packages": [], "instances": [], "supervisors": []}
+    _auth(client)
+    response = client.get("/v1/agents")
+
+    assert response.status_code == 200
+    assert response.json()["error"] is None
+    assert response.json()["data"]["packages"] == []
+
+
+def test_kernel_503_propagates_as_a_structured_failure(
+    client: TestClient, upstream: FakeUpstream
+) -> None:
+    """Decision D-1's other half. The Kernel answers 503 when Registry is
+    unreachable; the gateway must carry the status through and populate
+    `error`, never present it as an empty success."""
+    upstream.status_code = 503
+    upstream.json_body = {"detail": "The Agent Registry could not be reached."}
+    _auth(client)
+    response = client.get("/v1/agents")
+
+    assert response.status_code == 503
+    body = response.json()
+    assert body["data"] is None
+    assert body["error"]["upstream_status"] == 503
+    assert body["error"]["message"] == "The Agent Registry could not be reached."
+
+
+def test_kernel_404_propagates_for_an_unknown_instance(
+    client: TestClient, upstream: FakeUpstream
+) -> None:
+    upstream.status_code = 404
+    upstream.json_body = {"detail": "No agent instance found with id ..."}
+    _auth(client)
+    response = client.get("/v1/agents/38a83c86-0000-0000-0000-000000000000")
+
+    assert response.status_code == 404
+    assert response.json()["data"] is None
+    assert response.json()["error"]["upstream_status"] == 404
+
+
+def test_an_invalid_cursor_400_propagates_rather_than_becoming_a_first_page(
+    client: TestClient, upstream: FakeUpstream
+) -> None:
+    upstream.status_code = 400
+    upstream.json_body = {"detail": "cursor is not valid base64: 'nope'"}
+    _auth(client)
+    response = client.get(
+        "/v1/agents/38a83c86-0000-0000-0000-000000000000/activity?cursor=nope"
+    )
+
+    assert response.status_code == 400
+    assert response.json()["data"] is None
+    assert "cursor" in response.json()["error"]["message"]
+
+
+def test_agents_requires_a_session_like_every_other_prefix(
+    client: TestClient, upstream: FakeUpstream
+) -> None:
+    """Unauthenticated callers must not even be able to probe that the Kernel
+    exists behind the gateway."""
+    response = client.get("/v1/agents")
+
+    assert response.status_code == 401
+    assert upstream.calls == [], "an unauthenticated request reached the upstream"
+
+
+def test_the_kernels_internal_surface_is_not_routable(
+    client: TestClient, upstream: FakeUpstream
+) -> None:
+    """AC-2, extended to the newest upstream.
+
+    Two distinct properties, and it is worth being precise about which is
+    which. The gateway serves its **own** `/internal/readiness` locally -- that
+    is its health router, and it answers 200 (see
+    `test_health_needs_no_session`). What must never happen is that an
+    `/internal` path is *forwarded*: the route table refuses any prefix outside
+    `/v1/` at construction, so no upstream is ever asked.
+
+    And `/v1/agents/internal/health` is an ordinary path segment under the
+    Kernel's `/v1` subtree, forwarded verbatim (D-6, no rewriting). It reaches
+    the Kernel's router as an unknown `/v1` path, never its `/internal` tree.
+    """
+    _auth(client)
+
+    before = len(upstream.calls)
+    assert client.get("/internal/readiness").status_code == 200
+    assert len(upstream.calls) == before, "an /internal path was forwarded upstream"
+
+    client.get("/v1/agents/internal/health")
+    assert upstream.calls[-1]["url"] == (
+        "http://agent-os-kernel:8000/v1/agents/internal/health"
+    ), "an /internal path must not be rewritten onto the Kernel's internal tree"
+
+
+@pytest.mark.parametrize("method", ["post", "put", "patch", "delete"])
+def test_mutating_verbs_on_agents_reach_no_upstream_unauthenticated(
+    client: TestClient, upstream: FakeUpstream, method: str
+) -> None:
+    """The gateway forwards whatever verb it is given, so the read-only
+    guarantee lives in the Kernel (asserted in its own suite, where every
+    `/v1/agents` route is a GET). What must hold *here* is that an
+    unauthenticated mutation attempt never reaches an upstream at all."""
+    response = getattr(client, method)("/v1/agents")
+
+    assert response.status_code == 401
+    assert upstream.calls == []
+
+
+def test_the_route_table_fronts_no_other_agent_os_component() -> None:
+    """`agent-os/registry` and `agent-os/supervisors` have no `/v1` surface
+    and must not be fronted. The Agents panel reaches packages through the
+    Kernel, which asks Registry over the bus (ADR-004)."""
+    from nova_api_gateway.domain.routing import build_route_table
+
+    table = build_route_table(
+        communication_engine_url="http://c:8000",
+        planning_engine_url="http://p:8000",
+        reasoning_engine_url="http://r:8000",
+        capability_engine_url="http://cap:8000",
+        action_engine_url="http://a:8000",
+        agent_os_kernel_url="http://agent-os-kernel:8000",
+    )
+    upstreams = {route.upstream_name for route in table.routes}
+
+    assert "agent-os-kernel" in upstreams
+    assert "agent-os-registry" not in upstreams
+    assert "agent-os-supervisors" not in upstreams
+    assert {route.prefix for route in table.routes} == {
+        "/v1/communication",
+        "/v1/plans",
+        "/v1/reasoning",
+        "/v1/capabilities",
+        "/v1/action",
+        "/v1/agents",
+    }

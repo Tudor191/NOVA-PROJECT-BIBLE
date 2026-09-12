@@ -68,6 +68,7 @@ def build_route_table(
     reasoning_engine_url: str,
     capability_engine_url: str,
     action_engine_url: str,
+    agent_os_kernel_url: str,
 ) -> RouteTable:
     """Every engine the gateway fronts, and nothing else.
 
@@ -83,6 +84,10 @@ def build_route_table(
       would widen the external attack surface for nothing.
     * `nova-core` -- exposes only `/internal/*`, which is never routable
       (doc 11 §3). The Health panel is fed by bus telemetry instead.
+    * `agent-os/registry` and `agent-os/supervisors` -- neither has a `/v1`
+      surface, and neither needs one: the Agents panel reads packages through
+      the Kernel, which asks Registry over the bus (ADR-004). Fronting them
+      would expose two components no panel talks to.
 
     Every prefix here is a **panel's** data source. Adding one because an
     engine happens to exist is how an allow-list stops being one.
@@ -117,6 +122,21 @@ def build_route_table(
                 prefix="/v1/action",
                 upstream_name="action-engine",
                 base_url=action_engine_url.rstrip("/"),
+            ),
+            # Agents panel (Phase 4C, decision D-4). The first upstream here
+            # that is not a `services/*` engine -- `agent-os/kernel` is
+            # control-plane infrastructure -- which changes nothing about the
+            # mechanism: one prefix, one upstream, forwarded 1:1.
+            #
+            # `/v1/agents/{id}` and `/v1/agents/{id}/activity` need no entries
+            # of their own: `resolve()` matches on prefix, so the whole
+            # subtree forwards to the Kernel. That is also why nothing here
+            # can reach `/internal/*` -- `RouteTable` refuses any prefix
+            # outside `/v1/` at construction.
+            UpstreamRoute(
+                prefix="/v1/agents",
+                upstream_name="agent-os-kernel",
+                base_url=agent_os_kernel_url.rstrip("/"),
             ),
         ]
     )

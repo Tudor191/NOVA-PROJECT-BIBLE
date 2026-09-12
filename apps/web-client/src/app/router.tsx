@@ -108,6 +108,14 @@ const healthRoute = createRoute({
   component: lazyRouteComponent(() => import("../panels/health/HealthPanel"), "HealthPanel"),
 });
 
+// Phase 4C (4C.2f). Lazily loaded like every other panel: it pulls its own
+// entity module, and an operator who never opens it should not download it.
+const agentsRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: "/agents",
+  component: lazyRouteComponent(() => import("../panels/agents/AgentsPanel"), "AgentsPanel"),
+});
+
 const routeTree = rootRoute.addChildren([
   shellRoute.addChildren([
     conversationRoute,
@@ -117,6 +125,7 @@ const routeTree = rootRoute.addChildren([
     approvalsRoute,
     eventsRoute,
     healthRoute,
+    agentsRoute,
   ]),
 ]);
 

@@ -33,6 +33,11 @@ export const PUBLIC_TOPICS = [
   "nova.module.status_changed",
   "ai_model.model.health_changed",
   "perception.sensor.health_changed",
+  // Phase 4C (4C.2e). The only broadcast event `agent-os/kernel` publishes;
+  // every other `agent_os.*` subject is an internal RPC and stays private.
+  // Subscribed here, rendered by the Events panel only -- the Agents panel
+  // is 4C.2f.
+  "agent_os.task.completed",
 ] as const;
 
 export type PublicTopic = (typeof PUBLIC_TOPICS)[number];
