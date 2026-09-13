@@ -52,8 +52,8 @@ ports are for local `/internal/health` inspection only — none is fronted by
 
 ## Schema bootstrap
 
-`migrations` is a one-shot service that brings all fifteen Postgres-backed
-component schemas to head, in sequence, then exits — thirteen engines, plus
+`migrations` is a one-shot service that brings all sixteen Postgres-backed
+component schemas to head, in sequence, then exits — fourteen engines, plus
 `agent-os/kernel` and `agent-os/registry` since Phase 4C. Every Postgres-backed
 service gates on it with:
 
@@ -122,7 +122,7 @@ as its own image. When one does, the steps are the engine steps above with two
 differences:
 
 - The compose service is named after the full path (`agent-os-kernel`, not
-  `kernel`) -- a service called `registry` beside thirteen `*-engine` services
+  `kernel`) -- a service called `registry` beside fourteen `*-engine` services
   would say nothing about which subsystem it belongs to.
   `tools/tests/test_compose_migrations.py::_compose_name_for` holds that
   mapping in one place.

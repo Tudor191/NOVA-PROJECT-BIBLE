@@ -185,7 +185,7 @@ services:
   # Schema bootstrap
   # ---------------------------------------------------------------------------
 
-  # One-shot: brings all thirteen Postgres-backed engine schemas to head, in
+  # One-shot: brings all fourteen Postgres-backed engine schemas to head, in
   # sequence, then exits. Every engine below gates on it completing
   # successfully, so none of them can start against an empty or
   # partially-migrated database.
@@ -198,8 +198,8 @@ services:
   # the YAML and starts nothing. Phase 4A's Playwright job was the first thing
   # to actually run it.
   #
-  # See `run-migrations.sh` for why this is one container rather than thirteen,
-  # and why thirteen alembic histories share one database safely.
+  # See `run-migrations.sh` for why this is one container rather than sixteen,
+  # and why sixteen alembic histories share one database safely.
   migrations:
     build:
       context: ../..
@@ -724,6 +724,32 @@ services:
       migrations:
         condition: service_completed_successfully
 
+  # Phase 4D. The Autonomy Engine (Bible Part 14). It publishes and
+  # subscribes to nothing (decision D-4D-1), so it needs no NATS dependency
+  # for correctness -- but `EVENT_BUS_BACKEND` is still set, because `main.py`
+  # binds a `BoundEventBus` with two empty allow-lists so that any future
+  # publish raises rather than succeeding against an unbound client.
+  autonomy-engine:
+    build:
+      context: ../..
+      dockerfile: services/autonomy-engine/Dockerfile
+    restart: unless-stopped
+    environment:
+      EVENT_BUS_BACKEND: nats
+      NATS_URL: nats://nats:4222
+      NOVA_ENGINE_NAME: autonomy-engine
+      AUTONOMY_ENGINE_POSTGRES_DSN: postgresql+asyncpg://${POSTGRES_USER:-nova}:${POSTGRES_PASSWORD:-nova_dev_password}@postgres:5432/${POSTGRES_DB:-nova}
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+    ports:
+      - "8019:8000"
+    depends_on:
+      nats:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
+
   planning-engine:
     build:
       context: ../..
@@ -801,6 +827,8 @@ services:
       # Phase 4C (D-4): the Agents panel's read-only surface. The only
       # non-`services/*` upstream; the container itself was added by 4C.1.
       API_GATEWAY_AGENT_OS_KERNEL_URL: http://agent-os-kernel:8000
+      # Phase 4D: the Autonomy panel's data source.
+      API_GATEWAY_AUTONOMY_ENGINE_URL: http://autonomy-engine:8000
       API_GATEWAY_REDIS_URL: redis://redis:6379/0
       API_GATEWAY_SESSION_TOKEN: ${NOVA_SESSION_TOKEN:-}
       # Local development is plain HTTP, so a Secure-only cookie would never

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Bring every Postgres-backed component's schema up to head, once, in order.
-# "Component" rather than "engine" since Phase 4C: the list below is thirteen
+# "Component" rather than "engine" since Phase 4C: the list below is fourteen
 # `services/*` engines plus `agent-os/kernel` and `agent-os/registry`, which
 # are control-plane components, not engines.
 #
@@ -26,8 +26,8 @@
 # Each component image is built with `uv sync --package <name>`, so it contains
 # exactly one component and cannot migrate any other. Fifteen one-shot services
 # chained through `service_completed_successfully` would work, but it encodes
-# the ordering in fifteen places and makes `docker compose up <subset>` drag
-# in all fifteen images. A single migrator image with the whole
+# the ordering in sixteen places and makes `docker compose up <subset>` drag
+# in all sixteen images. A single migrator image with the whole
 # workspace installed keeps the ordering in one file -- this one -- and keeps
 # the migrations strictly sequential by construction rather than by discipline.
 #
@@ -37,7 +37,7 @@
 # table (`alembic_version_communication`, `alembic_version_memory`, ...,
 # `alembic_version_agent_os_kernel`, `alembic_version_agent_os_registry` -- 15
 # distinct names), and each migration 0001 issues its own
-# `CREATE SCHEMA`. The fifteen histories are independent by design and
+# `CREATE SCHEMA`. The sixteen histories are independent by design and
 # coexist in the single `nova` database the compose stack provides. The two
 # `agent-os` entries are the only pair that share a schema (`agent_os`), and
 # both create it with `IF NOT EXISTS` precisely so either may run first.
@@ -77,7 +77,7 @@ set -euo pipefail
 #
 # Both new entries carry their own `alembic_version_agent_os_*` version table
 # and their own `CREATE SCHEMA IF NOT EXISTS agent_os`, so they coexist with
-# the thirteen engine histories and with each other exactly as the paragraph
+# the fourteen engine histories and with each other exactly as the paragraph
 # above describes -- the shared `agent_os` schema is created idempotently by
 # whichever of the two runs first.
 ENGINES=(
@@ -94,6 +94,7 @@ ENGINES=(
   "services/capability-engine:CAPABILITY_ENGINE_"
   "services/action-engine:ACTION_ENGINE_"
   "services/planning-engine:PLANNING_ENGINE_"
+  "services/autonomy-engine:AUTONOMY_ENGINE_"
   "agent-os/kernel:AGENT_OS_KERNEL_"
   "agent-os/registry:AGENT_OS_REGISTRY_"
 )
@@ -117,7 +118,7 @@ for entry in "${ENGINES[@]}"; do
   # both relative, so alembic has to run from the engine's own directory.
   # The DSN is exported per engine because each `env.py` resolves it through
   # that engine's own `Settings()`, not from `alembic.ini` -- there is no
-  # `sqlalchemy.url` in any of the fifteen ini files.
+  # `sqlalchemy.url` in any of the sixteen ini files.
   if ( cd "/app/${dir}" && env "${prefix}POSTGRES_DSN=${NOVA_POSTGRES_DSN}" alembic upgrade head ); then
     echo "${name}: at head"
   else

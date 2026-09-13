@@ -5,8 +5,8 @@
 #
 # Unlike every other Dockerfile here, which each install a single component via
 # `uv sync --package <name>`, this installs the whole workspace. That is the
-# entire reason it exists: a migrator has to reach all fifteen migrated
-# components' `alembic/` trees and their `Settings` classes -- thirteen engines
+# entire reason it exists: a migrator has to reach all sixteen migrated
+# components' `alembic/` trees and their `Settings` classes -- fourteen engines
 # plus `agent-os/kernel` and `agent-os/registry` since Phase 4C -- and no
 # per-component image can. `--all-packages` already covered the two `agent-os`
 # entries before they were migrated here, so 4C.1 needed no change to this
