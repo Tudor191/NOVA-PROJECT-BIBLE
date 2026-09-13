@@ -750,6 +750,48 @@ be read as GO. Protocol §2.1 is unaltered.
 Two carry-forwards therefore survive this milestone, not three. **This does not
 change the verdict**: CF-12 was never a condition, and C-4 and C-5 remain open.
 
+### 21.10 Re-run at `41ab3fc`, and how this section stays true as documentation lands
+
+Recording the evidence above moved the head, so CI ran again. **Head
+`41ab3fc` is `f5f263f` plus documentation only** — `git diff
+f5f263f..41ab3fc -- ':!docs'` is empty — and all three workflows repeated the
+same result:
+
+| Workflow | Run | At `f5f263f` | At `41ab3fc` |
+|---|---|---|---|
+| **PR Checks** (`checks` + Playwright) | #95 → #96 | success | **success** |
+| **Real-Infrastructure Checks** (14 jobs) | #131 → #132 | success | **success** |
+| **Build & Scan** (21 jobs) | #95 → #96 | failure — `ws-gateway` | **failure — `ws-gateway`, and nothing else** |
+
+The re-run improved the evidence for **C-5** in one respect. At `f5f263f`
+`ws-gateway` was *cancelled* by fail-fast, so its outcome was inferred; at
+`41ab3fc` it **ran to completion and failed**, the only failure among 21 jobs,
+on exactly the 12 findings predicted — 3 CRITICAL (`perl-base` CVE-2026-13221,
+CVE-2026-42496, CVE-2026-8376) and 9 HIGH (`gzip` CVE-2026-41992;
+`libpcre2-8-0` CVE-2026-86145, CVE-2026-89161; `libsqlite3-0` CVE-2026-11822,
+CVE-2026-11824; `perl-base` CVE-2026-42497, CVE-2026-48962, CVE-2026-57432,
+CVE-2026-57433), every one `Status: fixed` upstream. C-5 is now *observed*
+rather than *predicted*, and is unchanged otherwise.
+
+**`f5f263f` remains the last code-bearing head**, and per-spec Playwright output
+(both AC-5 specs named and passed, §21.4) was captured there. At `41ab3fc` the
+job-level evidence is *"Record a suggestion for the AC-5 E2E"* **success** — so
+the specs were not skipped, which is what `NOVA_E2E_SUGGESTION_ID` gates — *"Run
+the golden path"* **success**, and the two failure-only steps skipped.
+
+**The rule that keeps this section honest as further documentation commits
+land:** every commit after `f5f263f` on this branch is documentation-only, so
+the green evidence above still describes the code at any later head exactly when
+
+```
+git diff f5f263f..HEAD -- ':!docs'
+```
+
+is empty. Check that rather than assuming; if it ever prints a line, the code has
+moved and this section's evidence no longer covers the head. Protocol §3.2
+condition 6 asks for CI green at the head SHA — that condition is met for
+everything 4D touches and is failed only by C-5, at every head above.
+
 **On §21's append-only property.** Sections 0–20 were written before this pass and
 **no original wording has been removed from any of them**. The single edit outside
 this addendum is the §13.1 CF-12 disposition cell, which now carries a supersession
