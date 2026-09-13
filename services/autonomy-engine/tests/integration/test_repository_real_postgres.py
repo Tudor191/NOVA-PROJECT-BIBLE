@@ -202,15 +202,17 @@ async def test_a_log_row_cannot_reference_a_suggestion_that_does_not_exist(
     ordering test above meaningful."""
     from sqlalchemy.exc import IntegrityError
 
-    async with postgres_session_factory() as session, pytest.raises(IntegrityError):
-        await session.execute(
-            text(
-                "INSERT INTO autonomy.decision_log "
-                "(id, action_id, suggestion_id, autonomy_level, risk, confidence, policy_checks) "
-                "VALUES (:id, :aid, :sid, 1, 'low', 0.0, '[]'::jsonb)"
-            ),
-            {"id": uuid4(), "aid": uuid4(), "sid": uuid4()},
-        )
+    async with postgres_session_factory() as session:
+        with pytest.raises(IntegrityError):
+            await session.execute(
+                text(
+                    "INSERT INTO autonomy.decision_log "
+                    "(id, action_id, suggestion_id, autonomy_level, risk, confidence, "
+                    "policy_checks) "
+                    "VALUES (:id, :aid, :sid, 1, 'low', 0.0, '[]'::jsonb)"
+                ),
+                {"id": uuid4(), "aid": uuid4(), "sid": uuid4()},
+            )
 
 
 # --- Append-only, against the real constraint --------------------------------
@@ -226,10 +228,11 @@ async def test_deleting_a_suggestion_cannot_erase_its_decision_record(
     suggestion = _suggestion()
     await repository.insert_suggestion(suggestion, _log(suggestion, DecisionOutcome.PROPOSE))
 
-    async with postgres_session_factory() as session, pytest.raises(IntegrityError):
-        await session.execute(
-            text("DELETE FROM autonomy.suggestion WHERE id = :id"), {"id": suggestion.id}
-        )
+    async with postgres_session_factory() as session:
+        with pytest.raises(IntegrityError):
+            await session.execute(
+                text("DELETE FROM autonomy.suggestion WHERE id = :id"), {"id": suggestion.id}
+            )
 
 
 # --- Keyset pagination across a tie ------------------------------------------
