@@ -28,10 +28,6 @@ from pathlib import Path
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
-from testcontainers.postgres import PostgresContainer
-
 from nova_autonomy_engine.domain.models import (
     AutonomyLevel,
     DecisionLogEntry,
@@ -54,6 +50,9 @@ from nova_autonomy_engine.repository.postgres_autonomy_repository import (
     PostgresAutonomyRepository,
 )
 from nova_testkit.postgres import run_alembic_upgrade
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from testcontainers.postgres import PostgresContainer
 
 pytestmark = pytest.mark.real_infra
 
