@@ -318,6 +318,34 @@ trust score, policy editor, suggestion inbox.
 > `autonomy-engine` entries in `build-and-scan.yml` and `real-infra-checks.yml`
 > both exist. The `cognitive-state-engine` entries remain 4F's.
 
+> **CI verification note (added 2026-09-13, later the same day; the note above is
+> left as written, per protocol §0.3.4).** **PR #27** (`phase-4d` → `phase-4`) was
+> opened solely to obtain CI evidence, with merge authorization explicitly
+> withheld, and the branch advanced to head **`f5f263f`** (`de6dbc9` → `5a2bf77`
+> docs → `32b6dcd` three CI fixes → `f5f263f`). Three sentences of the note above
+> are consequently out of date:
+>
+> - *"no CI run at any SHA"* — **36 checks ran.** **C-1 is discharged for 4D's
+>   scope**: every check exercising 4D is green.
+> - *"C-2 the `real_infra` tier unexecuted"* — **discharged.**
+>   `real-infra (autonomy-engine)` ran **16 passed, 222 deselected**, twice.
+> - *"C-3 the AC-5 Playwright spec unexecuted"* — **discharged.** Both AC-5 specs
+>   executed and passed in a real browser (they ran; they were not skipped).
+>
+> **Two conditions remain open, neither an approved deferral**, so this still must
+> not be read as GO: **C-4** (the TDD §5.3/§4.1 reconciliation, offered for
+> ratification — no implementation depends on it) and the new **C-5**
+> (`build-and-scan (ws-gateway)` fails on 3 CRITICAL + 9 HIGH pre-existing Debian
+> CVEs; `git diff origin/phase-4..f5f263f -- services/ws-gateway/` is **0 lines**,
+> and the one-line fix was deliberately not applied because that component is
+> outside this branch's ratified scope).
+>
+> **`CF-10` and `CF-11` above are re-verified at source and stay OPEN** — no trust
+> RPC, no Event Bus subject and no production producer was created to make them
+> disappear. **CF-9 stays OPEN** by decision D-4D-2. The separately-recorded CF-12
+> (both tiers unexecuted) is **CLOSED** by the runs above. **Nothing is merged**;
+> `phase-4` and `main` are untouched.
+
 ### 4E — Digital Twin
 
 `digital-twin-engine` **extension** — the remaining nine of Bible Part 16's

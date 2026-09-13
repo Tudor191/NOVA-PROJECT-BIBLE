@@ -410,7 +410,7 @@ category names and risk tiers are Part 14's own strings.
 |---|---|---|
 | **CF-10** | **No read surface exists for 2D-D's `TrustMetric`.** TDD §5.3 presupposed an Event Bus request/reply; `digital-twin-engine` serves no trust subject and exposes no trust route, and `BoundEventBus.request()` gates on the allow-list D-4D-1 requires to stay empty | **OPEN.** The conversational trust input is reported `UNAVAILABLE` with its reason. Closing it needs a decision about where the read surface belongs — a served `digital_twin.*` subject with its `nova_contracts` payload, or an HTTP route — both of which modify another engine and lie outside 4D's ratified boundary |
 | **CF-11** | **No component produces a suggestion.** D-4D-1 removed the Event Bus origin; §8.1 defines no creation route. The inbox is permanently empty in production | **OPEN.** 4D builds the decision surface, not the initiative surface (TDD §1.1). The Initiative Engine is the natural owner |
-| **CF-12** | **`real_infra` and Playwright were never executed for 4D.** Docker unreachable locally; no CI run exists | **OPEN, and identical in kind to condition C-1.** Both tiers are written and wired; the first pull request runs them |
+| **CF-12** | **`real_infra` and Playwright were never executed for 4D.** Docker unreachable locally; no CI run exists | ***Disposition superseded 2026-09-13 — now **CLOSED**; see §21.9.*** Both tiers executed in CI on PR #27 at head `f5f263f`: `real-infra (autonomy-engine)` 16 passed, and both AC-5 Playwright specs passed in a browser. *(This cell originally read: "**OPEN, and identical in kind to condition C-1.** Both tiers are written and wired; the first pull request runs them" — which is what happened.)* |
 
 ### 13.2 Carried forward unchanged, not closed by 4D
 
@@ -567,3 +567,192 @@ one authorized action resolves it.
 
 **Nothing is merged.** `phase-4d` is pushed and unmerged; `phase-4` and `main`
 are untouched.
+
+---
+
+## 21. CI verification addendum — 2026-09-13
+
+**Additive.** §§0–20 above were written against head `de6dbc9`/`5a2bf77`; every
+figure there remains correct for its own head, and **no original wording has been
+removed from any of them**. This section records only what the CI verification
+pass established, per protocol §0.3.4. Exactly one cell above carries an appended
+supersession marker — §13.1's CF-12 disposition, quoted verbatim inside its own
+correction (§21.9); §20's pre-pass verdict paragraph stands as written and is
+superseded by §21.8.
+
+**PR #27** (`phase-4d` → `phase-4`) was opened solely to obtain CI evidence.
+Merge authorization was not granted and nothing is merged.
+
+### 21.1 Heads
+
+| Head | What it added | Why |
+|---|---|---|
+| `5a2bf77` | The head §§0–20 were written against | — |
+| `32b6dcd` | Dockerfile `nova-service-kit` COPY + base patch; two `real_infra` test fixes; a new Dockerfile guard | Fixed the three failures the first run found |
+| **`f5f263f`** | One line: `api-gateway`'s base-image patch | Remediated 12 pre-existing CVEs blocking the workflow |
+
+### 21.2 C-1 — CI ran. Discharged for every check that exercises 4D
+
+**36 checks against `f5f263f`: 28 success, 1 failure, 7 cancelled.** The single
+failure is `build-and-scan (ws-gateway)`, which fail-fast cancelled the other
+seven. **No check that exercises Phase 4D failed.**
+
+| Check | Result |
+|---|---|
+| `checks` (lint · typecheck · unit · integration · import-linter · codegen · compose) | **success** |
+| `real-infra (autonomy-engine)` | **success** |
+| `Playwright golden path` | **success** |
+| `build-and-scan (autonomy-engine)` | **Build success + Scan success** at `32b6dcd`; the image is byte-identical at `f5f263f` (`git diff 32b6dcd..f5f263f -- services/autonomy-engine/` is empty), where the job was cancelled mid-build by the `ws-gateway` fail-fast |
+| `build-and-scan (api-gateway)` | **success** after this pass's fix |
+| `dependency-audit` | **success** |
+| 11 other `real-infra` jobs | **success** |
+
+### 21.3 C-2 — DISCHARGED. The `real_infra` tier executed
+
+`real-infra (autonomy-engine)`: **16 passed, 222 deselected, 8.64 s**, green on
+two consecutive heads. Every property TDD §16 names as only-real-Postgres-provable
+is now proven rather than asserted — the transaction coupling and its foreign
+key, append-only against the real `ON DELETE RESTRICT`, keyset pagination across
+a timestamp tie, and doc 07's column definition.
+
+**The tier earned its place immediately.** Its first run found two failures,
+both in *this review's own test code* rather than in the implementation:
+`pytest.raises` is a synchronous context manager, and
+`async with session_factory() as session, pytest.raises(...)` calls `__aenter__`
+on it. The other 14 passed on the first attempt. The assertions were not
+weakened — nesting the `with` is what makes them execute at all.
+
+### 21.4 C-3 — DISCHARGED. The AC-5 spec executed in a browser
+
+```
+Running 15 tests using 1 worker
+  -   1  approval-lifecycle.spec.ts:40            (skipped)
+  ✓   2  autonomy-suggestion.spec.ts:40   › AC-5 › proposes without executing,
+                                                   and requires an explicit approval (972 ms)
+  ✓   3  autonomy-suggestion.spec.ts:102  › AC-5 › a second decision on the same
+                                                   suggestion is refused (377 ms)
+  1 skipped, 14 passed (51.7 s)
+```
+
+**Both AC-5 specs ran and passed against the real stack** — real `autonomy-engine`
+container, real `api-gateway`, real Postgres, real browser. A green Playwright job
+with a *skipped* AC-5 spec would not have discharged this, so the per-spec result
+is recorded rather than the job conclusion.
+
+**The one skip is not 4D's.** `approval-lifecycle.spec.ts` is 4B's, and it skips
+itself when `NOVA_E2E_ACTION_ID` is unset — which happens when the Critical-risk
+Action is denied at `action-engine`'s identity-confidence gate. That is **CF-9's
+fail-closed default behaving exactly as designed** (absent policy → threshold
+`1.0`, absent identity → confidence `0.0`), a pre-existing Phase 4B condition
+this milestone preserves untouched.
+
+### 21.5 C-5 — NEW, OPEN: `build-and-scan (ws-gateway)` fails, and fixing it is out of scope
+
+`ws-gateway`'s Trivy scan fails at `CRITICAL,HIGH` on the same Debian 13.6
+package set that failed `api-gateway`: `perl-base`, `gzip`, `libpcre2-8-0`,
+`libsqlite3-0` — **3 CRITICAL and 9 HIGH**, all `Status: fixed` upstream.
+
+**It is not this PR's**, established rather than asserted:
+
+- `git diff origin/phase-4..HEAD -- services/ws-gateway/` is **0 lines**. This
+  milestone does not touch that component at all.
+- The findings are OS packages in an unpatched base image, which no part of this
+  diff influences. They fail on `phase-4` today for the same reason.
+- It was invisible on the previous run because `api-gateway` failed first and
+  fail-fast cancelled `ws-gateway` before its scan ran.
+
+**The fix exists in-repo and this pass proved it works.** 17 of 20 Dockerfiles
+run `apt-get update && apt-get upgrade -y`; only the two 4A gateways did not. In
+one workflow run, on one runner, against one Trivy database: `autonomy-engine`,
+whose base this milestone patched, scanned **clean**; the unpatched images
+produced 12 findings from the identical base. The one-line convention was ported
+to `api-gateway`, which then passed.
+
+**It was deliberately not applied to `ws-gateway`**, because modifying that
+component is explicitly outside this branch's ratified scope. Recorded here and
+in a comment on PR #27 rather than fixed unilaterally. No Trivy threshold,
+ignore-list or check configuration was altered.
+
+### 21.6 What this pass did not do
+
+No test was weakened, skipped, quarantined or deleted. No negative control was
+removed — all twelve still fail on property removal. No coverage gate was
+lowered. No check was bypassed and no CI configuration was relaxed. No
+architecture was changed to make a condition disappear. **CF-9, CF-10 and CF-11
+remain OPEN**, and §21.7 re-verified the latter two against source rather than
+carrying them forward on trust.
+
+### 21.7 CF-10 and CF-11 re-verified at source
+
+**CF-10 — OPEN. No trust read surface exists, on two independent grounds.**
+
+| Check | Result |
+|---|---|
+| Subjects `digital-twin-engine` serves | **exactly one** — `digital_twin.preferences.get.request` |
+| Its `SUBSCRIBABLE_SUBJECTS` | 2 entries, neither trust-related |
+| Trust subjects in the **global** registry | **0 of 118 registered subjects** contain "trust" |
+| `digital_twin.*` subjects anywhere | 2 — the preferences request/reply pair |
+| HTTP routes exposing a trust metric, repository-wide | **none** |
+| Independent second blocker | `BoundEventBus.request()` gates on the **caller's** publishable allow-list, which D-4D-1 requires to stay empty |
+
+**Existing fail-closed behaviour, observed rather than described:** the shipped
+adapter returns `status=unavailable`, `snapshot=None`; the resulting
+`TrustScore.score` is `None` — never `0.0`; `input_status` stays distinguishable
+from `no_data`; and `satisfies_threshold(None, t)` is `False` for every `t`
+**including `0.0`**. No RPC and no Event Bus subject was created.
+
+**CF-11 — OPEN. No production producer exists.**
+
+| Path | Production call sites |
+|---|---|
+| `AutonomyRepository.insert_suggestion` — the only method that creates a suggestion row | **0** (only docstring references under `src/`) |
+| `domain.decision.decide` — the only function emitting a `propose` outcome | **0** |
+| Event handler / worker / scheduler in `autonomy-engine` | **none exist** |
+| Suggestion-creation routes among the published operations | **0 of 11** |
+
+Test fixtures, the Playwright driver and fakes are **excluded** from that count,
+as required. `tools/e2e_seed_autonomy_suggestion.py` runs the real pipeline and
+the real repository, but it is a **test driver and not a production producer**.
+
+**The distinction, stated explicitly:** the *decision surface* is complete and
+production-reachable — `evaluate_gates` is called from two shipped HTTP handlers
+(`api/autonomy.py:406` when listing, `:445` when deciding), and the AC-5 lifecycle
+runs end to end in a browser (§21.4). What is missing is strictly the **upstream
+trigger** that would propose without a human asking. 4D builds the decision
+surface, not the initiative surface (TDD §1.1). No producer was invented to
+satisfy AC-5.
+
+### 21.8 Verdict after this pass
+
+**CONDITIONAL-GO — unchanged.** C-1, C-2 and C-3 are discharged; **C-4 and the
+new C-5 are open**, and neither is an approved deferral, so this must still not
+be read as GO. Protocol §2.1 is unaltered.
+
+| ID | Status after this pass |
+|---|---|
+| **C-1** CI green at head | **DISCHARGED for 4D's scope** — every check exercising 4D is green. The workflow as a whole is not green, solely because of C-5 |
+| **C-2** `real_infra` executes | **DISCHARGED** — 16/16, twice |
+| **C-3** Playwright executes | **DISCHARGED** — both AC-5 specs passed in a browser |
+| **C-4** TDD §5.3 / §4.1 reconciliation | **OPEN** — a documentation decision, offered for ratification; no implementation depends on it |
+| **C-5** `build-and-scan (ws-gateway)` | **OPEN** — pre-existing, 0 lines of this diff, fix known and deliberately not applied because the component is out of scope |
+
+**Nothing is merged.** `phase-4` and `main` remain untouched.
+
+### 21.9 Carry-forward register after this pass
+
+| ID | Status | Basis |
+|---|---|---|
+| **CF-9** | **OPEN, unchanged** | Ratified decision D-4D-2. Nothing in this pass touched it |
+| **CF-10** | **OPEN, re-verified at source** | §21.7. No RPC and no subject was created |
+| **CF-11** | **OPEN, re-verified at source** | §21.7. No producer was invented |
+| **CF-12** | **CLOSED** | Both tiers executed in CI at `f5f263f` — §21.3 (16/16 `real_infra`) and §21.4 (both AC-5 specs passed). §13.1's row is annotated accordingly |
+
+Two carry-forwards therefore survive this milestone, not three. **This does not
+change the verdict**: CF-12 was never a condition, and C-4 and C-5 remain open.
+
+**On §21's append-only property.** Sections 0–20 were written before this pass and
+**no original wording has been removed from any of them**. The single edit outside
+this addendum is the §13.1 CF-12 disposition cell, which now carries a supersession
+marker with its original text quoted verbatim inside it — the same form used for
+the corrected C-1 row in the Phase 3E Gate Review §13, and required by protocol
+§0.3.4, which makes corrections additive rather than silent rewrites.
