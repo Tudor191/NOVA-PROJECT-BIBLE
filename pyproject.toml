@@ -123,6 +123,7 @@ root_packages = [
     "nova_agent_os_supervisors",
     "nova_api_gateway",
     "nova_ws_gateway",
+    "nova_autonomy_engine",
 ]
 include_external_packages = true
 
@@ -149,6 +150,7 @@ modules = [
     "nova_agent_os_supervisors",
     "nova_api_gateway",
     "nova_ws_gateway",
+    "nova_autonomy_engine",
 ]
 
 [[tool.importlinter.contracts]]
@@ -174,6 +176,7 @@ source_modules = [
     "nova_agent_os_supervisors",
     "nova_api_gateway",
     "nova_ws_gateway",
+    "nova_autonomy_engine",
 ]
 forbidden_modules = [
     "nats",
@@ -204,6 +207,7 @@ source_modules = [
     "nova_agent_os_supervisors",
     "nova_api_gateway",
     "nova_ws_gateway",
+    "nova_autonomy_engine",
 ]
 forbidden_modules = [
     "neo4j",
@@ -301,6 +305,7 @@ forbidden_modules = [
     "nova_agent_os_supervisors",
     "nova_api_gateway",
     "nova_ws_gateway",
+    "nova_autonomy_engine",
 ]
 
 # Mirrors ADR-033/034's shape for a third case with the identical
