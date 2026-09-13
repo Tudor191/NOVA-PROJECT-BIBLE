@@ -280,6 +280,44 @@ trust score, policy editor, suggestion inbox.
 
 **Depends on:** 4C. **Satisfies:** AC-5.
 
+> **Implementation status note (added 2026-09-13; the scope text above is
+> unchanged).** 4D is **implemented and locally verified on `phase-4d`, head
+> `de6dbc9` — not merged, and with no CI run at any SHA**, because both
+> workflows trigger only on `pull_request` or a push to `main` and no pull
+> request was opened. Gate verdict **CONDITIONAL-GO** with four open conditions,
+> **none of which is an approved deferral**, so it must not be read as GO: C-1
+> no CI run · C-2 the `real_infra` tier unexecuted · C-3 the AC-5 Playwright
+> spec unexecuted · C-4 two TDD clauses need reconciling. See the
+> [Gate Review](../../roadmap/architecture-reviews/phase-4d-autonomy-engine-gate-review.md)
+> and [`phase-4d.md`](../../project-health/phase-4d.md).
+>
+> **What shipped, against the paragraph above.** Levels 0–2 defined with Bible
+> Part 14's vocabulary, 0–1 selectable and Level 2 defined-but-disabled per
+> decision D-1; the Trust Engine, Policy Engine and Permission Matrix, with the
+> matrix carrying Part 14's ten categories verbatim and in its order; doc 07's
+> append-only `autonomy.decision_log` plus four supporting tables; the
+> `/v1/autonomy/*` REST surface fronted 1:1 by `api-gateway`; and the Autonomy
+> panel with all four named widgets.
+>
+> **Two things in this section's own sentence turned out not to be
+> implementable, and are recorded rather than narrowed silently.** *"The Trust
+> Engine consumes Phase 2D-D's conversational trust-development signal as one
+> input"* — it consumes the signal's **shape**, and every `None` path is tested,
+> but **no read surface for that signal exists**: `digital-twin-engine` serves
+> only `digital_twin.preferences.get.request` and exposes no trust route, and
+> `BoundEventBus.request()` gates on the publishable allow-list that ratified
+> decision **D-4D-1** requires to stay empty. The input is therefore reported
+> `UNAVAILABLE` with its reason — exactly the fail-closed behaviour TDD 4D §13
+> specifies — and the gap is carried forward as **CF-10**. Separately, the
+> *"suggestion inbox"* has **no producer**: D-4D-1 removed the Event Bus origin
+> and TDD §8.1 defines no creation route, so in production the inbox is
+> permanently empty and says so. Carried forward as **CF-11**. 4D builds the
+> decision surface, not the initiative surface.
+>
+> **§15's two matrix rows below are half-discharged by this milestone**: the
+> `autonomy-engine` entries in `build-and-scan.yml` and `real-infra-checks.yml`
+> both exist. The `cognitive-state-engine` entries remain 4F's.
+
 ### 4E — Digital Twin
 
 `digital-twin-engine` **extension** — the remaining nine of Bible Part 16's
@@ -838,7 +876,7 @@ a workflow defect, and must not be worked around.
 | [`01-tdd-4a-gateways-and-web-client.md`](01-tdd-4a-gateways-and-web-client.md) | 4A technical design: gateway architecture, security boundaries, session model, web-client architecture, panel scope, testing, acceptance criteria | **Design preparation** |
 | `02-tdd-4b-observability-panels.md` | 4B — not yet written | Planned |
 | `03-tdd-4c-agent-os-api-and-containerization.md` | 4C — **never written; waived at Phase 4C closure, 2026-09-12** (see the note below) | **Waived, not owed** |
-| `04-tdd-4d-autonomy-engine.md` | 4D — not yet written | Planned |
+| [`04-tdd-4d-autonomy-engine.md`](04-tdd-4d-autonomy-engine.md) | 4D technical design: architecture and the binding gate order, Trust Engine inputs, Policy Engine, Permission Matrix, contracts, persistence, security boundaries, CF-9 handling, the panel, testing, acceptance criteria, and §0.1's two ratified refinements **D-4D-1** and **D-4D-2** | **Written 2026-09-12** (`eedb8ad`), corrected `f5ca915` |
 | `05-tdd-4e-digital-twin-extension.md` | 4E — not yet written | Planned |
 | `06-tdd-4f-companion-and-cognitive-state.md` | 4F — not yet written | Planned |
 
