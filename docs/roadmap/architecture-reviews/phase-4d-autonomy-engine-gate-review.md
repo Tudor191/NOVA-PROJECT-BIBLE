@@ -662,7 +662,13 @@ package set that failed `api-gateway`: `perl-base`, `gzip`, `libpcre2-8-0`,
   fail-fast cancelled `ws-gateway` before its scan ran.
 
 **The fix exists in-repo and this pass proved it works.** 17 of 20 Dockerfiles
-run `apt-get update && apt-get upgrade -y`; only the two 4A gateways did not. In
+run `apt-get update && apt-get upgrade -y`; **three did not** — `api-gateway`,
+`ws-gateway` **and this milestone's own `autonomy-engine`**, all three scaffolded
+from the same stale `tools/scaffold-engine.py` template. *(This clause originally
+read "only the two 4A gateways did not", which contradicted this same paragraph's
+next sentence; corrected 2026-09-14 — see §22. The count **17 of 20 is correct**
+and unchanged: it describes head `5a2bf77`, before any of the three were
+patched.)* In
 one workflow run, on one runner, against one Trivy database: `autonomy-engine`,
 whose base this milestone patched, scanned **clean**; the unpatched images
 produced 12 findings from the identical base. The one-line convention was ported
@@ -798,3 +804,162 @@ this addendum is the §13.1 CF-12 disposition cell, which now carries a superses
 marker with its original text quoted verbatim inside it — the same form used for
 the corrected C-1 row in the Phase 3E Gate Review §13, and required by protocol
 §0.3.4, which makes corrections additive rather than silent rewrites.
+
+---
+
+## 22. Final Gate Review — 2026-09-14
+
+**Additive.** §§0–21 stand as written; this section renders the final verdict and
+records what changed since §21. Two cells outside it now carry supersession
+markers with their original text quoted verbatim — §13.1's CF-12 disposition
+(§21.9) and §21.5's "only the two 4A gateways" clause (§22.5) — per protocol
+§0.3.4.
+
+### 22.1 What happened since §21
+
+| Event | SHA |
+|---|---|
+| Maintenance fix for C-5, on its own branch | `a061d34` |
+| PR **#28** merged into `phase-4`, two-parent merge commit | `dd6a147` |
+| `phase-4` merged into `phase-4d`, two-parent merge commit | **`9afddf6`** |
+| This documentation pass — C-4 reconciliation, C-5 discharge, figure corrections | *(this commit)* |
+
+C-5's fix was **inherited, not reimplemented here**: `a061d34` and `dd6a147` are
+both ancestors of `phase-4d`. Nothing in 4D's implementation was modified by the
+synchronization — `services/autonomy-engine`, `apps/web-client`,
+`packages/nova-contracts`, `services/action-engine`, `.github/` and `docs/` each
+show **0 changed lines** across that merge.
+
+### 22.2 Conditions C-1 … C-5 — final status
+
+| ID | Condition | Final status |
+|---|---|---|
+| **C-1** | Real CI green against the exact head SHA | **DISCHARGED.** 36/36 at `9afddf6` — zero failed, zero cancelled |
+| **C-2** | The `real_infra` tier must execute | **DISCHARGED.** `real-infra (autonomy-engine)` green on four consecutive heads |
+| **C-3** | The AC-5 Playwright specification must execute | **DISCHARGED.** Both specs ran and passed in a real browser; *"Record a suggestion for the AC-5 E2E"* succeeded, so neither was skipped |
+| **C-4** | TDD §5.3 and the §4.1 diagram describe an Event Bus trust read that D-4D-1 makes impossible | **DISCHARGED by this pass.** Ratified documentation-only reconciliation applied to both locations (§22.4). No RPC, no subject, no architecture change |
+| **C-5** | `build-and-scan (ws-gateway)` fails Trivy | **DISCHARGED.** Fixed at its root — the stale scaffold template — in PR #28, inherited here. `build-and-scan (ws-gateway)` **builds and scans green**; all **20 of 20** images pass with **zero fail-fast cancellations** |
+
+**No Gate Review condition remains open.**
+
+### 22.3 Carry-forwards CF-9 … CF-11 — final status
+
+None is closed by this pass, and none was closed by architecture change.
+
+| ID | Status | Basis, re-verified at `9afddf6` |
+|---|---|---|
+| **CF-9** | **OPEN** | Ratified decision **D-4D-2**. `action-engine` keeps sole ownership of `IdentityConfidencePolicy`; its fail-closed defaults are untouched. Originating owner Phase 3D / ADR-032; 4D declined to force it closed |
+| **CF-10** | **OPEN** | No `TrustMetric` read surface exists. `digital-twin-engine` serves exactly one subject; **0** registered subjects contain "trust"; no HTTP trust route exists repository-wide; and `BoundEventBus.request()` independently gates on the caller's `PUBLISHABLE_SUBJECTS`, an empty frozenset per D-4D-1. Fail-closed behaviour observed: score `None`, never `0.0`; `satisfies_threshold(None, t)` `False` for every `t` including `0.0` |
+| **CF-11** | **OPEN** | No production producer of suggestions. All six `insert_suggestion` occurrences under `src/` are two `async def` declarations and four docstring lines — **zero call sites**. `decide()` is imported by no production module: `api/autonomy.py:52` imports only `evaluate_gates`. No handler, worker or scheduler exists; **0 of 11** published operations create a suggestion |
+
+**Neither CF-10 nor CF-11 affects AC-5**, whose four clauses are Met at unit,
+integration, real-Postgres, CI and browser tiers. Both are gaps in surfaces that
+lie **outside 4D's ratified boundary** — CF-10's read surface belongs to another
+engine, CF-11's producer to the Initiative Engine (TDD §1.1, deferred and
+disclosed). They are carried forward in the §13.1 register, on the precedent of
+CF-3 (a Phase 3E gap discharged by 4C.1) and CF-9 (a Phase 3D gap routed through
+4B to 4D).
+
+### 22.4 C-4 — what was corrected, and what was not
+
+**TDD §5.3.** The clause *"The read is an **Event Bus request/reply**, matching
+the boundary discipline doc 20 enforces and import-linter asserts"* was split:
+the boundary-discipline half is true and is retained; the transport half is
+replaced by a dated reconciliation note that preserves the original sentence
+verbatim. The note records that **no `TrustMetric` read surface exists**, that
+4D ships the port plus a degraded adapter reporting `UNAVAILABLE` with its
+reason, and that **no Event Bus trust subject or RPC was created or scheduled**.
+The ownership rule and the fail-closed behaviour are preserved unchanged.
+
+**TDD §4.1.** The diagram drew the `TrustMetric` edge solid and labelled it
+*"(request/reply, §5.3)"*, contradicting the heading two lines above it — *"REST
+only, no Event Bus edge in either direction"*. The heading was correct; the edge
+is redrawn dashed and marked **NOT IMPLEMENTED IN 4D — CF-10**, resolving the
+self-contradiction. The edge is annotated rather than deleted because the
+*dependency* is real and 4D ships the port for it; what is absent is any
+transport. **No new architecture edge was introduced.**
+
+### 22.5 C-5 — the corrected historical clause
+
+§21.5 read *"17 of 20 Dockerfiles run `apt-get update && apt-get upgrade -y`;
+only the two 4A gateways did not."* **The count is correct and unchanged** — 17
+of 20 is the verified state at head `5a2bf77`. The second clause was wrong:
+**three** images lacked the line at that point — `api-gateway`, `ws-gateway`
+**and this milestone's own `autonomy-engine`** — which the same paragraph's next
+sentence already implied by noting that `autonomy-engine`'s base *"this milestone
+patched"*. Counted mechanically at each head:
+
+| Head | Hardened | Unhardened |
+|---|---|---|
+| `5a2bf77` | **17 of 20** | api-gateway, autonomy-engine, ws-gateway |
+| `32b6dcd` | 18 of 20 | api-gateway, ws-gateway |
+| `f5f263f` | 19 of 20 | ws-gateway |
+| **`9afddf6`** | **20 of 20** | **none** |
+
+### 22.6 Project Metrics — a correction to §12
+
+Re-measured with **`cloc` v2.06, flags `--skip-uniqueness --quiet`**, from
+pristine `git archive` extracts so that no ignored or untracked artifact could
+affect the count:
+
+| Scope | §12 recorded | Verified | Delta |
+|---|---|---|---|
+| Comparable (`services/*/src` + `packages/*/src` + `services/*/alembic/versions`) | 34,413 | **34,469** | §12 was **56 low** |
+| 4C.2's wider scope (adds `agent-os/*/src`, `agent-os/*/alembic/versions`, `agents/*`) | 39,754 | **39,810** | 56 low |
+| Full scope (also `apps/*/src`) | 43,058 | **43,114** | 56 low |
+
+The offset is **uniform and present at both endpoints** — the base `f5ca915`
+measures 33,004 and 38,345 against §12's recorded 32,948 and 38,289 — so
+**§12's reported deltas of +1,465 are correct and unchanged**; only the six
+absolute figures are each 56 low. `src/` is byte-identical between `de6dbc9` and
+`9afddf6`, so this is a recording error in the original measurement, not drift.
+The specific path the original glob missed was not isolated. **Neither SLOC
+milestone (30,000 / 50,000) is crossed by this correction**; 30,000 was crossed
+at Phase 2D-B and 50,000 remains uncrossed.
+
+### 22.7 Protocol §3.2 — the eleven GO conditions
+
+| # | Condition | Holds |
+|---|---|---|
+| 1 | Every acceptance criterion Met, or deferred with cited approval | **Yes** — AC-5 Met at every tier |
+| 2 | No undisclosed deviation from TDD, ADR or approved decision | **Yes** — C-4 was the last one, reconciled in §22.4; D-4D-1 and D-4D-2 honoured |
+| 3 | `turbo run lint` and `turbo run test --force` pass repo-wide, real counts recorded | **Yes** — 31/31 and 31/31 uncached |
+| 4 | Every affected package meets the 85% domain-coverage gate | **Yes** — `autonomy-engine` 99% |
+| 5 | `lint-imports` reports 0 broken contracts | **Yes** — 7 kept, 0 broken |
+| 6 | Contract and codegen verification clean | **Yes** — 116 files, zero drift |
+| 7 | Real GitHub Actions CI green against the exact head SHA | **Yes** — see §22.8 |
+| 8 | Real-infrastructure verification passed or disclosed | **Yes** — 16/16, four consecutive heads |
+| 9 | Gate Review, health record, roadmap entry and README status current | **Yes** — all updated by this pass |
+| 10 | No document contradicts the repository's current state | **Yes** — C-4, the §21.5 clause and §12's metrics were the three known contradictions; all three corrected |
+| 11 | No open category-13 item requires a user decision before the phase can be called done | **Yes** — CF-9 is OPEN by ratified decision; CF-10 and CF-11 are disclosed carry-forwards outside 4D's boundary, dispositioned in §13.1, and neither affects AC-5 |
+
+### 22.8 The head-SHA rule, restated for the new baseline
+
+§21's closing invariant — *"`git diff f5f263f..HEAD -- ':!docs'` is empty"* — is
+**superseded**: the `9afddf6` synchronization brought real code across that
+boundary (the ws-gateway Dockerfile, the scaffold template, the guard tests), so
+that command no longer prints nothing, and §21's evidence no longer covers the
+head on its own terms. **The new baseline is `9afddf6`**, whose 36/36 CI run
+covers the code as it now stands. Every commit after it on this branch is
+documentation-only exactly while
+
+```
+git diff 9afddf6..HEAD -- ':!docs'
+```
+
+is empty. Check it rather than assuming.
+
+### 22.9 Verdict
+
+**GO.**
+
+All five conditions C-1 … C-5 are discharged, all eleven of protocol §3.2's GO
+conditions hold, and AC-5 is Met at unit, integration, real-Postgres, CI and
+browser tiers. **Three carry-forwards remain OPEN — CF-9, CF-10 and CF-11** —
+each disclosed, each dispositioned in §13.1, each outside 4D's ratified
+boundary, and none affecting an acceptance criterion. GO records that Phase 4D's
+own scope is complete; it does **not** assert that those three gaps are closed,
+and it must not be read as closing them.
+
+**Nothing is merged by this verdict.** PR #27 remains open and unmerged, and
+merge authorization is the user's to grant.

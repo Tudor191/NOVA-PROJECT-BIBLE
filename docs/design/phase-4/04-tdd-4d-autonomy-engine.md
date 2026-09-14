@@ -243,8 +243,20 @@ browser ──▶ api-gateway ──/v1/autonomy/*──▶ autonomy-engine
                                                  │
                                     autonomy.decision_log (append-only)
 
-   digital-twin-engine ◀── TrustMetric read (request/reply, §5.3) ── autonomy-engine
+   digital-twin-engine ◀╌╌ TrustMetric read ╌╌ autonomy-engine
+                        ╌╌ NOT IMPLEMENTED IN 4D — CF-10, §5.3 ╌╌
 ```
+
+> **Diagram correction — 2026-09-14, Gate Review condition C-4 (ratified).**
+> The `TrustMetric` edge was drawn solid and labelled *"(request/reply, §5.3)"*,
+> which contradicted this section's own heading two lines above it — *"REST only,
+> **no Event Bus edge in either direction**"*. The heading is correct and stands;
+> the edge is the error. It is redrawn dashed and marked NOT IMPLEMENTED rather
+> than deleted, because the *dependency* is real and 4D ships the port for it —
+> what does not exist is any transport to carry it (§5.3's note, verified at head
+> `9afddf6`). **No new architecture edge is introduced by this correction**, and
+> no Event Bus trust subject or RPC exists or is scheduled. **CF-10** remains
+> **OPEN**.
 
 **Deliberately absent, and each for a stated reason:** no
 `autonomy.approval.requested` edge from `action-engine` (nothing publishes it —
@@ -365,10 +377,49 @@ TrustScore
 ### 5.3 Cross-engine read
 
 `digital-twin-engine` owns `TrustMetric`; `autonomy-engine` must not read its
-tables. The read is an **Event Bus request/reply**, matching the boundary
-discipline doc 20 enforces and import-linter asserts. If the reply times out or
+tables. The read crosses an **engine boundary, not a database one** — the
+discipline doc 20 enforces and import-linter asserts. **The transport this
+section originally specified does not exist in the shipped implementation; see
+the reconciliation note below.** If the reply times out or
 the metric is absent, the conversational input is `None` and the resulting trust
 score is `None` — fail-closed, never a default number.
+
+> **Reconciliation note — 2026-09-14, Gate Review condition C-4 (ratified).**
+> Additive per protocol §0.3.4: the original wording is preserved here rather
+> than silently rewritten. This section read *"The read is an **Event Bus
+> request/reply**, matching the boundary discipline doc 20 enforces and
+> import-linter asserts."* The boundary-discipline half of that sentence is
+> correct and is retained above. The transport half described a mechanism the
+> repository does not have.
+>
+> **No `TrustMetric` read surface exists in the shipped Phase 4D
+> implementation.** Verified against the repository at head `9afddf6`, on two
+> independent grounds:
+>
+> 1. **Nothing serves one.** `digital-twin-engine` serves exactly one subject,
+>    `digital_twin.preferences.get.request`, and exposes no trust route. No
+>    registered subject anywhere in the repository contains "trust", and no HTTP
+>    trust route exists in any engine.
+> 2. **Nothing could call one.** `BoundEventBus.request()` gates on the
+>    **caller's** `PUBLISHABLE_SUBJECTS`, which ratified decision **D-4D-1**
+>    requires to stay an empty frozenset. `autonomy-engine` therefore could not
+>    issue such a request even if a served subject existed.
+>
+> **What 4D actually ships:** the `ConversationalTrustSource` **port** (§5.1),
+> and a degraded adapter that reports the input as **`UNAVAILABLE`, with its
+> reason**. The fail-closed sentence above is implemented and tested exactly as
+> written — the score is `None` and **never** `0.0`, `input_status` stays
+> distinguishable from `no_data`, and `satisfies_threshold(None, t)` is `False`
+> for every `t`, **including `0.0`**. The `UNAVAILABLE` path subsumes the two
+> cases that sentence names.
+>
+> **No Event Bus trust subject and no trust RPC was created**, in this engine or
+> any other, and none is scheduled. Nothing here describes a surface that exists
+> or is planned: *where* the read surface belongs — a served `digital_twin.*`
+> subject with its `nova_contracts` payload, or an HTTP route — is an **open
+> architectural decision**, and either choice modifies another engine and lies
+> outside 4D's ratified boundary. The gap is carried as **CF-10**, which remains
+> **OPEN**.
 
 ---
 

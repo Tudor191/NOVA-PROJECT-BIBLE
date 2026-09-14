@@ -87,12 +87,25 @@ Individual, per-phase snapshot files, each citing its own source document by exa
 - [`phase-4d.md`](phase-4d.md) (one unit, **unmerged**; CI-verified 2026-09-13 via PR #27, opened solely for evidence. C-1/C-2/C-3 discharged; C-4 and C-5 open)
 - [`phase-4c.md`](phase-4c.md) (covers **4C.1** `agent-os` containerization, PR #25, and **4C.2** the Agents surface, PR #26, as two clearly separated sub-units — the Phase 3B multi-unit precedent. **4C.1 has no Gate Review document of its own**; its fields are cited to the additive implementation notes it wrote into [`00-master-scope.md`](../design/phase-4/00-master-scope.md) §5 and §10, and that gap is recorded in its field 21 and carried to Phase 4 closure)
 
+**Updated 2026-09-14 (Phase 4D final Gate Review):** Phase 4D's verdict is now
+**GO** (Gate Review §22). **All five conditions C-1…C-5 are DISCHARGED** and CI
+is **36/36 green at head `9afddf6`**, zero failed and zero cancelled. C-5 was
+fixed at its root by **PR #28** — a repository-maintenance branch correcting the
+stale `tools/scaffold-engine.py` Dockerfile template that had left three images
+unhardened — merged into `phase-4` as `dd6a147` and inherited by `phase-4d`;
+C-4 was discharged by a ratified documentation-only reconciliation of TDD §5.3
+and §4.1, creating no Event Bus subject and no RPC. **CF-9, CF-10 and CF-11 all
+remain OPEN**, each disclosed and outside 4D's ratified boundary, and GO does not
+close them. **PR #27 is still open and not merged**; `main` remains `7e273e6`.
+
 **Updated 2026-09-13 (Phase 4D CI verification pass):** PR #27 was opened solely
 to obtain CI evidence, with merge authorization explicitly withheld. **C-1, C-2
 and C-3 are discharged**; **C-4 remains open** and **C-5 is new and open**
 (`build-and-scan (ws-gateway)`, a pre-existing CVE failure this branch is not
 permitted to fix). **CF-9, CF-10 and CF-11 all remain OPEN**, the latter two
 re-verified at source rather than carried forward on trust. Still **not merged**.
+*(C-4 and C-5 were both discharged the following day — see the 2026-09-14 note
+above.)*
 
 **Added 2026-09-13 (Phase 4D):** `phase-4d.md` is added here and given its §1
 timeline row. Phase 4D is **one** milestone and creates no new one — the Phase 4

@@ -346,6 +346,29 @@ trust score, policy editor, suggestion inbox.
 > (both tiers unexecuted) is **CLOSED** by the runs above. **Nothing is merged**;
 > `phase-4` and `main` are untouched.
 
+> **Final Gate Review note (added 2026-09-14; both notes above are left as
+> written, per protocol §0.3.4).** Phase 4D's verdict is now **GO** (Gate Review
+> §22). **All five conditions C-1…C-5 are DISCHARGED** and CI is **36/36 green at
+> head `9afddf6`**, zero failed and zero cancelled — so the two notes above,
+> which record C-4 and C-5 as open and `phase-4` as untouched, are superseded on
+> those three points.
+>
+> - **C-5** was fixed at its **root**, not worked around: `tools/scaffold-engine.py`'s
+>   Dockerfile template predated the 2026-08-17 runtime-hardening convention by
+>   nine days, so every engine scaffolded afterwards inherited an unpatched base.
+>   Corrected on a repository-maintenance branch as **PR #28**, merged into
+>   `phase-4` as **`dd6a147`** and inherited by `phase-4d` at **`9afddf6`**. All
+>   **20 of 20** images now carry the convention, and a guard test asserts it
+>   against the `build-and-scan` matrix. **`phase-4` therefore advanced to
+>   `dd6a147`** — by Phase 4 maintenance, not by 4D landing. `main` is still
+>   `7e273e6`.
+> - **C-4** was discharged by a ratified **documentation-only** reconciliation of
+>   TDD §5.3 and §4.1. **No Event Bus trust subject, no RPC and no architecture
+>   change**; the diagram edge is annotated NOT IMPLEMENTED rather than redrawn.
+>
+> **CF-9, CF-10 and CF-11 remain OPEN** exactly as the note above describes them,
+> and GO does not close them. **PR #27 is still open and not merged.**
+
 ### 4E — Digital Twin
 
 `digital-twin-engine` **extension** — the remaining nine of Bible Part 16's
