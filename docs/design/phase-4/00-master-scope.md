@@ -392,11 +392,45 @@ trust score, policy editor, suggestion inbox.
 ### 4E — Digital Twin
 
 `digital-twin-engine` **extension** — the remaining nine of Bible Part 16's
-eleven domains (goal model, project model, software/hardware environment,
-skill model, knowledge profile, productivity patterns, learning progress),
-populated from real Perception + Memory data for the first time, additive
-to the Communication Profile domain shipped in Phase 2D-D. Adds the
+eleven domains, populated from real Perception + Memory data for the first
+time, additive to the **two** domains already shipped in Phase 2D-D. Adds the
 **Digital Twin** panel.
+
+> **Enumeration corrected 2026-09-14 (ratified).** This paragraph originally
+> read: *"the remaining nine of Bible Part 16's eleven domains (goal model,
+> project model, software/hardware environment, skill model, knowledge profile,
+> productivity patterns, learning progress), populated from real Perception +
+> Memory data for the first time, additive to the Communication Profile domain
+> shipped in Phase 2D-D."* Preserved verbatim per protocol §0.3.4; two things in
+> it were wrong, and the count **nine is not one of them**.
+>
+> **The parenthetical enumerated eight, not nine** — expanding
+> "software/hardware environment" into the two domains Part 16 names separately
+> — and omitted **Personal Workflow**, which Part 16 lists first. **The nine
+> remaining domains, complete and in Part 16's own vocabulary, are:**
+>
+> 1. **Personal Workflow**
+> 2. **Projects**
+> 3. **Software Environment**
+> 4. **Hardware Environment**
+> 5. **Knowledge Profile**
+> 6. **Skill Profile**
+> 7. **Productivity Patterns**
+> 8. **Goals**
+> 9. **Learning Progress**
+>
+> **"additive to the Communication Profile domain" implied ten remaining, not
+> nine.** **Two** Part 16 domains ship today, and both are unchanged by 4E:
+> **Communication Style** (as `CommunicationProfile`) and **Preferences** (as
+> `PreferenceEvolutionHistory`, the served RPC
+> `digital_twin.preferences.get.request`, and `GET /preferences`). With both
+> counted the arithmetic closes exactly — **11 − 2 = 9** — which is why the
+> original count was right even though its list was short.
+>
+> All eleven names are Part 16's own (lines 75–95), verified line by line. **No
+> domain is invented, renamed or merged by this correction.** See
+> [`05-tdd-4e-digital-twin-extension.md`](05-tdd-4e-digital-twin-extension.md)
+> §0.1 and §4.
 
 **Depends on:** 4D. **Satisfies:** AC-6.
 
@@ -948,7 +982,7 @@ a workflow defect, and must not be worked around.
 | `02-tdd-4b-observability-panels.md` | 4B — not yet written | Planned |
 | `03-tdd-4c-agent-os-api-and-containerization.md` | 4C — **never written; waived at Phase 4C closure, 2026-09-12** (see the note below) | **Waived, not owed** |
 | [`04-tdd-4d-autonomy-engine.md`](04-tdd-4d-autonomy-engine.md) | 4D technical design: architecture and the binding gate order, Trust Engine inputs, Policy Engine, Permission Matrix, contracts, persistence, security boundaries, CF-9 handling, the panel, testing, acceptance criteria, and §0.1's two ratified refinements **D-4D-1** and **D-4D-2** | **Written 2026-09-12** (`eedb8ad`), corrected `f5ca915` |
-| `05-tdd-4e-digital-twin-extension.md` | 4E — not yet written | Planned |
+| [`05-tdd-4e-digital-twin-extension.md`](05-tdd-4e-digital-twin-extension.md) | 4E technical design: Bible Part 16's eleven domains and which nine remain, the real Memory and Perception evidence sources, ownership boundaries, the `/v1/digital-twin/*` contracts, event and realtime behaviour, persistence, degraded semantics, the panel, testing, AC-6 mapping, and §0.1's four findings plus §19's five open questions | **Written 2026-09-14** — design preparation, **not ratified**; §19 must be answered before implementation |
 | `06-tdd-4f-companion-and-cognitive-state.md` | 4F — not yet written | Planned |
 
 Each later TDD is written immediately before its milestone begins, not up
