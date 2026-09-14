@@ -249,6 +249,14 @@ COPY services/{name} services/{name}
 RUN uv sync --frozen --no-dev --package {name}
 
 FROM python:3.12-slim
+# Force OS packages to their latest Debian-patched versions at build time,
+# regardless of how stale the base image's own layers are. Established by
+# `97fa103` (2026-08-17), which added this exact line to all 12 then-existing
+# matrix images to close CVE-2026-53615, and asserted by
+# `tools/tests/test_dockerfile_runtime_hardening.py`. Trivy scans every matrix
+# image at CRITICAL,HIGH with `exit-code: 1`, so an image without this line
+# fails the build the day Debian publishes a fixed CVE against the base.
+RUN apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/*
 RUN useradd --create-home --uid 1000 nova
 WORKDIR /app
 COPY --from=builder --chown=nova:nova /app /app
