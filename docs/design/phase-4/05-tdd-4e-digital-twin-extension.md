@@ -31,11 +31,18 @@ seeded or simulated data.**
 
 ---
 
-## 0.1 Findings that must be resolved before implementation
+## 0.1 Findings from deriving this TDD against the repository
 
 Four discrepancies were found while deriving this TDD from the repository. Each
-is reported here rather than decided unilaterally, per protocol §13.3's stop
-rule. **Implementation should not begin until 0.1.1 and 0.1.2 are ratified.**
+was reported rather than decided unilaterally, per protocol §13.3's stop rule.
+
+> **Status after the 2026-09-14 ratification.** **0.1.1 and 0.1.2 are RESOLVED** —
+> the user approved correcting master scope §5's enumeration and wording, and
+> that correction is applied. **0.1.4 is disclosure only** and needs no decision.
+> **0.1.3 remains OPEN**: the ratification covered §19's five questions and §5's
+> enumeration, and did not reach AC-6's simulated-gap mechanism. The proposed
+> resolution below stands as a proposal, and **§14.4's E2E design depends on it**.
+> Each subsection's original "Proposed resolution" wording is left as written.
 
 ### 0.1.1 The master scope's domain parenthetical lists eight, not nine
 
@@ -413,19 +420,41 @@ reconstruction is a query over persisted rows, not a generated narrative.
 
 ---
 
-## 12. Degraded and unavailable semantics
+## 12. Domain evidence states — ratified 2026-09-14
 
-Modelled directly on 4D's `TrustInputStatus`, which is shipped and tested:
+**Four states, not three.** The three-state model this section first proposed
+(borrowed from 4D's `TrustInputStatus`) could not express a domain that is
+genuinely half-derived, which `Knowledge Profile` and `Skill Profile` are. The
+ratified model adds `partially_populated`:
 
-| State | Meaning |
+| State | Meaning | Reason required? |
+|---|---|---|
+| `populated` | Evidence exists and the domain was fully derived from it | No |
+| `partially_populated` | Some fields derived from real evidence; the rest have none | **Yes** |
+| `empty` | The source exists and was queried; it returned nothing | **Yes** |
+| `unavailable` | The source could not be reached | **Yes** |
+
+**Every `partially_populated`, `empty` and `unavailable` state carries a
+machine-readable reason** — an enumerated code plus human-readable detail, not
+free text alone, so the panel can render it and a test can assert it.
+
+**Fail-empty, never fail-plausible.** A domain that cannot be derived reports its
+state and reason — never a default, a zero, an average, or an inferred value.
+This is Part 16 §69 (*"Never create assumptions without evidence"*) expressed as
+a type, and §14.5 control 5 makes it unrepresentable to report `populated`
+without evidence rows.
+
+**Binding per-domain floor (ratified §19.1):**
+
+| Domain | Permitted states in 4E |
 |---|---|
-| `POPULATED` | Evidence exists and the domain was derived from it |
-| `NO_DATA` | The source exists and was queried; it returned nothing |
-| `UNAVAILABLE` | The source could not be reached, **with the reason** |
+| `Software Environment` | **`empty` or `unavailable` only** — no real source exists until 4F |
+| `Hardware Environment` | **`empty` or `unavailable` only** — same |
+| `Knowledge Profile` | `partially_populated` at most, **and only from real existing data** |
+| `Skill Profile` | `partially_populated` at most, **and only from real existing data** |
+| The other five | `populated` where real evidence supports it |
 
-**Fail-empty, never fail-plausible.** A domain that cannot be derived returns
-`NO_DATA` or `UNAVAILABLE` with its reason — never a default, a zero, or an
-inferred value. This is Part 16 §69 expressed as a type.
+**No Digital Twin data is fabricated** for any domain, in any state.
 
 ---
 
@@ -481,10 +510,22 @@ standard, not a declaration:
 2. **`PUBLIC_TOPICS` is byte-identical** at its 18 exact strings.
 3. **No cross-engine import** — import-linter, plus an AST check.
 4. **No write to `memory-engine` or `perception-engine`.**
-5. **A domain with no evidence rows cannot report `POPULATED`.**
-6. **A private-level memory never reaches a rendered domain** (pending §19.3).
+5. **A domain with no evidence rows cannot report `populated`** — and
+   `Software Environment` / `Hardware Environment` cannot report anything but
+   `empty` or `unavailable` (§12's floor, ratified §19.1).
+6. **A `PRIVATE` memory never reaches a rendered domain** — ratified §19.3.
+   Written through the real path, every domain derived, no rendered field carries
+   its content.
 7. **Only the five §7 routes are published**, asserted against the OpenAPI document.
 8. **No `autonomy.*` subject and no autonomy behaviour** is introduced.
+9. **CF-10 is not resolved by 4E** — ratified §19.2, asserted as five separate
+   properties: no `TrustMetric` REST route, no `TrustMetric` Event Bus subject,
+   no `TrustMetric` RPC, `autonomy-engine`'s trust adapter byte-identical, and
+   its fail-closed behaviour unchanged (`score` is `None` never `0.0`;
+   `satisfies_threshold(None, t)` `False` for every `t` including `0.0`).
+10. **Every non-`populated` state carries a machine-readable reason** — a domain
+    reporting `partially_populated`, `empty` or `unavailable` without an
+    enumerated reason code fails.
 
 ---
 
@@ -549,44 +590,95 @@ keeps it that way.
 
 ---
 
-## 19. Open questions requiring ratification
+## 19. Ratified decisions — 2026-09-14
 
-Per protocol §13.2, each with options and a recommendation — **not a decision
-taken**.
+This section was written as five open questions and is **replaced by the user's
+ratification of 2026-09-14**. Each original question and its recommendation is
+preserved inline, per protocol §0.3.4; what changed is that each now has a
+binding answer. **Implementation may proceed on these terms and no others.**
 
-### 19.1 Do the four evidence-less domains ship as empty surfaces?
-`Software Environment`, `Hardware Environment`, and partially `Skill Profile` and
-`Knowledge Profile` have no populator until 4F. **Options:** (a) ship them
-modelled-and-empty with reasons; (b) defer them to 4F, making 4E five domains,
-not nine; (c) build a populator — **rejected: it would invent a data source.**
-**Recommendation: (a)**, because Part 16's domain list is the contract and an
-honest empty domain is more useful than a missing one. **This changes what
-"nine domains delivered" means and must be explicit.**
+### 19.1 Empty domains — **APPROVED**
 
-### 19.2 Does 4E resolve CF-10?
-`autonomy-engine` needs a `TrustMetric` read surface; `digital-twin-engine` owns
-`TrustMetric` and is open for extension here. **Options:** (a) out of scope, CF-10
-stays open; (b) 4E adds a served `digital_twin.trust.get.request` subject; (c) 4E
-adds an HTTP trust route. **Recommendation: (a) unless you direct otherwise** —
-(b) and (c) are both real designs, but neither is in 4E's scope as written, and
-this TDD creates neither.
+**All nine remaining domains are delivered as modelled domains with an explicit
+evidence state. A domain does not need fabricated data to count as delivered.**
 
-### 19.3 What is the privacy rule for derived domains?
-`MemoryRecord.privacy_level` exists; no rule says whether a `PRIVATE` memory may
-inform a rendered domain. **Recommendation:** exclude `PRIVATE` from every
-rendered derivation, with a negative control proving it. **Needs ratification** —
-it is a user-visible privacy decision, not an implementation detail.
+The four states are `populated`, `partially_populated`, `empty` and
+`unavailable` (§12), and **every non-`populated` state exposes a
+machine-readable reason**.
 
-### 19.4 Master scope §15 lists no `real-infra` entry for 4E
-Its table assigns `real-infra-checks.yml` entries to "the two new engines" (4D,
-4F). 4E adds tables to an **existing** engine, which the table does not cover.
-**Recommendation:** add the entry and record an additive correction to §15.
+- `Software Environment` and `Hardware Environment` **remain `empty` or
+  `unavailable` until a real Phase 4F source exists.**
+- `Knowledge Profile` and `Skill Profile` **may be `partially_populated` only
+  from real existing data.**
+- **No Digital Twin data is fabricated**, in any domain or any state.
 
-### 19.5 Where should this TDD be committed?
-**Repository precedent is unambiguous:** TDD 4D was committed **directly to
-`phase-4`** as `eedb8ad`, which then became the head `phase-4d` branched from.
-The instruction authorising this document forbade modifying `phase-4`, modifying
-`main`, and creating `phase-4e`, so it is committed to **`phase-4e-tdd`**, a
-preparation branch mirroring the accepted `maintenance/…` precedent. **It should
-land on `phase-4` before `phase-4e` is cut**, so §16 rule 5 holds and the
-milestone branch inherits its own TDD.
+*(Asked as: whether the four evidence-less domains ship as empty surfaces, defer
+to 4F, or get a populator — the third rejected as inventing a data source.
+Recommended (a), ship them modelled-and-empty. Approved, with the four-state
+model and the per-domain floor in §12 replacing the looser three-state proposal.)*
+
+### 19.2 CF-10 — **APPROVED AS OUT OF SCOPE**
+
+**Phase 4E must not resolve CF-10. CF-10 stays OPEN.** Binding prohibitions:
+
+- **No `TrustMetric` REST route.**
+- **No `TrustMetric` Event Bus subject.**
+- **No `TrustMetric` RPC.**
+- **No modification to `autonomy-engine`'s trust adapter.**
+- **The existing fail-closed behaviour is preserved** — score `None` and never
+  `0.0`, `satisfies_threshold(None, t)` `False` for every `t` including `0.0`.
+
+§14.5 gains a control asserting all five (control 9).
+
+*(Asked as: whether 4E resolves CF-10, given that `digital-twin-engine` owns
+`TrustMetric` and is open for extension here. Recommended out of scope.
+Approved.)*
+
+### 19.3 Privacy — **APPROVED**
+
+**Memory records marked `PRIVATE` must not contribute to rendered Digital Twin
+domain data.** An explicit negative control proves it (§14.5 control 6):
+a `PRIVATE` memory is written through the real path, every domain is derived,
+and no rendered field carries its content.
+
+**The underlying Memory privacy model is not changed** — `MemoryRecord.privacy_level`
+keeps its current semantics, and 4E filters on read.
+
+*(Asked as: what the privacy rule is for derived domains, since none was stated.
+Recommended excluding `PRIVATE`. Approved.)*
+
+### 19.4 Real-infrastructure verification — **APPROVED**
+
+**4E includes real-Postgres verification for the Digital Twin reconstruction and
+persistence path**, using **the repository's existing conventions** — the
+`real_infra` pytest marker (ADR-033), `nova-testkit`'s container fixtures, and a
+`real-infra-checks.yml` matrix entry. **No new CI framework.**
+
+**The test exercises real persisted rows and the real Digital Twin read path.**
+The repository and database layers are **not** replaced with mocks; the fake
+repository used in §14.2's integration tier is explicitly not permitted here.
+
+An additive correction to master scope §15 records the matrix entry, since its
+table assigns `real-infra-checks.yml` entries to "the two new engines" (4D, 4F)
+and 4E extends an existing one.
+
+*(Asked as: §15 lists no `real-infra` entry for 4E. Recommended adding one.
+Approved.)*
+
+### 19.5 TDD landing — **APPROVED, with the flow below**
+
+`phase-4e-tdd` is a **preparation branch**. The ratified flow:
+
+1. **Land the approved TDD and documentation into `phase-4`** — a normal
+   two-parent merge, no squash, no rebase, no force-push.
+2. **Then create `phase-4e` from the updated `phase-4` HEAD**, satisfying master
+   scope §16 rule 5 so the milestone branch inherits its own TDD — the same
+   relationship `eedb8ad` had to `phase-4d`.
+3. **Then perform all Phase 4E implementation on `phase-4e`.**
+
+**No Phase 4E implementation on `phase-4e-tdd`. `phase-4e` is not created until
+the TDD is landed in `phase-4`. `main` is not modified.**
+
+*(Asked as: where this TDD should be committed, given that precedent puts a TDD
+on `phase-4` but the authorising instruction forbade all three in-repo targets.
+Recommended landing on `phase-4` before `phase-4e` is cut. Approved.)*
