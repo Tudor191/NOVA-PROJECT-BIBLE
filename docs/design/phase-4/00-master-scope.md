@@ -369,6 +369,26 @@ trust score, policy editor, suggestion inbox.
 > **CF-9, CF-10 and CF-11 remain OPEN** exactly as the note above describes them,
 > and GO does not close them. **PR #27 is still open and not merged.**
 
+> **Closure note (added 2026-09-14; every note above is left as written, per
+> protocol §0.3.4).** **Phase 4D is CLOSED.** PR #27 merged into `phase-4` on
+> explicit user authorization as **`68397a200f08db497fc4f36a1b14422dc953298e`** —
+> a normal two-parent merge of `dd6a147` and `dff646c`, no squash, no rebase, no
+> force-push — so the sentence directly above, *"PR #27 is still open and not
+> merged"*, is superseded. `phase-4d` is preserved at `dff646c`, not deleted, and
+> is an ancestor of `phase-4`. `main` remains `7e273e6`, still frozen per §16
+> rule 2.
+>
+> **Milestone state: 4A, 4B, 4C and 4D are merged into `phase-4`; 4E and 4F
+> remain.** Per §16 rule 4 the next milestone branch is cut only after this merge
+> is verified — which it is — and **`phase-4e` has not been created**.
+>
+> **CF-9, CF-10 and CF-11 stay OPEN and are inherited by Phase 4's closure**,
+> joining §4's register above. 4D's GO closes none of them: CF-9 by ratified
+> decision D-4D-2, CF-10 because no `TrustMetric` read surface exists in any
+> engine, CF-11 because no component produces a suggestion. **No `autonomy.*`
+> Event Bus subject, no `TrustMetric` RPC or subject, and no production
+> suggestion producer was created at any point in 4D.**
+
 ### 4E — Digital Twin
 
 `digital-twin-engine` **extension** — the remaining nine of Bible Part 16's

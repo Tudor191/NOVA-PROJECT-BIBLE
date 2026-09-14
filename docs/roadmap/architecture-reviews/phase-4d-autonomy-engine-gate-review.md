@@ -963,3 +963,35 @@ and it must not be read as closing them.
 
 **Nothing is merged by this verdict.** PR #27 remains open and unmerged, and
 merge authorization is the user's to grant.
+
+### 22.10 Closure — 2026-09-14
+
+**Appended after the merge.** §22.9's verdict stands unchanged; this records what
+the merge did, so the document is complete rather than ending one step before the
+outcome.
+
+| Item | Value |
+|---|---|
+| Merge commit | **`68397a200f08db497fc4f36a1b14422dc953298e`** |
+| Parents | `dd6a147a4cd90a0480466015dcec9939883e71b3` (previous `phase-4`) · `dff646cc0123b33a710e93b294e8db231a2dfe38` (PR #27 head) |
+| Resulting `phase-4` HEAD | `68397a200f08db497fc4f36a1b14422dc953298e` |
+| PR #27 | **merged** 2026-09-14T20:30:03Z, on explicit user authorization |
+| `phase-4d` | preserved at `dff646c`, **not deleted**, an ancestor of `phase-4` |
+| `main` | **`7e273e6`, untouched** — still frozen per master scope §16 rule 2 |
+
+A **normal two-parent merge commit**: no squash, no rebase, no force-push, no
+history rewrite. All twelve Phase 4D commits — `f5ca915`, `eb48d0f`, `5eae4c2`,
+`152d347`, `de6dbc9`, `5a2bf77`, `32b6dcd`, `f5f263f`, `41ab3fc`, `6c4f077`,
+`9afddf6`, `dff646c` — remain reachable from `phase-4`, which is why master scope
+§16 rule 6 requires a merge commit rather than a squash: this document and the
+health record cite individual SHAs, and a squash would make those citations
+unreachable.
+
+**What closure does not change.** **CF-9, CF-10 and CF-11 remain OPEN** and are
+inherited by Phase 4's eventual closure. Merging 4D created no `autonomy.*` Event
+Bus subject, no `TrustMetric` RPC or subject, and no production suggestion
+producer. §13.1's register is where each carry-forward's disposition lives, and
+none of them moved.
+
+**Milestone state:** 4A, 4B, 4C and 4D are merged into `phase-4`; **4E and 4F
+remain**, and `phase-4e` has not been created.
