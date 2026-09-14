@@ -62,6 +62,19 @@ jobs:
             path: services/personality-engine
           - package: perception-engine
             path: services/perception-engine
+          # Phase 4E. memory-engine had no real-Postgres coverage at all, and
+          # that is how `create_long_term` shipped without writing `created_at`
+          # or `updated_at`: the column defaults filled them in, so every tier
+          # above the real driver saw a plausible timestamp and the caller's own
+          # value was discarded silently. AC-6 turns on that field, so the tier
+          # that can see it is now mandatory (TDD 4E §20.1).
+          #
+          # Its own test file composes a `pgvector/pgvector:pg16` container
+          # rather than nova-testkit's `postgres:16-alpine` fixture -- migration
+          # 0001 opens with `CREATE EXTENSION IF NOT EXISTS vector`, which the
+          # alpine image cannot satisfy. See that file's module docstring.
+          - package: memory-engine
+            path: services/memory-engine
           - package: digital-twin-engine
             path: services/digital-twin-engine
           - package: capability-engine
