@@ -948,7 +948,7 @@ a workflow defect, and must not be worked around.
 | `02-tdd-4b-observability-panels.md` | 4B — not yet written | Planned |
 | `03-tdd-4c-agent-os-api-and-containerization.md` | 4C — **never written; waived at Phase 4C closure, 2026-09-12** (see the note below) | **Waived, not owed** |
 | [`04-tdd-4d-autonomy-engine.md`](04-tdd-4d-autonomy-engine.md) | 4D technical design: architecture and the binding gate order, Trust Engine inputs, Policy Engine, Permission Matrix, contracts, persistence, security boundaries, CF-9 handling, the panel, testing, acceptance criteria, and §0.1's two ratified refinements **D-4D-1** and **D-4D-2** | **Written 2026-09-12** (`eedb8ad`), corrected `f5ca915` |
-| `05-tdd-4e-digital-twin-extension.md` | 4E — not yet written | Planned |
+| [`05-tdd-4e-digital-twin-extension.md`](05-tdd-4e-digital-twin-extension.md) | 4E technical design: Bible Part 16's eleven domains and which nine remain, the real Memory and Perception evidence sources, ownership boundaries, the `/v1/digital-twin/*` contracts, event and realtime behaviour, persistence, degraded semantics, the panel, testing, AC-6 mapping, and §0.1's four findings plus §19's five open questions | **Written 2026-09-14** — design preparation, **not ratified**; §19 must be answered before implementation |
 | `06-tdd-4f-companion-and-cognitive-state.md` | 4F — not yet written | Planned |
 
 Each later TDD is written immediately before its milestone begins, not up
