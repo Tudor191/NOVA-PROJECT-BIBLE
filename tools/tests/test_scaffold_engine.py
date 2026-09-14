@@ -120,3 +120,49 @@ def test_name_derivation(
     assert scaffold._module_name(name) == module
     assert scaffold._title(name) == title
     assert scaffold._env_prefix(name) == env_prefix
+
+
+# --- generated Dockerfile ------------------------------------------------
+
+
+def test_a_scaffolded_engine_ships_a_hardened_runtime_stage(
+    scaffold: ModuleType, tmp_path: Path
+) -> None:
+    """The generator half of the defect `97fa103` left open.
+
+    That commit added `apt-get update && apt-get upgrade -y` to all 12
+    then-existing matrix Dockerfiles to close CVE-2026-53615, but not to this
+    script's template — written 2026-08-08, nine days earlier. Every engine scaffolded
+    afterwards inherited an unpatched runtime stage: `ws-gateway` and
+    `api-gateway` (Phase 4A, `3c18ed5`) and `autonomy-engine` (Phase 4D,
+    `eb48d0f`). Two of the three went on to fail `build-and-scan` on Trivy.
+
+    `tools/tests/test_dockerfile_runtime_hardening.py` asserts the line is
+    present in this file's template and in every matrix Dockerfile. This test
+    closes the remaining gap between those two: that the template's line
+    actually reaches a *generated* Dockerfile, in its runtime stage — not
+    stranded in a comment, an unused constant, or the builder stage.
+    """
+    engine_dir = tmp_path / "example-engine"
+    engine_dir.mkdir()
+    scaffold._render(
+        engine_dir,
+        module="nova_example_engine",
+        name="example-engine",
+        title="Example Engine",
+        env_prefix="EXAMPLE_ENGINE",
+    )
+
+    lines = [
+        line.strip()
+        for line in (engine_dir / "Dockerfile").read_text().splitlines()
+    ]
+    runtime = lines[max(i for i, line in enumerate(lines) if line == "FROM python:3.12-slim") + 1 :]
+
+    assert (
+        "RUN apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/*" in runtime
+    ), (
+        "a freshly scaffolded engine's runtime stage does not upgrade its base "
+        "OS packages, so the next engine added in Phase 4E or 4F ships the same "
+        "vulnerability ws-gateway did"
+    )
