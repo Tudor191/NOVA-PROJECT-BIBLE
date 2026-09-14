@@ -222,7 +222,8 @@ jobs:
             planning-engine-worker reasoning-engine-worker \
             ai-model-orchestration-engine-worker \
             api-gateway ws-gateway \
-            agent-os-kernel agent-os-registry agent-os-supervisors
+            agent-os-kernel agent-os-registry agent-os-supervisors \
+            autonomy-engine
 
       - name: Confirm the schema migration completed
         run: |
@@ -450,10 +451,47 @@ jobs:
             $compose logs --tail=30 action-engine
           fi
 
+      # Phase 4D. AC-5 needs a proposed suggestion in the browser, and no
+      # shipped component produces one: decision D-4D-1 removed the Event Bus
+      # origin and TDD 4D §8.1 defines no creation route, because 4D builds
+      # the decision surface rather than the initiative surface. This driver
+      # stands in for the producer a later milestone will build -- it runs the
+      # real decision pipeline, with the real gates in their binding order,
+      # and persists through the real repository in one transaction.
+      #
+      # `continue-on-error` for the same reason the approval driver has it: if
+      # the pipeline declines to propose, that is a real answer, and the spec
+      # must skip itself rather than turn a correct denial into a red build.
+      - name: Record a suggestion for the AC-5 E2E
+        id: autonomy_suggestion
+        continue-on-error: true
+        env:
+          AUTONOMY_ENGINE_POSTGRES_DSN: postgresql+asyncpg://nova:nova_dev_password@localhost:5432/nova
+        run: |
+          set -o pipefail
+          uv run python tools/e2e_seed_autonomy_suggestion.py 2>&1 | tee /tmp/autonomy-suggestion.log
+          suggestion_id="$(tail -n 1 /tmp/autonomy-suggestion.log)"
+          echo "recorded suggestion ${suggestion_id}"
+
+          # Exported only when the row is really there and still undecided --
+          # the same evidence-before-export rule the approval driver follows.
+          compose="docker compose -f infra/docker/docker-compose.local.yml"
+          psql="$compose exec -T postgres psql -U ${POSTGRES_USER:-nova} -d ${POSTGRES_DB:-nova} -X"
+          rows="$($psql -tAc "SELECT count(*) FROM autonomy.suggestion
+                               WHERE id = '${suggestion_id}' AND status = 'proposed';" \
+                  | tr -d '[:space:]')"
+          if [ "${rows}" = "1" ]; then
+            echo "suggestion_id=${suggestion_id}" >> "$GITHUB_OUTPUT"
+          else
+            echo "no proposed suggestion row for ${suggestion_id}; the AC-5 spec will skip"
+            $compose logs --tail=30 autonomy-engine || true
+          fi
+
       - name: Run the golden path
         env:
           NOVA_SESSION_TOKEN: ${{ env.NOVA_SESSION_TOKEN }}
           NOVA_E2E_ACTION_ID: ${{ steps.risky_action.outputs.action_id }}
+          NOVA_E2E_SUGGESTION_ID: ${{ steps.autonomy_suggestion.outputs.suggestion_id }}
           # The client is served single-origin and Vite's `preview` proxy
           # forwards `/v1` and `/ws` to the gateways -- the same shape a real
           # deployment has. Pointing the client straight at the gateway ports

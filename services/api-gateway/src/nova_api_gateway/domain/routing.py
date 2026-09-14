@@ -69,12 +69,14 @@ def build_route_table(
     capability_engine_url: str,
     action_engine_url: str,
     agent_os_kernel_url: str,
+    autonomy_engine_url: str,
 ) -> RouteTable:
     """Every engine the gateway fronts, and nothing else.
 
     4A fronted `communication-engine` alone. 4B adds the four the
-    observability panels read from -- exactly as this module predicted, by
-    appending entries rather than changing the mechanism. Each engine's `/v1`
+    observability panels read from, 4C the Agents panel's Kernel, and 4D the
+    Autonomy panel -- exactly as this module predicted, by appending entries
+    rather than changing the mechanism. Each engine's `/v1`
     surface already existed; no engine API was changed to be fronted.
 
     Deliberately absent:
@@ -137,6 +139,21 @@ def build_route_table(
                 prefix="/v1/agents",
                 upstream_name="agent-os-kernel",
                 base_url=agent_os_kernel_url.rstrip("/"),
+            ),
+            # Autonomy panel (Phase 4D). `/v1/autonomy` and its whole subtree
+            # -- levels, policies, permissions, suggestions -- forwarded 1:1
+            # (D-6), by appending one entry rather than changing the mechanism.
+            #
+            # This is **not** a duplicate of `/v1/action` above. TDD 4D §8.1
+            # draws the boundary: `action-engine`'s approval endpoint decides
+            # one already-created Action inside its execution pipeline;
+            # `/v1/autonomy/*` governs whether NOVA may act at all. Both exist,
+            # neither is reachable from the other's domain, and neither is
+            # deprecated.
+            UpstreamRoute(
+                prefix="/v1/autonomy",
+                upstream_name="autonomy-engine",
+                base_url=autonomy_engine_url.rstrip("/"),
             ),
         ]
     )

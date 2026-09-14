@@ -116,6 +116,8 @@ def _table(**overrides: str) -> RouteTable:
         # Phase 4C (D-4). Not an engine -- `agent-os/kernel` is control-plane
         # infrastructure -- but fronted on identical terms.
         "agent_os_kernel_url": "http://agent-os-kernel:8000",
+        # Phase 4D. The Autonomy panel's data source.
+        "autonomy_engine_url": "http://autonomy:8000",
     }
     urls.update(overrides)
     return build_route_table(**urls)  # type: ignore[arg-type]

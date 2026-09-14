@@ -49,6 +49,7 @@ const EXPECTED_PANELS = [
   "/events",
   "/health",
   "/agents",
+  "/autonomy",
 ] as const;
 
 describe("panel routing", () => {
@@ -71,15 +72,18 @@ describe("panel routing", () => {
     expect([...navPaths()].sort()).toEqual([...EXPECTED_PANELS].sort());
   });
 
-  it("adds the Agents panel without disturbing the existing seven", () => {
-    // 4C.2f appends. A slice that rewrote the list could drop a panel and no
-    // other test here would notice.
+  it("adds each new panel by appending, never by rewriting the list", () => {
+    // 4C.2f appended Agents; 4D appends Autonomy. A slice that rewrote the
+    // list could drop a panel and no other test here would notice. The count
+    // is derived rather than literal so the next panel updates one place.
     const nav = navPaths();
-    for (const path of EXPECTED_PANELS.filter((p) => p !== "/agents")) {
+    for (const path of EXPECTED_PANELS) {
       expect(nav).toContain(path);
     }
-    expect(nav).toContain("/agents");
-    expect(nav).toHaveLength(8);
+    expect(nav).toHaveLength(EXPECTED_PANELS.length);
+    // The order is the order panels were added, so a rewrite that reordered
+    // them would move the operator's tabs around without anything failing.
+    expect(nav.indexOf("/agents")).toBeLessThan(nav.indexOf("/autonomy"));
   });
 
   it("lazily loads the Agents panel like every other one", () => {
@@ -97,5 +101,19 @@ describe("panel routing", () => {
     // A route outside the shell would remount `RealtimeProvider`, dropping
     // the WebSocket and losing every frame during the reconnect.
     expect(Object.keys(router.routesById)).toContain("/shell/agents");
+  });
+
+  it("lazily loads the Autonomy panel like every other one", () => {
+    const source = readFileSync(ROUTER, "utf8");
+    const autonomy = source.match(/const autonomyRoute = createRoute\(\{[\s\S]*?\}\);/);
+    expect(autonomy).not.toBeNull();
+    expect(autonomy?.[0]).toMatch(/lazyRouteComponent/);
+    expect(autonomy?.[0]).toMatch(/panels\/autonomy\/AutonomyPanel/);
+  });
+
+  it("nests Autonomy under the shell too", () => {
+    // It subscribes to nothing itself (decision D-4D-1), but it still must
+    // not remount the provider the other seven panels depend on.
+    expect(Object.keys(router.routesById)).toContain("/shell/autonomy");
   });
 });

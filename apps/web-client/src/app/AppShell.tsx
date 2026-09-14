@@ -37,6 +37,8 @@ const PANELS = [
   { path: "/health", label: "Health" },
   // Phase 4C (4C.2f).
   { path: "/agents", label: "Agents" },
+  // Phase 4D.
+  { path: "/autonomy", label: "Autonomy" },
 ] as const;
 
 export function AppShell() {

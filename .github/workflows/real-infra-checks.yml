@@ -77,6 +77,13 @@ jobs:
           # `tests/integration/test_repository_real_postgres.py` now runs here.
           - package: reasoning-engine
             path: services/reasoning-engine
+          # Phase 4D. autonomy-engine's repository has real SQL, a real
+          # foreign key between `suggestion` and doc 07's append-only
+          # `decision_log`, and real keyset pagination -- so it needs the tier
+          # that found 4C.2's two defects. TDD 4D §16 makes this mandatory
+          # rather than optional for exactly that reason.
+          - package: autonomy-engine
+            path: services/autonomy-engine
           - package: kernel
             path: agent-os/kernel
           - package: registry

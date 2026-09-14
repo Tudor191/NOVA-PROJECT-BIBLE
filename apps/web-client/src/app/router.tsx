@@ -116,6 +116,19 @@ const agentsRoute = createRoute({
   component: lazyRouteComponent(() => import("../panels/agents/AgentsPanel"), "AgentsPanel"),
 });
 
+// Phase 4D. Lazily loaded like every other panel. Unlike the seven before
+// it, this one has no realtime half to load: `autonomy-engine` claims no
+// Event Bus subject (decision D-4D-1), so the panel's freshness comes from
+// invalidating its own queries after its own mutations.
+const autonomyRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: "/autonomy",
+  component: lazyRouteComponent(
+    () => import("../panels/autonomy/AutonomyPanel"),
+    "AutonomyPanel",
+  ),
+});
+
 const routeTree = rootRoute.addChildren([
   shellRoute.addChildren([
     conversationRoute,
@@ -126,6 +139,7 @@ const routeTree = rootRoute.addChildren([
     eventsRoute,
     healthRoute,
     agentsRoute,
+    autonomyRoute,
   ]),
 ]);
 

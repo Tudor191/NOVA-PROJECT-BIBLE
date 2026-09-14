@@ -31,6 +31,11 @@ class Settings(BaseSettings):
     `agent-os/kernel` is control-plane infrastructure rather than an
     engine, but it is fronted on exactly the same terms as one."""
 
+    autonomy_engine_url: str = "http://autonomy-engine:8000"
+    """Phase 4D. The Autonomy panel's data source -- levels, policies,
+    permissions and the AC-5 suggestion inbox. One prefix, `/v1/autonomy`,
+    forwarded 1:1 (D-6)."""
+
     upstream_timeout_seconds: float = 30.0
 
     # --- session (decision D-3) -------------------------------------------

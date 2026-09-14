@@ -504,6 +504,7 @@ def test_the_route_table_fronts_no_other_agent_os_component() -> None:
         capability_engine_url="http://cap:8000",
         action_engine_url="http://a:8000",
         agent_os_kernel_url="http://agent-os-kernel:8000",
+        autonomy_engine_url="http://autonomy-engine:8000",
     )
     upstreams = {route.upstream_name for route in table.routes}
 
@@ -517,4 +518,5 @@ def test_the_route_table_fronts_no_other_agent_os_component() -> None:
         "/v1/capabilities",
         "/v1/action",
         "/v1/agents",
+        "/v1/autonomy",
     }

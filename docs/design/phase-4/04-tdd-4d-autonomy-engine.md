@@ -23,7 +23,7 @@ separation exactly:
 > operations. The Autonomy Engine decides whether execution should occur."*
 
 4D delivers the smallest coherent slice of that engine which makes **AC-5**
-demonstrable and gives **CF-9** the policy surface it was routed to:
+demonstrable:
 
 - **Autonomy Levels 0–2 defined**; **Levels 0–1 enabled**; **Level 2 defined but
   not selectable** — D-1 assigns enabling Level 2 to **4F**.
@@ -36,9 +36,81 @@ demonstrable and gives **CF-9** the policy surface it was routed to:
   configurable.
 - **`autonomy/` panel** — level selector, trust score, policy editor, suggestion
   inbox.
-- **CF-9 discharged**: a creation surface for the ADR-032 identity-confidence
-  policy that `action-engine` already enforces and models but that nothing in the
-  repository can create.
+
+---
+
+## 0.1 Two ratified refinements — 2026-09-12
+
+Both were escalated before implementation began, under protocol §13.3's stop
+rule, and **explicitly ratified by the user**. They are scope *refinements* of
+this document, recorded here rather than applied silently.
+
+### D-4D-1 — Phase 4D claims no `autonomy.*` Event Bus subjects
+
+**Ratified: Option A.** 4D does **not** claim, declare, register or publish
+`autonomy.approval.requested`, `autonomy.decision.made`, or any other
+`autonomy.*` subject. The AC-5 suggestion lifecycle runs over **REST and the UI
+only**. No `PUBLIC_TOPICS` entry is added, and no browser realtime is added for
+autonomy suggestions. The `autonomy.*` namespace **stays reserved and available**
+for a future milestone that has a genuine publisher/subscriber need.
+
+**The governing principle, as ratified:** *do not introduce an Event Bus contract
+without a genuine producer/consumer need.*
+
+**Why this arose.** Three facts, each verified against the repository rather than
+inferred:
+
+1. `nova_contracts.events.action`'s own docstring reserves
+   `autonomy.approval.requested`/`.decision.made` *"for `autonomy-engine` to claim
+   in Phase 4"*, and **enforces the reservation with a test** —
+   `action-engine/tests/contract/test_action_payloads.py::test_fork_e2_namespace_boundary_never_uses_autonomy_prefix`
+   asserts both are absent from the **global** `known_subjects()` registry.
+   Registering either payload breaks that passing test, which would require
+   editing another engine's test.
+2. **Nothing publishes `autonomy.approval.requested`.** Doc 10 row 8 describes
+   `action-engine → autonomy.approval.requested`, but the shipped engine publishes
+   `action.approval.requested`. Subscribing to the former would repeat the
+   `agent.*` mistake §8.2 already warns against — a subject nothing publishes.
+3. **AC-5 needs no event.** At Levels 0–1 the *user* is the only actor that
+   changes suggestion state, and they change it through the panel itself. Unlike
+   4C.2f — where the Kernel changed state externally and realtime was necessary —
+   there is nothing to push.
+
+**Consequence for this document:** §8.2 is rewritten, §10 items 2–3 are
+rewritten, §12 loses its conditional realtime clause, and §16's negative controls
+7 and 8 are restated. **No `action-engine` code or test is modified.**
+
+### D-4D-2 — CF-9 is not forced closed in 4D
+
+**Ratified.** 4D does **not** introduce a new cross-engine API, Event Bus
+command, or database-ownership transfer merely to close CF-9.
+
+**The repository state, verified:** `IdentityConfidencePolicy` is owned entirely
+by `action-engine` — the model (`domain/models.py:46`), the ORM and table
+(`repository/models.py:91`, `identity_confidence_policy`), the port
+(`domain/ports.py:212`) and the enforcement (`domain/pipeline.py:181`). **The
+port exposes only `find_identity_confidence_policy`. There is no create, no
+upsert, and no update method anywhere.** `action-engine`'s entire HTTP surface is
+`GET /v1/action/approvals`, `POST /v1/action/approvals/{action_id}/decide`,
+`/internal/health` and `/internal/readiness`; it subscribes to exactly one
+subject, `action.execute`. **No write API and no Event Bus command exists** —
+this document's earlier §11 wording ("via `action-engine`'s own API or an Event
+Bus command") presupposed one, and that presupposition was wrong.
+
+**Therefore:** CF-9 is **not discharged by 4D** and this document no longer
+claims it is. It remains an explicitly routed, deferred integration gap.
+**ADR-032's ownership and fail-closed semantics are preserved untouched**:
+absent policy still means threshold `1.0`, absent identity still means confidence
+`0.0`. 4D creates no duplicate policy table, performs no cross-engine table
+access, and invents no `action-engine` endpoint.
+
+**AC-5 remains fully dischargeable within 4D without any CF-9 implementation** —
+AC-5 concerns the autonomy suggestion lifecycle, which touches neither identity
+confidence nor `action-engine`.
+
+**Consequence for this document:** §1 row 10, §8.1's policy route, §11, §13's
+`action-engine` row, §16's controls 9–10, §17 row 10, §19 and §20 are corrected.
+**No `action-engine` code or test is modified.**
 
 ---
 
@@ -53,9 +125,9 @@ demonstrable and gives **CF-9** the policy surface it was routed to:
 | 5 | Permission Matrix — ten categories × granular configuration | §7 |
 | 6 | `autonomy.decision_log` persistence | Doc 07's canonical table, §9 |
 | 7 | Suggestion lifecycle — proposed → approved/rejected/expired | §4.3; this is what AC-5 measures |
-| 8 | Event contracts `autonomy.*` in `nova-contracts` + SDK subject registration | §8.2 |
+| 8 | **No Event Bus contracts.** 4D claims no `autonomy.*` subject — D-4D-1 | §8.2 |
 | 9 | REST surface `/v1/autonomy/*` on the engine, fronted 1:1 by `api-gateway` | §8.1, D-6 |
-| 10 | **CF-9 creation surface** for `IdentityConfidencePolicy` | §11 |
+| 10 | **CF-9: no implementation.** Recorded as a routed, deferred gap — D-4D-2 | §11 |
 | 11 | `autonomy/` panel in `apps/web-client` | §12 |
 | 12 | CI: `build-and-scan` matrix entry, `real-infra-checks` entry, import-linter contract, compose service, migration wiring | §15 |
 
@@ -114,9 +186,9 @@ alone must not infer otherwise:
 |---|---|---|
 | 4C merged into `phase-4` | `b1d7ca5` | §7's implementation order; 4D branches from the merged head per §16 rule 5 |
 | `api-gateway` route table (4A, D-6) | shipped | Forwards `/v1/autonomy` 1:1 |
-| `ws-gateway` `PUBLIC_TOPICS` (4A/4B/4C) | shipped, 18 exact strings | §10 — any new browser-visible topic is an explicit addition, never a pattern |
+| `ws-gateway` `PUBLIC_TOPICS` (4A/4B/4C) | shipped, 18 exact strings | §10 — **4D adds none** (D-4D-1); the dependency is that the list stays exactly as it is |
 | `apps/web-client` shell, `entities/`, `realtime/` | shipped | The panel is an additional route, not new infrastructure |
-| `action-engine` risk + approval pipeline (3D) | shipped | 4D consumes its risk vocabulary and discharges CF-9 against its policy table |
+| `action-engine` risk + approval pipeline (3D) | shipped | 4D consumes its **risk vocabulary only**. It does not read, write or modify `action-engine`'s policy table (D-4D-2) |
 | `digital-twin-engine` `TrustMetric` (2D-D) | shipped | §5 — the trust input 4D must consume rather than re-derive |
 
 ### 3.2 Authoritative decisions this TDD is bound by
@@ -127,7 +199,7 @@ alone must not infer otherwise:
 | **D-3** (approved) | Single long-lived local session validated by `api-gateway`; ADR-025 single-trusted-user. 4D introduces no second identity concept |
 | **D-6** (approved) | `api-gateway` forwards 1:1, no path rewriting. 4D's paths are the shipped paths |
 | **D-7** (approved) | The web app is the correct first UI; the panel is a web panel |
-| **ADR-032** (all four points) | Identity confidence is a first-class authorization input; **point 2** is what CF-9 leaves unimplemented, and §11 discharges it |
+| **ADR-032** (all four points) | Identity confidence is a first-class authorization input; **point 2** is what CF-9 leaves unimplemented. 4D **preserves** its ownership and fail-closed semantics and does **not** discharge it (D-4D-2, §11) |
 | **ADR-025** | Single trusted user per instance |
 | **ADR-006** ([`00-overview-and-decisions.md`](../../architecture/00-overview-and-decisions.md) §ADR-006 — it predates the `adr/` directory, which starts at ADR-011) **/ doc 09 §6** | `ws-gateway` is the sole realtime bridge; browser never reaches NATS |
 | **ADR-033** | Two-tier testing; `real_infra` marker; 85% domain coverage |
@@ -155,24 +227,44 @@ it.
 
 ### 4.1 Position in the engine graph
 
-Doc 10's engine graph already places `autonomy-engine` between
+Doc 10's engine graph places `autonomy-engine` between
 `executive-cognition-engine` and the executing engines, consulted by
-`knowledge-engine`, and registered with `nova-core`. 4D implements that position,
-it does not redraw it.
+`knowledge-engine`, and registered with `nova-core`. **That is the eventual
+position; 4D occupies only the part of it that has a real caller** — and per
+D-4D-1 the Event Bus edges are not among them. 4D neither redraws doc 10 nor
+claims to implement all of it.
+
+**What 4D actually wires — REST only, no Event Bus edge in either direction:**
 
 ```
-action-engine ──autonomy.approval.requested──▶ autonomy-engine
-                                                    │
-                            Level ▸ Policy ▸ Permission ▸ Trust ▸ Confidence
-                                                    │
-        ◀──autonomy.decision.made──────────────────┘
-                                                    │
-                                       autonomy.decision_log (append)
-                                                    │
-             api-gateway ──/v1/autonomy/*──▶ (REST reads + user decisions)
-                                                    │
-                                        ws-gateway ──▶ browser panel
+browser ──▶ api-gateway ──/v1/autonomy/*──▶ autonomy-engine
+                                                 │
+                         Level ▸ Policy ▸ Permission ▸ Trust
+                                                 │
+                                    autonomy.decision_log (append-only)
+
+   digital-twin-engine ◀╌╌ TrustMetric read ╌╌ autonomy-engine
+                        ╌╌ NOT IMPLEMENTED IN 4D — CF-10, §5.3 ╌╌
 ```
+
+> **Diagram correction — 2026-09-14, Gate Review condition C-4 (ratified).**
+> The `TrustMetric` edge was drawn solid and labelled *"(request/reply, §5.3)"*,
+> which contradicted this section's own heading two lines above it — *"REST only,
+> **no Event Bus edge in either direction**"*. The heading is correct and stands;
+> the edge is the error. It is redrawn dashed and marked NOT IMPLEMENTED rather
+> than deleted, because the *dependency* is real and 4D ships the port for it —
+> what does not exist is any transport to carry it (§5.3's note, verified at head
+> `9afddf6`). **No new architecture edge is introduced by this correction**, and
+> no Event Bus trust subject or RPC exists or is scheduled. **CF-10** remains
+> **OPEN**.
+
+**Deliberately absent, and each for a stated reason:** no
+`autonomy.approval.requested` edge from `action-engine` (nothing publishes it —
+the shipped engine publishes `action.approval.requested`); no
+`autonomy.decision.made` publication (no consumer needs it in 4D); no
+`ws-gateway` edge to the panel (at Levels 0–1 the user is the only actor that
+changes suggestion state, and they do it through the panel itself). All three
+are D-4D-1.
 
 ### 4.2 The decision pipeline
 
@@ -285,10 +377,49 @@ TrustScore
 ### 5.3 Cross-engine read
 
 `digital-twin-engine` owns `TrustMetric`; `autonomy-engine` must not read its
-tables. The read is an **Event Bus request/reply**, matching the boundary
-discipline doc 20 enforces and import-linter asserts. If the reply times out or
+tables. The read crosses an **engine boundary, not a database one** — the
+discipline doc 20 enforces and import-linter asserts. **The transport this
+section originally specified does not exist in the shipped implementation; see
+the reconciliation note below.** If the reply times out or
 the metric is absent, the conversational input is `None` and the resulting trust
 score is `None` — fail-closed, never a default number.
+
+> **Reconciliation note — 2026-09-14, Gate Review condition C-4 (ratified).**
+> Additive per protocol §0.3.4: the original wording is preserved here rather
+> than silently rewritten. This section read *"The read is an **Event Bus
+> request/reply**, matching the boundary discipline doc 20 enforces and
+> import-linter asserts."* The boundary-discipline half of that sentence is
+> correct and is retained above. The transport half described a mechanism the
+> repository does not have.
+>
+> **No `TrustMetric` read surface exists in the shipped Phase 4D
+> implementation.** Verified against the repository at head `9afddf6`, on two
+> independent grounds:
+>
+> 1. **Nothing serves one.** `digital-twin-engine` serves exactly one subject,
+>    `digital_twin.preferences.get.request`, and exposes no trust route. No
+>    registered subject anywhere in the repository contains "trust", and no HTTP
+>    trust route exists in any engine.
+> 2. **Nothing could call one.** `BoundEventBus.request()` gates on the
+>    **caller's** `PUBLISHABLE_SUBJECTS`, which ratified decision **D-4D-1**
+>    requires to stay an empty frozenset. `autonomy-engine` therefore could not
+>    issue such a request even if a served subject existed.
+>
+> **What 4D actually ships:** the `ConversationalTrustSource` **port** (§5.1),
+> and a degraded adapter that reports the input as **`UNAVAILABLE`, with its
+> reason**. The fail-closed sentence above is implemented and tested exactly as
+> written — the score is `None` and **never** `0.0`, `input_status` stays
+> distinguishable from `no_data`, and `satisfies_threshold(None, t)` is `False`
+> for every `t`, **including `0.0`**. The `UNAVAILABLE` path subsumes the two
+> cases that sentence names.
+>
+> **No Event Bus trust subject and no trust RPC was created**, in this engine or
+> any other, and none is scheduled. Nothing here describes a surface that exists
+> or is planned: *where* the read surface belongs — a served `digital_twin.*`
+> subject with its `nova_contracts` payload, or an HTTP route — is an **open
+> architectural decision**, and either choice modifies another engine and lies
+> outside 4D's ratified boundary. The gap is carried as **CF-10**, which remains
+> **OPEN**.
 
 ---
 
@@ -384,7 +515,6 @@ duplicates. **4D defines the boundary.**"*
 | `GET`/`PUT` | `/v1/autonomy/level` | Read/set the level. **`PUT` rejects 2–5 with 422** |
 | `GET`/`POST`/`PATCH`/`DELETE` | `/v1/autonomy/policies[/{id}]` | Policy editor |
 | `GET`/`PUT` | `/v1/autonomy/permissions` | Permission Matrix |
-| `GET`/`PUT` | `/v1/autonomy/identity-confidence-policy` | **CF-9**, §11 |
 
 `api-gateway` gains **one** `UpstreamRoute` entry, prefix `/v1/autonomy` →
 `autonomy-engine`, forwarded 1:1 (D-6). Prefix matching covers the subtree, as
@@ -397,21 +527,34 @@ them in `nova-eventbus-sdk` (**none exist there today** — verified).
 
 | Subject | Direction | Doc 10 row |
 |---|---|---|
-| `autonomy.approval.requested` | `action-engine` → `autonomy-engine` | 8 |
-| `autonomy.decision.made` | `autonomy-engine` → requester / `communication-engine` | 8 |
-| `autonomy.opportunity.detected` | `autonomy-engine` → `executive-cognition-engine` | 13 |
+**None. 4D claims no `autonomy.*` subject — ratified decision D-4D-1 (§0.1).**
 
-**`autonomy.opportunity.detected` is declared in the contract package and
-registered, but 4D publishes it from no code path** — opportunity detection is
-the deferred Initiative Engine (§1.1). Declaring the payload now and leaving it
-unpublished is the honest shape; **it must not be added to `PUBLIC_TOPICS`**,
-because a public topic nothing publishes is one a browser subscribes to and then
-waits on forever — the exact mistake 4C's decision D-4 declined to repeat with
-the `agent.*` family (master scope §6's corrected `agents/` row).
+The `autonomy.*` namespace stays **reserved and unclaimed**, exactly as
+`nova_contracts.events.action`'s docstring describes it and as
+`action-engine/tests/contract/test_action_payloads.py::test_fork_e2_namespace_boundary_never_uses_autonomy_prefix`
+enforces it. **That test is left passing and unmodified**, and no
+`action-engine` code or test is touched.
 
-New payloads go in `packages/nova-contracts/src/nova_contracts/events/autonomy.py`
-with contract tests, and the TypeScript is regenerated in the same commit (§8
-of the protocol).
+Concretely, 4D adds:
+
+- **no** `packages/nova-contracts/src/nova_contracts/events/autonomy.py`
+- **no** `@register_payload` for any `autonomy.*` subject
+- **no** `nova-eventbus-sdk` subject registration
+- **no** entry in `autonomy-engine`'s `PUBLISHABLE_SUBJECTS` or
+  `SUBSCRIBABLE_SUBJECTS` — both stay the empty frozensets the scaffold generates
+- **no** `PUBLIC_TOPICS` entry, and therefore no browser realtime for autonomy
+
+The AC-5 suggestion lifecycle is **REST and UI only** (§8.1, §12). The governing
+principle: *do not introduce an Event Bus contract without a genuine
+producer/consumer need.* Doc 10 rows 8 and 13 describe a future `autonomy.*`
+flow; **they remain a forward description, not a 4D deliverable**, and this
+document does not amend them.
+
+**When the namespace is eventually claimed**, the claiming milestone owns two
+obligations this one deliberately leaves alone: a real publisher/subscriber pair,
+and updating the `action-engine` reservation test — which was written to reserve
+the namespace *for a Phase 4 milestone to claim*, so updating it then is its
+intended lifecycle rather than a violation.
 
 ---
 
@@ -461,14 +604,15 @@ not by inspection.**
 
 1. **The browser never reaches NATS.** ADR-006 / doc 09 §6 unchanged;
    `ws-gateway` remains the sole realtime bridge.
-2. **`PUBLIC_TOPICS` grows by exact strings only.** If the panel needs realtime,
-   it gets **at most `autonomy.decision.made`**, added as an exact string.
-   `autonomy.*` must never be added — `BoundEventBus` matches with `fnmatchcase`
-   where `*` spans dots, so the wide form would subscribe the gateway process to
-   every future `autonomy.*` RPC subject. This is 4C.2e's finding, and it applies
-   here unchanged.
-3. **`autonomy.approval.requested` is internal.** It carries the engine's
-   authorization inputs and must be rejected from browser subscription.
+2. **`PUBLIC_TOPICS` is unchanged — 4D adds nothing to it** (D-4D-1). It stays at
+   its 18 exact strings with zero wildcards. `autonomy.*` must never be added:
+   `BoundEventBus` matches with `fnmatchcase` where `*` spans dots, so the wide
+   form would subscribe the gateway process to every future `autonomy.*` subject.
+   This is 4C.2e's finding, and it applies here unchanged.
+3. **`autonomy-engine` publishes and subscribes to nothing.** Both allow-lists
+   stay empty. There is consequently no autonomy subject that *could* leak to a
+   browser — the strongest available form of this guarantee, and the reason
+   D-4D-1 is a security simplification rather than only a scope reduction.
 4. **`/internal/*` remains unroutable**; `api-gateway`'s route table is an
    allow-list of exact prefixes, not a pattern (D-6).
 5. **Single-trusted-user preserved.** ADR-025 and D-3 unchanged. Every table is
@@ -487,37 +631,81 @@ not by inspection.**
 
 ## 11. CF-9 — explicit handling
 
-**The carry-forward, verbatim from master scope §4:** ADR-032 decision point 2
-requires every gating engine to expose *"a configurable identity-confidence
-threshold per privileged capability (or per capability class), never a single
-hardcoded system-wide threshold"*. `action-engine` **enforces** the gate
-(`domain/pipeline.py:180-192`) and **models** the policy
-(`domain/models.py:46`, table `action.identity_confidence_policy`), but
-**nothing in the repository can create a policy row** — no endpoint, no seed, no
-migration insert, no admin surface. Deferred by explicit user approval
-2026-09-06 and **routed to 4D as the appropriate future policy surface**.
+**Ratified decision D-4D-2 (§0.1): CF-9 is NOT discharged by 4D.** It is
+recorded here as an explicitly routed, deferred integration gap, with the
+blocking reason established against the repository rather than assumed.
 
-**What 4D builds — and, precisely, what it does not:**
+### 11.1 The carry-forward
+
+Master scope §4: ADR-032 decision point 2 requires every gating engine to expose
+*"a configurable identity-confidence threshold per privileged capability (or per
+capability class), never a single hardcoded system-wide threshold"*.
+`action-engine` **enforces** the gate (`domain/pipeline.py:180-192`) and
+**models** the policy (`domain/models.py:46`, table
+`action.identity_confidence_policy`), but **nothing in the repository can create
+a policy row** — no endpoint, no seed, no migration insert, no admin surface.
+Deferred by explicit user approval 2026-09-06 and routed to 4D as the
+appropriate future policy surface.
+
+### 11.2 Why 4D does not close it
+
+**Verified, not assumed:**
+
+| Fact | Evidence |
+|---|---|
+| The policy is owned entirely by `action-engine` | model `domain/models.py:46`; ORM + table `repository/models.py:91`; port `domain/ports.py:212`; enforcement `domain/pipeline.py:181` |
+| **The port is read-only** | `find_identity_confidence_policy` is the only policy method. **No create, no upsert, no update exists anywhere** in the port, the Postgres repository, or the fake |
+| **No write API exists** | `action-engine`'s entire HTTP surface is `GET /v1/action/approvals`, `POST /v1/action/approvals/{action_id}/decide`, `/internal/health`, `/internal/readiness` |
+| **No Event Bus command exists** | `action-engine` subscribes to exactly one subject: `action.execute` |
+
+An earlier draft of this section said 4D would write through *"via
+`action-engine`'s own API or an Event Bus command"*. **That presupposed a write
+surface which does not exist**, and the presupposition is withdrawn here rather
+than quietly built around.
+
+Closing CF-9 therefore requires one of three things, **each of which is outside
+4D's ratified boundary**: adding a write surface to `action-engine` (modifying
+another engine for this milestone's convenience); giving `autonomy-engine` its
+own duplicate policy table (splitting ownership ADR-032 assigns to the gating
+engine); or direct cross-engine table access (forbidden by doc 20 and by
+import-linter). The user explicitly ratified taking none of them.
+
+### 11.3 What 4D therefore does, and does not
 
 | | |
 |---|---|
-| **Builds** | `GET`/`PUT /v1/autonomy/identity-confidence-policy`, and the panel control behind it, letting the user set `minimum_confidence_by_risk` per `RiskLevel` tier |
-| **Builds** | Write-through to `action-engine`'s existing `action.identity_confidence_policy` **via `action-engine`'s own API or an Event Bus command — never by writing another engine's table**. Doc 20's ownership boundary and import-linter's contracts both forbid the direct write |
-| **Does not build** | A new threshold model. `IdentityConfidencePolicy.minimum_confidence_by_risk: dict[str, float]` already exists and is reused unchanged |
-| **Does not change** | The **fail-closed default**. Absent policy still means threshold `1.0`; absent identity signal still means confidence `0.0`. 4D adds the ability to *author* a policy, never a default that authors one implicitly |
-| **Does not choose** | A threshold value. No seed, no suggested default, no zero-confidence policy. The user picks, or there is no policy — the same discipline Phase 4B applied when it declined to seed one to make its E2E green |
+| **Does not build** | Any `/v1/autonomy/identity-confidence-policy` route. It is removed from §8.1 |
+| **Does not build** | Any panel control for the threshold |
+| **Does not create** | A duplicate `IdentityConfidencePolicy` model or table in `autonomy-engine` |
+| **Does not access** | `action-engine`'s tables, directly or otherwise |
+| **Does not invent** | An `action-engine` endpoint or subscribed command |
+| **Does not modify** | `action-engine` implementation or tests, at all |
+| **Preserves** | **ADR-032 ownership**: the policy stays `action-engine`'s |
+| **Preserves** | **Fail-closed semantics, byte-for-byte**: absent policy → threshold `1.0`; absent identity → confidence `0.0`. 4D changes neither, and seeds nothing |
+| **Records** | CF-9 as still open, with its blocking reason and its options, so the next milestone inherits a complete statement rather than rediscovering it |
 
-**Ownership is not reassigned.** CF-9's originating owner remains Phase 3D /
-ADR-032; 4D is the routed *surface*, as recorded. Closing CF-9 is a 4D
-deliverable; re-opening AC-3 is not, and 4D makes no claim about AC-3.
+### 11.4 Status after 4D
+
+**CF-9: OPEN.** Originating owner remains Phase 3D / ADR-032. 4D was the routed
+surface and **declines to close it on the stated grounds**; the routing is not
+withdrawn, and no new owner is assigned here. Closing it needs a decision about
+where the policy write surface belongs — an architectural question this milestone
+raises and does not answer.
+
+**AC-5 is unaffected.** It concerns the autonomy suggestion lifecycle, which
+touches neither identity confidence nor `action-engine`. **AC-5 remains fully
+dischargeable within 4D with CF-9 untouched** (§18).
 
 ---
 
 ## 12. Frontend — the `autonomy/` panel
 
 Master scope §6 assigns `autonomy/` to 4D; §5 names its four widgets. Built on
-the shell, `entities/` and `realtime/` that 4A shipped, following 4C.2f's
-conventions exactly.
+the shell and `entities/` that 4A shipped, following 4C.2f's conventions — but
+**without `realtime/`**: per D-4D-1 the panel subscribes to nothing, and its
+freshness comes from invalidating its own queries after its own mutations (§12's
+no-optimistic-mutation rule). This is not a gap: at Levels 0–1 no actor other
+than the user changes suggestion state.
 
 | Widget | Behaviour |
 |---|---|
@@ -549,7 +737,6 @@ conventions exactly.
 | Condition | Behaviour |
 |---|---|
 | `digital-twin-engine` unreachable | Conversational input `None` → trust score `None` → **fail-closed**. Panel shows "insufficient evidence", never a number |
-| `action-engine` unreachable when writing the CF-9 policy | **503**, never a silent success. D-1's Registry precedent from 4C.2: a degraded upstream is never reported as a healthy empty result |
 | Policy evaluation raises | **Deny**, logged, with the decision log recording the failure. A policy engine that fails open is not a policy engine |
 | Identity confidence absent | `0.0`, as `action-engine` already does. Unchanged |
 | Suggestion decided twice | Second decision is a **409**; the first stands. The decision log is append-only and records both attempts |
@@ -611,10 +798,13 @@ removed:**
 4. Making an absent trust score satisfy a threshold → must fail.
 5. Making an absent `PermissionGrant` permissive → must fail.
 6. Letting a later gate overturn a policy `deny` → must fail.
-7. Adding `autonomy.*` (or any wildcard) to `PUBLIC_TOPICS` → must fail.
-8. Adding `autonomy.approval.requested` to `PUBLIC_TOPICS` → must fail.
-9. Seeding a default `IdentityConfidencePolicy` → must fail.
-10. Changing the absent-policy threshold from `1.0` → must fail.
+7. Adding any entry to `PUBLIC_TOPICS` → must fail (D-4D-1: 4D adds none).
+8. Registering any `autonomy.*` payload, or making either allow-list non-empty
+   → must fail. This also keeps `action-engine`'s reservation test passing.
+9. Creating an `IdentityConfidencePolicy` model, table or route in
+   `autonomy-engine` → must fail (D-4D-2).
+10. Importing `nova_action_engine` from `nova_autonomy_engine` → must fail;
+    import-linter's "Engines are independent" contract is the enforcement.
 11. A 4D surface granting more than `action-engine` permits → must fail.
 12. Reporting a degraded upstream as an empty success → must fail.
 
@@ -635,8 +825,8 @@ removed:**
 | 6 | `autonomy.decision_log` append-only, matching doc 07 | Repository-absence test + `real_infra` |
 | 7 | One transaction per logical operation | `real_infra` test |
 | 8 | `/v1/autonomy/*` fronted 1:1 by `api-gateway` | Gateway routing test |
-| 9 | Security boundaries preserved; no wildcard in `PUBLIC_TOPICS` | Negative controls 7, 8, 11 |
-| 10 | **CF-9 discharged** — a policy can be authored; defaults unchanged | Integration test; negative controls 9, 10 |
+| 9 | Security boundaries preserved; **`PUBLIC_TOPICS` byte-identical**; both engine allow-lists empty | Negative controls 7, 8, 11 |
+| 10 | **CF-9 correctly left open** — no duplicate policy surface; ADR-032 ownership and fail-closed defaults untouched | Negative controls 9, 10 |
 | 11 | Panel renders all four widgets; no polling; no fabricated data | `vitest` |
 | 12 | Degraded upstream → 503, never an empty success | Negative control 12 |
 | **AC-5** | See §18 | §18 |
@@ -673,9 +863,8 @@ nothing executes, approval is explicit.
 - **One PR targeting `phase-4`**, never `main` (§16 rule 3). `main` stays at
   `7e273e6` for the duration of Phase 4.
 - **Additive migrations only.** 4D creates a new `autonomy` schema and touches
-  no existing engine's tables. The CF-9 write-through goes through
-  `action-engine`'s own surface (§11), so `action.identity_confidence_policy` is
-  unmodified in structure.
+  no existing engine's tables. `action.identity_confidence_policy` is untouched
+  in structure *and* in content — 4D writes no policy row (§11).
 - **Reversible by construction:** with no policy authored and no level set, the
   system behaves exactly as it does today — absent policy fails closed, absent
   grant fails closed, absent trust fails closed. **Installing 4D changes no
@@ -690,6 +879,7 @@ nothing executes, approval is explicit.
 
 | Item | Disposition in 4D |
 |---|---|
+| **CF-9 — ADR-032 point 2 has no policy write path** | **Still OPEN.** 4D was the routed surface and declines to close it (§11, D-4D-2): no write API, no Event Bus command and no repository write method exists, and every route to one lies outside 4D's ratified boundary. ADR-032 ownership and fail-closed semantics preserved untouched |
 | **AC-4 clauses 2 and 3** | **Untouched.** Deferred by user approval 2026-09-07; provider configuration is the only trigger; not assigned to 4D |
 | **4C.1 has no Gate Review** | Phase 4 closure obligation; not 4D's |
 | **Phase 4A has no Gate Review or health record** | Phase 4 closure obligation; not 4D's |
