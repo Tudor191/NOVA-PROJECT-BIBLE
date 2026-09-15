@@ -1,9 +1,9 @@
 # TDD 4F — `nova-companion`, the perception extension,
 ## `services/cognitive-state-engine`, and Autonomy Level 2
 
-**Status: DESIGN PREPARATION — NOT RATIFIED.**
-**§0.1 records five findings. §19 lists the decisions that must be answered
-before implementation starts. Three of them are blocking.**
+**Status: RATIFIED 2026-09-15 (§19). Not yet implemented.**
+**Eight decisions D-4F-1 … D-4F-8 are answered. Two non-blocking questions
+remain open (§20) and neither prevents implementation.**
 
 **Written against** `phase-4` at `c04b58e0d6be4f4236b8fe8c5a7dcf79bf7d56f4`
 (the Phase 4E closure commit), on the preparation branch `phase-4f-tdd`.
@@ -11,72 +11,191 @@ before implementation starts. Three of them are blocking.**
 
 **Protocol:** [`PROJECT_PHASE_COMPLETION_PROTOCOL.md`](../../PROJECT_PHASE_COMPLETION_PROTOCOL.md),
 sha256 `21185dd1b2a43e87eac0a52aa5e53c8e8bbb01223014dc2a48408bbb0478de6a`,
-1131 lines, read from `origin/main` and verified byte-identical on `phase-4`.
+1131 lines, read from `origin/main`, byte-identical on `phase-4`.
 
-**Satisfies:** AC-7, AC-8. **Depends on:** 4E (merged as `59bbeee`).
+**Satisfies:** AC-7 (revised, §4.1), AC-8 (unchanged). **Depends on:** 4E
+(merged as `59bbeee`), **CF-9** (§5) and **CF-11** (§6).
 
 ---
 
 ## 0. Objective
 
-Phase 4F is the milestone Phase 4's own scope calls *"the one that carries all
-of Phase 4's platform risk, and it comes last by design (D-1)"*. It gives NOVA
-**senses it does not have** (`nova-companion`), **an inner life it has never
-had** (`cognitive-state-engine`), and **the first autonomy level at which it
-acts without being asked** (Level 2).
+Phase 4F gives NOVA **senses** (`nova-companion`), **an inner life**
+(`cognitive-state-engine`), and **the first autonomy level at which it acts
+without being asked** (Level 2). Master scope §5: *"This milestone carries all
+of Phase 4's platform risk, and it comes last by design (D-1)."*
 
-Everything below is derived against the repository rather than from the
-roadmap's prose. Where the two disagree, §0.1 says so.
+Everything here is derived against the repository. Where the roadmap's prose and
+the code disagreed, §1 says which won.
 
-### 0.1 Findings from deriving this TDD against the repository
+---
 
-Five findings. **Three are blocking** and are restated as decisions D-4F-1,
-D-4F-2 and D-4F-3 in §19.
+## 1. What the design pass found, and what was ratified
 
-#### 0.1.1 AC-7's one-second budget is unreachable through the transactional outbox — **BLOCKING**
+Eight findings, each now closed by a ratified decision. **Three were blocking.**
 
-AC-7 clause 1: *"Opening a known project in the IDE is detected and reflected in
-the World Model **within one second** with no user action."*
+| # | Finding | Ratified outcome |
+|---|---|---|
+| **1.1** | AC-7's 1-second budget is unreachable: every perception publisher returns an `OutboxEvent` and dispatch is a **fixed 10 s cron**, so worst case is ~10 s | **D-4F-1 — AC-7 re-scoped to 5 s.** The outbox architecture is unchanged: no push-dispatch, no shortened cron, no direct-publish bypass |
+| **1.2** | AC-8 is denied at `action-engine` stage 3: the identity-confidence gate is **not Critical-only** and defaults to threshold **1.0 at every risk level** | **D-4F-2 — CF-9 is an explicit 4F dependency.** The write surface belongs to `action-engine`, which already owns the model and table |
+| **1.3** | AC-8 has no trigger — **0 production callers** of `decide()` or `insert_suggestion`, and no create-suggestion route | **D-4F-3 — `cognitive-state-engine` owns the initiative trigger**, under §6.2's prohibitions |
+| **1.4** | AC-7 is not executable in CI as window-focus sensing: the runner has no desktop session, no `DISPLAY`, no Xvfb, no IDE | **D-4F-8 — the CI acceptance modality is the filesystem sensor.** IDE/window-focus sensing is **explicitly outside** the CI acceptance path |
+| **1.5** | `SensorConfig.sensor_type` and `PermissionStatus.source` are closed literals excluding every 4F sensor | Widen additively (§7.2). Internal to `perception-engine`; **no registered payload references either type** |
+| **1.6** | AC-7 clause 2 has no browser-reachable source | **D-4F-4 — internal bus path only.** `PUBLIC_TOPICS` unchanged; **no `/v1/perception` gateway prefix**; the panel reads normalized state over REST |
+| **1.7** | No precedent for a non-Python process feeding an engine | **D-4F-5 — the transport already exists** (§8). `POST /v1/perception/observations` was built in 2D-C for exactly this caller |
+| **1.8** | `companion/` sits outside every measured SLOC scope | **Scope extended to include `companion/`** (§17) |
 
-Every `perception-engine` publisher returns an `OutboxEvent`
-(`events/publishers.py` — seven call sites, no exceptions), and
-`nova_service_kit.outbox.dispatch_ready_events` is the only caller of
-`bus.publish()` for engine domain events. That dispatcher runs on a **fixed
-10-second cron**:
+### 1.1 The two corrections this pass made to its own earlier draft
 
-```python
-# services/perception-engine/src/nova_perception_engine/workers/__init__.py:85-88
-cron_jobs = [
-    # Short, fixed poll -- outbox latency should be seconds, not minutes.
-    service_cron(_SERVICE_NAME, arq_run_outbox_dispatch, second={0, 10, 20, 30, 40, 50}),
-]
+**(a) "Direct publish gives up atomicity" was too broad.** The outbox serves two
+distinct purposes here: **atomicity coupling** (`record_identity_observation(observation,
+outbox_event=…)` writes a domain row and its event in one `db_session.begin()`)
+and **durable queueing** (`enqueue_outbox(event)` alone — which is how
+`observation_orchestration.py:155` publishes `addressee_signal.candidate`, with
+no coupled domain row). For a queue-only subject the cost of a bypass is
+durability and replay, not atomicity. **The distinction is recorded because it is
+the reason a bypass could look cheap.** D-4F-1 declines it regardless.
+
+**(b) Push-triggered dispatch is not safe as a naive "enqueue on write."**
+`list_dispatch_ready` takes **no row lock** — `with_for_update`/`SKIP LOCKED`
+appear **0 times** in the repository — and consumer-side `event_id` dedup is not
+systematic (only `digital-twin-engine` derives idempotent keys from it). A second
+trigger would put concurrent dispatchers over unlocked rows across **13** engines.
+That is the disproportionate repository-wide risk D-4F-1 excludes.
+
+---
+
+## 2. Scope
+
+| # | Deliverable | Location | Owner |
+|---|---|---|---|
+| 1 | **`nova-companion`** — Rust sensor/actuator daemon | `companion/nova-companion/` ([doc 02](../../architecture/02-repository-and-folder-structure.md)'s repository tree: *"companion/ — Rust OS-level perception/action daemon"*) | new |
+| 2 | Sensor Abstraction Layer registration + literal widening | `perception-engine` | existing |
+| 3 | Perception normalization, enrichment, multi-modal fusion | `perception-engine` | existing |
+| 4 | **`services/cognitive-state-engine`** — Active Thoughts, Focus, Attention | new engine | new |
+| 5 | **Autonomy Level 2** — five separable states (§6) | `autonomy-engine` | existing |
+| 6 | **CF-9's policy write surface** | `action-engine` | existing |
+| 7 | The `cognitive-state/` panel — Phase 4's eleventh and last | `apps/web-client` | existing |
+
+### 2.1 Non-goals
+
+Desktop shell (Phase 5) · voice UI presentation (Phase 5) · the five deferred
+panels (Phase 5) · OIDC/PKCE, `nova-auth`, RBAC, multi-user (Phase 7; ADR-025) ·
+mobile, third-party API, marketplace · Autonomy Levels 3–5 · closing CF-4, CF-5,
+CF-6, CF-8, CF-10 · **any Phase 5 work of any kind.**
+
+### 2.2 Properties a reviewer can check
+
+1. **No engine-to-engine HTTP.** The only boundary-crossing `httpx` client is
+   `api-gateway`'s `clients/upstream.py`. 4F adds none (ADR-004).
+2. `api-gateway` remains the **sole** external REST boundary; **no new prefix**.
+3. `ws-gateway` remains the **sole** browser realtime bridge; `PUBLIC_TOPICS`
+   **unchanged at 18 strings**.
+4. **No raw sensor event reaches the browser**, ever.
+5. **No fabricated sensor data, no fake clock, no time simulation** (§16).
+6. No duplicated state ownership (§10).
+
+---
+
+## 3. Dependencies — verified at `c04b58e`
+
+| Dependency | Evidence |
+|---|---|
+| Sensor Abstraction Layer | `perception-engine/domain/sensor.py` — 12-method `Sensor` Protocol, 8-transition lifecycle. Its docstring names `nova-companion` as the future implementor |
+| **Companion intake transport** | **`POST /v1/perception/observations` already exists** (2D-C Priority 1). Its docstring: *"No caller of this endpoint exists anywhere in this repository yet — no gateway or **companion-client** service exists"* |
+| World Model object ingestion | `world-model-engine` subscribes **`perception.*.observed`** (wildcard). `make_perception_dispatch_handler` routes unknown subjects to `make_perception_observed_handler`, whose docstring says the object-shaped path is *"**reserved for Phase 4's desktop-sensor extension**"* |
+| Action execution entry point | `action-engine` subscribes to exactly **`action.execute`**; registered as `ActionExecuteRequestPayload`; **no production publisher today** |
+| Level 2 machinery | `DEFINED_LEVELS` already contains Level 2; `SELECTABLE_LEVELS` does not; `GateReport.requires_approval` already carried *"so that when 4F enables Level 2 the signal is already being carried"* |
+| Autonomy policy write surface | `POST/PATCH/DELETE /v1/autonomy/policies` exist |
+| **`IdentityConfidencePolicy` write surface** | **Does not exist — CF-9** |
+
+**Bound by:** D-1, D-3, D-6, D-4D-1, D-4D-2 (§5.4), ADR-004, ADR-024, ADR-025,
+ADR-030, ADR-032, ADR-033, ADR-034.
+
+---
+
+## 4. Acceptance criteria
+
+### 4.1 AC-7 — REVISED, ratified 2026-09-15
+
+> **AC-7 (4F).** *"A known project becoming active on the user's machine is
+> detected by a `nova-companion` sensor, without user action, and is reflected in
+> the World Model **within five seconds**; and revoking that sensor's OS-level
+> permission stops the perception stream, **visibly**, in the Digital Twin /
+> Cognitive State panel."*
+
+***Superseded original, preserved per protocol §0.3.4:*** *"Opening a known
+project in the IDE is detected and reflected in the World Model within one second
+with no user action, and revoking a sensor's OS permission immediately and
+visibly stops that perception stream in the UI."*
+
+**Three changes, each with a reason.** *1 s → 5 s*: a 10 s outbox cron cannot
+serve 1 s, and the three ways to make it could each cost more than the criterion
+is worth (§1.1b). *"in the IDE" → "becoming active on the user's machine"*:
+modality-neutral, so a genuine filesystem observation satisfies it — window focus
+cannot be produced honestly in CI (§16). *"the UI" → a named panel*: testable.
+
+| Clause | Discharged by |
+|---|---|
+| *"a known project becoming active"* | Filesystem sensor observes a real event in a real project directory |
+| *"known"* | Correlated to a `project_id`; the only project identity in the system is `MemoryRecord.project_id` (4E §5.2), read **via events**, never by cross-engine DB access |
+| *"detected by a `nova-companion` sensor"* | A real companion process, registered behind the Sensor Abstraction Layer |
+| *"without user action"* | An autonomous sensor loop; no REST call by a human |
+| *"reflected in the World Model"* | `perception.<name>.observed` → existing wildcard → existing object handler → `WorldObject` |
+| *"within five seconds"* | Measured elapsed wall-clock, asserted as a number |
+| *"revoking that sensor's OS-level permission"* | A genuine `chmod` on the watched directory |
+| *"stops the perception stream"* | Lifecycle `running → failed` (revoked under a live stream) or `→ stopped` |
+| *"visibly … in the panel"* | The panel renders sensor state from the engine's REST read surface |
+
+### 4.2 AC-8 — UNCHANGED
+
+> *"The same action category that is blocked at Level 1 auto-executes at Level 2
+> for a low-risk case, purely by policy — no code path differs."*
+
+**Not weakened, and deliberately not re-scoped to avoid CF-9 or CF-11.** Both are
+taken as explicit dependencies instead (§5, §6).
+
+**The complete intended path:**
+
+```
+cognitive-state trigger (Active Thought crosses its threshold)
+   → DecisionRequest                        [cognitive-state-engine produces only this]
+   → autonomy-engine decide()               [control plane]
+   → Policy Engine      (deny-only; may lower requires_approval)
+   → Permission Matrix  (deny-only)
+   → Trust Engine       (CF-10: unavailable, fails closed)
+   → single dispatch point reads requires_approval
+        ├── True  → suggestion + existing approval surface        (Level 1)
+        └── False → publish action.execute                        (Level 2)
+   → action-engine       [execution / approval boundary owner]
+        stage 3: ADR-032 identity-confidence gate  ← CF-9 REQUIRED
+        → executed
 ```
 
-**Worst-case perception→bus latency is therefore ~10 s, and mean ~5 s, before
-`world-model-engine` has even received the event.** A one-second end-to-end
-budget is not achievable by tuning; it is excluded by the architecture.
+| Clause | Discharged by | Dependency |
+|---|---|---|
+| *"the same action category"* | One `ActionType`, one `DecisionRequest` shape, run twice | — |
+| *"blocked at Level 1"* | Already true and tested | — |
+| *"auto-executes at Level 2"* | `autonomy-engine` publishes `action.execute` | **CF-9**, **CF-11** |
+| *"for a low-risk case"* | `RiskLevel.LOW`; `risk_at_most` exists | — |
+| *"purely by policy"* | The policy-derived `requires_approval` is the only differing input | — |
+| *"no code path differs"* | §6.6's single-dispatch rule, test-enforced | — |
 
-This was invisible until now because no prior acceptance criterion put a latency
-bound on an outbox-published subject. It is **not** a defect in the outbox — the
-outbox is what makes a write and its event atomic (Phase 1's transactional outbox
-pattern), and Phase 4E's stack-completeness guard now enforces that every
-outbox-publishing engine on a browser-observable path actually runs its worker.
+**Both criteria are provider-free** and inherit no deferral.
 
-**Three options, none of which this TDD chooses.** See D-4F-1 (§19.1).
+---
 
-#### 0.1.2 AC-8 is blocked by CF-9, at every risk level — **BLOCKING**
+## 5. CF-9 — why AC-8 requires it, and what 4F builds
 
-AC-8: *"The same action category that is blocked at Level 1 auto-executes at
-Level 2 for a **low-risk** case, purely by policy — no code path differs."*
+### 5.1 Why it is required
 
-A Level-2 auto-execution must reach `action-engine`. Its pipeline stage 3 is
-ADR-032's identity-confidence gate, and **it is not Critical-only**:
+`action-engine` pipeline stage 3:
 
 ```python
 # services/action-engine/src/nova_action_engine/domain/pipeline.py:181-189
 confidence = await identity_port.get_confidence(user_id=action.requested_by)
 policy = await repository.find_identity_confidence_policy(action.requested_by)
-threshold = 1.0  # absent-policy fails closed: require maximum confidence (TDD 3D §10)
+threshold = 1.0  # absent-policy fails closed: require maximum confidence
 if policy is not None and risk.value in policy.minimum_confidence_by_risk:
     threshold = policy.minimum_confidence_by_risk[risk.value]
 effective_confidence = confidence if confidence is not None else 0.0
@@ -84,658 +203,617 @@ if effective_confidence < threshold:
     ...  # denied
 ```
 
-With **no policy row the threshold is 1.0 for every risk level including LOW**,
-and `perception-engine`'s `SINGLE_SIGNAL_CONFIDENCE_CEILING = 0.75` means a real
-single-signal identity cannot reach it. Nothing in the repository can create a
-policy row — that is exactly **CF-9**, open since 4B, routed to 4D, and declined
-there by ratified decision **D-4D-2**.
+**The gate is not Critical-only.** With no policy row the threshold is **1.0 at
+every risk level including LOW**, and `perception-engine`'s
+`SINGLE_SIGNAL_CONFIDENCE_CEILING = 0.75` caps a real single-signal identity
+below it. **AC-8's low-risk auto-execution is therefore denied at stage 3** until
+a policy row can exist. Nothing in the repository can create one. That is CF-9.
 
-**So AC-8's low-risk auto-execution is denied at stage 3 today, and no amount of
-Level-2 work in `autonomy-engine` changes that.** This is a genuine, factual
-dependency of 4F on CF-9 — not an implication, and not a licence to close CF-9
-silently. See D-4F-2 (§19.2).
+The asymmetry is specific: `autonomy-engine` **has** a policy write surface
+(`POST/PATCH/DELETE /v1/autonomy/policies`); `action-engine`'s
+`IdentityConfidencePolicy` has **none**.
 
-#### 0.1.3 AC-8 has no trigger — CF-11 — **BLOCKING**
+### 5.2 The minimum surface 4F requires
 
-`autonomy-engine`'s decision pipeline has **no production caller**. Phase 4D's
-Gate Review re-verified at source: **0** call sites of `insert_suggestion`, **0**
-of `decide()`, no handler, worker or scheduler, and **0 of 11** published
-operations create one. Both of its Event Bus allow-lists are **empty frozensets
-carrying scaffold TODOs**, and `test_control_8_this_engine_never_calls_the_bus_at_all`
-asserts the engine makes no bus call of any kind.
+A write path to the table `action-engine` already owns, and nothing more:
 
-That is **CF-11**: *"no component produces a suggestion."* AC-8 needs a real
-trigger for a real action, so 4F must build the initiative surface CF-11
-describes as missing. **Which component owns it is not settled by any
-authoritative document.** `cognitive-state-engine` is the natural candidate —
-Bible Part 6's Active Thoughts are literally ongoing reasoning processes with
-priority and progress — but the master scope's 4F entry does not say so, and
-inventing that ownership is exactly what this TDD must not do. See D-4F-3
-(§19.3).
+| | |
+|---|---|
+| **Owner** | **`action-engine`** — unchanged. It owns `IdentityConfidencePolicy` (`domain/models.py:46`) and the table `action.identity_confidence_policy` |
+| **Surface** | Create/read/update a policy for a user: minimum confidence per risk level. Fronted by `api-gateway`'s **existing** `/v1/action` prefix — **no new prefix** |
+| **Identity** | Resolved **server-side** from `primary_user_id` (ADR-025, 4E's discipline). No caller-supplied `user_id` |
+| **Persistence** | The existing table. **No new table, no second store, no duplicate model** |
+| **Evaluation semantics** | **Byte-identical.** Stage 3's code is not modified by 4F |
+| **Fail-closed** | **Unchanged.** Absent policy still means threshold 1.0 at every risk level |
 
-#### 0.1.4 The Sensor Abstraction Layer's type literals exclude every 4F sensor — non-blocking
+### 5.3 What must be verified before CF-9 is ever closed
 
-`domain/sensor.py` is explicitly built for this moment — its own docstring says a
-future `nova-companion` sensor *"is a matter of implementing an already-correct
-Protocol, never a redesign"* — and the `Sensor` Protocol needs **no change**.
+**4F implementing the capability does not close CF-9**, and no 4F document may
+record it as closed. Closure requires a separate, explicit verification that
+ADR-032 decision point 2 is satisfied in full:
 
-But two closed literals do:
+1. A policy row can be created through a production surface — **and** read back
+   by stage 3 in real Postgres.
+2. The threshold is **per privileged capability or per capability class**, never
+   a single hardcoded system-wide value (ADR-032's actual words).
+3. Absent policy still fails closed at 1.0, proven by a negative control.
+4. `perception-engine`'s `SINGLE_SIGNAL_CONFIDENCE_CEILING` is unchanged.
+5. The Phase 4B Gate Review §0.3, Phase 4C's health record and master scope §4's
+   register are each updated, with the closing evidence cited.
+
+**Until all five hold, CF-9 stays OPEN** — including throughout 4F.
+
+### 5.4 Relationship to D-4D-2
+
+D-4D-2 ratified that CF-9 stays open and that `action-engine` keeps sole
+ownership of `IdentityConfidencePolicy`. **4F contradicts neither.** Ownership
+does not move; 4F adds the missing write path *in the owning engine*. What
+changes is only that 4F, unlike 4D, has an acceptance criterion that cannot pass
+without it.
+
+---
+
+## 6. Autonomy Level 2 — five distinct states
+
+| # | State | Where | At `c04b58e` | 4F |
+|---|---|---|---|---|
+| **1** | **Defined** | `DEFINED_LEVELS` | **True already** | Nothing |
+| **2** | **Selectable** | `SELECTABLE_LEVELS`, `require_selectable()` | **False** — raises `LevelNotSelectableError` → 422 | Add Level 2 to the set |
+| **3** | **Policy-permitted** | `evaluate_policies()` → `requires_approval` | Machinery exists; **no `allow` effect and none added** | A policy may lower `requires_approval` for a bounded LOW-risk category |
+| **4** | **Triggered** | **Nothing — CF-11** | **0 callers** of `decide()` | `cognitive-state-engine` (§6.2) |
+| **5** | **Executing** | **Nothing** | `permits_execution()` is `False`; `_forbid_execution()` raises | Publish `action.execute` (§11.1) |
+
+**A Level 2 flag alone must never create execution.** 4D's guard states it:
+*"Enabling Level 2 is milestone 4F (decision D-1) and **requires an execution
+path, not a flag**."* §16 control 3 requires that a flag-only change still fails.
+
+### 6.1 CF-11 — the trigger, and why it is a dependency
+
+Verified independently at `c04b58e`: **0** production callers of `decide()`, **0**
+of `insert_suggestion`, and the 11-operation autonomy REST surface has **no
+create-suggestion route** — `POST /suggestions/{id}/decide` decides an *existing*
+one. **AC-8 cannot run without a trigger**, so CF-11 is a 4F dependency.
+
+**4F implementing a producer does not close CF-11 by implication.** Closure
+requires that the producer be *production-reachable* and demonstrated end to end;
+until that is verified and recorded, **CF-11 stays OPEN**.
+
+### 6.2 `cognitive-state-engine` as trigger owner — the ratified boundary
+
+| **MAY produce** | **MUST NOT** |
+|---|---|
+| A `DecisionRequest` | Publish `action.execute` |
+| An action type | Call any `action-engine` execution endpoint |
+| Subject / context | Invoke any actuator |
+| A rationale | Bypass `autonomy-engine` |
+| The cognitive-state evidence behind the request | Bypass the Policy Engine |
+| | Bypass the Permission Matrix |
+| | Bypass the Trust Engine |
+| | Bypass `action-engine`'s approval/execution boundary |
+
+**`autonomy-engine` remains the decision/control-plane owner.**
+**`action-engine` remains the execution/approval boundary owner.**
+
+§16 controls 6 and 11 enforce every prohibition by property, not by convention.
+
+### 6.3 Where each gate applies
+
+Policy Engine and Permission Matrix run **in `autonomy-engine`**, in the fixed
+order `evaluate_gates()` already establishes, deny-only. The Trust Engine runs
+after them and stays **unavailable** per CF-10 — it never becomes `0.0` or a
+default number. `action-engine`'s own stages — risk estimation, the ADR-032
+identity gate, approval, the append-only log — are unchanged and always run.
+
+### 6.4 Where user approval remains required
+
+Every risk **above LOW**, at any level. Every denied gate. Every case where
+policy leaves `requires_approval = True`. **Absent policy means approval**, never
+execution.
+
+### 6.5 What Level 2 actually permits
+
+LOW risk only · policy-permitted only · through `action-engine`'s unchanged
+lifecycle only · never as a consequence of the level alone.
+
+### 6.6 The single-dispatch rule — how *"no code path differs"* is true
+
+One dispatch point reads `GateReport.requires_approval`. `True` → suggestion.
+`False` → publish `action.execute`. **Everything upstream is identical between
+the two runs** — same request shape, same gate order, same trust read, same log
+entry. §16 control 4 asserts the two runs produce the same call sequence up to
+that point.
+
+---
+
+## 7. `nova-companion` — component specification
+
+| | |
+|---|---|
+| **Owner** | New. `companion/nova-companion/` ([doc 02](../../architecture/02-repository-and-folder-structure.md)'s repository tree: *"companion/ — Rust OS-level perception/action daemon"*), a Cargo workspace |
+| **Produces** | Normalized sensor observations, submitted to `perception-engine` |
+| **Consumes** | OS signals only |
+| **Persistence** | **None.** It owns no store and writes no database |
+| **API surface** | **None exposed.** It is a client, never a server |
+| **Event Bus** | **None.** It never connects to NATS |
+| **Security boundary** | Internal network only; no browser-reachable port; no actuator fires on its own initiative (§7.3) |
+| **Failure behavior** | A failed sensor transitions `running → failed` and reports through the existing `SensorErrorReport`; the engine keeps serving |
+| **Test strategy** | Cargo unit tests; the real binary drives the AC-7 E2E (§16) |
+
+### 7.1 Sensors and actuators
+
+Sensors: desktop/window-focus, clipboard, filesystem, process/system health.
+**Only the filesystem sensor is on the CI acceptance path** (§16).
+Actuators: terminal and window control — reachable **only** as `action-engine`
+action types (§7.3).
+
+### 7.2 Sensor Abstraction Layer integration
+
+The `Sensor` Protocol is **unchanged**. Two closed literals widen additively:
 
 ```python
 class SensorConfig(BaseModel):
-    sensor_type: Literal["voice", "camera"]      # ← no companion sensor fits
-
+    sensor_type: Literal["voice", "camera"]      # widens to admit companion types
 class PermissionStatus(BaseModel):
-    source: Literal["microphone", "camera"]      # ← no OS permission fits
+    source: Literal["microphone", "camera"]      # widens to admit OS permissions
 ```
 
-4F's sensors are desktop/window-focus, clipboard, filesystem and process/system
-health. **Both literals must widen.** This is additive and internal —
-`domain/sensor.py` is `perception-engine`'s own domain module, not
-`nova-contracts`, and neither type is serialized into any registered payload
-(verified: no `register_payload` class references either). It is recorded here
-rather than treated as incidental because it is a change to a **2D-B shipped
-type**, and §14 pins the widened set so it cannot drift further unnoticed.
+Internal to `perception-engine`; **no registered payload references either
+type** (verified: 0 occurrences in `nova-contracts`). §16 control 8 pins the
+widened set.
 
-#### 0.1.5 AC-7 clause 2 has no browser-reachable data source — non-blocking, but it forces a choice
+The existing lifecycle is exactly what AC-7 clause 2 needs:
+`uninitialized → initialized → running → {paused, stopped, failed}`;
+`paused → {running, stopped}`; `failed → initialized`. **`next_state` rejects
+every undefined pair.**
 
-AC-7 clause 2: *"revoking a sensor's OS permission immediately and **visibly**
-stops that perception stream **in the UI**."*
+### 7.3 Actuators go through the Action Principle lifecycle
 
-The UI can learn this in exactly two ways, and **neither exists today**:
-
-| Path | Status | Cost |
-|---|---|---|
-| Event Bus → `ws-gateway` | `perception.sensor.health_changed` is **registered but not public** — `PUBLIC_TOPICS` holds 18 strings and it is not among them | A new `PUBLIC_TOPICS` entry |
-| REST → `api-gateway` | `GET /v1/perception/sensors` **already exists** (`api/sensors.py:26`), but **`/v1/perception` is not in the gateway route table** — the eight fronted prefixes are `/v1/communication`, `/v1/plans`, `/v1/reasoning`, `/v1/capabilities`, `/v1/action`, `/v1/agents`, `/v1/autonomy`, `/v1/digital-twin` | A new D-6 prefix |
-
-**The REST option is cheaper but carries Phase 4E's finding §0.1.7 in a sharper
-form.** A D-6 prefix fronts the *whole* subtree, and `/v1/perception` includes:
-
-- `POST /v1/perception/consent` and **`DELETE /v1/perception/consent/{source}?user_id=…`**
-- `POST /v1/perception/identities` (biometric enrollment) and `DELETE /v1/perception/identities/{identity_id}`
-
-all taking a **caller-supplied `user_id`**. Fronting the prefix would make
-**consent revocation and biometric identity enrollment externally reachable** —
-a materially more serious surface than 4E's profile writes. See D-4F-4 (§19.4).
-**This TDD does not choose**, and §0.1.5 is the reason §18's SLOC estimate
-carries a range rather than a number.
+Terminal and window control are **action types**, not autonomous capabilities.
+Every existing stage applies unchanged. **4F adds no path that bypasses
+`action-engine`.**
 
 ---
 
-## 1. Scope
+## 8. D-4F-5 — the transport already exists
 
-| # | Deliverable | Where |
-|---|---|---|
-| 1 | **`nova-companion`** — a Rust process providing desktop/window-focus, clipboard, filesystem and process/system-health sensors, plus terminal and window-control actuators | new top-level `companion/` |
-| 2 | **Sensor Abstraction Layer registration** — every companion sensor behind the existing `Sensor` Protocol, with the two literals of §0.1.4 widened | `perception-engine` |
-| 3 | **Perception extension** — normalization, context enrichment, multi-modal fusion | `perception-engine` |
-| 4 | **`services/cognitive-state-engine`** — Active Thoughts, Focus System, Attention Layers (Bible Part 6) | new engine |
-| 5 | **Autonomy Level 2** — defined → selectable → policy-permitted → triggered → executing, as five separable steps (§11) | `autonomy-engine` |
-| 6 | **The `cognitive-state/` panel** — the eleventh and last Phase 4 panel (master scope §6) | `apps/web-client` |
+**`POST /v1/perception/observations` was built in Phase 2D-C Priority 1 for
+exactly this caller.** Its own docstring:
 
-### 1.1 What 4F deliberately does **not** build
+> *"No caller of this endpoint exists anywhere in this repository yet — no
+> gateway or **companion-client** service exists (`apps/` is empty). This mirrors
+> `communication-engine`'s own WebSocket endpoint precedent exactly: a real REST
+> surface that simply waits for a not-yet-built caller, rather than a fabricated
+> capture integration."*
 
-- **The desktop shell.** `apps/desktop-client` (Tauri) is Phase 5. `nova-companion`
-  is a **headless sensor/actuator process**, not a UI.
-- **Voice UI presentation** — Phase 5. The voice channel already exists from 2D-A/2D-B.
-- **The five deferred panels** — Phase 5.
-- **OIDC/PKCE, `nova-auth`, RBAC, multi-user** — Phase 7; ADR-025 governs.
-- **Mobile, third-party API access, marketplace.**
-- **Autonomy Levels 3–5.** Named in the vocabulary, no defined semantics. 4F
-  enables **2 and only 2**.
-- **Closing CF-4, CF-5, CF-6, CF-8.** Untouched.
-- **Any Phase 5 work of any kind.**
+**4F invents no transport. It becomes the first caller of an endpoint built for
+it.** Properties, each checked:
 
----
-
-## 2. Non-goals, stated as properties a reviewer can check
-
-1. No new engine-to-engine HTTP. The only `httpx` client that crosses a service
-   boundary in the repository is `api-gateway`'s `clients/upstream.py`, and that
-   is the gateway doing its job. **4F adds none** (ADR-004).
-2. `api-gateway` remains the **sole** external REST boundary.
-3. `ws-gateway` remains the **sole** browser realtime bridge, and the only path
-   from a browser to bus activity (AC-2, already proven).
-4. Existing envelope conventions unchanged.
-5. Existing authentication boundaries unchanged (D-3's session model).
-6. **No fabricated sensor data.** AC-7 is measured against a real OS signal from
-   a real companion process, or it is not measured (§15, §17).
-7. **No fake clock and no time simulation** anywhere in 4F — the same rule
-   ratified for 4E §20.1, restated because AC-7 is a *latency* criterion and the
-   temptation is structurally identical.
-8. No duplicated state ownership (§10).
-
----
-
-## 3. Dependencies and inherited state — verified at `c04b58e`
-
-### 3.1 Hard dependencies, all present
-
-| Dependency | Evidence at `c04b58e` |
+| Requirement | Held by |
 |---|---|
-| Sensor Abstraction Layer | `perception-engine/domain/sensor.py` — full 12-method `Sensor` Protocol, 8-transition lifecycle state machine |
-| World Model ingestion of perception | `world-model-engine/events/subscribed.py` subscribes **`perception.*.observed`** — a wildcard, so a new `perception.<x>.observed` subject needs **no subscription change** |
-| World Model object lifecycle | `world_model.object.created` / `.updated` / `.deleted`, `world_model.context.changed`, `world_model.attention.shifted` — all registered |
-| Action execution entry point | `action-engine` subscribes to exactly one subject: **`action.execute`**, registered as `ActionExecuteRequestPayload`, **with no production publisher today** |
-| Autonomy level machinery | `autonomy-engine/domain/levels.py` — `DEFINED_LEVELS` already contains Level 2; `SELECTABLE_LEVELS` does not |
-| Approval-vs-execute signal | `GateReport.requires_approval`, already carried, documented as *"recorded for the log now so that when 4F enables Level 2 the signal is already being carried rather than needing to be retrofitted"* |
-| Digital Twin domains | 4E's nine Part 16 domains, merged as `59bbeee` |
+| Authentication/security boundary | `/v1/perception` is **not** fronted by `api-gateway` (verified: eight prefixes, none of them `/v1/perception`). The endpoint is reachable only on the internal Docker network — the same posture as every other engine, with authentication at the gateway per D-3 |
+| Process isolation | A separate OS process speaking HTTP to an engine. **Not engine-to-engine** — the companion is not an engine, so ADR-004 is not engaged |
+| Sensor abstraction preserved | The route calls `handle_observation_window`, which drives the registered `Sensor` and the real pipeline |
+| No browser access | No gateway prefix is added, so no browser can reach it |
+| No new engine-to-engine HTTP | None added |
 
-### 3.2 Authoritative decisions 4F is bound by
+### 8.1 The one shape question — scoped, not open-ended
 
-- **D-1** — Level 2 enablement and `nova-companion` are 4F's, and 4F comes last.
-- **D-3** — the Phase-4 session model; 4F does not change it.
-- **D-6** — `api-gateway` forwards 1:1, no path rewriting.
-- **D-4D-1** — no Event Bus contract without a genuine producer/consumer need.
-  **4F's `action.execute` publication is exactly such a need** (§12).
-- **D-4D-2** — CF-9 stays open, `action-engine` keeps sole ownership of
-  `IdentityConfidencePolicy`. **§0.1.2 puts this in direct tension with AC-8**
-  and D-4F-2 is where it is resolved.
-- **ADR-004, ADR-024, ADR-025, ADR-030, ADR-032, ADR-033.**
+The existing route takes an `application/octet-stream` **capture window** (audio
+buffer or face crop) and runs addressee-signal detection. A filesystem event is
+**structured**, not a byte window. 4F therefore adds a **second intake route on
+the same internal surface** for structured observations, reusing the same sensor
+lookup and the same publication path.
 
-### 3.3 Carry-forwards that touch 4F
+**This stays inside `perception-engine`'s own ownership**, adds no gateway prefix
+and no new transport. Recorded here so the Gate Review checks it as a deliberate
+addition rather than discovering it.
 
-| ID | 4F's relationship | Closed by 4F? |
+---
+
+## 9. Perception normalization, enrichment and fusion
+
+**Normalization** (`perception-engine`): debounce and coalesce high-frequency OS
+signals; map platform identifiers to a stable vocabulary; **drop any signal whose
+sensor is not `running`** — this is what makes AC-7's revocation clause true at
+the pipeline level; attach no identity the sensor did not observe.
+
+**Enrichment**: attach AC-7's *"known project"*. The only project identity is
+`MemoryRecord.project_id`, and `perception-engine` **must not read
+`memory-engine`'s database** (ADR-004; 4E §0.1.5 settled the identical question
+for `digital-twin-engine` — the answer was the Event Bus). **When correlation
+fails the observation is published without a `project_id`** — an honest unknown,
+never a guess.
+
+**Fusion**: extends the existing `domain/correlation_buffer.py` and
+`domain/identity_fusion.py` rather than adding a parallel mechanism. **Fusion
+never raises confidence above what its inputs support, and
+`SINGLE_SIGNAL_CONFIDENCE_CEILING = 0.75` is unchanged** — ADR-032's gate reads
+exactly that number (§5.1), so quietly strengthening a fused identity claim would
+weaken a security gate by the back door.
+
+---
+
+## 10. Ownership matrix
+
+| Fact | Owner | 4F |
 |---|---|---|
-| **CF-9** | **AC-8 cannot pass without it** (§0.1.2) | **Only if D-4F-2 ratifies it.** Not by implication |
-| **CF-10** | No `TrustMetric` read surface. `autonomy-engine`'s trust input still reports unavailable and fails closed. **4F does not need it**: AC-8 turns on *policy*, not on a trust score | **No** |
-| **CF-11** | **AC-8 needs a trigger** (§0.1.3) | **Only if D-4F-3 ratifies an owner.** Not by implication |
-| CF-4, CF-5, CF-6, CF-8 | Untouched | **No** |
-| 4E's three findings | `nova_testkit` image drift, the D-6 prefix exposure, the stranded-outbox guard's missing `memory` schema. **The third becomes more load-bearing in 4F** if D-4F-1 keeps the outbox on the AC-7 path | **No** |
-
----
-
-## 4. AC-7 and AC-8 — explicit mapping
-
-### 4.1 AC-7, clause by clause
-
-> *"Opening a known project in the IDE is detected and reflected in the World
-> Model within one second with no user action, and revoking a sensor's OS
-> permission immediately and visibly stops that perception stream in the UI."*
-
-| Clause | Discharged by | Blocked on |
-|---|---|---|
-| *"Opening a known project in the IDE is detected"* | `nova-companion`'s window-focus sensor, behind the Sensor Abstraction Layer (§6) | — |
-| *"…is a **known** project"* | Correlation to a `project_id` the system already holds. **The only project identity in the system is `MemoryRecord.project_id`** (established by 4E §5.2) | — |
-| *"reflected in the World Model"* | `world-model-engine`'s existing `perception.*.observed` wildcard subscription → a world object | — |
-| *"**within one second**"* | — | **D-4F-1.** Unreachable through a 10 s outbox cron (§0.1.1) |
-| *"with no user action"* | An autonomous sensor loop, not a REST call | — |
-| *"revoking a sensor's OS permission"* | A **real** OS permission revocation observed by the companion; `Sensor.permission_status()` already exists | — |
-| *"immediately and visibly stops that perception stream"* | Lifecycle transition `running → stopped` (or `→ failed`), plus `perception.sensor.health_changed` | — |
-| *"**in the UI**"* | — | **D-4F-4.** No browser-reachable source today (§0.1.5) |
-
-### 4.2 AC-8, clause by clause
-
-> *"The same action category that is blocked at Level 1 auto-executes at Level 2
-> for a low-risk case, purely by policy — no code path differs."*
-
-| Clause | Discharged by | Blocked on |
-|---|---|---|
-| *"the same action category"* | One `ActionType`, one `DecisionRequest` shape, exercised twice | — |
-| *"blocked at Level 1"* | Already true and already tested: `permits_execution()` is `False`, `GateReport.requires_approval` defaults `True` | — |
-| *"auto-executes at Level 2"* | `autonomy-engine` publishes **`action.execute`** (§12) | **D-4F-2** (CF-9 denies it at stage 3) and **D-4F-3** (no trigger) |
-| *"for a low-risk case"* | `RiskLevel.LOW`; `risk_at_most` already exists | — |
-| *"purely by policy"* | The policy-derived `requires_approval` flag is the **only** input that differs | — |
-| *"**no code path differs**"* | §11.6's single-dispatch rule, enforced by a test that the Level-1 and Level-2 runs execute the **same** call sequence | — |
-
-**AC-7 and AC-8 are both provider-free.** Neither needs a model provider, so
-neither inherits AC-3's or AC-4's deferrals.
-
----
-
-## 5. `nova-companion` — process and ownership boundary
-
-### 5.1 What it is
-
-A **headless Rust process** on the user's machine. It is the only 4F component
-that touches the operating system, and it owns **nothing** in the domain sense:
-it observes, normalizes into the Sensor Abstraction Layer's vocabulary, and hands
-off. Every fact it produces is owned downstream.
-
-### 5.2 The boundary, stated as prohibitions
-
-1. **It never talks to a browser.** No local HTTP server the web client could
-   call, no WebSocket the browser could open. AC-2's property — `ws-gateway` is
-   the only path from a browser to bus activity — must remain provable.
-2. **It never publishes to the Event Bus directly.** It is a *sensor host*, not
-   an engine; `perception-engine` owns the publication.
-3. **It never writes to any database.**
-4. **It never calls another engine's HTTP API.**
-5. **Its actuators execute nothing on their own initiative** — they are invoked
-   through `action-engine`'s existing lifecycle or not at all (§5.4).
-
-### 5.3 How it reaches `perception-engine` — **OPEN, D-4F-5**
-
-The repository has **no precedent** for a non-Python process feeding an engine.
-Candidates: a local transport the engine owns, or an engine-owned REST intake
-endpoint on `perception-engine`'s existing `/v1/perception` surface. Each has a
-different blast radius against §2's properties and against D-4F-4's prefix
-question. **This TDD does not choose.**
-
-### 5.4 Actuators
-
-Terminal and window control are **actuators, not autonomous capabilities**. They
-are reachable only as `action-engine` action types, so every existing stage —
-risk estimation, the identity-confidence gate, approval, the append-only action
-log — applies unchanged. **4F adds no path that bypasses the Action Principle
-lifecycle.**
-
----
-
-## 6. Sensor Abstraction Layer integration
-
-Each companion sensor registers as a `Sensor` implementation. **The Protocol is
-unchanged**; §0.1.4's two literals widen to admit the new `sensor_type` values
-and OS permission `source` values.
-
-The lifecycle state machine is already exactly what AC-7 clause 2 needs:
-
-```
-uninitialized → initialized → running → { paused, stopped, failed }
-                                paused → { running, stopped }
-                                failed → initialized
-```
-
-A revoked OS permission drives `running → stopped` (deliberate revocation) or
-`running → fail` (revoked underneath a live stream). **`next_state` rejects every
-undefined pair**, so a sensor cannot reach a state the diagram does not permit.
-
----
-
-## 7. Sensor input normalization
-
-Raw OS signals are noisy, high-frequency and platform-shaped. Normalization is
-`perception-engine`'s, not the companion's, so the rules are testable in Python
-against the existing suite: debounce and coalesce, map platform-specific
-identifiers to a stable vocabulary, drop signals whose sensor is not `running`,
-and **attach no identity the sensor did not observe**.
-
-**Explicitly not normalization:** inventing a `project_id`. Correlating a window
-title to a known project is *enrichment* (§8), and it can fail.
-
----
-
-## 8. Perception enrichment
-
-Enrichment attaches context the raw signal lacks — most importantly AC-7's
-*"known project"*. The only project identity in the system is
-`MemoryRecord.project_id`, and `perception-engine` must not read
-`memory-engine`'s database (ADR-004; 4E §0.1.5 settled the identical question
-for `digital-twin-engine`, and the answer was the Event Bus).
-
-**When correlation fails the observation is still published, without a
-`project_id`.** An unrecognized project is an honest unknown, not an error, and
-never a guess — the same discipline 4E's `DomainReasonCode` enforces.
-
----
-
-## 9. Multi-modal fusion
-
-The roadmap's *"meeting begins"* scenario: calendar, voice, presence and window
-focus agreeing. `perception-engine` already has `domain/correlation_buffer.py`
-and `domain/identity_fusion.py`; 4F extends the same shape rather than adding a
-parallel one.
-
-**Fusion never raises confidence above what its inputs support**, and
-`SINGLE_SIGNAL_CONFIDENCE_CEILING = 0.75` stays as it is — a fused *identity*
-claim is the one thing 4F must not quietly strengthen, because ADR-032's gate
-reads exactly that number (§0.1.2).
-
----
-
-## 10. Ownership — who owns what, and who must not
-
-| Fact | Owner | 4F's relationship |
-|---|---|---|
-| Raw OS signal | `nova-companion` | Produces, owns nothing |
-| Sensor lifecycle & permission status | `perception-engine` | Extends |
+| Raw OS signal | `nova-companion` | Produces; owns nothing |
+| Sensor lifecycle, permission status | `perception-engine` | Extends |
 | Normalized observation | `perception-engine` | Extends |
-| World objects, context, prediction | `world-model-engine` | **Consumer only.** 4F adds no world-model write path other than its existing subscription |
+| World objects, context, prediction | `world-model-engine` | **Consumer only — zero changes** (§11.1) |
 | Memories, `project_id` | `memory-engine` | **Read-only, via events** |
-| Part 16 domains | `digital-twin-engine` | **Untouched by 4F** |
+| Part 16 domains | `digital-twin-engine` | **Untouched** |
 | Autonomy level, policy, permission grants, decision log | `autonomy-engine` | Extends |
-| Action lifecycle, risk, approval, identity-confidence policy | `action-engine` | **Consumer.** 4F publishes `action.execute`; it does **not** re-implement any stage |
+| Action lifecycle, risk, approval, **`IdentityConfidencePolicy`** | **`action-engine`** | **Consumer + CF-9's write path in the owning engine.** No stage re-implemented |
 | **Active Thoughts, Focus, Attention Layers** | **`cognitive-state-engine`** | **New, sole owner** |
 
-**Two ownership rules 4F must not break.** (a) Cognitive state is *explicitly
-distinct* from Phase 2D-C's session-scoped conversation memory — different
-lifetime, different owner. (b) ADR-030's *"Personality stores, Digital Twin
-learns"* is unchanged: cognitive state is a **third** thing and neither engine's
-data moves.
+**Two rules 4F must not break.** Cognitive state is *explicitly distinct* from
+Phase 2D-C's session-scoped conversation memory — different lifetime, different
+owner. ADR-030's *"Personality stores, Digital Twin learns"* is unchanged:
+cognitive state is a **third** thing and neither engine's data moves.
 
 ---
 
-## 11. Autonomy Level 2 — five distinct states
+## 11. Event Bus
 
-**This section is the one the Gate Review should read hardest.** Level 2 is not
-one switch. It is five, and 4D built the first and pre-wired the others.
+### 11.1 One new subject, and it is genuinely required
 
-| # | State | Where it lives | Status at `c04b58e` | What 4F changes |
-|---|---|---|---|---|
-| **1** | **Defined** | `DEFINED_LEVELS` | **Already true.** Level 2 is in the set; Bible Part 14's semantics are recorded | Nothing |
-| **2** | **Technically enabled (selectable)** | `SELECTABLE_LEVELS`, `require_selectable()` | **False.** Raises `LevelNotSelectableError` → 422, *"enabled in milestone 4F (decision D-1)"* | Adds Level 2 to `SELECTABLE_LEVELS` |
-| **3** | **Permitted by the Policy Engine** | `evaluate_policies()` → `requires_approval` | Machinery exists; **there is no `allow` effect and none is added** | Policy rows may set `requires_approval=False` for a low-risk category |
-| **4** | **Receiving a real trigger** | **Nothing.** CF-11 | **0 callers of `decide()`** | **D-4F-3 — unowned** |
-| **5** | **Executing an action** | **Nothing.** `permits_execution()` returns `False` unconditionally; `_forbid_execution()` raises if it ever returns `True` without a real path | No execution path exists | Publishes `action.execute` (§12) — **and D-4F-2 must clear CF-9 or it is denied at stage 3** |
+| | |
+|---|---|
+| **Subject** | one object-shaped **`perception.<name>.observed`** |
+| **Producer** | `perception-engine`, from a `nova-companion` sensor |
+| **Consumer** | `world-model-engine` — **already subscribed** via the `perception.*.observed` wildcard |
+| **Why existing subjects are insufficient** | `make_perception_observed_handler` requires `object_id`/`entity_id`, `label`, `user_id`. **No existing perception payload carries any of them** — presence, identity and attention payloads are identity-shaped |
+| **`PUBLIC_TOPICS`** | **No change** |
+| **`ws-gateway`** | **No change** |
+| **Browser access** | **None** |
+| **`api-gateway`** | **No new prefix** |
 
-### 11.1 Why the distinction is load-bearing
+**`world-model-engine` needs zero changes.** Its dispatch handler's own docstring
+reserves this path: *"`perception-engine` (Phase 2D-B) never publishes an
+object-shaped `perception.*.observed` payload (**that path is reserved for Phase
+4's desktop-sensor extension**)."* A new subject lands under the wildcard, falls
+through the `else` branch to the object handler, and creates a `WorldObject`. The
+handler is also naturally idempotent — a repeat observation on an already-`ACTIVE`
+object hits an undefined transition and returns.
 
-4D wrote the guard that makes conflating them impossible:
+### 11.2 `action.execute` — an existing contract gains its first producer
 
-```python
-# domain/decision.py:119-131
-def _forbid_execution(level: AutonomyLevel) -> None:
-    if permits_execution(level):
-        raise AssertionError(
-            f"... Enabling Level 2 is milestone 4F "
-            f"(decision D-1) and requires an execution path, not a flag."
-        )
-```
+`action.execute` is registered (`ActionExecuteRequestPayload`), subscribed by
+`action-engine`, and has **no production publisher**. 4F makes `autonomy-engine`
+its first — the same *new-producer-on-an-existing-contract* shape 4E used, and
+exactly D-4D-1's *"a genuine producer/consumer need."*
 
-**"An execution path, not a flag."** A 4F implementation that flips
-`permits_execution` without §12's publication turns every decision into an
-`AssertionError`. That is the intended outcome and the control must survive 4F
-in a form that still fails on a flag-only change (§14 control 3).
+This requires adding `"action.execute"` to `autonomy-engine`'s currently-empty
+`PUBLISHABLE_SUBJECTS`, which **necessarily retires 4D's control 8**
+(*"this engine never calls the bus at all"*) in its present form. **Disclosed,
+not silent**, and §16 control 6 replaces it with the tighter property: *this
+engine may publish `action.execute` and nothing else.*
 
-### 11.2 State 2 — selectable
+### 11.3 D-4F-6 — no cognitive-state subject
 
-One-line change, plus the 422's reason text, plus the panel. `require_selectable`
-returning the level rather than a bool *"so a caller cannot forget to act on a
-`False`"* stays as it is.
+**`PUBLIC_TOPICS` is the sole browser realtime allow-list** — there is no
+alternative approved realtime mechanism, verified in `ws-gateway`. So a realtime
+cognitive-state panel would require a new public subject.
 
-### 11.3 State 3 — permitted by policy
+**It does not get one.** The panel reads **normalized cognitive state over
+REST** (§12). A subject exists to be consumed, not to be complete (D-4D-1), and
+no non-UI consumer of cognitive state exists. **No cognitive-state Event Bus
+subject is added.**
 
-**No `allow` effect is introduced.** `PolicyEvaluation` has *"no field meaning
-'allowed'"* by design (`domain/policy.py`), and there is no `allow` member of
-`PolicyEffect`, and 4F keeps that: a policy can lower `requires_approval`
-for a bounded, low-risk category; it can never assert that something is
-permitted. Denial remains the only effect a policy can produce.
-
-### 11.4 State 4 — the trigger
-
-**Unowned. D-4F-3.** §0.1.3.
-
-### 11.5 State 5 — execution
-
-§12.
-
-### 11.6 The single-dispatch rule — how *"no code path differs"* is made true
-
-One dispatch point reads `GateReport.requires_approval`:
-
-- `True` → persist a suggestion; the existing approval surface applies.
-- `False` → publish `action.execute`.
-
-**Everything upstream is byte-identical between the two runs**: same request
-shape, same gate order, same trust read, same log entry. The Level-1 and Level-2
-runs differ in exactly one boolean, computed by policy. §14 control 4 asserts the
-two runs produce the same call sequence up to that point.
-
-### 11.7 Fail-closed, restated for Level 2
-
-- A failing policy engine **denies** — already true, and 4F does not soften it.
-- An absent policy means `requires_approval` stays `True` — approval, not
-  execution.
-- An unavailable trust input stays unavailable (CF-10) and **never** becomes 0.0
-  or a default number.
-- Level 2 applies to **LOW risk only**. Any higher risk requires approval
-  regardless of level, and §14 control 5 asserts it.
-
----
-
-## 12. Event Bus subjects
-
-### 12.1 New subjects genuinely required: **most likely zero**
-
-| Need | Existing subject | New? |
-|---|---|---|
-| Companion observation → World Model | a `perception.*.observed` subject, already wildcard-subscribed | **No** |
-| Sensor permission/health change | `perception.sensor.health_changed` (registered) | **No** |
-| Level-2 execution | **`action.execute`** (registered, `ActionExecuteRequestPayload`, **no production publisher today**) | **No** |
-| Cognitive-state changes | — | **Only if a genuine consumer exists.** D-4F-6 |
-
-**The `action.execute` finding is the important one.** 4F becomes its **first
-real production publisher**, which is precisely the D-4D-1 shape 4E also used:
-*a new producer on an existing contract, not a new contract.*
-
-### 12.2 `autonomy-engine`'s allow-lists must change — disclosed, not silent
-
-Both are currently **empty frozensets with scaffold TODOs**, and 4D's control 8
-asserts *the engine never calls the bus at all*. 4F adds `"action.execute"` to
-`PUBLISHABLE_SUBJECTS`, which **necessarily** retires that control in its present
-form. This is a deliberate, D-1-authorized change, and §14 control 6 replaces it
-with the tighter property: **`action.execute` is the only subject this engine may
-publish, and it publishes nothing else.**
-
-### 12.3 What 4F must not do
+### 11.4 What 4F must not do
 
 No `autonomy.*` subject. No `TrustMetric` subject or RPC (CF-10 stays open). No
-new `memory.*` or `digital_twin.*` subject. No wildcard widening.
+new `memory.*` or `digital_twin.*` subject. No wildcard widening. **No
+`perception.*` entry in `PUBLIC_TOPICS`.**
 
 ---
 
-## 13. `PUBLIC_TOPICS`, REST, and realtime
+## 12. REST, realtime, and the browser
 
-### 13.1 `PUBLIC_TOPICS` — **unchanged unless D-4F-4 says otherwise**
+**`cognitive-state-engine`** exposes a read surface for the panel, fronted by a
+**new `/v1/cognitive-state` `api-gateway` prefix** (D-6, forwarded 1:1).
+**Identity resolved server-side** from `primary_user_id` — 4E's discipline
+adopted from the start, so 4F never creates a caller-supplied-`user_id` route.
+**It exposes only normalized state intended for the UI — never raw sensor
+events.**
 
-18 exact strings today. The **only** candidate is
-`perception.sensor.health_changed`, and **only** if D-4F-4 chooses the bus route
-for AC-7 clause 2 over the REST route. §0.1.5 is the trade-off; §14 control 2
-pins whichever answer is ratified.
+**`action-engine`** gains CF-9's policy surface under its **existing**
+`/v1/action` prefix.
 
-### 13.2 REST
+**`perception-engine`** gains **no** gateway prefix. AC-7 clause 2's panel
+rendering is served from the Cognitive State read surface, which carries sensor
+status as normalized state.
 
-- **`cognitive-state-engine`**: a read surface for the panel, identity resolved
-  **server-side** from `primary_user_id` — 4E's discipline, adopted from the
-  start, so 4F never creates a caller-supplied-`user_id` route.
-- **`/v1/perception` at the gateway**: **D-4F-4.** §0.1.5's consent and biometric
-  exposure is the whole question.
-- **`autonomy-engine`**: the existing `/v1/autonomy/*` surface gains no new
-  route for Level 2 — selecting a level is an existing operation whose 422 stops
-  being returned for `2`.
+**`autonomy-engine`** gains no new route: selecting Level 2 is an existing
+operation whose 422 stops being returned for `2`.
 
-### 13.3 Realtime
-
-`ws-gateway` stays the only browser bridge; no engine gains a browser-facing
-socket; the companion has none (§5.2).
+**Realtime:** `ws-gateway` unchanged; `PUBLIC_TOPICS` unchanged at 18; no engine
+gains a browser-facing socket; the companion has none.
 
 ---
 
-## 14. Negative and security controls
+## 13. `cognitive-state-engine` — component specification
 
-Each demonstrated by removing the property and observing a **named** test fail —
-4D's and 4E's standard, not a declaration.
+| | |
+|---|---|
+| **Owner** | New engine, scaffolded by `tools/scaffold-engine.py` |
+| **Produces** | Cognitive state (Active Thoughts, Focus, Attention Layers) and **`DecisionRequest`s** into `autonomy-engine` (§6.2) |
+| **Consumes** | Perception observations and World Model context, **via the Event Bus only** |
+| **Persistence** | A new `cognitive_state` schema; additive tables only; **zero existing tables altered** |
+| **API** | Read-only panel surface + a Level-2-relevant read; server-side identity |
+| **Event Bus** | Subscribes to existing subjects; **publishes nothing** (§11.3) |
+| **Security boundary** | §6.2's eight prohibitions, each test-enforced |
+| **Failure behavior** | §15 |
+| **Test strategy** | Unit (thought lifecycle, focus selection, attention transitions), integration, `real_infra` (new matrix row), contract (§16) |
+
+Bible Part 6, implemented as named: **Active Thoughts** with priority,
+confidence, dependencies, estimated completion, related memories, related
+projects and current progress; the **Focus System** ranking by user activity,
+task importance, deadlines, system health, current risks, agent workload and
+learning opportunities; **five Attention Layers** — Immediate, Active, Passive,
+Dormant, Archived — with thoughts moving between them.
+
+---
+
+## 14. Relationship between perception, memory, Digital Twin and cognitive state
+
+Perception observes; the World Model holds *what is*; Memory holds *what
+happened*; the Digital Twin holds *what the user is like* (Part 16's eleven
+domains, 4E); **cognitive state holds what NOVA is currently thinking about.**
+
+**Cognitive state reads all three and owns none of them.** It writes only its own
+schema. It never writes a Part 16 domain, never writes a memory, never writes a
+world object. §16 control 11 asserts it.
+
+---
+
+## 15. Failure and degraded-state semantics
+
+| Condition | Behaviour |
+|---|---|
+| Companion absent or crashed | Sensors report unavailable; the engine keeps serving; the panel shows the sensor stopped, not a fabricated reading |
+| OS permission revoked | `running → failed`; **normalization drops further signals**; the panel shows it. **This is AC-7 clause 2** |
+| Project correlation fails | Observation published **without** `project_id` (§9) |
+| Trust input unavailable (CF-10) | Stays unavailable. **Never `0.0`, never a default** |
+| Policy engine raises | **Deny** — already true; 4F does not soften it |
+| No identity-confidence policy | **Threshold 1.0, denied.** Fail-closed, unchanged (§5.2) |
+| No autonomy policy | `requires_approval` stays `True` → approval, never execution |
+| Risk above LOW at Level 2 | Approval required regardless of level (§16 control 5) |
+| Outbox dispatch delayed | AC-7 has a 5 s budget against a 10 s cron worst case — **§20.1 is the residual risk**, stated not hidden |
+
+---
+
+## 16. Test strategy, CI, and the AC-7 acceptance path
+
+### 16.1 Negative and security controls
 
 | # | Control |
 |---|---|
-| 1 | **No new Event Bus subject is registered by 4F** — subject count equal at base and head, unless D-4F-6 ratifies one |
-| 2 | **`PUBLIC_TOPICS` is byte-identical at its 18 strings**, unless D-4F-4 ratifies exactly one addition — in which case 19 exact strings, pinned |
-| 3 | **Level 2 cannot execute by flag alone** — `permits_execution` returning `True` with the §12 publication removed must still fail |
-| 4 | **No code path differs** — the Level-1 and Level-2 runs produce the same call sequence up to the single dispatch point |
+| 1 | Exactly **one** new Event Bus subject; the registered-subject count moves by exactly one |
+| 2 | **`PUBLIC_TOPICS` byte-identical at its 18 strings** |
+| 3 | **Level 2 cannot execute by flag alone** — `permits_execution` returning `True` with §11.2's publication removed must still fail |
+| 4 | **No code path differs** — Level-1 and Level-2 runs produce the same call sequence up to the single dispatch point |
 | 5 | **Level 2 never auto-executes above LOW risk**, at any policy setting |
-| 6 | **`autonomy-engine` publishes `action.execute` and nothing else**; its subscribe allow-list stays empty unless D-4F-3 requires otherwise |
-| 7 | **No cross-engine import and no engine-to-engine HTTP** — import-linter plus an AST check; zero HTTP clients in the new engine |
-| 8 | **The companion opens no browser-reachable port** and no direct NATS connection |
-| 9 | **CF-10 is not resolved by 4F** — 4E's five sub-properties re-asserted verbatim |
-| 10 | **No fake clock, no time simulation, no fabricated sensor reading** anywhere in 4F |
-| 11 | **Cognitive state never writes another engine's store** — the only repository it writes is its own |
+| 6 | **`autonomy-engine` publishes `action.execute` and nothing else** |
+| 7 | **No cross-engine import, no engine-to-engine HTTP** — import-linter plus an AST check |
+| 8 | **The widened sensor literals are exactly the ratified set** |
+| 9 | **The companion opens no browser-reachable port and no NATS connection** |
+| 10 | **CF-10 unresolved** — 4E's five sub-properties re-asserted verbatim |
+| 11 | **`cognitive-state-engine` writes only its own repository**, publishes nothing, and violates none of §6.2's eight prohibitions |
+| 12 | **No fake clock, no time simulation, no fabricated sensor reading** anywhere in 4F |
+| 13 | **`action-engine` stage 3 evaluation semantics are byte-identical**; absent policy still denies at 1.0 |
+
+### 16.2 AC-7's CI acceptance path — D-4F-8, ratified
+
+**The modality is the filesystem sensor.** The runner is `ubuntu-latest` with no
+`DISPLAY`, no Xvfb, no desktop session and no IDE. **IDE/window-focus sensing is
+explicitly outside the Phase 4F CI acceptance path** and is not claimed as
+verified by it.
+
+**The acceptance path uses, end to end:** a **real `nova-companion` process** · a
+**real filesystem observation** · a **real project-directory event** · the
+**genuine perception pipeline** (`POST /v1/perception/observations` →
+`handle_observation_window` → the registered `Sensor`) · the **genuine Event Bus
+path** · the **genuine `world-model-engine` consumer** · **real persisted state**
+· and **measured elapsed wall-clock time**.
+
+**Explicitly forbidden, each a named control:** fake sensor readings · fake
+clocks · `freezegun` · `time_machine` · monkeypatched `datetime` · direct Event
+Bus injection · mocked perception publishers · artificial timestamps · any
+bypass around `nova-companion` or `perception-engine`.
+
+**Permission revocation uses a genuine filesystem permission change** (`chmod` on
+the watched directory) and must demonstrate that the **real** perception stream
+stops.
+
+### 16.3 Tiers
+
+Unit · integration · `real_infra` (ADR-033; a new `real-infra-checks.yml` row for
+`cognitive-state-engine`) · contract (§16.1) · **Cargo** for the companion ·
+browser E2E for AC-7 and AC-8.
+
+Docker is unreachable in the implementation environment, so — as in 4D and 4E —
+**every real-infrastructure and browser result is CI's and must be labelled as
+such.**
+
+### 16.4 D-4F-7 — Rust in CI, minimally
+
+No Rust toolchain, `cargo` job or non-Python artifact exists in CI today.
+**The minimal addition, using existing mechanisms:**
+
+1. **`build-and-scan.yml`**: one matrix entry for the companion's Dockerfile. The
+   matrix is already *"one entry per deployable Dockerfile"* with the path as a
+   matrix field — generalized beyond `services/` by Phase 4C's D-5 — so this
+   needs **no workflow restructuring**, and Trivy coverage follows automatically.
+2. **`pr-checks.yml`**: one step running `cargo fmt --check`, `cargo clippy` and
+   `cargo test` for the companion workspace, alongside the existing
+   non-workspace steps (`tools/tests`, Agent Packages) that already establish the
+   pattern.
+
+**No global CI policy change.** Turborepo and `uv` are untouched; the companion is
+neither a pnpm nor a uv workspace member.
 
 ---
 
-## 15. Test strategy
+## 17. SLOC — methodology change and headroom
 
-**Unit** — normalization, enrichment, fusion, attention-layer transitions, focus
-selection, the five Level-2 states as five separate assertions.
+**Ratified: the measured scope is extended to include `companion/`.** The metric
+must not depend on whether code lands in a directory the historical scope
+happens to exclude. The change is recorded in
+[`project-health-master.md`](../../project-health/project-health-master.md) §2 as
+a methodology entry when 4F's health record is written.
 
-**Integration** — the decision pipeline at Level 1 and Level 2 over the same
-request; sensor lifecycle under permission revocation.
+**Baseline at `c04b58e`**, `cloc` v2.06 `--skip-uniqueness --quiet` from pristine
+`git archive`:
 
-**Real Postgres (`real_infra`, ADR-033)** — `cognitive-state-engine`'s
-persistence; a new `real-infra-checks.yml` matrix row.
-
-**Contract** — the eleven controls of §14.
-
-**Rust** — the companion's own suite; **new to this repository**, and `pr-checks.yml`
-has no Rust job today (D-4F-7).
-
-**Browser E2E** — §17.
-
----
-
-## 16. Real-infrastructure requirements
-
-Docker is unreachable in the implementation environment, so — exactly as in 4D
-and 4E — **every real-infrastructure and browser result will be CI's and must be
-labelled as such**. No local claim substitutes.
-
-**AC-7 is the hard case.** It needs a real OS signal and a real permission
-revocation. A CI container has no desktop session. **How AC-7 is executed in CI
-without fabricating a sensor reading is D-4F-8, and it is not answerable from the
-repository as it stands.**
-
----
-
-## 17. Browser E2E requirements
-
-| Spec | Asserts |
+| Scope | Value |
 |---|---|
-| AC-7 latency | A real project-open reaches the World Model within **1 s**, measured as a number, not matched as a string — 4E's discipline |
-| AC-7 revocation | Revoking the OS permission visibly stops the stream in the panel |
-| AC-8 | The same action category: approval-required at Level 1, auto-executed at Level 2, **both rendered** |
+| Comparable | **35,733** |
+| Wider | **41,074** |
+| Full (`+ apps/*/src`) | **44,706** |
+| **4F scope (`+ companion/`)** | **44,706** — the directory does not exist yet |
 
-Every spec runs through `api-gateway` and `ws-gateway` only.
+**Headroom to 50,000: 5,294.**
+
+| Component | Estimate |
+|---|---|
+| `cognitive-state-engine` (3 subsystems; `autonomy-engine` = 1,422 for reference) | 1,400–2,000 |
+| Perception normalization + enrichment + fusion + sensors | 600–1,000 |
+| Autonomy Level 2 + dispatch + publisher | 150–300 |
+| CF-9 write surface | 100–200 |
+| `cognitive-state/` panel | 300–400 |
+| **`nova-companion` (Rust)** | **1,000–2,500** |
+| AC-7 / AC-8 test infrastructure | **0 — tests are outside every scope** |
+| **Projected total** | **47,256 – 49,106** |
+
+**Likely under 50,000, but inside one milestone's margin of it.**
+
+**If 4F crosses 50,000** — SAD 15 §10, treated as a **hard gate**: feature
+development **pauses automatically**; 4F does not continue into later feature
+work; the **Engineering Review Milestone** (12 items: architecture, dependency,
+performance, security, refactoring, dead code, duplication, technical debt,
+database, Event Bus, API consistency, documentation) is filed under
+`docs/roadmap/architecture-reviews/` and **requires explicit approval before
+feature development resumes**. It lands between 4F's closure and Phase 4's
+promotion to `main`. **Code is never moved or reduced to game the metric.**
 
 ---
 
-## 18. Persistence, migration, rollback, SLOC
+## 18. Milestone decomposition
 
-**Persistence.** A new `cognitive_state` schema owned solely by the new engine;
-additive tables only; **zero existing tables altered**. Whether companion sensor
-registrations persist is D-4F-5's consequence.
+Sequential, each slice independently verifiable. **4F is one milestone; these are
+slices within it, not new milestones** — the Phase 4 set remains 4A–4F.
 
-**Migration/rollback.** Every table additive, so rollback is dropping a schema
-nothing else references. **The one genuinely irreversible step is behavioural:**
-once Level 2 is selectable and a policy lowers `requires_approval`, NOVA can act
-unattended. Rollback is setting the level back to 1 — and §11.7's fail-closed
-defaults mean the *absence* of configuration is always the safe state.
-
-**SLOC.** Base at `c04b58e`: **35,733 / 41,074 / 44,706** (`cloc` v2.06,
-`--skip-uniqueness --quiet`, pristine `git archive`). 4F is the largest milestone
-— a new engine, a new Rust process, a panel and three engine extensions.
-**The 50,000 gate has 5,294 of headroom on the widest scope and this milestone
-may cross it.** SAD 15 §10's milestone check must be run *during* 4F, not only at
-its Gate Review, and crossing it triggers a Project Health Review.
-
----
-
-## 19. Decisions required before implementation
-
-**Three blocking, five non-blocking. This TDD must not be implemented until at
-least D-4F-1, D-4F-2 and D-4F-3 are answered.**
-
-### 19.1 D-4F-1 — AC-7's one-second budget — **BLOCKING**
-
-A 10 s outbox cron cannot serve a 1 s criterion (§0.1.1). Options:
-
-| | Option | Cost |
+| Slice | Contents | Proves |
 |---|---|---|
-| **A** | **Shorten the cron** for `perception-engine` | Cheapest; still polling, so a 1 s *guarantee* is not established, only made likely. Raises DB load |
-| **B** | **A latency-critical direct-publish path** for this one subject, bypassing the outbox | Meets the budget. **Gives up atomicity for that subject** and creates a second publish path the 4E stack guard does not model |
-| **C** | **Push-triggered dispatch** — the write signals the dispatcher instead of waiting for the tick | Keeps atomicity *and* meets the budget. The largest change, and it touches `nova-service-kit`, i.e. **every** engine |
-| **D** | **Renegotiate the criterion** | AC-7 is a ratified acceptance criterion; only the user can change it |
-
-**Recommendation: C, or D.** B trades away the guarantee Phase 1 established and
-Phase 4E's guard now enforces, for one subject — that is the option most likely
-to be regretted.
-
-### 19.2 D-4F-2 — CF-9 and AC-8 — **BLOCKING**
-
-AC-8's low-risk auto-execution is **denied at `action-engine` stage 3** with no
-identity-confidence policy row, because the absent-policy threshold is 1.0 at
-*every* risk level (§0.1.2). Either 4F builds CF-9's missing policy-creation
-surface — reversing D-4D-2's routing — or **AC-8 cannot be met**. No third option
-exists that does not weaken a fail-closed security gate, and weakening it is not
-proposed.
-
-**This TDD does not close CF-9. It reports that AC-8 depends on it.**
-
-### 19.3 D-4F-3 — who triggers an autonomous decision — **BLOCKING**
-
-CF-11: nothing calls `decide()` (§0.1.3). AC-8 needs a real trigger.
-`cognitive-state-engine` is the natural owner — Bible Part 6's Active Thoughts
-are ongoing reasoning processes with priority, progress and dependencies — but
-**no authoritative document assigns it**, and assigning it would give the new
-engine the power to initiate action on its first day.
-
-### 19.4 D-4F-4 — how AC-7 clause 2 reaches the UI
-
-A new `PUBLIC_TOPICS` entry, or a `/v1/perception` D-6 prefix that also exposes
-**consent revocation and biometric enrollment** (§0.1.5). **Recommendation: the
-single `PUBLIC_TOPICS` entry**, as the narrower and more honest surface — one
-read-only subject rather than an entire subtree including writes.
-
-### 19.5 D-4F-5 — the companion→engine transport
-
-No precedent exists for a non-Python process feeding an engine (§5.3).
-
-### 19.6 D-4F-6 — does any cognitive-state subject have a genuine consumer?
-
-If the panel reads over REST and nothing else consumes cognitive state, **D-4D-1
-says publish nothing**. A subject exists to be consumed, not to be complete.
-
-### 19.7 D-4F-7 — Rust in CI
-
-No Rust toolchain, no `cargo` job, no `build-and-scan` entry for a non-Python
-artifact. Whether the companion ships as a container at all is part of this.
-
-### 19.8 D-4F-8 — how AC-7 is executed in CI without fabricating a sensor
-
-§16. A CI container has no desktop session, and §2 rule 6 forbids fabricating the
-reading. **This is the single largest unresolved risk in Phase 4F**, and it is a
-question about the acceptance criterion's executability, not about the design.
+| **4F.1** | `cognitive-state-engine` domain + persistence + migration | Part 6's three subsystems; `real_infra` |
+| **4F.2** | Perception extension: literal widening, structured intake (§8.1), normalization, enrichment, fusion, the new subject | Observation reaches the World Model |
+| **4F.3** | `nova-companion`: Cargo workspace, filesystem sensor, intake client, Dockerfile, CI (§16.4) | A real OS signal enters the pipeline |
+| **4F.4** | CF-9's write surface in `action-engine` | Stage 3 can pass for LOW risk, fail-closed unchanged |
+| **4F.5** | Level 2: selectable, policy-permitted, single dispatch, `action.execute` publication | The five states, separately |
+| **4F.6** | The trigger: `cognitive-state-engine` → `DecisionRequest` | CF-11's producer, under §6.2 |
+| **4F.7** | `cognitive-state/` panel + `/v1/cognitive-state` prefix | AC-7 clause 2 visibly |
+| **4F.8** | E2E: AC-7 (5 s, measured) and AC-8 (both levels) | Both criteria in a browser |
 
 ---
 
-## 20. Documentation, Gate Review and closure requirements
+## 19. Ratified decisions — 2026-09-15
 
-**Documentation** — this TDD kept current; a `phase-4f.md` health record
-(23 fields); the master timeline row; the roadmap 4F row; the master scope's 4F
-closure note; the `cognitive-state-engine` README; corrections additive per
+| ID | Decision | Status |
+|---|---|---|
+| **D-4F-1** | **Option D.** AC-7 re-scoped 1 s → 5 s, modality-neutral wording. **The transactional outbox architecture is unchanged** — no push-triggered dispatch, no shortened cron, no direct-publish bypass | **RATIFIED** |
+| **D-4F-2** | **Option A.** CF-9 is an explicit 4F dependency; the write surface belongs to `action-engine`; no second store; fail-closed and evaluation semantics unchanged; **CF-9 not closed by implication** (§5.3) | **RATIFIED** |
+| **D-4F-3** | `cognitive-state-engine` owns the initiative trigger, under §6.2's prohibitions. `autonomy-engine` remains control plane; `action-engine` remains execution/approval boundary | **RATIFIED** |
+| **D-4F-4** | Internal perception bus path. One object-shaped `perception.<name>.observed`. **`PUBLIC_TOPICS` unchanged; no `/v1/perception` gateway prefix; no raw sensor stream to the browser** | **RATIFIED** |
+| **D-4F-5** | The transport **already exists** — `POST /v1/perception/observations`, built in 2D-C for a companion client. One structured-intake route added on the same internal surface (§8.1) | **RATIFIED** |
+| **D-4F-6** | **No cognitive-state Event Bus subject.** REST read surface only | **RATIFIED** |
+| **D-4F-7** | Minimal Rust CI: one `build-and-scan` matrix entry, one `pr-checks` step. No global CI policy change | **RATIFIED** |
+| **D-4F-8** | Filesystem sensing is the CI acceptance modality. **IDE/window-focus is explicitly outside the CI acceptance path** | **RATIFIED** |
+
+---
+
+## 20. Remaining open questions — neither blocking
+
+### 20.1 AC-7's 5 s budget against a 10 s worst-case cron
+
+D-4F-1 keeps the 10 s cron and sets a 5 s budget. **Mean latency is ~5 s, so a
+run that begins just after a tick will exceed it.** The E2E must therefore either
+align its measurement window to the dispatch cycle or accept a bounded retry —
+**neither of which fabricates a timestamp**, since elapsed time is still measured
+from the real filesystem event.
+
+**This is a real residual risk, stated rather than hidden.** It is not blocking:
+it is a test-construction question inside a ratified budget, resolvable during
+4F.8. If it proves unresolvable honestly, it returns as a Gate Review finding.
+
+### 20.2 The `perception.<name>.observed` subject's exact name and payload
+
+The shape is determined by `make_perception_observed_handler`'s reads —
+`object_id`/`entity_id`, `label`/`object_label`, `user_id`. The **name** is not
+yet fixed. Non-blocking; it is settled in 4F.2 and recorded in the Gate Review.
+
+---
+
+## 21. Documentation, Gate Review and closure requirements
+
+**Documentation** — this TDD kept current; `docs/project-health/phase-4f.md`
+(23 fields); the master timeline row; **the §2 SLOC methodology entry** (§17);
+the roadmap 4F row; the master scope's 4F closure note; the
+`cognitive-state-engine` and `nova-companion` READMEs. Corrections additive per
 protocol §0.3.4.
 
 **Gate Review** — `docs/roadmap/architecture-reviews/phase-4f-*-gate-review.md`,
-following 4D's and 4E's shape, and additionally required to cover: the **five
-Level-2 states individually**, AC-7's latency **as a measured number**, the
-CF-9/CF-10/CF-11 disposition each stated separately, and the SLOC gate (§18).
+following 4D's and 4E's shape, and additionally required to cover:
+
+1. The **five Level-2 states individually**, each with its own evidence.
+2. **AC-7's latency as a measured number**, and an explicit statement that
+   IDE/window-focus sensing was **not** the acceptance modality.
+3. **CF-9, CF-10 and CF-11 each dispositioned separately** — CF-9 against §5.3's
+   five-point checklist, CF-11 against §6.1, CF-10 unchanged and open.
+4. The **SLOC gate** (§17), including whether 50,000 was crossed and, if so, the
+   Engineering Review Milestone.
+5. Confirmation that **`PUBLIC_TOPICS` is byte-identical** and exactly one
+   Event Bus subject was added.
+6. Confirmation that the companion reaches no browser and no NATS.
 
 **Closure** — protocol §3.2's eleven GO conditions and all ten
 `definition-of-done.md` items; merged into `phase-4` by a **normal two-parent
 merge**; `phase-4f` preserved; `main` untouched at `7e273e6`.
 
-**Phase 4F is the last Phase 4 milestone.** Its closure is immediately followed
-by Phase 4's own Gate Review and the single `phase-4 → main` promotion — so 4F's
-closure must leave **every** Phase 4 carry-forward explicitly dispositioned,
-including the `README.md` Phase 4 status line that 4C, 4D and 4E each carried
-forward.
+**Phase 4F is the last Phase 4 milestone**, so its closure must leave **every**
+Phase 4 carry-forward explicitly dispositioned — including the `README.md` Phase
+4 status line that 4C, 4D and 4E each carried forward — before Phase 4's own Gate
+Review and the single `phase-4 → main` promotion.
 
 ---
 
-## 21. Compatibility with the Bible
+## 22. Consistency audit
 
-| Source | 4F's relationship |
+Performed against the repository at `c04b58e`.
+
+| Checked against | Result |
 |---|---|
-| **Part 6** — Cognitive State Engine | Active Thoughts (7 fields), the Focus System (6 inputs), five Attention Layers, implemented as named |
-| **Part 11** — Perception Engine | The Sensor Abstraction Layer is used as designed, not redesigned |
-| **Part 14** — Autonomy Engine | Level 2 is *"Low risk actions execute automatically"*, enabled exactly and only at LOW risk |
-| **Part 12** — Action Engine | Every 4F actuator goes through the unchanged Action Principle lifecycle |
-| **Part 16** — Digital Twin | Untouched by 4F |
+| **Completion protocol** | sha256 verified from `origin/main`; §21 maps to §3.2's eleven conditions and the ten DoD items; corrections additive per §0.3.4 |
+| **Phase 4 master scope** | 4F's deliverables match §5's 4F entry; AC-7 revision recorded as a supersession (§4.1); the milestone set stays 4A–4F; §13's non-goals honoured (§2.1) |
+| **Phase 4D closure** | D-1 respected (Level 2 is 4F's); D-4D-1 respected (no contract without a genuine need — §11.1, §11.2); **D-4D-2 not contradicted** (§5.4) |
+| **Phase 4E closure** | Server-side identity, fail-closed allow-lists, additive contracts, measured-number assertions, and the new-producer-on-an-existing-contract shape all carried forward |
+| **2D-B Sensor Abstraction Layer** | `Sensor` Protocol unchanged; lifecycle unchanged; only two literals widen (§7.2) |
+| **`perception-engine`** | Intake route already exists (§8); outbox path unchanged; `SINGLE_SIGNAL_CONFIDENCE_CEILING` unchanged (§9) |
+| **`world-model-engine`** | **Zero changes.** Wildcard subscription and object handler already reserve this path (§11.1) |
+| **`memory-engine`** | Read-only via events; no schema change; no DB access across the boundary (§9) |
+| **Digital Twin** | Untouched (§10) |
+| **`autonomy-engine`** | Gate order, deny-only policy, `_forbid_execution` and the five states preserved (§6); control 8 retired **explicitly** and replaced (§11.2) |
+| **`action-engine`** | Ownership unchanged; stage 3 semantics byte-identical; CF-9's surface added in the owning engine (§5.2) |
+| **Event Bus contracts** | Exactly one new subject; `action.execute` reused; `PUBLIC_TOPICS` unchanged; no `autonomy.*`, no `TrustMetric`, no wildcard widening (§11.4) |
+
+**No contradiction found.** The one deliberate reversal — 4D's control 8 — is
+disclosed in §11.2 and replaced with a tighter property rather than dropped.
 
 ---
 
-## 22. Status
+## 23. Status
 
-**NOT RATIFIED. Not implementable as written.** Three blocking decisions
-(§19.1–19.3) and five further open questions must be answered first. No
-`phase-4f` branch exists; no implementation scaffolding has been generated; no
-implementation file has been modified.
+**RATIFIED and implementable**, slice by slice per §18, subject to §20's two
+non-blocking open questions. No `phase-4f` branch exists; no implementation
+scaffolding has been generated; no implementation file has been modified.
