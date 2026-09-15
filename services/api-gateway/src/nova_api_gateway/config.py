@@ -36,6 +36,11 @@ class Settings(BaseSettings):
     permissions and the AC-5 suggestion inbox. One prefix, `/v1/autonomy`,
     forwarded 1:1 (D-6)."""
 
+    digital_twin_engine_url: str = "http://digital-twin-engine:8000"
+    """Phase 4E. The Digital Twin panel's data source -- Bible Part 16's eleven
+    domains and the AC-6 project reconstruction. One prefix,
+    `/v1/digital-twin`, forwarded 1:1 (D-6)."""
+
     upstream_timeout_seconds: float = 30.0
 
     # --- session (decision D-3) -------------------------------------------

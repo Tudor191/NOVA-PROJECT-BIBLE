@@ -829,6 +829,8 @@ services:
       API_GATEWAY_AGENT_OS_KERNEL_URL: http://agent-os-kernel:8000
       # Phase 4D: the Autonomy panel's data source.
       API_GATEWAY_AUTONOMY_ENGINE_URL: http://autonomy-engine:8000
+      # Phase 4E: the Digital Twin panel's data source.
+      API_GATEWAY_DIGITAL_TWIN_ENGINE_URL: http://digital-twin-engine:8000
       API_GATEWAY_REDIS_URL: redis://redis:6379/0
       API_GATEWAY_SESSION_TOKEN: ${NOVA_SESSION_TOKEN:-}
       # Local development is plain HTTP, so a Secure-only cookie would never
@@ -847,6 +849,9 @@ services:
       # above: the gateway forwards on demand and answers 502 for an upstream
       # that is not up, so it does not need the Kernel healthy to start.
       agent-os-kernel:
+        condition: service_started
+      # Phase 4E, on the same terms.
+      digital-twin-engine:
         condition: service_started
 
   ws-gateway:

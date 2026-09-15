@@ -44,6 +44,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         action_engine_url=settings.action_engine_url,
         agent_os_kernel_url=settings.agent_os_kernel_url,
         autonomy_engine_url=settings.autonomy_engine_url,
+        digital_twin_engine_url=settings.digital_twin_engine_url,
     )
     session_validator = LocalTokenSessionValidator(settings.session_token)
 

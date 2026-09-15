@@ -70,14 +70,16 @@ def build_route_table(
     action_engine_url: str,
     agent_os_kernel_url: str,
     autonomy_engine_url: str,
+    digital_twin_engine_url: str,
 ) -> RouteTable:
     """Every engine the gateway fronts, and nothing else.
 
     4A fronted `communication-engine` alone. 4B adds the four the
-    observability panels read from, 4C the Agents panel's Kernel, and 4D the
-    Autonomy panel -- exactly as this module predicted, by appending entries
-    rather than changing the mechanism. Each engine's `/v1`
-    surface already existed; no engine API was changed to be fronted.
+    observability panels read from, 4C the Agents panel's Kernel, 4D the
+    Autonomy panel and 4E the Digital Twin panel -- exactly as this module
+    predicted, by appending entries rather than changing the mechanism. Each
+    engine's `/v1` surface already existed; no engine API was changed to be
+    fronted.
 
     Deliberately absent:
 
@@ -154,6 +156,27 @@ def build_route_table(
                 prefix="/v1/autonomy",
                 upstream_name="autonomy-engine",
                 base_url=autonomy_engine_url.rstrip("/"),
+            ),
+            # Digital Twin panel (Phase 4E). `/v1/digital-twin` and its whole
+            # subtree, forwarded 1:1 (D-6) -- one more entry, same mechanism.
+            #
+            # **This prefix fronts more than 4E's five routes, and that is the
+            # correct outcome rather than an oversight.** `resolve()` matches on
+            # prefix, so Phase 2D-D's `/profile`, `/preferences`,
+            # `/proactive-policy` and `/reset` become reachable too. They were
+            # always part of the same engine's `/v1` surface and were simply
+            # unfronted because no panel read them; the Digital Twin panel now
+            # does. Carving 4E's five out individually would mean either five
+            # entries that drift from the engine, or a path-rewriting layer --
+            # which is precisely what D-6 rejected as a permanent source of
+            # drift.
+            #
+            # Nothing under `/internal/*` becomes reachable: `RouteTable` refuses
+            # any prefix outside `/v1/` at construction.
+            UpstreamRoute(
+                prefix="/v1/digital-twin",
+                upstream_name="digital-twin-engine",
+                base_url=digital_twin_engine_url.rstrip("/"),
             ),
         ]
     )
