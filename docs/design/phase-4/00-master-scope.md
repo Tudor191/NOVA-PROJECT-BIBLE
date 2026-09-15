@@ -88,7 +88,18 @@ Digital Twin, and NOVA's own internal attention.
 >
 > **What did not change.** The criterion still requires a real sensor, a real OS
 > permission revocation, no user action, real World Model reflection, and
-> measured elapsed time. See
+> measured elapsed time.
+>
+> **The five seconds are honest** *(second ratification, 2026-09-15)*. The E2E
+> **may not** align its measurement window to the 10-second outbox dispatcher
+> cron, **may not** use a bounded retry or any scheduling technique that avoids
+> worst-case dispatch latency, and **may not** fabricate a timestamp, clock,
+> sleep, injected Event Bus message, mocked transport or sensor event. Elapsed
+> time is measured from the real filesystem event to the observable World Model
+> result across the **unchanged** outbox and dispatcher. **If the real latency
+> exceeds five seconds the test must fail and expose the figure**, and that is
+> reported as a **blocking Gate Review finding** rather than resolved by
+> weakening the criterion again. See
 > [`06-tdd-4f-companion-and-cognitive-state.md`](06-tdd-4f-companion-and-cognitive-state.md)
 > §4.1 and §19.
 

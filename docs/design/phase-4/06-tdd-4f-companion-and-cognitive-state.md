@@ -1,9 +1,11 @@
 # TDD 4F — `nova-companion`, the perception extension,
 ## `services/cognitive-state-engine`, and Autonomy Level 2
 
-**Status: RATIFIED 2026-09-15 (§19). Not yet implemented.**
-**Eight decisions D-4F-1 … D-4F-8 are answered. Two non-blocking questions
-remain open (§20) and neither prevents implementation.**
+**Status: RATIFIED 2026-09-15 (§19), clarified by a second ratification the same
+day (§20). Not yet implemented.**
+**Eight decisions D-4F-1 … D-4F-8 are answered and both formerly-open questions
+are now closed: AC-7's measurement rule (§20.1) and the perception subject
+contract (§20.2). No architectural ambiguity remains.**
 
 **Written against** `phase-4` at `c04b58e0d6be4f4236b8fe8c5a7dcf79bf7d56f4`
 (the Phase 4E closure commit), on the preparation branch `phase-4f-tdd`.
@@ -460,7 +462,7 @@ cognitive state is a **third** thing and neither engine's data moves.
 
 | | |
 |---|---|
-| **Subject** | one object-shaped **`perception.<name>.observed`** |
+| **Subject** | **`perception.workspace.observed`** — object-shaped, one segment, so it lands under the existing wildcard. Payload `PerceptionWorkspaceObservedPayload`; the full schema is §20.2 |
 | **Producer** | `perception-engine`, from a `nova-companion` sensor |
 | **Consumer** | `world-model-engine` — **already subscribed** via the `perception.*.observed` wildcard |
 | **Why existing subjects are insufficient** | `make_perception_observed_handler` requires `object_id`/`entity_id`, `label`, `user_id`. **No existing perception payload carries any of them** — presence, identity and attention payloads are identity-shaped |
@@ -601,8 +603,10 @@ world object. §16 control 11 asserts it.
 | 9 | **The companion opens no browser-reachable port and no NATS connection** |
 | 10 | **CF-10 unresolved** — 4E's five sub-properties re-asserted verbatim |
 | 11 | **`cognitive-state-engine` writes only its own repository**, publishes nothing, and violates none of §6.2's eight prohibitions |
-| 12 | **No fake clock, no time simulation, no fabricated sensor reading** anywhere in 4F |
+| 12 | **No fake clock, no time simulation, no fabricated sensor reading, no injected Event Bus message and no mocked transport** anywhere in 4F |
 | 13 | **`action-engine` stage 3 evaluation semantics are byte-identical**; absent policy still denies at 1.0 |
+| 14 | **AC-7's E2E does not align to the dispatcher cron and does not retry** (§20.1) — the measured interval starts at the real filesystem event and a violation fails the test |
+| 15 | **`perception.workspace.observed` is absent from `PUBLIC_TOPICS`**, is not exposed by `ws-gateway`, and a browser subscription to it is **rejected** (§20.2 requirement 11) |
 
 ### 16.2 AC-7's CI acceptance path — D-4F-8, ratified
 
@@ -626,6 +630,14 @@ bypass around `nova-companion` or `perception-engine`.
 **Permission revocation uses a genuine filesystem permission change** (`chmod` on
 the watched directory) and must demonstrate that the **real** perception stream
 stops.
+
+**The latency clause is measured honestly — §20.1 is binding here.** The E2E does
+**not** align its measurement window to the 10-second dispatcher cron and does
+**not** use a bounded retry. Elapsed time runs from the real filesystem event to
+the observable World Model result, across the unchanged outbox and the unchanged
+dispatcher. **If the real measured latency exceeds 5 seconds the test fails and
+reports the figure** — the violation is exposed, not normalized, and AC-7 is not
+weakened to accommodate it.
 
 ### 16.3 Tiers
 
@@ -708,13 +720,13 @@ slices within it, not new milestones** — the Phase 4 set remains 4A–4F.
 | Slice | Contents | Proves |
 |---|---|---|
 | **4F.1** | `cognitive-state-engine` domain + persistence + migration | Part 6's three subsystems; `real_infra` |
-| **4F.2** | Perception extension: literal widening, structured intake (§8.1), normalization, enrichment, fusion, the new subject | Observation reaches the World Model |
+| **4F.2** | Perception extension: literal widening, structured intake (§8.1), normalization, enrichment, fusion, **and the `perception.workspace.observed` contract — not complete until all eleven of §20.2's requirements are documented and tested** | Observation reaches the World Model; the subject is provably internal |
 | **4F.3** | `nova-companion`: Cargo workspace, filesystem sensor, intake client, Dockerfile, CI (§16.4) | A real OS signal enters the pipeline |
 | **4F.4** | CF-9's write surface in `action-engine` | Stage 3 can pass for LOW risk, fail-closed unchanged |
 | **4F.5** | Level 2: selectable, policy-permitted, single dispatch, `action.execute` publication | The five states, separately |
 | **4F.6** | The trigger: `cognitive-state-engine` → `DecisionRequest` | CF-11's producer, under §6.2 |
 | **4F.7** | `cognitive-state/` panel + `/v1/cognitive-state` prefix | AC-7 clause 2 visibly |
-| **4F.8** | E2E: AC-7 (5 s, measured) and AC-8 (both levels) | Both criteria in a browser |
+| **4F.8** | **The final implementation slice.** E2E: AC-7 (5 s, **honestly measured per §20.1** — no cron alignment, no bounded retry) and AC-8 (both levels). Performs the real acceptance verification | Both criteria in a browser, or the evidence that AC-7 cannot be met |
 
 ---
 
@@ -733,25 +745,118 @@ slices within it, not new milestones** — the Phase 4 set remains 4A–4F.
 
 ---
 
-## 20. Remaining open questions — neither blocking
+## 20. Two clarifications ratified 2026-09-15 (second pass)
 
-### 20.1 AC-7's 5 s budget against a 10 s worst-case cron
+Both were carried as open questions in the first ratification. **Neither is open
+any longer.**
 
-D-4F-1 keeps the 10 s cron and sets a 5 s budget. **Mean latency is ~5 s, so a
-run that begins just after a tick will exceed it.** The E2E must therefore either
-align its measurement window to the dispatch cycle or accept a bounded retry —
-**neither of which fabricates a timestamp**, since elapsed time is still measured
-from the real filesystem event.
+### 20.1 AC-7 is an honest 5-second criterion — the measurement rule
 
-**This is a real residual risk, stated rather than hidden.** It is not blocking:
-it is a test-construction question inside a ratified budget, resolvable during
-4F.8. If it proves unresolvable honestly, it returns as a Gate Review finding.
+**AC-7's wording stands exactly as §4.1 states it. The 5-second budget is not
+negotiable and is not to be made reachable by test construction.**
 
-### 20.2 The `perception.<name>.observed` subject's exact name and payload
+The first ratification's §20.1 suggested the E2E could *"either align its
+measurement window to the dispatch cycle or accept a bounded retry."*
+**That suggestion is withdrawn.** Both techniques would make the test pass
+without the system being faster, which is a way of hiding a latency violation
+rather than measuring one.
 
-The shape is determined by `make_perception_observed_handler`'s reads —
-`object_id`/`entity_id`, `label`/`object_label`, `user_id`. The **name** is not
-yet fixed. Non-blocking; it is settled in 4F.2 and recorded in the Gate Review.
+**The E2E MUST measure real elapsed wall-clock time across the genuine chain:**
+
+```
+real filesystem event
+  → nova-companion sensor
+  → perception-engine
+  → POST /v1/perception/observations        (the existing 2D-C transport, §8)
+  → transactional outbox
+  → the existing 10-second cron dispatcher   (unchanged)
+  → Event Bus
+  → world-model-engine
+  → observable Digital Twin / Cognitive State state
+```
+
+**Forbidden, each a named control (§16.1 control 12 and control 14):**
+
+- aligning the measurement window to the dispatcher's cron cycle;
+- a bounded retry, a re-run, or any scheduling technique that avoids the
+  worst-case dispatch latency;
+- fabricated timestamps, fake clocks, `freezegun`, `time_machine`, monkeypatched
+  `datetime`, or `sleep`-based compensation;
+- injected Event Bus messages, mocked transport, or fabricated sensor events;
+- changing the outbox architecture, shortening the cron, adding a direct-publish
+  path or introducing push-triggered dispatch **in order to satisfy this
+  criterion**.
+
+**What happens if the measured latency exceeds 5 seconds.** The test **must fail
+and must expose the real measured figure.** The violation is neither hidden nor
+normalized, and the criterion is not weakened to accommodate it. If the current
+architecture cannot honestly satisfy AC-7, that is reported as a **blocking Gate
+Review finding** — the same disposition Phase 4E gave its own AC-6 blocker before
+it was resolved by ratified decision, not a quiet re-scoping.
+
+**The known risk, stated plainly.** The dispatcher's worst case is ~10 s and its
+mean is ~5 s, so **a run beginning just after a tick is expected to exceed the
+budget.** 4F.8 will therefore either demonstrate that the real chain meets 5 s, or
+produce the evidence that it cannot. **Both outcomes are acceptable outputs of
+4F.8; only a test that conceals the answer is not.**
+
+### 20.2 The perception subject contract — ratified, and pinned by 4F.2
+
+**Subject:** **`perception.workspace.observed`** — one segment, so it lands under
+`world-model-engine`'s existing `perception.*.observed` wildcard and falls
+through `make_perception_dispatch_handler`'s `else` branch to the object handler,
+with **zero world-model changes**.
+
+**Payload:** `PerceptionWorkspaceObservedPayload` in
+`packages/nova-contracts/src/nova_contracts/events/perception.py`, registered with
+`@register_payload("perception.workspace.observed")`, matching the existing
+`Perception<X>ObservedPayload` convention.
+
+| Field | Type | Required | Why |
+|---|---|---|---|
+| `object_id` | `str` | **Yes** | `make_perception_observed_handler` reads it via `_text_from(payload, "object_id", "entity_id")`, which requires a **non-empty** string. **A file-path hash** — `WorldObject`'s own docstring names *"a window handle, **a file path hash**, a project UUID"* as the sanctioned handle forms, so **the raw path never travels** |
+| `label` | `str` | **Yes** | Read via `_text_from(payload, "label", "object_label")`; the handler defaults to `"Unknown"` when absent, and 4F does not rely on that default |
+| `user_id` | `UUID` | **Yes** | Read via `_uuid_from(payload, "user_id")`; the handler skips the event without it |
+| `object_type` | `Literal["project"]` | **Yes** | Distinguishes this from any future object-shaped observation; a closed literal so a new kind cannot appear unnoticed |
+| `project_id` | `UUID \| None` | No, default `None` | §9's enrichment result. **`None` when correlation fails** — an honest unknown, never a guess |
+| `sensor_id` | `str` | **Yes** | Provenance: which registered `Sensor` observed it |
+| `observed_at` | `datetime` | **Yes** | The **real** OS event time, and the start of AC-7's measured interval. A genuine timestamp from a genuine event — §20.1 forbids fabricating it |
+
+**Producer:** `perception-engine`, from a `nova-companion` filesystem sensor.
+**Consumer:** `world-model-engine`, via the existing wildcard subscription.
+
+**Why existing perception subjects are insufficient:** the object handler needs
+`object_id`, `label` and `user_id`. Every existing perception payload —
+presence, identity, attention, wake, addressee-signal, consent, sensor-health —
+is **identity-shaped or sensor-shaped and carries none of the three**. Verified:
+zero occurrences of `object_id`, `entity_id` or `object_label` in
+`events/perception.py`.
+
+**Why it is internal only:** it carries raw-ish sensor provenance
+(`sensor_id`, `observed_at`, a path hash). The browser has no business seeing
+sensor events; it sees **normalized state** through the Cognitive State REST
+surface (§12). **It is not added to `PUBLIC_TOPICS`, `ws-gateway` does not expose
+it, and no `/v1/perception` gateway route is added.**
+
+**4F.2 is not complete until all eleven of these are documented and tested:**
+
+| # | 4F.2 completion requirement |
+|---|---|
+| 1 | Exact subject name, as registered |
+| 2 | Exact payload schema, field by field |
+| 3 | Producer named and tested |
+| 4 | Consumer named and tested |
+| 5 | Why existing perception subjects are insufficient, evidenced |
+| 6 | Why the subject is internal only |
+| 7 | **Confirmation it is NOT in `PUBLIC_TOPICS`** — asserted, not stated |
+| 8 | **Confirmation `ws-gateway` does not expose it** |
+| 9 | **Confirmation raw sensor events are not browser-visible** |
+| 10 | Contract/schema validation against the registry |
+| 11 | **A negative test proving browser/public access is rejected** |
+
+**No additional perception subject** is introduced without a demonstrated
+producer/consumer need (D-4D-1). **No cognitive-state subject** (§11.3). **No
+`/v1/perception` route.** **No `PUBLIC_TOPICS` change.**
 
 ---
 
@@ -814,6 +919,8 @@ disclosed in §11.2 and replaced with a tighter property rather than dropped.
 
 ## 23. Status
 
-**RATIFIED and implementable**, slice by slice per §18, subject to §20's two
-non-blocking open questions. No `phase-4f` branch exists; no implementation
-scaffolding has been generated; no implementation file has been modified.
+**RATIFIED and implementable**, slice by slice per §18. **No architectural
+ambiguity remains** — §20's two formerly-open questions are both closed by the
+second ratification. No `phase-4f` branch exists; no implementation scaffolding
+has been generated; no implementation file has been modified. **Implementation
+does not begin until the user gives an explicit GO.**
