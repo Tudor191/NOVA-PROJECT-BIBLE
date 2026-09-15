@@ -97,6 +97,15 @@ jobs:
           # rather than optional for exactly that reason.
           - package: autonomy-engine
             path: services/autonomy-engine
+          # Phase 4F.1. `cognitive-state-engine`'s repository writes the two
+          # timestamp columns explicitly so a historical `created_at` survives
+          # the round trip -- the defect Phase 4E found in `memory-engine`'s
+          # `create_long_term`, which no tier above the real driver could see
+          # because the column default filled in a plausible value. It also has
+          # real CHECK constraints and a real ordering tie, neither of which a
+          # fake repository can violate. TDD 4F §13 makes this tier mandatory.
+          - package: cognitive-state-engine
+            path: services/cognitive-state-engine
           - package: kernel
             path: agent-os/kernel
           - package: registry
