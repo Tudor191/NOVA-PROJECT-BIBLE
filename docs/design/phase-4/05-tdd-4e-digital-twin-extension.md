@@ -18,6 +18,7 @@ Written immediately before the milestone begins, per §17's stated cadence.
 > | §19's five decisions | **Ratified 2026-09-14** |
 > | §0.1.3 — the AC-6 temporal-gap mechanism | **Ratified 2026-09-14**, recorded in full as **§20.1** |
 > | §0.1.5, §0.1.6 | **Findings produced during implementation**, each resolved by following a binding document §3.2 already lists |
+> | §0.1.7 | **Found in the final pre-Gate audit.** The D-6 prefix exposes six pre-4E operations that take a caller-supplied `user_id`. Behaviour kept (it is D-6's mechanism), **reported not fixed**, pinned by tests on both sides |
 > | Implementation | **`phase-4e`**, from 2026-09-15. `phase-4` and `main` untouched; nothing merged |
 > | Gate Review | **Not performed.** Implementation stops before it |
 >
@@ -71,6 +72,12 @@ was reported rather than decided unilaterally, per protocol §13.3's stop rule.
 > replaces a clause of this TDD that the repository contradicts, and each is
 > resolved by following a binding document this TDD already lists in §3.2 rather
 > than by a new decision.
+>
+> **A third, §0.1.7, was found in the final pre-Gate audit** and is of a
+> different kind: it reports a consequence of 4E's own gateway entry rather than
+> correcting a TDD clause. It is **disclosed and pinned, not fixed** — fixing it
+> would mean changing Phase 2D-D's shipped routes, which is outside this
+> milestone's ratified scope and is a decision to take explicitly.
 
 ### 0.1.1 The master scope's domain parenthetical lists eight, not nine
 
@@ -191,6 +198,58 @@ literally, and it is the same shape as §0.1.4 — **disclosed, not designed aro
 `digital-twin-engine`'s **own** accumulated `domain_evidence` rows, which is the
 only source it legally owns.
 
+### 0.1.7 The D-6 prefix exposes six pre-4E operations that take a caller-supplied `user_id`
+
+**Found during the final pre-Gate audit, 2026-09-15.** §7 specifies five routes,
+and the engine publishes exactly five. But `api-gateway` fronts **one prefix**,
+`/v1/digital-twin`, and `RouteTable.resolve()` matches on prefix — so the whole
+subtree is externally reachable, including **Phase 2D-D's six operations**:
+
+| | |
+|---|---|
+| Reads | `GET /profile` · `GET /preferences` · `GET /proactive-policy` |
+| **Writes** | `PATCH /profile` · `PATCH /proactive-policy` · `POST /reset` |
+
+Before 4E these were unreachable from outside — the engine had no gateway entry,
+because no panel read it. **4E did not change them; it changed their
+reachability.**
+
+**The prefix behaviour itself is correct and is kept.** It is D-6's mechanism
+working exactly as it works for `/v1/agents` (which fronts the Kernel's whole
+subtree) and `/v1/action`. The two alternatives are the two D-6 rejected by
+name: five exact-path entries that drift from the engine, or a path-rewriting
+layer. Neither is introduced.
+
+**What the audit found beyond that, and did not expect.** All six take a
+**required, caller-supplied `user_id` query parameter** — the opposite of the
+identity discipline 4E adopted for its own five (§0.1.5's sibling finding:
+`primary_user_id`, resolved server-side, ADR-025 and §10 item 1).
+
+**Impact, characterised honestly rather than minimised or inflated:**
+
+- **Not a confidentiality vector today.** ADR-025 gives one trusted user per
+  instance, so there is no second user's data to address, and D-3 authenticates
+  every request at the gateway before any upstream call is made.
+- **It is an integrity surface.** An authenticated caller can `PATCH` or `POST
+  /reset` a profile row keyed to an arbitrary UUID that nothing else reads.
+- **It is a latent multi-user hazard.** The moment ADR-025 is relaxed, these six
+  become a cross-user surface with no further change.
+
+**Reported, not fixed** (protocol §13.1). Moving 2D-D's six to server-side
+identity would change shipped behaviour and desynchronise them from
+`digital_twin.preferences.get.request`, which carries `user_id` on the wire by
+design — a change with its own blast radius, outside 4E's ratified scope, and a
+decision to take explicitly rather than inherit.
+
+**Pinned on both sides so it cannot widen unnoticed:**
+`api-gateway`'s `test_the_digital_twin_prefix_also_fronts_the_2dd_routes_it_contains`
+fixes the four exposed paths; this engine's
+`test_finding_3_the_prefix_exposes_exactly_these_six_pre_4e_operations` and
+`test_finding_3_only_the_pre_4e_operations_take_a_caller_supplied_user_id`
+fix the full surface and the identity asymmetry against the served OpenAPI
+document — so a seventh 2D-D-shaped route added later fails a named test rather
+than silently becoming public.
+
 ### 0.1.6 `PrivacyLevel` has no `PRIVATE` member
 
 **Found while implementing, 2026-09-14.** §19.3 ratifies that *"Memory records
@@ -209,6 +268,42 @@ than** §19.3 as written, never weaker, and it changes nothing about
 §19.3 requires.
 
 §14.5 control 6 is asserted against both excluded levels.
+
+### 0.1.8 `nova_testkit`'s Postgres fixture cannot migrate either pgvector engine
+
+**Found while adding `memory-engine`'s real-Postgres tier, 2026-09-15. A
+pre-existing repository defect, outside 4E's scope, reported per protocol §13.1.**
+
+`nova_testkit.postgres` pins `postgres:16-alpine`, and its module docstring
+states that image *"Matches `infra/docker/docker-compose.local.yml`'s `postgres`
+service exactly"*. **It no longer does.** The compose file was corrected to
+`pgvector/pgvector:pg16` — with a comment explaining precisely why — because two
+engines' migration `0001` opens with `CREATE EXTENSION IF NOT EXISTS vector`,
+which fails on the alpine image with *"extension \"vector\" is not available"*.
+
+**Exact impact, measured rather than estimated:**
+
+| Engine | Migration needs `vector` | In `real-infra-checks.yml` | Effect today |
+|---|---|---|---|
+| `memory-engine` | **Yes** | **Yes** — added by 4E | **Worked around**: its own test file composes a `pgvector/pgvector:pg16` container and reuses `run_alembic_upgrade` unchanged |
+| `knowledge-engine` | **Yes** | **No** | **Latent.** Unaffected today; the first person to add it to the matrix hits the same wall |
+
+So the shared fixture **cannot create the schema of either pgvector-dependent
+engine**, and its docstring asserts the opposite. Nothing is broken in CI right
+now, and nothing 4E ships depends on the fixture being changed.
+
+**Not fixed here, deliberately.** Changing `_POSTGRES_IMAGE` would alter the
+container every other engine's `real_infra` tier runs against — eleven matrix
+entries — which is a repository-maintenance change with its own verification
+burden, exactly the shape of the `ws-gateway` Dockerfile defect Phase 4D
+reported rather than fixed on the milestone branch (and which PR #28 then fixed
+at its root, separately). The workaround 4E uses is the division of labour
+`nova_testkit.postgres` documents for itself: *"nova-testkit provides generic
+pieces, the engine's own test composes them."*
+
+**Carried forward as a finding**, with the remedy already identified: point
+`_POSTGRES_IMAGE` at `pgvector/pgvector:pg16`, correct the docstring, and drop
+`memory-engine`'s local container in favour of the shared one.
 
 ---
 

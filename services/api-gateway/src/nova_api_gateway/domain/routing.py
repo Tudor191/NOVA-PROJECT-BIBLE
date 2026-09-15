@@ -160,16 +160,39 @@ def build_route_table(
             # Digital Twin panel (Phase 4E). `/v1/digital-twin` and its whole
             # subtree, forwarded 1:1 (D-6) -- one more entry, same mechanism.
             #
-            # **This prefix fronts more than 4E's five routes, and that is the
-            # correct outcome rather than an oversight.** `resolve()` matches on
-            # prefix, so Phase 2D-D's `/profile`, `/preferences`,
-            # `/proactive-policy` and `/reset` become reachable too. They were
-            # always part of the same engine's `/v1` surface and were simply
-            # unfronted because no panel read them; the Digital Twin panel now
-            # does. Carving 4E's five out individually would mean either five
-            # entries that drift from the engine, or a path-rewriting layer --
-            # which is precisely what D-6 rejected as a permanent source of
-            # drift.
+            # **This prefix fronts more than 4E's five routes.** `resolve()`
+            # matches on prefix, so Phase 2D-D's `/profile`, `/preferences`,
+            # `/proactive-policy` and `/reset` become reachable too -- six
+            # operations in total. That is the mechanism working as D-6 defines
+            # it, identically to `/v1/agents` fronting the Kernel's whole
+            # subtree: the alternative is either five exact-path entries that
+            # drift from the engine, or a path-rewriting layer, and D-6 rejected
+            # rewriting explicitly as a permanent source of drift.
+            #
+            # **The disclosed consequence, stated rather than buried (Phase 4E
+            # finding 3).** Those six 2D-D operations take a **required,
+            # caller-supplied `user_id` query parameter**, and three of them
+            # write: `PATCH /profile`, `PATCH /proactive-policy`, `POST /reset`.
+            # Before 4E they were unreachable from outside, so the parameter
+            # never faced a caller. They now do.
+            #
+            # What that is and is not, today: **not** a confidentiality vector --
+            # ADR-025 gives one trusted user per instance, so there is no second
+            # user's data to address, and D-3 authenticates every request before
+            # any upstream call. What it *is* is an identity-at-the-edge surface
+            # of exactly the kind 4E deliberately avoided for its own five routes
+            # (which resolve `primary_user_id` server-side), plus an integrity
+            # surface: an authenticated caller can write profile rows keyed to an
+            # arbitrary UUID that nothing else reads. It also becomes a real
+            # multi-user hazard the moment ADR-025 is relaxed.
+            #
+            # **Reported, not fixed here** (protocol §13.1). Changing 2D-D's six
+            # routes to resolve identity server-side would alter shipped
+            # behaviour and desynchronise them from the
+            # `digital_twin.preferences.get.request` RPC, which carries `user_id`
+            # on the wire by design -- a decision with its own blast radius,
+            # outside Phase 4E's ratified scope. `tests/unit/test_domain.py` pins
+            # the exposed set so it cannot widen unnoticed.
             #
             # Nothing under `/internal/*` becomes reachable: `RouteTable` refuses
             # any prefix outside `/v1/` at construction.

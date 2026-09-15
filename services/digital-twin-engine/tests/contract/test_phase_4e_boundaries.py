@@ -517,3 +517,70 @@ def test_control_7_no_route_accepts_a_user_id_parameter() -> None:
         for method, operation in operations.items():
             names = {p["name"] for p in operation.get("parameters", [])}
             assert "user_id" not in names, f"{method.upper()} {path} takes a user_id"
+
+
+# --- Finding 3: what the D-6 prefix exposes, and on what identity terms ------
+
+
+def test_finding_3_the_prefix_exposes_exactly_these_six_pre_4e_operations() -> None:
+    """**The engine-side half of finding 3's regression guard.**
+
+    `api-gateway` fronts `/v1/digital-twin` as one prefix (D-6, forwarded 1:1),
+    so *every* operation under it is externally reachable -- including Phase
+    2D-D's six, which were unreachable before 4E because no panel read them and
+    no gateway entry existed.
+
+    That is D-6's mechanism working, identically to `/v1/agents` fronting the
+    Kernel's whole subtree, and the alternatives are the two D-6 rejected: exact
+    -path entries that drift from the engine, or a rewriting layer. So the
+    behaviour is kept and pinned rather than worked around.
+
+    Pinned here as well as in `api-gateway`'s own test because this is the side
+    that can *grow*: a seventh 2D-D-shaped route added to this engine later
+    becomes externally reachable the moment it exists, with no gateway change to
+    notice it by. This test is that notice.
+    """
+    assert _published_routes() - _PHASE_4E_ROUTES == _SHIPPED_2DD_ROUTES
+    assert len(_SHIPPED_2DD_ROUTES) == 6
+
+
+def test_finding_3_only_the_pre_4e_operations_take_a_caller_supplied_user_id() -> None:
+    """The asymmetry finding 3 names, asserted rather than described.
+
+    4E's five resolve `primary_user_id` server-side (ADR-025, Sec10 item 1).
+    2D-D's six take it as a **required query parameter**, and three of them
+    write -- `PATCH /profile`, `PATCH /proactive-policy`, `POST /reset`.
+
+    **Not a confidentiality vector today**: one trusted user per instance, so
+    there is no second user's data to address, and D-3 authenticates every
+    request before any upstream call is made. It is an identity-at-the-edge
+    surface, an integrity surface (rows keyed to an arbitrary UUID nothing
+    reads), and a real hazard if ADR-025 is ever relaxed.
+
+    **Reported, not fixed** (protocol Sec13.1): moving 2D-D's routes to
+    server-side identity changes shipped behaviour and desynchronises them from
+    `digital_twin.preferences.get.request`, which carries `user_id` on the wire
+    by design. This test records the state so the decision is taken explicitly
+    rather than inherited.
+    """
+    app = create_app(Settings(), repository=FakeDigitalTwinRepository())
+    with TestClient(app) as client:
+        document = client.get("/openapi.json").json()
+
+    takes_user_id: set[tuple[str, str]] = set()
+    for path, operations in document["paths"].items():
+        if not path.startswith("/v1/digital-twin"):
+            continue
+        for method, operation in operations.items():
+            names = {
+                p["name"] for p in operation.get("parameters", []) if p.get("in") == "query"
+            }
+            if "user_id" in names:
+                takes_user_id.add((method.upper(), path))
+
+    assert takes_user_id == _SHIPPED_2DD_ROUTES, (
+        "the set of digital-twin operations taking a caller-supplied user_id "
+        "changed. If a 4E route acquired one, that breaks Sec10 item 1; if a 2D-D "
+        "route lost one, finding 3 is being resolved and its record in "
+        "api-gateway's domain/routing.py needs updating with it."
+    )

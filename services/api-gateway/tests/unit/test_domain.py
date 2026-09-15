@@ -258,24 +258,42 @@ def test_every_4e_route_reaches_digital_twin_engine(path: str) -> None:
     assert route.upstream_name == "digital-twin-engine"
 
 
+#: Every Phase 2D-D path the `/v1/digital-twin` prefix newly exposes. Pinned as a
+#: literal so the externally-reachable surface cannot widen without this test
+#: saying so -- the point of recording Phase 4E finding 3 rather than only
+#: describing it (`domain/routing.py`'s own comment). The engine-side half of the
+#: guard lives in `digital-twin-engine`'s `tests/contract/test_phase_4e_boundaries.py`,
+#: which pins the whole `/v1/digital-twin` surface against the served OpenAPI
+#: document; a new 2D-D route added later fails there.
+_EXPOSED_2DD_PATHS = (
+    "/v1/digital-twin/profile",
+    "/v1/digital-twin/preferences",
+    "/v1/digital-twin/proactive-policy",
+    "/v1/digital-twin/reset",
+)
+
+
 def test_the_digital_twin_prefix_also_fronts_the_2dd_routes_it_contains() -> None:
     """Disclosed rather than incidental: one prefix makes Phase 2D-D's
-    `/profile`, `/preferences`, `/proactive-policy` and `/reset` reachable too.
+    `/profile`, `/preferences`, `/proactive-policy` and `/reset` reachable too --
+    six operations, three of which write.
 
     They were always the same engine's `/v1` surface and were unfronted only
     because no panel read them. Carving out 4E's five individually would mean
     either five entries that drift from the engine or a path-rewriting layer --
     the permanent source of drift D-6 rejected.
+
+    **This is the regression guard on finding 3.** Those six operations take a
+    required, caller-supplied `user_id`, unlike 4E's own five which resolve
+    `primary_user_id` server-side. Under ADR-025 there is no second user's data
+    to address and D-3 authenticates before any upstream call, so this is not a
+    confidentiality vector today -- but the set must not grow silently, and if
+    2D-D's routes ever move to server-side identity, this is where it shows.
     """
     table = _table()
-    for path in (
-        "/v1/digital-twin/profile",
-        "/v1/digital-twin/preferences",
-        "/v1/digital-twin/proactive-policy",
-        "/v1/digital-twin/reset",
-    ):
+    for path in _EXPOSED_2DD_PATHS:
         route = table.resolve(path)
-        assert route is not None
+        assert route is not None, f"{path} stopped resolving; finding 3's surface changed"
         assert route.upstream_name == "digital-twin-engine"
 
 
