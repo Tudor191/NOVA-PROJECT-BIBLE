@@ -267,6 +267,61 @@ services:
       redis:
         condition: service_healthy
 
+  # Phase 4E. memory-engine has had a complete Arq worker since Phase 1 --
+  # `nova_memory_engine.workers.WorkerSettings`, with `arq_run_outbox_dispatch`
+  # on a 10-second cron -- and no compose service ever ran it. Since
+  # `dispatch_ready_events` is the only caller of `bus.publish()` for this
+  # engine's domain events, that meant **no `memory.*` subject had ever been
+  # published in this stack**: every `memory.outbox_event` row simply
+  # accumulated, while the API reported healthy and every synchronous RPC leg
+  # worked. The same shape as the `communication-engine-worker` omission Phase
+  # 4A's first real Playwright run hit twice (`tools/tests/
+  # test_e2e_stack_completeness.py`'s own module docstring).
+  #
+  # It went unnoticed because no `memory.*` subject is in `PUBLIC_TOPICS`, so
+  # nothing a browser could observe depended on it. **Phase 4E is what changed
+  # that**, one hop removed: `digital-twin-engine` derives Bible Part 16's
+  # domains from `memory.long_term.created`, and the Digital Twin panel renders
+  # the result. AC-6's reconstruction is therefore unreachable without this
+  # service, which is exactly how CI found it.
+  #
+  # Mirrors `perception-engine-worker` exactly -- same image, no healthcheck
+  # (an Arq process serves no HTTP), same four dependencies. The embedding and
+  # consolidation crons this also starts are Phase 1 design requirements
+  # (docs/design/phase-1/01-memory-engine.md §4, §6, §10) that have likewise
+  # never run here.
+  memory-engine-worker:
+    build:
+      context: ../..
+      dockerfile: services/memory-engine/Dockerfile
+    command: ["arq", "nova_memory_engine.workers.WorkerSettings"]
+    restart: unless-stopped
+    healthcheck:
+      disable: true
+    environment:
+      EVENT_BUS_BACKEND: nats
+      NATS_URL: nats://nats:4222
+      NOVA_ENGINE_NAME: memory-engine
+      MEMORY_ENGINE_POSTGRES_DSN: postgresql+asyncpg://${POSTGRES_USER:-nova}:${POSTGRES_PASSWORD:-nova_dev_password}@postgres:5432/${POSTGRES_DB:-nova}
+      MEMORY_ENGINE_REDIS_URL: redis://redis:6379/0
+      # Carried from `memory-engine` above: the worker is the same engine in a
+      # second process and resolves the same provider. `get_embedding_provider`
+      # only *constructs* the client here -- it opens no connection -- so the
+      # worker starts whether or not `ollama` is running. A stack without it
+      # simply fails the :05/:35 embedding cron, which Arq isolates per job.
+      EMBEDDING_PROVIDER_BACKEND: ollama
+      OLLAMA_URL: http://ollama:11434
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+    depends_on:
+      nats:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
   knowledge-engine:
     build:
       context: ../..
@@ -829,6 +884,8 @@ services:
       API_GATEWAY_AGENT_OS_KERNEL_URL: http://agent-os-kernel:8000
       # Phase 4D: the Autonomy panel's data source.
       API_GATEWAY_AUTONOMY_ENGINE_URL: http://autonomy-engine:8000
+      # Phase 4E: the Digital Twin panel's data source.
+      API_GATEWAY_DIGITAL_TWIN_ENGINE_URL: http://digital-twin-engine:8000
       API_GATEWAY_REDIS_URL: redis://redis:6379/0
       API_GATEWAY_SESSION_TOKEN: ${NOVA_SESSION_TOKEN:-}
       # Local development is plain HTTP, so a Secure-only cookie would never
@@ -847,6 +904,9 @@ services:
       # above: the gateway forwards on demand and answers 502 for an upstream
       # that is not up, so it does not need the Kernel healthy to start.
       agent-os-kernel:
+        condition: service_started
+      # Phase 4E, on the same terms.
+      digital-twin-engine:
         condition: service_started
 
   ws-gateway:

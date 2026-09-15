@@ -25,6 +25,41 @@ compose, and closing that gap everywhere is out of scope (see
 `perception-engine-worker`'s comment in the compose file). This file states
 that boundary rather than leaving it implicit.
 
+**Phase 4E widened "browser-observable" from one hop to two, and this file
+had to learn the difference.** The rule above asks whether an engine's own
+outbox subject is a `PUBLIC_TOPIC` -- a realtime question, and the only
+shape that existed through 4D. 4E introduced the first case where a
+**non-public** subject is nonetheless browser-visible, one engine removed:
+
+    memory-engine  --memory.long_term.created (never public, and per TDD 4E
+                     §8.3 never will be)-->  digital-twin-engine
+                     --/v1/digital-twin, fronted by api-gateway-->  browser
+
+`memory-engine` sat in the exemption list below for exactly the reason the
+paragraph above gives, and it was right until 4E. The consequence was found
+by CI rather than here: all three AC-6 Playwright specs failed on a `404`,
+because `memory-engine-worker` did not exist in compose, so no `memory.*`
+subject had **ever** been published in this stack -- the
+`communication-engine-worker` defect again, one hop further out.
+
+So `_needs_a_worker` now answers a two-part question, and both parts are
+structural rather than a list of names:
+
+1. **Directly** -- an outbox subject in `PUBLIC_TOPICS` (the original rule).
+2. **Transitively** -- an outbox subject that a *browser-observable* engine
+   subscribes to, where "browser-observable" means it publishes a public
+   topic **or** `api-gateway`'s route table fronts it. Both authorities are
+   read from source, so adding a gateway prefix or a subscription is what
+   moves an engine in or out, not an edit here.
+
+**Subjects are taken from `OutboxEvent(subject=…)` call sites, not from
+`PUBLISHABLE_SUBJECTS`.** That set also contains `*.request` RPC subjects,
+which travel through `bus.request()` and never touch the outbox -- counting
+them made this rule demand a worker for `digital-twin-engine` on the
+strength of `communication.intent.deliver.request`, which no worker has ever
+dispatched. Only what an outbox actually carries can be stranded by a
+missing one.
+
 **Phase 4C adds one property that is not about the browser** (see
 `test_every_agent_os_component_is_started_by_the_e2e_job`): AC-4's first
 clause is literally *"`agent-os` runs as containers under `docker compose
@@ -49,6 +84,9 @@ COMPOSE = REPO_ROOT / "infra" / "docker" / "docker-compose.local.yml"
 WORKFLOW = REPO_ROOT / ".github" / "workflows" / "pr-checks.yml"
 WS_GATEWAY_PROTOCOL = (
     REPO_ROOT / "services" / "ws-gateway" / "src" / "nova_ws_gateway" / "domain" / "protocol.py"
+)
+API_GATEWAY_ROUTING = (
+    REPO_ROOT / "services" / "api-gateway" / "src" / "nova_api_gateway" / "domain" / "routing.py"
 )
 
 #: The subjects the golden path's own assertions depend on, and the assertion
@@ -108,27 +146,93 @@ def _service_package(service: str) -> Path | None:
     return packages[0] if len(packages) == 1 else None
 
 
-def _publishable_subjects(package: Path) -> frozenset[str]:
-    published = package / "events" / "published.py"
-    if not published.is_file():
+def _allow_list(path: Path, name: str) -> frozenset[str]:
+    if not path.is_file():
         return frozenset()
     block = re.search(
-        r"PUBLISHABLE_SUBJECTS: frozenset\[str\] = frozenset\(\n\s*\{(.*?)\}\s*\)",
-        published.read_text(),
-        re.S,
+        rf"{name}: frozenset\[str\] = frozenset\(\n\s*\{{(.*?)\}}\s*\)", path.read_text(), re.S
     )
     if block is None:
         return frozenset()
     return frozenset(re.findall(r'"([^"]+)"', block.group(1)))
 
 
+def _publishable_subjects(package: Path) -> frozenset[str]:
+    return _allow_list(package / "events" / "published.py", "PUBLISHABLE_SUBJECTS")
+
+
+def _subscribable_subjects(package: Path) -> frozenset[str]:
+    return _allow_list(package / "events" / "subscribed.py", "SUBSCRIBABLE_SUBJECTS")
+
+
+def _outbox_subjects(package: Path) -> frozenset[str]:
+    """The subjects this engine actually enqueues onto its outbox.
+
+    Read from `OutboxEvent(subject=…)` call sites rather than from
+    `PUBLISHABLE_SUBJECTS`, because the allow-list also contains `*.request`
+    RPC subjects that go out through `bus.request()` and never touch the outbox
+    -- see the module docstring. An engine that constructs no `OutboxEvent`
+    correctly yields the empty set, which is the honest answer for
+    `digital-twin-engine`: it has the dispatcher and the worker wired from day
+    one, and no production call site enqueues anything yet.
+    """
+    subjects: set[str] = set()
+    for source in package.rglob("*.py"):
+        if "__pycache__" in source.parts:
+            continue
+        subjects.update(re.findall(r'OutboxEvent\(\s*subject="([^"]+)"', source.read_text()))
+    return frozenset(subjects)
+
+
+def _gateway_fronted_services() -> frozenset[str]:
+    """Every upstream `api-gateway` forwards to -- the REST half of
+    "browser-observable", read from the route table itself (D-6).
+
+    `upstream_name` is the compose service name by construction, so this needs
+    no translation table; adding a prefix to `build_route_table` is what puts an
+    engine on the browser's path, and this reads that decision rather than
+    restating it."""
+    names = frozenset(re.findall(r'upstream_name="([^"]+)"', API_GATEWAY_ROUTING.read_text()))
+    assert names, (
+        "could not parse any upstream_name from api-gateway's routing.py; fix "
+        "this parser, do not delete it"
+    )
+    return names
+
+
+def _browser_observable_services() -> frozenset[str]:
+    """Services whose data a browser can reach at all: over the realtime bridge
+    (an outbox subject in `PUBLIC_TOPICS`) or over REST (fronted by
+    `api-gateway`)."""
+    public = _public_topics()
+    observable = set(_gateway_fronted_services())
+    for service in _compose_services():
+        package = _service_package(service)
+        if package is not None and _outbox_subjects(package) & public:
+            observable.add(service)
+    return frozenset(observable)
+
+
 def _needs_a_worker(service: str) -> frozenset[str]:
-    """The public topics this service can only deliver via its outbox worker.
+    """The subjects this service can only deliver via its outbox worker, and
+    that something a browser can see depends on.
 
     An engine publishes a domain event by writing an outbox row; the only
     caller of `dispatch_ready_events` is the Arq cron in `workers/`. So an
-    engine with an outbox whose publishable set reaches a browser is
-    inert without its worker deployed, however healthy its API looks.
+    engine with an outbox that feeds a browser is inert without its worker
+    deployed, however healthy its API looks.
+
+    "Feeds a browser" has two shapes, and Phase 4E added the second:
+
+    * **Directly** -- the subject is a `PUBLIC_TOPIC`, so `ws-gateway` bridges
+      it. This is the whole rule through 4D.
+    * **Transitively** -- a browser-observable engine *subscribes* to the
+      subject and renders what it derives from it. `memory-engine` reaches the
+      Digital Twin panel this way, through a subject that is not public and
+      never will be (TDD 4E §8.3).
+
+    Both hops are computed from source, so this stays a property rather than a
+    list of engine names.
     """
     package = _service_package(service)
     if package is None:
@@ -137,7 +241,20 @@ def _needs_a_worker(service: str) -> frozenset[str]:
         return frozenset()
     if not (package / "workers" / "__init__.py").is_file():
         return frozenset()
-    return _publishable_subjects(package) & _public_topics()
+
+    carried = _outbox_subjects(package)
+    if not carried:
+        return frozenset()
+
+    needed = carried & _public_topics()
+    for consumer in _browser_observable_services():
+        if consumer == service:
+            continue
+        consumer_package = _service_package(consumer)
+        if consumer_package is None:
+            continue
+        needed |= carried & _subscribable_subjects(consumer_package)
+    return needed
 
 
 # --- the job's list names things that exist ---------------------------------
@@ -304,21 +421,108 @@ def test_the_worker_requirement_does_not_fire_for_engines_off_the_public_path() 
     """The scope boundary, asserted rather than described.
 
     These have outboxes and undeployed workers. Their subjects reach no
-    browser, so the rule above must not demand workers for them -- if it
-    did, this file would be quietly widening a scope decision the compose
-    file makes explicitly.
+    browser by either hop, so the rule above must not demand workers for them
+    -- if it did, this file would be quietly widening a scope decision the
+    compose file makes explicitly.
 
     `reasoning-engine` and `ai-model-orchestration-engine` were on this list
     until Phase 4B put `reasoning.process.*` and `ai_model.model.*` on
     `PUBLIC_TOPICS`. That is the rule working: making a subject
     browser-reachable is what obliges the stack to actually dispatch it, and
     both gained a compose worker in the same change.
+
+    **`memory-engine` left this list in Phase 4E, for the same reason by a
+    different route.** Nothing about `memory.*` became public -- TDD 4E §8.3
+    keeps `PUBLIC_TOPICS` byte-identical at eighteen strings. What changed is
+    that `digital-twin-engine` began deriving Bible Part 16's domains from
+    `memory.long_term.created` and rendering them in a panel `api-gateway`
+    fronts, making a non-public subject browser-visible one engine removed. It
+    gained a compose worker in the same change, exactly as 4B's two did.
+
+    `knowledge-engine` stays: it also consumes `memory.long_term.created`, but
+    nothing it publishes reaches a browser by either hop, and its own handler
+    for that subject is a documented no-op.
     """
-    for service in ("world-model-engine", "memory-engine", "knowledge-engine"):
+    for service in ("world-model-engine", "knowledge-engine"):
         assert _needs_a_worker(service) == frozenset(), (
-            f"{service} now publishes a public topic through its outbox; it "
-            f"needs its worker started, and this control needs updating"
+            f"{service} now feeds a browser through its outbox, directly or via "
+            f"a browser-observable consumer; it needs its worker started, and "
+            f"this control needs updating"
         )
+
+
+def test_the_two_hop_rule_fires_for_memory_engine_through_the_digital_twin() -> None:
+    """**Phase 4E's own precedent, pinned.**
+
+    The positive half of the control above, and the regression guard on the
+    defect CI found: `memory-engine` must need a worker, and must need it
+    *because* a browser-observable engine consumes what its outbox carries --
+    not because anything became public.
+
+    Asserted as the full chain rather than as a boolean, so a future change
+    that breaks any link fails here with the link named.
+    """
+    memory = _service_package("memory-engine")
+    twin = _service_package("digital-twin-engine")
+    assert memory is not None and twin is not None
+
+    subject = "memory.long_term.created"
+    assert subject in _outbox_subjects(memory), (
+        "memory-engine no longer enqueues this subject onto its outbox; the "
+        "Digital Twin's evidence source has moved and this rule needs revisiting"
+    )
+    assert subject in _subscribable_subjects(twin), (
+        "digital-twin-engine no longer subscribes to this subject; AC-6's "
+        "derivation has changed shape"
+    )
+    assert "digital-twin-engine" in _browser_observable_services(), (
+        "digital-twin-engine is no longer browser-observable -- api-gateway "
+        "stopped fronting /v1/digital-twin, which would make the panel dead"
+    )
+    assert subject not in _public_topics(), (
+        "memory.long_term.created reached PUBLIC_TOPICS. TDD 4E §8.3 keeps that "
+        "set byte-identical; if this is deliberate, the two-hop rule is no "
+        "longer what makes memory-engine need a worker and this test should say so"
+    )
+    assert subject in _needs_a_worker("memory-engine")
+
+
+def test_the_outbox_subject_parser_reads_real_call_sites() -> None:
+    """Anti-vacuity control for `_outbox_subjects`.
+
+    Returning empty for everything would make the whole rule inert -- every
+    engine would need no worker and every parametrised case would pass by
+    doing nothing. Two engines with known, stable outbox call sites pin it.
+    """
+    memory = _service_package("memory-engine")
+    communication = _service_package("communication-engine")
+    assert memory is not None and communication is not None
+    assert _outbox_subjects(memory) >= {"memory.long_term.created", "memory.decision.recorded"}
+    assert _outbox_subjects(communication) >= {"communication.turn.received"}
+
+
+def test_the_outbox_parser_excludes_rpc_request_subjects() -> None:
+    """The distinction that keeps the rule from over-firing, asserted directly.
+
+    `digital-twin-engine` declares `communication.intent.deliver.request`
+    publishable and sends it through `bus.request()`. Counting allow-list
+    entries instead of outbox call sites made the rule demand a worker for it
+    on that basis -- a subject no outbox has ever carried.
+    """
+    twin = _service_package("digital-twin-engine")
+    assert twin is not None
+    assert "communication.intent.deliver.request" in _publishable_subjects(twin)
+    assert "communication.intent.deliver.request" not in _outbox_subjects(twin)
+    assert _needs_a_worker("digital-twin-engine") == frozenset()
+
+
+def test_the_gateway_fronted_parser_returns_the_real_route_table() -> None:
+    """Anti-vacuity control for `_gateway_fronted_services`. An empty result
+    would silently collapse the two-hop half to nothing."""
+    fronted = _gateway_fronted_services()
+    assert len(fronted) >= 6
+    for expected in ("communication-engine", "autonomy-engine", "digital-twin-engine"):
+        assert expected in fronted, f"api-gateway no longer fronts {expected!r}"
 
 
 @pytest.mark.parametrize(

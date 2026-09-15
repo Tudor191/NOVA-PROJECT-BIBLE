@@ -15,7 +15,7 @@ import { SessionGate } from "./SessionGate";
  *
  * Still code-based rather than the file-based generator. 4A predicted the
  * trade would change "when 4B adds a panel per route"; having added them,
- * it has not -- seven `createRoute` calls in one readable file cost less
+ * it has not -- ten `createRoute` calls in one readable file still cost less
  * than a build step plus a generated artefact to review, and the panels are
  * not nested.
  *
@@ -129,6 +129,19 @@ const autonomyRoute = createRoute({
   ),
 });
 
+// Phase 4E. Lazily loaded like every other panel, and like the Autonomy panel
+// it has no realtime half: `PUBLIC_TOPICS` gains no `digital_twin.*` entry
+// (TDD 4E Sec8.3), because a model that evolves over weeks has nothing worth
+// pushing. Its freshness comes from an explicit re-derive.
+const digitalTwinRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: "/digital-twin",
+  component: lazyRouteComponent(
+    () => import("../panels/digitalTwin/DigitalTwinPanel"),
+    "DigitalTwinPanel",
+  ),
+});
+
 const routeTree = rootRoute.addChildren([
   shellRoute.addChildren([
     conversationRoute,
@@ -140,6 +153,7 @@ const routeTree = rootRoute.addChildren([
     healthRoute,
     agentsRoute,
     autonomyRoute,
+    digitalTwinRoute,
   ]),
 ]);
 

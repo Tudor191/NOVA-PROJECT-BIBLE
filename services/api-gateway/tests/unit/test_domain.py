@@ -118,6 +118,8 @@ def _table(**overrides: str) -> RouteTable:
         "agent_os_kernel_url": "http://agent-os-kernel:8000",
         # Phase 4D. The Autonomy panel's data source.
         "autonomy_engine_url": "http://autonomy:8000",
+        # Phase 4E. The Digital Twin panel's data source.
+        "digital_twin_engine_url": "http://digital-twin:8000",
     }
     urls.update(overrides)
     return build_route_table(**urls)  # type: ignore[arg-type]
@@ -233,3 +235,80 @@ async def test_null_limiter_always_allows() -> None:
     limiter = NullRateLimiter()
     for _ in range(50):
         assert await limiter.allow(session_key="s", endpoint_class="write") is True
+
+
+# --- Phase 4E: the Digital Twin panel's prefix (TDD 4E Sec7, D-6) -----------
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/v1/digital-twin/domains",
+        "/v1/digital-twin/domains/goals",
+        "/v1/digital-twin/domains/goals/refresh",
+        "/v1/digital-twin/domains/projects",
+        "/v1/digital-twin/domains/projects/0d1e2f30-0000-0000-0000-000000000001",
+    ],
+)
+def test_every_4e_route_reaches_digital_twin_engine(path: str) -> None:
+    """All five of TDD 4E Sec7's routes, forwarded 1:1 and verbatim (D-6). One
+    prefix entry covers the subtree -- `resolve()` matches on prefix."""
+    route = _table().resolve(path)
+    assert route is not None, f"{path} has no upstream; the panel cannot load"
+    assert route.upstream_name == "digital-twin-engine"
+
+
+#: Every Phase 2D-D path the `/v1/digital-twin` prefix newly exposes. Pinned as a
+#: literal so the externally-reachable surface cannot widen without this test
+#: saying so -- the point of recording Phase 4E finding 3 rather than only
+#: describing it (`domain/routing.py`'s own comment). The engine-side half of the
+#: guard lives in `digital-twin-engine`'s `tests/contract/test_phase_4e_boundaries.py`,
+#: which pins the whole `/v1/digital-twin` surface against the served OpenAPI
+#: document; a new 2D-D route added later fails there.
+_EXPOSED_2DD_PATHS = (
+    "/v1/digital-twin/profile",
+    "/v1/digital-twin/preferences",
+    "/v1/digital-twin/proactive-policy",
+    "/v1/digital-twin/reset",
+)
+
+
+def test_the_digital_twin_prefix_also_fronts_the_2dd_routes_it_contains() -> None:
+    """Disclosed rather than incidental: one prefix makes Phase 2D-D's
+    `/profile`, `/preferences`, `/proactive-policy` and `/reset` reachable too --
+    six operations, three of which write.
+
+    They were always the same engine's `/v1` surface and were unfronted only
+    because no panel read them. Carving out 4E's five individually would mean
+    either five entries that drift from the engine or a path-rewriting layer --
+    the permanent source of drift D-6 rejected.
+
+    **This is the regression guard on finding 3.** Those six operations take a
+    required, caller-supplied `user_id`, unlike 4E's own five which resolve
+    `primary_user_id` server-side. Under ADR-025 there is no second user's data
+    to address and D-3 authenticates before any upstream call, so this is not a
+    confidentiality vector today -- but the set must not grow silently, and if
+    2D-D's routes ever move to server-side identity, this is where it shows.
+    """
+    table = _table()
+    for path in _EXPOSED_2DD_PATHS:
+        route = table.resolve(path)
+        assert route is not None, f"{path} stopped resolving; finding 3's surface changed"
+        assert route.upstream_name == "digital-twin-engine"
+
+
+def test_the_digital_twin_prefix_does_not_match_a_partial_name() -> None:
+    """The allow-list is not a pattern. `/v1/digital-twinXX` is a different
+    prefix and must 404 rather than proxying to this engine."""
+    assert _table().resolve("/v1/digital-twinXX") is None
+
+
+def test_no_digital_twin_internal_path_is_routable() -> None:
+    """Sec10 item 3. The engine mounts `/internal/metrics` and serves
+    `/internal/health`; none of it is reachable through the gateway, because
+    `RouteTable` refuses any prefix outside `/v1/` at construction."""
+    table = _table()
+    assert table.resolve("/internal/metrics") is None
+    assert table.resolve("/internal/health") is None
+    with pytest.raises(ValueError, match="must start with '/v1/'"):
+        RouteTable([UpstreamRoute("/internal/metrics", "digital-twin-engine", "http://d")])

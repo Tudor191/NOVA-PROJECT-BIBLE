@@ -505,6 +505,7 @@ def test_the_route_table_fronts_no_other_agent_os_component() -> None:
         action_engine_url="http://a:8000",
         agent_os_kernel_url="http://agent-os-kernel:8000",
         autonomy_engine_url="http://autonomy-engine:8000",
+        digital_twin_engine_url="http://digital-twin-engine:8000",
     )
     upstreams = {route.upstream_name for route in table.routes}
 
@@ -519,4 +520,6 @@ def test_the_route_table_fronts_no_other_agent_os_component() -> None:
         "/v1/action",
         "/v1/agents",
         "/v1/autonomy",
+        # Phase 4E. The Digital Twin panel's data source (D-6, forwarded 1:1).
+        "/v1/digital-twin",
     }

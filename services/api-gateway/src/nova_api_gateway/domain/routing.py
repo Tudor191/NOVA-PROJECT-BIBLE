@@ -70,14 +70,16 @@ def build_route_table(
     action_engine_url: str,
     agent_os_kernel_url: str,
     autonomy_engine_url: str,
+    digital_twin_engine_url: str,
 ) -> RouteTable:
     """Every engine the gateway fronts, and nothing else.
 
     4A fronted `communication-engine` alone. 4B adds the four the
-    observability panels read from, 4C the Agents panel's Kernel, and 4D the
-    Autonomy panel -- exactly as this module predicted, by appending entries
-    rather than changing the mechanism. Each engine's `/v1`
-    surface already existed; no engine API was changed to be fronted.
+    observability panels read from, 4C the Agents panel's Kernel, 4D the
+    Autonomy panel and 4E the Digital Twin panel -- exactly as this module
+    predicted, by appending entries rather than changing the mechanism. Each
+    engine's `/v1` surface already existed; no engine API was changed to be
+    fronted.
 
     Deliberately absent:
 
@@ -154,6 +156,50 @@ def build_route_table(
                 prefix="/v1/autonomy",
                 upstream_name="autonomy-engine",
                 base_url=autonomy_engine_url.rstrip("/"),
+            ),
+            # Digital Twin panel (Phase 4E). `/v1/digital-twin` and its whole
+            # subtree, forwarded 1:1 (D-6) -- one more entry, same mechanism.
+            #
+            # **This prefix fronts more than 4E's five routes.** `resolve()`
+            # matches on prefix, so Phase 2D-D's `/profile`, `/preferences`,
+            # `/proactive-policy` and `/reset` become reachable too -- six
+            # operations in total. That is the mechanism working as D-6 defines
+            # it, identically to `/v1/agents` fronting the Kernel's whole
+            # subtree: the alternative is either five exact-path entries that
+            # drift from the engine, or a path-rewriting layer, and D-6 rejected
+            # rewriting explicitly as a permanent source of drift.
+            #
+            # **The disclosed consequence, stated rather than buried (Phase 4E
+            # finding 3).** Those six 2D-D operations take a **required,
+            # caller-supplied `user_id` query parameter**, and three of them
+            # write: `PATCH /profile`, `PATCH /proactive-policy`, `POST /reset`.
+            # Before 4E they were unreachable from outside, so the parameter
+            # never faced a caller. They now do.
+            #
+            # What that is and is not, today: **not** a confidentiality vector --
+            # ADR-025 gives one trusted user per instance, so there is no second
+            # user's data to address, and D-3 authenticates every request before
+            # any upstream call. What it *is* is an identity-at-the-edge surface
+            # of exactly the kind 4E deliberately avoided for its own five routes
+            # (which resolve `primary_user_id` server-side), plus an integrity
+            # surface: an authenticated caller can write profile rows keyed to an
+            # arbitrary UUID that nothing else reads. It also becomes a real
+            # multi-user hazard the moment ADR-025 is relaxed.
+            #
+            # **Reported, not fixed here** (protocol §13.1). Changing 2D-D's six
+            # routes to resolve identity server-side would alter shipped
+            # behaviour and desynchronise them from the
+            # `digital_twin.preferences.get.request` RPC, which carries `user_id`
+            # on the wire by design -- a decision with its own blast radius,
+            # outside Phase 4E's ratified scope. `tests/unit/test_domain.py` pins
+            # the exposed set so it cannot widen unnoticed.
+            #
+            # Nothing under `/internal/*` becomes reachable: `RouteTable` refuses
+            # any prefix outside `/v1/` at construction.
+            UpstreamRoute(
+                prefix="/v1/digital-twin",
+                upstream_name="digital-twin-engine",
+                base_url=digital_twin_engine_url.rstrip("/"),
             ),
         ]
     )

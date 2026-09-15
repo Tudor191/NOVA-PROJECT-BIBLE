@@ -50,6 +50,7 @@ const EXPECTED_PANELS = [
   "/health",
   "/agents",
   "/autonomy",
+  "/digital-twin",
 ] as const;
 
 describe("panel routing", () => {
@@ -73,9 +74,10 @@ describe("panel routing", () => {
   });
 
   it("adds each new panel by appending, never by rewriting the list", () => {
-    // 4C.2f appended Agents; 4D appends Autonomy. A slice that rewrote the
-    // list could drop a panel and no other test here would notice. The count
-    // is derived rather than literal so the next panel updates one place.
+    // 4C.2f appended Agents, 4D Autonomy, 4E Digital Twin. A slice that
+    // rewrote the list could drop a panel and no other test here would
+    // notice. The count is derived rather than literal so the next panel
+    // updates one place.
     const nav = navPaths();
     for (const path of EXPECTED_PANELS) {
       expect(nav).toContain(path);
@@ -84,6 +86,7 @@ describe("panel routing", () => {
     // The order is the order panels were added, so a rewrite that reordered
     // them would move the operator's tabs around without anything failing.
     expect(nav.indexOf("/agents")).toBeLessThan(nav.indexOf("/autonomy"));
+    expect(nav.indexOf("/autonomy")).toBeLessThan(nav.indexOf("/digital-twin"));
   });
 
   it("lazily loads the Agents panel like every other one", () => {
@@ -115,5 +118,17 @@ describe("panel routing", () => {
     // It subscribes to nothing itself (decision D-4D-1), but it still must
     // not remount the provider the other seven panels depend on.
     expect(Object.keys(router.routesById)).toContain("/shell/autonomy");
+  });
+
+  it("lazily loads the Digital Twin panel like every other one", () => {
+    const source = readFileSync(ROUTER, "utf8");
+    const twin = source.match(/const digitalTwinRoute = createRoute\(\{[\s\S]*?\}\);/);
+    expect(twin).not.toBeNull();
+    expect(twin?.[0]).toMatch(/lazyRouteComponent/);
+    expect(twin?.[0]).toMatch(/panels\/digitalTwin\/DigitalTwinPanel/);
+  });
+
+  it("nests Digital Twin under the shell so the socket is not remounted", () => {
+    expect(Object.keys(router.routesById)).toContain("/shell/digital-twin");
   });
 });
