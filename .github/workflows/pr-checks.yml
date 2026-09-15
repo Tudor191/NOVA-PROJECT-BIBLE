@@ -212,6 +212,22 @@ jobs:
           # None of the three is reachable from the browser: `api-gateway`'s
           # route table is unchanged by 4C.1, and the Kernel's read-only
           # `/v1/agents` surface is 4C.2's work.
+          #
+          # Phase 4E appends three, and the reason is one dependency rather
+          # than three: AC-6's reconstruction is `digital-twin-engine` deriving
+          # Bible Part 16's domains from `memory.long_term.created`, which only
+          # `memory-engine-worker` ever publishes (its outbox is the sole
+          # publish path, and nothing ran it -- see the compose file's own
+          # comment on that service). `memory-engine` is named for the same
+          # reason `communication-engine` is: an engine and its worker are one
+          # deployment, and starting half of it is the defect this list has
+          # already been caught by twice.
+          #
+          # `digital-twin-engine` is named **explicitly**, though `api-gateway`
+          # would drag it in through `depends_on`. An implicit start is not a
+          # declaration: it survives only as long as that edge does, and the
+          # engine whose panel AC-6 is measured in should not be a side effect
+          # of a routing entry.
           docker compose -f infra/docker/docker-compose.local.yml up -d --build \
             nats postgres redis migrations \
             nova-core \
@@ -223,7 +239,8 @@ jobs:
             ai-model-orchestration-engine-worker \
             api-gateway ws-gateway \
             agent-os-kernel agent-os-registry agent-os-supervisors \
-            autonomy-engine
+            autonomy-engine \
+            memory-engine memory-engine-worker digital-twin-engine
 
       - name: Confirm the schema migration completed
         run: |
