@@ -434,6 +434,36 @@ time, additive to the **two** domains already shipped in Phase 2D-D. Adds the
 
 **Depends on:** 4D. **Satisfies:** AC-6.
 
+> **Closure note (added 2026-09-15; every note above is left as written, per
+> protocol §0.3.4).** **Phase 4E is CLOSED.** PR #29 merged into `phase-4` on
+> explicit user authorization as **`59bbeee3838290ab31b0627b64c6fc0b2bceb13b`** —
+> a normal two-parent merge of `f39fa6c` and `df4606c`, no squash, no rebase, no
+> force push. `phase-4e` is preserved at `df4606c`, not deleted, and is an
+> ancestor of `phase-4`; **all ten Phase 4E commits remain reachable**, which is
+> what §16's close-out sequence item 6 requires a merge commit for. `main`
+> remains `7e273e6`, still frozen per §16 rule 2.
+>
+> **AC-6 is MET** — the Digital Twin's project model reconstructs a project
+> across a genuine multi-week gap and the reconstruction is visible in the panel,
+> proven at unit, integration, real-Postgres and browser tier. Final gate verdict
+> **GO with no conditions attached**; CI was 37/37 green at the merged head
+> `df4606c`.
+>
+> **Milestone state: 4A, 4B, 4C, 4D and 4E are merged into `phase-4`; 4F
+> remains.** Per §16 rule 4 the next milestone branch is cut only after this
+> merge is verified — which it is — and **`phase-4f` has not been created. No
+> Phase 4F functionality has been started: no `nova-companion`, no
+> `cognitive-state-engine`, and no Autonomy Level 2.**
+>
+> **CF-9, CF-10 and CF-11 stay OPEN and are inherited by Phase 4's closure**,
+> unchanged by 4E's GO or its merge. **Phase 4E's own three findings also stay
+> OPEN**: `nova_testkit`'s Postgres fixture image drift, the D-6 prefix exposing
+> six pre-4E `digital-twin-engine` operations that take a caller-supplied
+> `user_id` (reported not fixed, pinned by two tests), and the stranded-outbox
+> guard that does not yet watch the `memory` schema. **No Event Bus subject, no
+> `PUBLIC_TOPICS` entry, no `autonomy.*` subject and no `TrustMetric` surface was
+> created at any point in 4E.**
+
 ### 4F — Senses & inner life
 
 `nova-companion` (Rust): desktop/window-focus, clipboard, filesystem, and

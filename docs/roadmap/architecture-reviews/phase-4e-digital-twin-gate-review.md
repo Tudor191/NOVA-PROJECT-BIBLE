@@ -5,7 +5,8 @@
 **Branch:** `phase-4e`
 **Head reviewed:** `a044782360591e1d064e6dc053ce6926fc32c3e2`
 **Base:** `phase-4` at `f39fa6cd0b02bd4e55a42f17b0d748f636f812d4`
-**PR:** [#29](https://github.com/Tudor191/NOVA-PROJECT-BIBLE/pull/29) — `phase-4e` → `phase-4`, **open, not merged**
+**PR:** [#29](https://github.com/Tudor191/NOVA-PROJECT-BIBLE/pull/29) — `phase-4e` → `phase-4`, **MERGED 2026-09-15 as `59bbeee3838290ab31b0627b64c6fc0b2bceb13b`** (§19)
+*(This line read "**open, not merged**" until the merge — correct for the whole of the review itself.)*
 **Protocol:** [`PROJECT_PHASE_COMPLETION_PROTOCOL.md`](../../PROJECT_PHASE_COMPLETION_PROTOCOL.md),
 sha256 `21185dd1b2a43e87eac0a52aa5e53c8e8bbb01223014dc2a48408bbb0478de6a`, 1131 lines,
 read from `origin/main` and verified byte-identical on `phase-4e`
@@ -965,3 +966,69 @@ CF-11 remain OPEN.
 
 **Reviewed against `a044782360591e1d064e6dc053ce6926fc32c3e2`, 2026-09-15.**
 **CI re-confirmed 37/37 at the documentation head `ebef196915b271987144a288840f58c609a55ede` (§18).**
+
+---
+
+## 19. Closure — 2026-09-15
+
+**Appended after the merge.** §15's verdict stands unchanged and is not reopened;
+this records what the merge did, so the document ends at the outcome rather than
+one step before it. The Phase 4D Gate Review's §22.10 is the pattern followed.
+
+| Item | Value |
+|---|---|
+| Merge commit | **`59bbeee3838290ab31b0627b64c6fc0b2bceb13b`** |
+| Parents | `f39fa6cd0b02bd4e55a42f17b0d748f636f812d4` (previous `phase-4`) · `df4606c12628d3097645624103ead4566f4783af` (PR #29 head) |
+| Resulting `phase-4` HEAD | **`59bbeee3838290ab31b0627b64c6fc0b2bceb13b`** |
+| PR #29 | **MERGED** 2026-09-15T16:32:29Z, on explicit user authorization |
+| `phase-4e` | preserved at **`df4606c`**, **not deleted**, an ancestor of `phase-4` |
+| `main` | **`7e273e6`, untouched** — still frozen per master scope §16 rule 2 |
+| `phase-4f` | **Does not exist.** No Phase 4F work has started |
+
+A **normal two-parent merge commit**: no squash, no rebase, no force push, no
+history rewrite. The `phase-4` ref advanced non-forcibly — the previous head
+`f39fa6c` is an ancestor of `59bbeee`. **All ten Phase 4E commits** —
+`d39b5b8`, `ae82fe0`, `04eb77c`, `87c1b32`, `407457d`, `0f44cdd`, `73ea3f2`,
+`a044782`, `ebef196`, `df4606c` — **remain reachable from `phase-4`**, which is
+why master scope §16's close-out sequence item 6 requires a merge commit rather
+than a squash: this document and the health record cite individual SHAs, and a
+squash would make those citations unreachable. Phase 4D's merge `68397a2` is
+still reachable too, so no earlier history was disturbed.
+
+**AC-6 remains MET** at unit, integration, real-Postgres and browser tier. CI was
+**37 of 37 green at `df4606c`**, the exact merged head, zero failed and zero
+cancelled.
+
+### 19.1 Lines this closure supersedes, rather than rewrites
+
+Per protocol §0.3.4 the sections below are left exactly as written — each was
+true when written, at a head where the PR was genuinely open:
+
+- **§11.5's branch-hygiene table** records `PR #29` as *"Open, not merged"*,
+  `phase-4` as `f39fa6c`, and the head as `a044782` with 8 commits. Correct at
+  the reviewed head. Superseded by the table above: PR #29 is merged, `phase-4`
+  is `59bbeee`, and the branch closed at `df4606c` with 10 commits.
+- **§17.1's merge-readiness row** records `#29 open, not merged`, and its closing
+  line *"Merge is not performed by this review."* Both were accurate — the review
+  did not merge, and authorization came afterwards.
+- **§14.3** reasons that DoD item 5 does not fire because 4E creates no new
+  engine, changes no canonical branch, and *"is not merged"*. **The third clause
+  is now superseded; the conclusion is not.** Item 5's triggers are a new engine,
+  a changed canonical branch, or a completed phase changing what the README would
+  tell a reader — and `README.md` still carries **no Phase 4 status line at all**,
+  which is a **Phase-4-level** obligation that 4D's merge did not discharge
+  either. It stays open and inherited by Phase 4's closure, unchanged by 4E.
+
+### 19.2 What closure does not change
+
+**CF-9, CF-10 and CF-11 remain OPEN** and are inherited by Phase 4's eventual
+closure. **The three Phase 4E findings remain OPEN**: `nova_testkit`'s Postgres
+image drift (§0.1.8), the D-6 prefix exposing six pre-4E operations that take a
+caller-supplied `user_id` (§0.1.7), and the stranded-outbox guard that does not
+yet watch the `memory` schema. §13 is where each disposition lives, and **none of
+them moved**.
+
+Merging 4E created no Event Bus subject, no `PUBLIC_TOPICS` entry, no
+`autonomy.*` subject, no `TrustMetric` surface, and no Phase 4F functionality.
+**Closure is documentation only; no implementation file was touched by this
+pass.**
