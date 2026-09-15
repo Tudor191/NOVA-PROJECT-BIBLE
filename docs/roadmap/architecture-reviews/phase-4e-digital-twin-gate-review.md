@@ -316,7 +316,7 @@ than a cause.
 
 **Not fixed here, deliberately.** The user's ratified scope for `a044782` was
 exactly three files, and the instruction for this Gate Review is *"do not expand
-scope merely to improve the guard."* It is recorded as finding 3 (§13.1) with
+scope merely to improve the guard."* It is recorded as §13.1's third row, with
 its one-line remedy named, not as a silent gap.
 
 **No other debt.** Zero new dependencies. Zero new Event Bus subjects. Zero
@@ -407,7 +407,8 @@ additionally enforced by the type system.
 | 9 | CF-10 unresolved — five separate sub-properties | `test_control_9a…9e`, including a sha256 pin on `autonomy-engine`'s trust adapter and the fail-closed check that `satisfies_threshold(None, t)` is `False` for every `t` including `0.0` |
 | 10 | Every non-`populated` state carries a machine-readable reason | **The `DomainModel` validators**, plus `test_control_10_is_enforced_by_the_type_not_only_by_a_test` |
 
-Two additional tests pin finding 2 (§13.1) so the exposed set cannot widen
+Two additional tests pin the D-6 prefix exposure (TDD §0.1.7, §13.1's second
+row) so the exposed set cannot widen
 unnoticed: `test_finding_3_the_prefix_exposes_exactly_these_six_pre_4e_operations`
 and `test_finding_3_only_the_pre_4e_operations_take_a_caller_supplied_user_id`.
 
@@ -554,7 +555,7 @@ not 4E's and are untouched.
 | Trivy | **Build & Scan 21 / 21 success** at `a044782`, including `digital-twin-engine`, `memory-engine` and `api-gateway`, plus `dependency-audit` |
 
 **One security surface is newly reachable and is disclosed, not buried** — see
-finding 2 in §13.1. It is an *integrity* and *latent multi-user* surface, not a
+§13.1's second row (TDD §0.1.7). It is an *integrity* and *latent multi-user* surface, not a
 confidentiality vector under ADR-025, and the analysis is written into
 `routing.py` itself so it cannot be lost.
 
@@ -619,7 +620,7 @@ container really ran. `docker compose config --quiet` also passed in the
 | **Part 16** — the eleven Digital Twin domains | Implemented verbatim, in the Bible's own order and names. *"Never create assumptions without evidence"* is enforced by a type validator that quotes it |
 | **ADR-004** — no raw engine-to-engine HTTP | **Honoured against the TDD's own text.** The TDD specified an HTTP read; ADR-004 wins, the Event Bus carries it (§2.1) |
 | **ADR-024** — additive, defaulted contract evolution | One field, `created_at: datetime \| None = None` |
-| **ADR-025** — single trusted user per instance | Preserved. 4E adds no identity parameter; the pre-existing asymmetry is disclosed as finding 2, not extended |
+| **ADR-025** — single trusted user per instance | Preserved. 4E adds no identity parameter; the pre-existing asymmetry is disclosed as TDD §0.1.7, not extended |
 | **ADR-030** — Personality stores, Digital Twin learns | Preserved. 4E derives; it stores nothing on Personality's behalf |
 | **ADR-033** — two-tier testing, `real_infra`, 85% coverage | Both tiers present; domain coverage 100% |
 | **D-6** — `api-gateway` forwards 1:1, no rewriting | One prefix entry; no rewriting layer introduced |
@@ -640,6 +641,16 @@ pinned by `test_control_7_the_three_2dd_route_groups_are_unchanged`.
 ## 13. Gaps, ambiguities, and deferred findings
 
 ### 13.1 The four known findings — status, stated not absorbed
+
+> **On numbering.** The rows below are numbered in the order the Gate Review
+> brief lists them. That ordering is **not** the implementation pass's own
+> labelling, and the two collide on one item: the D-6 prefix exposure is row 2
+> here, and is labelled ***finding 3*** in `routing.py`'s comment and in the
+> tests `test_finding_3_the_prefix_exposes_exactly_these_six_pre_4e_operations`
+> and `test_finding_3_only_the_pre_4e_operations_take_a_caller_supplied_user_id`
+> (commit `73ea3f2`). The `nova_testkit` drift is *finding 1* under both
+> schemes. **Each row therefore cites its TDD section, which is unambiguous
+> under either.** No label is renamed in code by this review.
 
 | # | Finding | Status |
 |---|---|---|
@@ -781,11 +792,11 @@ read as closing them. Findings 1, 2 and 3 remain OPEN and are not retired by it.
 | 4 | Every affected package meets the 85% domain-coverage gate | **Yes** — `nova_digital_twin_engine.domain` **100%** |
 | 5 | `uv run lint-imports` 0 broken contracts | **Yes** — 7 kept, 0 broken |
 | 6 | Contract / codegen verification clean, zero unexplained drift | **Yes** — 116 files regenerated, working tree unchanged |
-| 7 | Real GitHub Actions CI green against the exact head SHA | **Yes** — **37/37 at `a044782`**, 0 failed, 0 cancelled |
+| 7 | Real GitHub Actions CI green against the exact head SHA | **Yes** — **37/37 at `a044782`**, 0 failed, 0 cancelled, and **37/37 again at the documentation head `ebef196`** (§18) |
 | 8 | Real-infrastructure verification passed, or absence explicitly disclosed | **Yes** — passed in CI (§8); local absence of Docker explicitly disclosed |
 | 9 | Gate Review, Project Health record, roadmap entry and README status all exist and are current | **Yes** — items 1–3 written by this pass; the roadmap entry corrected; the README's Phase 4 gap is a disclosed Phase-4-level obligation whose DoD item-5 triggers 4E does not fire (§14.3) |
 | 10 | No document contradicts repository state | **Yes** — after this pass's two corrections (roadmap row, PR body note) |
-| 11 | No open category-13 item requires a user decision | **Yes** — one exists (finding 2) and is explicitly not required for this gate (§13.3) |
+| 11 | No open category-13 item requires a user decision | **Yes** — one exists (TDD §0.1.7) and is explicitly not required for this gate (§13.3) |
 
 ---
 
@@ -858,6 +869,66 @@ which is the standing policy protocol §3.1 names.
 
 ---
 
+## 18. CI at the documentation head `ebef196` — the head-SHA rule restated
+
+This review's own documentation commit moved the branch head. Protocol §3.2
+condition 7 asks for CI green **against the exact head SHA**, so the branch was
+pushed and CI re-run rather than the condition being claimed from `a044782`
+alone.
+
+| | |
+|---|---|
+| Documentation head | **`ebef196915b271987144a288840f58c609a55ede`** |
+| Commit | `docs(4e): the Phase 4E Gate Review, health record, and roadmap correction` |
+| Diff vs `a044782` | **5 files, +974 / −2, all under `docs/`** |
+| The invariant | **`git diff a044782..HEAD -- ':!docs'` is empty** — the same discipline 4D §22.8 established |
+| **CI at `ebef196`** | **37 of 37 check runs `success`**, zero failed, zero cancelled |
+| PR Checks #103 | run [`34958056545`](https://github.com/Tudor191/NOVA-PROJECT-BIBLE/actions/runs/34958056545) — `checks` **success** (10:32:08Z), `Playwright golden path` **success** (10:32:24Z) |
+| Real-Infrastructure Checks #141 | run [`34958056512`](https://github.com/Tudor191/NOVA-PROJECT-BIBLE/actions/runs/34958056512) — **14/14 success** |
+| Build & Scan #103 | run [`34958056522`](https://github.com/Tudor191/NOVA-PROJECT-BIBLE/actions/runs/34958056522) — **21/21 success** |
+
+Within the Playwright job, every functional step concluded `success`, including
+**step 18 *"Seed a historical project for the AC-6 E2E"***, **step 19 *"Run the
+golden path"*** and **step 20 *"Confirm no engine outbox was left stranded"***.
+`nova-local-memory-engine-worker-1` again ran in the e2e stack, visible by name
+in the job's own teardown.
+
+**Local validation was re-run at `ebef196` too**, per the instruction that
+documentation changes be followed by re-running the required validation:
+
+| Command | Result |
+|---|---|
+| `npx turbo run test --force` | **31/31, `Cached: 0`** — **2,614 passed, 0 failed** |
+| `npx turbo run lint --force` | **31/31** |
+| `uv run lint-imports` | **7 kept, 0 broken** |
+| `uv run pytest tools/tests -q` | **283 passed** |
+| Working tree | **Clean** |
+
+**Nothing in §§1–17 changes.** The review was performed against `a044782`, that
+remains the reviewed implementation head, and the verdict is unaffected: a
+documentation-only commit above it cannot alter an acceptance, security,
+architectural or correctness finding. This section exists so condition 7 is
+satisfied against the literal current head rather than by inference.
+
+**How this section stays true as further documentation lands** — the rule 4D
+§22.8 established, restated for this branch. Documenting a Gate Review moves the
+head, and re-documenting each move would recurse without end. The stable
+statement is therefore the **invariant**, not any one SHA:
+
+> **`a044782` is `phase-4e`'s last code-bearing head, and
+> `git diff a044782..HEAD -- ':!docs'` is empty.**
+
+Any commit that breaks that invariant is, by definition, no longer documentation
+and must be reviewed on its own terms — at which point condition 7 needs a fresh
+CI run against the new head and this section needs a new row. While the
+invariant holds, the two CI runs recorded above — at the reviewed head and at
+the first documentation head above it — are the evidence for condition 7, and
+further documentation commits neither weaken nor need to re-establish it. The
+local validation battery is re-run on each such commit regardless, which is how
+the invariant is checked rather than assumed.
+
+---
+
 ## Sign-off
 
 Phase 4E delivers Bible Part 16's nine remaining Digital Twin domains, derived
@@ -893,3 +964,4 @@ its remedy; each is pinned or ledgered so it cannot quietly widen.
 CF-11 remain OPEN.
 
 **Reviewed against `a044782360591e1d064e6dc053ce6926fc32c3e2`, 2026-09-15.**
+**CI re-confirmed 37/37 at the documentation head `ebef196915b271987144a288840f58c609a55ede` (§18).**
