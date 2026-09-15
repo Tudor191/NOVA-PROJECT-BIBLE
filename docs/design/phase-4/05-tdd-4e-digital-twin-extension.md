@@ -9,6 +9,22 @@
 
 Written immediately before the milestone begins, per §17's stated cadence.
 
+> **Superseded 2026-09-15, additively per protocol §0.3.4.** The status line
+> above was correct when written and is preserved as the record. **Current
+> status: ratified and implemented on `phase-4e`.**
+>
+> | | |
+> |---|---|
+> | §19's five decisions | **Ratified 2026-09-14** |
+> | §0.1.3 — the AC-6 temporal-gap mechanism | **Ratified 2026-09-14**, recorded in full as **§20.1** |
+> | §0.1.5, §0.1.6 | **Findings produced during implementation**, each resolved by following a binding document §3.2 already lists |
+> | Implementation | **`phase-4e`**, from 2026-09-15. `phase-4` and `main` untouched; nothing merged |
+> | Gate Review | **Not performed.** Implementation stops before it |
+>
+> **CF-9, CF-10 and CF-11 remain OPEN.** 4E resolves none of them, §14.5
+> control 9 asserts CF-10's five sub-properties directly, and nothing in this
+> milestone may be read as closing any of the three.
+
 ---
 
 ## 0. Objective
@@ -741,6 +757,26 @@ keeps it that way.
 - Three scopes reported side by side, continuing 4C.2's and 4D's shape.
 - **50,000 SLOC remains uncrossed** — 4D closed at 34,469 comparable / 43,114
   full. 4E should re-check, since a nine-domain extension is substantial.
+
+> **Measured 2026-09-15**, `cloc` v2.06 `--skip-uniqueness --quiet` from pristine
+> `git archive` extracts of `f39fa6c` (the branch base) and `407457d`:
+>
+> | Scope | Base `f39fa6c` | Head `407457d` | Δ |
+> |---|---|---|---|
+> | Comparable (`services/*/src` + `packages/*/src` + `services/*/alembic/versions`) | 34,469 | **35,733** | **+1,264** |
+> | Wider (+ `agent-os/*/src`, `agent-os/*/alembic/versions`, `agents/*`) | 39,810 | **41,074** | **+1,264** |
+> | Full (+ `apps/*/src`) | 43,114 | **44,706** | **+1,592** |
+>
+> **The base figures reproduce Phase 4D's corrected closing values exactly**
+> (34,469 / 39,810 / 43,114, Gate Review 4D §22.6), which is what makes the
+> series continuous and confirms the methodology rather than only the numbers.
+>
+> The comparable and wider scopes move identically because 4E's engine code
+> lands entirely in `services/`; the wider gap on the full scope (+328) is the
+> panel and its entity module under `apps/`.
+>
+> **50,000 remains uncrossed, with 5,294 to spare on the full scope.** Neither
+> the 30,000 nor the 50,000 milestone is crossed by this milestone.
 - Branch hygiene: `phase-4e` cut from the merged `phase-4` head per §16 rule 5,
   preserved not deleted, no rebase, no force-push, no squash.
 
