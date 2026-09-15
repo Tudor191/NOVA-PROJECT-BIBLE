@@ -79,7 +79,11 @@ export function AppShell() {
               to={panel.path}
               className="nova-nav-link"
               activeProps={{ "data-active": "true" }}
-              data-testid={`nav-${panel.label.toLowerCase()}`}
+              // Slugified, not merely lowercased: every label through 4D was a
+              // single word, and 4E's "Digital Twin" would otherwise produce a
+              // test id with a space in it. Existing ids are unchanged -- a
+              // label with no space slugifies to itself.
+              data-testid={`nav-${panel.label.toLowerCase().replace(/\s+/g, "-")}`}
             >
               {panel.label}
             </Link>

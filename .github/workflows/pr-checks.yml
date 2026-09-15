@@ -487,11 +487,58 @@ jobs:
             $compose logs --tail=30 autonomy-engine || true
           fi
 
+      # Phase 4E. AC-6 needs a project whose newest memory is weeks old, and
+      # no shipped component can produce one: a memory is created when it is
+      # created, and ratified decision TDD 4E section 20.1 settled that the gap
+      # is simulated in the *data* rather than in the clock. This driver stands
+      # in for elapsed time -- it persists real MemoryRecords with real past
+      # created_at values through the real PostgresMemoryRepository, with the
+      # real outbox row in the same transaction, so memory-engine's own worker
+      # publishes and digital-twin-engine's own subscriber derives.
+      #
+      # `continue-on-error` for the same reason the other two drivers have it:
+      # if the seeding does not take, the spec skips itself rather than turning
+      # an unseeded stack into a red build.
+      - name: Seed a historical project for the AC-6 E2E
+        id: digital_twin_project
+        continue-on-error: true
+        env:
+          MEMORY_ENGINE_POSTGRES_DSN: postgresql+asyncpg://nova:nova_dev_password@localhost:5432/nova
+        run: |
+          set -o pipefail
+          uv run python tools/e2e_seed_digital_twin_project.py 2>&1 | tee /tmp/digital-twin-seed.log
+          project_id="$(tail -n 1 /tmp/digital-twin-seed.log)"
+          echo "seeded project ${project_id}"
+
+          # Exported only when the rows are really there *and* really old --
+          # the same evidence-before-export rule the other drivers follow, with
+          # the extra check that matters here. Before the section 20.1 fix,
+          # create_long_term omitted created_at and the column default replaced
+          # every value with now(); the gap would have been zero and the spec
+          # would have "passed" against a reconstruction of nothing.
+          compose="docker compose -f infra/docker/docker-compose.local.yml"
+          psql="$compose exec -T postgres psql -U ${POSTGRES_USER:-nova} -d ${POSTGRES_DB:-nova} -X"
+          rows="$($psql -tAc "SELECT count(*) FROM memory.memory_record
+                               WHERE project_id = '${project_id}'
+                                 AND created_at < now() - interval '21 days';" \
+                  | tr -d '[:space:]')"
+          if [ "${rows}" = "5" ]; then
+            echo "project_id=${project_id}" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::expected 5 memories older than 21 days for ${project_id}, found ${rows}"
+            echo "the historical created_at values did not persist; the AC-6 spec will skip"
+            $psql -c "SELECT id, memory_type, privacy_level, created_at
+                        FROM memory.memory_record WHERE project_id = '${project_id}'
+                        ORDER BY created_at;"
+            echo "project_id=" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Run the golden path
         env:
           NOVA_SESSION_TOKEN: ${{ env.NOVA_SESSION_TOKEN }}
           NOVA_E2E_ACTION_ID: ${{ steps.risky_action.outputs.action_id }}
           NOVA_E2E_SUGGESTION_ID: ${{ steps.autonomy_suggestion.outputs.suggestion_id }}
+          NOVA_E2E_PROJECT_ID: ${{ steps.digital_twin_project.outputs.project_id }}
           # The client is served single-origin and Vite's `preview` proxy
           # forwards `/v1` and `/ws` to the gateways -- the same shape a real
           # deployment has. Pointing the client straight at the gateway ports
