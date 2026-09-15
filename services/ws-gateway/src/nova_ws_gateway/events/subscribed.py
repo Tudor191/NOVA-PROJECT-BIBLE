@@ -27,7 +27,25 @@ SUBSCRIBABLE_SUBJECTS: frozenset[str] = frozenset(
         # Conversation panel -- finalized communication events only.
         "communication.*",
         # Presence/identity indicator -- read-only telemetry.
-        "perception.*",
+        #
+        # **Narrowed from `perception.*` in 4F.2, deliberately.** `*` spans
+        # dots under `fnmatchcase`, so the old pattern matched every present
+        # and future perception subject -- including 4F.2's
+        # `perception.workspace.observed`, which carries raw workspace-sensor
+        # provenance (`sensor_id`, `observed_at`, a file-path hash). Doc 09 §6
+        # bounds this gateway to "already-finalized events plus read-only
+        # telemetry, never raw internal engine chatter", and a raw sensor
+        # observation is exactly that chatter.
+        #
+        # `PUBLIC_TOPICS` would still have stopped a browser *naming* it, but
+        # the gateway process would have been receiving it -- the same gap
+        # `agent_os.*` was narrowed to `agent_os.task.*` to close (see the
+        # entry below). These three are the perception subjects the panels
+        # actually read; `test_no_raw_perception_subject_is_subscribable`
+        # fails if a fourth ever becomes reachable here.
+        "perception.presence.observed",
+        "perception.identity.observed",
+        "perception.sensor.health_changed",
         "personality.*",
         # System Pulse -- NOVA Core's heartbeat (doc 04 §4).
         "nova.heartbeat",

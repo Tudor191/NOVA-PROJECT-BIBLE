@@ -175,6 +175,7 @@ from nova_contracts.events.perception import (
     PerceptionSensorHealthChangedPayload,
     PerceptionSource,
     PerceptionWakeDetectedPayload,
+    PerceptionWorkspaceObservedPayload,
 )
 from nova_contracts.events.personality import (
     CommunicationStyle,
@@ -373,6 +374,7 @@ __all__ = [
     "PerceptionSensorHealthChangedPayload",
     "PerceptionSource",
     "PerceptionWakeDetectedPayload",
+    "PerceptionWorkspaceObservedPayload",
     "PermissionSet",
     "PersonalContext",
     "PersonalityMemoryUpdatePayload",

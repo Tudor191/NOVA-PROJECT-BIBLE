@@ -37,6 +37,17 @@ class Settings(BaseSettings):
     every 2-3 seconds while a presence session is active, a starting
     parameter tuned by Sec20's calibration tests, not a fixed constant."""
 
+    workspace_debounce_seconds: float = 1.0
+    """Phase 4F.2 (TDD 4F §9's *"debounce and coalesce high-frequency OS
+    signals"*). One editor save emits several filesystem events within a few
+    hundred milliseconds; one second collapses that burst while leaving two
+    genuinely separate edits distinguishable.
+
+    **Well inside AC-7's 5-second budget**, and deliberately so: debouncing
+    delays the first observation of an object by nothing at all -- the first
+    is always admitted -- so this spends no part of that budget on the path
+    AC-7 measures."""
+
     ai_model_orchestration_timeout_ms: int = 5000
     """Event-Bus request/reply timeout for the four biometric/wake RPCs
     (Sec0.2) -- `clients/ai_model_orchestration_client.py`."""
