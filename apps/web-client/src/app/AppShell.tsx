@@ -39,6 +39,8 @@ const PANELS = [
   { path: "/agents", label: "Agents" },
   // Phase 4D.
   { path: "/autonomy", label: "Autonomy" },
+  // Phase 4E.
+  { path: "/digital-twin", label: "Digital Twin" },
 ] as const;
 
 export function AppShell() {

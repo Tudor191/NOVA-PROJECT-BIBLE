@@ -497,3 +497,23 @@ def test_control_10_is_enforced_by_the_type_not_only_by_a_test() -> None:
     assert "_state_is_supported_by_its_evidence" in names
     assert "_respects_the_ratified_per_domain_floor" in names
     assert DomainModel.model_config.get("extra") is None  # no silent-accept mode
+
+
+def test_control_7_no_route_accepts_a_user_id_parameter() -> None:
+    """ADR-025 and Sec10 item 1: **4E introduces no second identity concept.**
+
+    The identity is `settings.primary_user_id`, resolved server-side, the same
+    way `/v1/autonomy/*` resolves it. A `user_id` parameter would put a selection
+    at the edge that the system cannot honour -- there is one user -- and would
+    read like multi-tenancy this architecture does not have.
+    """
+    app = create_app(Settings(), repository=FakeDigitalTwinRepository())
+    with TestClient(app) as client:
+        document = client.get("/openapi.json").json()
+
+    for path, operations in document["paths"].items():
+        if not path.startswith("/v1/digital-twin/domains"):
+            continue
+        for method, operation in operations.items():
+            names = {p["name"] for p in operation.get("parameters", [])}
+            assert "user_id" not in names, f"{method.upper()} {path} takes a user_id"

@@ -24,7 +24,10 @@ from nova_digital_twin_engine.main import create_app
 
 from tests.fakes.repository import FakeDigitalTwinRepository
 
-USER = UUID("00000000-0000-0000-0000-000000000001")
+USER = Settings().primary_user_id
+"""ADR-025's single trusted user. The routes take no `user_id` -- they resolve it
+from `settings.primary_user_id` server-side, exactly as `/v1/autonomy/*` does --
+so the seeding below has to use the same identity the app will."""
 
 
 def _run(coro: Coroutine[object, object, None]) -> None:
@@ -88,7 +91,7 @@ async def _seed_project_memories(
 def test_the_domain_list_renders_all_eleven_part_16_domains_in_order(
     client: TestClient,
 ) -> None:
-    body = client.get("/v1/digital-twin/domains", params={"user_id": str(USER)}).json()
+    body = client.get("/v1/digital-twin/domains").json()
 
     assert [d["domain"] for d in body["domains"]] == [d.value for d in PART_16_DOMAIN_ORDER]
     assert len(body["domains"]) == 11, "the panel shows the Digital Twin, not one milestone"
@@ -99,7 +102,7 @@ def test_every_unpopulated_domain_carries_a_machine_readable_reason(
 ) -> None:
     """Sec14.5 control 10, over the wire. A reason the panel cannot branch on is
     a comment, not a contract."""
-    body = client.get("/v1/digital-twin/domains", params={"user_id": str(USER)}).json()
+    body = client.get("/v1/digital-twin/domains").json()
 
     for domain in body["domains"]:
         if domain["state"] == "populated":
@@ -113,7 +116,7 @@ def test_every_unpopulated_domain_carries_a_machine_readable_reason(
 def test_a_fresh_install_reports_the_two_4f_domains_as_empty_with_no_source_engine(
     client: TestClient,
 ) -> None:
-    body = client.get("/v1/digital-twin/domains", params={"user_id": str(USER)}).json()
+    body = client.get("/v1/digital-twin/domains").json()
     by_name = {d["domain"]: d for d in body["domains"]}
 
     for name in ("software_environment", "hardware_environment"):
@@ -126,7 +129,7 @@ def test_a_fresh_install_reports_the_two_4f_domains_as_empty_with_no_source_engi
 
 
 def test_the_two_shipped_2dd_domains_are_marked_as_such(client: TestClient) -> None:
-    body = client.get("/v1/digital-twin/domains", params={"user_id": str(USER)}).json()
+    body = client.get("/v1/digital-twin/domains").json()
     shipped = {d["domain"] for d in body["domains"] if d["shipped_before_4e"]}
 
     assert shipped == {"communication_style", "preferences"}
@@ -137,7 +140,7 @@ def test_the_two_shipped_2dd_domains_are_marked_as_such(client: TestClient) -> N
 
 def test_one_domain_can_be_read_by_name(client: TestClient) -> None:
     response = client.get(
-        "/v1/digital-twin/domains/goals", params={"user_id": str(USER)}
+        "/v1/digital-twin/domains/goals"
     )
 
     assert response.status_code == 200
@@ -146,7 +149,7 @@ def test_one_domain_can_be_read_by_name(client: TestClient) -> None:
 
 def test_an_unknown_domain_is_a_404_naming_the_eleven(client: TestClient) -> None:
     response = client.get(
-        "/v1/digital-twin/domains/telepathy", params={"user_id": str(USER)}
+        "/v1/digital-twin/domains/telepathy"
     )
 
     assert response.status_code == 404
@@ -158,7 +161,7 @@ def test_refreshing_a_domain_with_no_evidence_succeeds_and_reports_empty(
 ) -> None:
     """"There is nothing to derive" is an answer, not an error."""
     response = client.post(
-        "/v1/digital-twin/domains/skill_profile/refresh", params={"user_id": str(USER)}
+        "/v1/digital-twin/domains/skill_profile/refresh"
     )
 
     assert response.status_code == 200
@@ -175,7 +178,7 @@ def test_refresh_re_derives_from_this_engines_own_accumulated_evidence(
     _run(_seed_project_memories(repository, project_id=project_id, ages_in_days=(40.0, 10.0)))
 
     body = client.post(
-        "/v1/digital-twin/domains/projects/refresh", params={"user_id": str(USER)}
+        "/v1/digital-twin/domains/projects/refresh"
     ).json()
 
     assert body["state"] == "populated"
@@ -195,7 +198,7 @@ def test_the_projects_route_returns_both_the_domain_and_the_project_list(
     _run(_seed_project_memories(repository, project_id=project_id, ages_in_days=(5.0,)))
 
     body = client.get(
-        "/v1/digital-twin/domains/projects", params={"user_id": str(USER)}
+        "/v1/digital-twin/domains/projects"
     ).json()
 
     assert body["domain"]["domain"] == "projects"
@@ -215,7 +218,7 @@ def test_the_ac6_route_reconstructs_a_multi_week_gap_from_persisted_timestamps(
     )
 
     body = client.get(
-        f"/v1/digital-twin/domains/projects/{project_id}", params={"user_id": str(USER)}
+        f"/v1/digital-twin/domains/projects/{project_id}"
     ).json()
 
     project = body["project"]
@@ -229,7 +232,7 @@ def test_an_unknown_project_is_a_404_not_an_empty_project(client: TestClient) ->
     """A project that does not exist and a project with no activity are different
     answers. Returning zeros for the first would invent the second."""
     response = client.get(
-        f"/v1/digital-twin/domains/projects/{uuid4()}", params={"user_id": str(USER)}
+        f"/v1/digital-twin/domains/projects/{uuid4()}"
     )
 
     assert response.status_code == 404
@@ -252,7 +255,7 @@ def test_a_restricted_memory_never_reaches_the_rendered_project_list(
     )
 
     body = client.get(
-        "/v1/digital-twin/domains/projects", params={"user_id": str(USER)}
+        "/v1/digital-twin/domains/projects"
     ).json()
 
     assert body["projects"] == []

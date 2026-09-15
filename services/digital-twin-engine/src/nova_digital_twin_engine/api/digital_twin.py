@@ -25,6 +25,13 @@ which domain to re-derive. A route that let a caller write a domain's facts woul
 make every negative control in Sec14.5 unprovable, since a fabricated value could
 then enter through the front door.
 
+**No route takes a `user_id`, and that is a boundary decision rather than a
+convenience.** ADR-025 gives one trusted user per instance, so the identity is
+resolved server-side from `settings.primary_user_id` -- exactly as
+`autonomy-engine`'s `/v1/autonomy/*` does, and for the same reason. Accepting one
+would introduce a second identity concept at the edge, which TDD 4E Sec2 and Sec10
+item 1 forbid, and would imply a selection the system cannot honour.
+
 **No `TrustMetric` route** (ratified Sec19.2): CF-10 stays open, and this module
 is the obvious place it would have been closed by accident.
 """
@@ -162,8 +169,15 @@ def _parse_domain(raw: str) -> TwinDomain:
         ) from exc
 
 
+def _user_id(request: Request) -> UUID:
+    """ADR-025's single trusted user, resolved server-side -- never from the
+    caller. See the module docstring."""
+    user_id: UUID = request.app.state.settings.primary_user_id
+    return user_id
+
+
 @router.get("/domains", response_model=DomainListResponse)
-async def list_domains(user_id: UUID, request: Request) -> DomainListResponse:
+async def list_domains(request: Request) -> DomainListResponse:
     """All eleven domains: name, state, reason-if-not-populated, last-derived.
 
     Derives on read rather than serving a possibly-stale row. The derivation is a
@@ -172,7 +186,7 @@ async def list_domains(user_id: UUID, request: Request) -> DomainListResponse:
     refresh schedule rather than the model.
     """
     models = await domain_derivation.derive_all_domains(
-        request.app.state.repository, user_id=user_id
+        request.app.state.repository, user_id=_user_id(request)
     )
     order = {domain: i for i, domain in enumerate(PART_16_DOMAIN_ORDER)}
     models.sort(key=lambda m: order[m.domain])
@@ -180,10 +194,11 @@ async def list_domains(user_id: UUID, request: Request) -> DomainListResponse:
 
 
 @router.get("/domains/projects", response_model=ProjectListResponse)
-async def list_projects(user_id: UUID, request: Request) -> ProjectListResponse:
+async def list_projects(request: Request) -> ProjectListResponse:
     """The project list derived from `MemoryRecord.project_id`, plus the
     `projects` domain's own state -- see the module docstring on why both."""
     repository = request.app.state.repository
+    user_id = _user_id(request)
     model = await domain_derivation.derive_one_domain(
         repository, TwinDomain.PROJECTS, user_id=user_id
     )
@@ -195,9 +210,7 @@ async def list_projects(user_id: UUID, request: Request) -> ProjectListResponse:
 
 
 @router.get("/domains/projects/{project_id}", response_model=ProjectDetailResponse)
-async def get_project(
-    project_id: UUID, user_id: UUID, request: Request
-) -> ProjectDetailResponse:
+async def get_project(project_id: UUID, request: Request) -> ProjectDetailResponse:
     """**AC-6.** The reconstruction for one project.
 
     404 when no memory has ever carried this `project_id` for this user. Not an
@@ -205,6 +218,7 @@ async def get_project(
     are different answers, and returning zeros for the first would invent one.
     """
     repository = request.app.state.repository
+    user_id = _user_id(request)
     await domain_derivation.derive_one_domain(repository, TwinDomain.PROJECTS, user_id=user_id)
     project = await repository.get_project_model(user_id, project_id)
     if project is None:
@@ -220,16 +234,16 @@ async def get_project(
 
 
 @router.get("/domains/{domain}", response_model=DomainResponse)
-async def get_domain(domain: str, user_id: UUID, request: Request) -> DomainResponse:
+async def get_domain(domain: str, request: Request) -> DomainResponse:
     """One domain's current model and the provenance count behind it."""
     model = await domain_derivation.derive_one_domain(
-        request.app.state.repository, _parse_domain(domain), user_id=user_id
+        request.app.state.repository, _parse_domain(domain), user_id=_user_id(request)
     )
     return _domain_response(model)
 
 
 @router.post("/domains/{domain}/refresh", response_model=DomainResponse)
-async def refresh_domain(domain: str, user_id: UUID, request: Request) -> DomainResponse:
+async def refresh_domain(domain: str, request: Request) -> DomainResponse:
     """Re-derive one domain from its sources. Explicit and user-triggered.
 
     "Its sources" means this engine's own accumulated `domain_evidence` rows --
@@ -241,7 +255,7 @@ async def refresh_domain(domain: str, user_id: UUID, request: Request) -> Domain
     """
     parsed = _parse_domain(domain)
     model = await domain_derivation.derive_one_domain(
-        request.app.state.repository, parsed, user_id=user_id
+        request.app.state.repository, parsed, user_id=_user_id(request)
     )
     if model.state is DomainState.POPULATED and model.evidence_count == 0:  # pragma: no cover
         # Unreachable: `DomainModel`'s own validator raises first. Kept as a

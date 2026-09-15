@@ -143,6 +143,77 @@ describe("the Agents surface introduces no new external boundary", () => {
   });
 });
 
+const DIGITAL_TWIN_SOURCES = [
+  fileURLToPath(new URL("../../src/entities/digitalTwin.ts", import.meta.url)),
+  fileURLToPath(
+    new URL("../../src/panels/digitalTwin/DigitalTwinPanel.tsx", import.meta.url),
+  ),
+];
+
+describe("the Digital Twin surface introduces no new external boundary", () => {
+  it("never names an engine host, an internal path, or a bus scheme", () => {
+    for (const path of DIGITAL_TWIN_SOURCES) {
+      const source = readFileSync(path, "utf8");
+      const code = source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+      expect(code).not.toMatch(/digital-twin-engine/);
+      expect(code).not.toMatch(/memory-engine/);
+      expect(code).not.toMatch(/perception-engine/);
+      expect(code).not.toMatch(/\/internal\//);
+      expect(code).not.toMatch(/nats:\/\//);
+      expect(code).not.toMatch(/:\d{4}\b/);
+    }
+  });
+
+  it("reaches the backend only through the shared gateway client", () => {
+    const entity = readFileSync(DIGITAL_TWIN_SOURCES[0], "utf8");
+    expect(entity.replace(/\/\*[\s\S]*?\*\//g, "")).not.toMatch(/[^a-zA-Z]fetch\(/);
+    expect(entity).toMatch(/gatewayFetch/);
+  });
+
+  it("calls only routes under /v1/digital-twin", () => {
+    // Comments stripped first: the module's docstring cites `PUBLIC_TOPICS`
+    // and other paths while explaining what it deliberately does not do, and
+    // a check that could not tell a citation from a request would force the
+    // code to stop explaining itself.
+    const entity = readFileSync(DIGITAL_TWIN_SOURCES[0], "utf8")
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/^\s*\/\/.*$/gm, "");
+    const paths = [...entity.matchAll(/["`]\/v1\/[^"`$]*/g)].map((m) => m[0].slice(1));
+    expect(paths.length).toBeGreaterThan(0);
+    for (const path of paths) {
+      expect(path.startsWith("/v1/digital-twin")).toBe(true);
+    }
+  });
+
+  it("adds no polling, and no realtime subscription", () => {
+    // TDD 4E Sec8.3: `PUBLIC_TOPICS` gains no `digital_twin.*` entry, so there
+    // is nothing to subscribe to. Freshness comes from an explicit re-derive.
+    //
+    // Comments stripped first, for the reason the Agents checks above give:
+    // both modules' docstrings state *"No `refetchInterval`, no `setInterval`"*
+    // while explaining why, and a check that could not tell a citation from a
+    // call would force the code to stop explaining itself.
+    for (const path of DIGITAL_TWIN_SOURCES) {
+      const code = readFileSync(path, "utf8")
+        .replace(/\/\*[\s\S]*?\*\//g, "")
+        .replace(/^\s*\/\/.*$/gm, "");
+      expect(code).not.toMatch(/refetchInterval|setInterval/);
+      expect(code).not.toMatch(/useRealtime|WebSocket|subscribe\(/);
+    }
+  });
+
+  it("mutates only through an explicit re-derive that invalidates", () => {
+    // The one write is POST /refresh. No optimistic cache write anywhere:
+    // `setQueryData` would draw a domain as derived before the server agreed,
+    // which is the single claim Part 16 Sec69 forbids.
+    const entity = readFileSync(DIGITAL_TWIN_SOURCES[0], "utf8");
+    const methods = [...entity.matchAll(/method:\s*"(\w+)"/g)].map((m) => m[1]);
+    expect(methods).toEqual(["POST"]);
+    expect(entity).not.toMatch(/setQueryData/);
+    expect(entity).toMatch(/invalidateQueries/);
+  });
+});
+
 // --- 2. /internal/* and engines are unaddressable ---------------------------
 
 describe("the client can only call the versioned public surface", () => {
