@@ -637,6 +637,21 @@ either from scratch.
 - Golden-scenario replay of the "meeting begins" fusion scenario from [10](../architecture/10-inter-engine-communication.md).
 
 **Acceptance criteria**
+
+> **Note added 2026-09-15; the bullets below are the original planning-stage
+> wording and are left as written, per protocol §0.3.4.** These four bullets are
+> **not authoritative** — the status note at the top of this Phase 4 entry and
+> [`00-master-scope.md`](../design/phase-4/00-master-scope.md) §1.1 both record
+> that **AC-1 … AC-8 in the master scope are authoritative for Phase 4**. Two of
+> the bullets below have since been superseded there: the first bullet's **"within
+> one second"** was **revised to five seconds** with modality-neutral wording when
+> Phase 4F's TDD found the budget unreachable without changing the transactional
+> outbox architecture (ratified decision **D-4F-1**, master scope §1.1's AC-7 note
+> and [TDD 4F](../design/phase-4/06-tdd-4f-companion-and-cognitive-state.md) §4.1),
+> and the fourth bullet's *"the (still-minimal) UI"* is now a named panel. The
+> substance — a real sensor, a real OS permission revocation, no user action, real
+> World Model reflection — is unchanged.
+
 - Opening a known project in the IDE is detected and reflected in the World Model within one second, with no user action required.
 - An autonomous suggestion at Level 1 is proposed, not executed, and executing it requires explicit user approval; the same action category at Level 2 for a low-risk case executes automatically per policy.
 - Digital Twin's project model correctly reconstructs "what was I doing on Project X" after a simulated multi-week gap in a test scenario.

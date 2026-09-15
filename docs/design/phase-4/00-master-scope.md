@@ -56,8 +56,52 @@ Digital Twin, and NOVA's own internal attention.
 | **AC-4** | `agent-os` runs as containers under `docker compose up`, and the Agents panel renders live agent instances, supervisor structure, and at least one real peer-review round. **Two of its three clauses are Deferred by approval — see below.** | 4C |
 | **AC-5** | An autonomous suggestion at Autonomy Level 1 is **proposed, not executed**, is visible in the Autonomy panel, and executing it requires explicit user approval. | 4D |
 | **AC-6** | The Digital Twin's project model correctly reconstructs "what was I doing on Project X" after a simulated multi-week gap, and the reconstruction is visible in the Digital Twin panel. | 4E |
-| **AC-7** | Opening a known project in the IDE is detected and reflected in the World Model within one second with no user action, and revoking a sensor's OS permission immediately and visibly stops that perception stream in the UI. | 4F |
+| **AC-7** | *(**Revised 2026-09-15**, ratified — see the note below.)* A known project becoming active on the user's machine is detected by a `nova-companion` sensor, without user action, and is reflected in the World Model **within five seconds**; and revoking that sensor's OS-level permission stops the perception stream, visibly, in the Digital Twin / Cognitive State panel. | 4F |
 | **AC-8** | The same action category that is blocked at Level 1 auto-executes at Level 2 for a low-risk case, purely by policy — no code path differs. | 4F |
+
+> **AC-7 revised 2026-09-15 (ratified).** ***The original text, preserved per
+> protocol §0.3.4:*** *"Opening a known project in the IDE is detected and
+> reflected in the World Model **within one second** with no user action, and
+> revoking a sensor's OS permission immediately and visibly stops that perception
+> stream in the UI."*
+>
+> **Why.** The Phase 4F design pass found the one-second budget unreachable
+> without changing the transactional outbox architecture. Every
+> `perception-engine` publisher returns an `OutboxEvent`, and dispatch runs on a
+> **fixed 10-second cron**, so worst-case perception-to-bus latency is ~10 s
+> before `world-model-engine` receives anything. The three ways to close that gap
+> — shortening the global cron, a direct-publish bypass, or push-triggered
+> dispatch — were each evaluated and **declined**: push-triggered dispatch would
+> require `SELECT … FOR UPDATE SKIP LOCKED` in **13** engines' dispatch queries
+> (no row locking exists anywhere in the repository today) to avoid duplicate
+> publication, which is a repository-wide concurrency change disproportionate to
+> one criterion. **Decision D-4F-1: the outbox architecture is unchanged and the
+> budget moves to five seconds.**
+>
+> **Two further changes.** *"in the IDE"* became *"becoming active on the user's
+> machine"* so the criterion is **modality-neutral**: the CI acceptance path uses
+> a genuine **filesystem** sensor, because the runner has no desktop session, no
+> `DISPLAY` and no IDE, and fabricating a window-focus reading is forbidden
+> (decision D-4F-8). **IDE/window-focus sensing is explicitly outside the Phase 4F
+> CI acceptance path.** And *"the UI"* became a named panel, so the clause is
+> testable.
+>
+> **What did not change.** The criterion still requires a real sensor, a real OS
+> permission revocation, no user action, real World Model reflection, and
+> measured elapsed time.
+>
+> **The five seconds are honest** *(second ratification, 2026-09-15)*. The E2E
+> **may not** align its measurement window to the 10-second outbox dispatcher
+> cron, **may not** use a bounded retry or any scheduling technique that avoids
+> worst-case dispatch latency, and **may not** fabricate a timestamp, clock,
+> sleep, injected Event Bus message, mocked transport or sensor event. Elapsed
+> time is measured from the real filesystem event to the observable World Model
+> result across the **unchanged** outbox and dispatcher. **If the real latency
+> exceeds five seconds the test must fail and expose the figure**, and that is
+> reported as a **blocking Gate Review finding** rather than resolved by
+> weakening the criterion again. See
+> [`06-tdd-4f-companion-and-cognitive-state.md`](06-tdd-4f-companion-and-cognitive-state.md)
+> §4.1 and §19.
 
 **AC-1 through AC-4 do not depend on any new engine.** They depend only on
 surfacing what Phase 3 already built.
@@ -1039,7 +1083,7 @@ a workflow defect, and must not be worked around.
 | `03-tdd-4c-agent-os-api-and-containerization.md` | 4C — **never written; waived at Phase 4C closure, 2026-09-12** (see the note below) | **Waived, not owed** |
 | [`04-tdd-4d-autonomy-engine.md`](04-tdd-4d-autonomy-engine.md) | 4D technical design: architecture and the binding gate order, Trust Engine inputs, Policy Engine, Permission Matrix, contracts, persistence, security boundaries, CF-9 handling, the panel, testing, acceptance criteria, and §0.1's two ratified refinements **D-4D-1** and **D-4D-2** | **Written 2026-09-12** (`eedb8ad`), corrected `f5ca915` |
 | [`05-tdd-4e-digital-twin-extension.md`](05-tdd-4e-digital-twin-extension.md) | 4E technical design: Bible Part 16's eleven domains and which nine remain, the real Memory and Perception evidence sources, ownership boundaries, the `/v1/digital-twin/*` contracts, event and realtime behaviour, persistence, degraded semantics, the panel, testing, AC-6 mapping, and §0.1's findings plus the ratified decisions in §19 and §20 | **Written 2026-09-14; ratified 2026-09-14 (§19) and 2026-09-14 (§20.1, the AC-6 temporal-gap mechanism). Implemented on `phase-4e` from 2026-09-15.** §0.1.5 and §0.1.6 record two findings produced *during* implementation and their resolutions. *(This cell read "design preparation, **not ratified**; §19 must be answered before implementation" — correct until the ratifications.)* |
-| `06-tdd-4f-companion-and-cognitive-state.md` | 4F — not yet written | Planned |
+| [`06-tdd-4f-companion-and-cognitive-state.md`](06-tdd-4f-companion-and-cognitive-state.md) | 4F technical design: `nova-companion` and its ownership boundary, Sensor Abstraction Layer integration, normalization, enrichment and multi-modal fusion, the `cognitive-state-engine` (Active Thoughts, Focus, Attention Layers), the **five separable states of Autonomy Level 2**, the complete AC-8 path from trigger to execution, Event Bus and `PUBLIC_TOPICS` impact, persistence, transport, CI, testing, AC-7 and AC-8 mapping, milestone decomposition, and the ratified decisions D-4F-1 … D-4F-8 | **Written 2026-09-15 on the preparation branch `phase-4f-tdd`; RATIFIED 2026-09-15 (§19), not yet implemented.** All three blocking findings are resolved: **AC-7 is re-scoped from one second to five** with modality-neutral wording and the transactional outbox left unchanged (D-4F-1), **CF-9 is taken as an explicit 4F dependency** with its write surface in the owning `action-engine` (D-4F-2), and **`cognitive-state-engine` owns the initiative trigger** under eight prohibitions (D-4F-3). §20 records two non-blocking open questions. *(This cell read "4F — not yet written | Planned" until 2026-09-15, and "design preparation, NOT RATIFIED" until the ratification later the same day.)* |
 
 Each later TDD is written immediately before its milestone begins, not up
 front — the same cadence Phase 3 used, which let each TDD incorporate what
