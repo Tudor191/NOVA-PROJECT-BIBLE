@@ -23,6 +23,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from datetime import timedelta
 from typing import TYPE_CHECKING
 
 from fastapi import FastAPI
@@ -41,6 +42,7 @@ from nova_perception_engine.config import Settings
 from nova_perception_engine.domain.correlation_buffer import WindowCorrelationBuffer
 from nova_perception_engine.domain.ports import AIModelOrchestrationPort, PerceptionRepository
 from nova_perception_engine.domain.session_activity import SessionActivityTracker
+from nova_perception_engine.domain.workspace import WorkspaceObservationDebouncer
 from nova_perception_engine.events.handlers import make_session_dispatch_handler
 from nova_perception_engine.events.published import PUBLISHABLE_SUBJECTS
 from nova_perception_engine.events.subscribed import SUBSCRIBABLE_SUBJECTS
@@ -123,6 +125,24 @@ def create_app(
         }
         app.state.sensors_by_source = {"microphone": voice_sensor, "camera": camera_sensor}
         app.state.correlation_buffer = WindowCorrelationBuffer()
+
+        # Phase 4F.2. The debouncer is real and wired; the filesystem sensor
+        # that feeds it is 4F.3's `nova-companion` work, so `sensors_by_source`
+        # gains no "filesystem" entry here -- registering a source with no
+        # sensor behind it would make the route 202 on an observation nothing
+        # produced. Until that sensor registers, the workspace route 404s on
+        # an unknown source, which is the honest answer.
+        app.state.workspace_debouncer = WorkspaceObservationDebouncer(
+            window=timedelta(seconds=settings.workspace_debounce_seconds)
+        )
+        # AC-7's "known project" correlation table, keyed by `object_id` hash.
+        # Empty until the enrichment source exists: `memory-engine` owns
+        # `project_id` and `perception-engine` must not read its database
+        # (ADR-004), so this is populated over the Event Bus, not by a query.
+        # An empty table means `resolve_project_id` returns `None` -- §9's
+        # honest unknown, which is exactly the right behaviour before any
+        # project is known.
+        app.state.known_projects = {}
         app.state.ready = True
 
         yield

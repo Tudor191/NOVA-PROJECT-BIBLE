@@ -543,3 +543,123 @@ def test_frame_envelope_matches_the_rest_surface_convention() -> None:
     """Doc 11 §4's shape, so the client's data layer sees one convention."""
     serialised = to_event_frame(_envelope()).model_dump()
     assert {"data", "meta", "error"} <= set(serialised)
+
+
+# --- Phase 4F.2: the workspace observation must not reach a browser -------
+
+
+def test_4f2_workspace_observed_is_not_a_public_topic() -> None:
+    """§20.2 requirement 7 -- asserted, not stated.
+
+    `perception.workspace.observed` carries raw workspace-sensor provenance:
+    a `sensor_id`, an `observed_at` and a file-path hash. The browser sees
+    *normalized* state through the Cognitive State REST surface; it has no
+    business naming a sensor subject.
+    """
+    assert "perception.workspace.observed" not in PUBLIC_TOPICS
+
+
+def test_4f2_public_topics_is_still_exactly_eighteen() -> None:
+    """A size guard, like 4C's above. 4F.2 adds an Event Bus subject and
+    **no** public topic, so this number must not move -- a slice that added
+    one by rewriting the set would otherwise go unnoticed."""
+    assert len(PUBLIC_TOPICS) == 18
+
+
+def test_4f2_a_browser_naming_the_workspace_subject_is_rejected() -> None:
+    """§20.2 requirement 11 -- the negative test.
+
+    Rejection, not silent omission: `partition_topics` returns it in
+    `rejected`, which `api/stream.py` turns into an error frame while the
+    connection continues.
+    """
+    allowed, rejected = partition_topics(["perception.workspace.observed"])
+    assert allowed == []
+    assert rejected == ["perception.workspace.observed"]
+
+
+def test_4f2_a_rejected_workspace_topic_does_not_poison_a_valid_one() -> None:
+    """The connection stays usable. A client naming one forbidden topic
+    alongside a legitimate one still gets the legitimate one -- the
+    boundary refuses a topic, it does not drop the session."""
+    allowed, rejected = partition_topics(
+        ["perception.workspace.observed", "perception.presence.observed"]
+    )
+    assert allowed == ["perception.presence.observed"]
+    assert rejected == ["perception.workspace.observed"]
+
+
+def test_4f2_workspace_observed_is_not_subscribable_by_the_gateway_at_all() -> None:
+    """§20.2 requirement 8 -- the *second* allow-list, and the one 4F.2 had
+    to narrow.
+
+    `PUBLIC_TOPICS` stops a browser naming the subject. This stops the
+    gateway **process** receiving it: `perception.*` used to match, because
+    `*` spans dots under `fnmatchcase`. That is the identical gap
+    `agent_os.*` was narrowed to `agent_os.task.*` to close, and it is
+    closed here the same way.
+    """
+    matching = [p for p in SUBSCRIBABLE_SUBJECTS if fnmatchcase("perception.workspace.observed", p)]
+    assert not matching, (
+        f"perception.workspace.observed matches subscribable pattern(s) {matching}; "
+        "the gateway would receive raw workspace-sensor events"
+    )
+
+
+def test_4f2_only_the_three_browser_relevant_perception_subjects_are_subscribable() -> None:
+    """The narrowing, pinned so it cannot silently widen back.
+
+    Every perception subject the gateway may reach must also be a public
+    topic -- if the browser cannot name it, the gateway has no reason to
+    receive it. That symmetry is what makes a future `perception.*` a test
+    failure rather than a quiet regression.
+    """
+    perception_patterns = sorted(p for p in SUBSCRIBABLE_SUBJECTS if p.startswith("perception"))
+    assert perception_patterns == [
+        "perception.identity.observed",
+        "perception.presence.observed",
+        "perception.sensor.health_changed",
+    ]
+    for pattern in perception_patterns:
+        assert "*" not in pattern, f"{pattern!r} is a wildcard; it could match a future raw subject"
+        assert pattern in PUBLIC_TOPICS
+
+
+def test_4f2_no_raw_perception_subject_is_subscribable() -> None:
+    """The general form, so a *fourth* raw subject cannot appear unnoticed.
+
+    Every subject `perception-engine` declares publishable, minus the three
+    browser-relevant ones, must match no subscribable pattern here. This
+    reads the producer's own allow-list rather than a copy, so adding a
+    perception subject in a later slice fails this test until someone
+    decides, explicitly, whether the browser should see it.
+    """
+    published = (
+        Path(__file__).resolve().parents[3]
+        / "perception-engine"
+        / "src"
+        / "nova_perception_engine"
+        / "events"
+        / "published.py"
+    )
+    tree = ast.parse(published.read_text(encoding="utf-8"))
+    subjects = {
+        node.value
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Constant)
+        and isinstance(node.value, str)
+        and node.value.startswith("perception.")
+    }
+    assert "perception.workspace.observed" in subjects, "the parser missed the 4F.2 subject"
+
+    browser_relevant = {
+        "perception.identity.observed",
+        "perception.presence.observed",
+        "perception.sensor.health_changed",
+    }
+    for subject in sorted(subjects - browser_relevant):
+        matching = [p for p in SUBSCRIBABLE_SUBJECTS if fnmatchcase(subject, p)]
+        assert not matching, (
+            f"{subject!r} is an internal perception subject but matches "
+            f"subscribable pattern(s) {matching}."
+        )

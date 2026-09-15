@@ -110,6 +110,7 @@ export type { PerceptionPresenceObservedPayload } from "./PerceptionPresenceObse
 export type { PerceptionIdentityObservedPayload } from "./PerceptionIdentityObservedPayload";
 export type { PerceptionAttentionObservedPayload } from "./PerceptionAttentionObservedPayload";
 export type { PerceptionWakeDetectedPayload } from "./PerceptionWakeDetectedPayload";
+export type { PerceptionWorkspaceObservedPayload } from "./PerceptionWorkspaceObservedPayload";
 export type { PerceptionAddresseeSignalCandidatePayload } from "./PerceptionAddresseeSignalCandidatePayload";
 export type { PerceptionConsentChangedPayload } from "./PerceptionConsentChangedPayload";
 export type { PerceptionSensorHealthChangedPayload } from "./PerceptionSensorHealthChangedPayload";
