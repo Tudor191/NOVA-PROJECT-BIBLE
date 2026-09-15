@@ -154,14 +154,43 @@ async def test_an_absent_estimated_completion_stays_null(
     assert (await repository.get_thought(stored.thought_id)).estimated_completion is None
 
 
+@pytest.mark.parametrize(
+    ("constraint", "priority", "confidence", "current_progress"),
+    [
+        ("ck_active_thought_confidence_range", 1, 1.5, 0.0),
+        ("ck_active_thought_progress_range", 1, 0.5, 1.5),
+        ("ck_active_thought_priority_non_negative", -1, 0.5, 0.0),
+    ],
+)
 async def test_the_check_constraints_are_real(
     postgres_session_factory: async_sessionmaker[AsyncSession],
+    constraint: str,
+    priority: int,
+    confidence: float,
+    current_progress: float,
 ) -> None:
     """Bypassing the domain model on purpose: the table must refuse an
     out-of-range value on its own. A Protocol has no constraint to violate,
-    which is exactly why this tier exists."""
-    async with postgres_session_factory() as session, session.begin():
-        with pytest.raises(IntegrityError):
+    which is exactly why this tier exists.
+
+    **Each of the three constraints gets its own case, and each asserts the
+    constraint *by name*.** Without the name this would only prove that *some*
+    constraint fired -- a negative `priority` that tripped the confidence check
+    would pass a bare `pytest.raises`, and the column the test claims to cover
+    would be unprotected.
+
+    **No `session.begin()` here, deliberately** -- the repository-wide pattern
+    for an expected violation (`autonomy-engine`, `personality-engine`,
+    `kernel`), and the reason is not stylistic. A constraint violation puts the
+    Postgres transaction into the aborted state; `pytest.raises` then swallows
+    the error, so an enclosing `session.begin()` block exits *normally* and
+    SQLAlchemy issues its commit -- `RELEASE SAVEPOINT` against a transaction
+    that can no longer accept commands. The assertion passes and the teardown
+    fails. Closing the session instead rolls the savepoint back, which is what
+    recovers the connection for the next statement.
+    """
+    async with postgres_session_factory() as session:
+        with pytest.raises(IntegrityError) as raised:
             await session.execute(
                 text(
                     """
@@ -169,11 +198,22 @@ async def test_the_check_constraints_are_real(
                         (thought_id, user_id, description, priority, confidence,
                          current_progress, attention_layer, created_at, updated_at)
                     VALUES
-                        (:tid, :uid, 'out of range', 1, 1.5, 0.0, 'active', now(), now())
+                        (:tid, :uid, 'out of range', :priority, :confidence,
+                         :current_progress, 'active', now(), now())
                     """
                 ),
-                {"tid": uuid4(), "uid": USER},
+                {
+                    "tid": uuid4(),
+                    "uid": USER,
+                    "priority": priority,
+                    "confidence": confidence,
+                    "current_progress": current_progress,
+                },
             )
+
+    assert constraint in str(raised.value), (
+        f"expected {constraint} to reject the row, got: {raised.value}"
+    )
 
 
 async def test_listing_is_deterministic_across_a_timestamp_tie(
