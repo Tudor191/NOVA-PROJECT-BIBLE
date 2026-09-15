@@ -185,7 +185,11 @@ importers:
 
   services/api-gateway: {}
 
+  services/autonomy-engine: {}
+
   services/capability-engine: {}
+
+  services/cognitive-state-engine: {}
 
   services/communication-engine: {}
 

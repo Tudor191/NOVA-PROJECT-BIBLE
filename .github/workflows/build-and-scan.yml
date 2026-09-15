@@ -101,6 +101,13 @@ jobs:
           # assigns this matrix entry to 4D.
           - service: autonomy-engine
             dockerfile: services/autonomy-engine/Dockerfile
+          # Phase 4F.1. The Cognitive State Engine (Bible Part 6). Added with
+          # the engine rather than later: an unscanned Dockerfile in the tree is
+          # exactly the gap Phase 3E's condition C-3 recorded for `agent-os`,
+          # and this file's own matrix comment asks for a line whenever
+          # `tools/scaffold-engine.py` creates an engine.
+          - service: cognitive-state-engine
+            dockerfile: services/cognitive-state-engine/Dockerfile
           # Phase 4C (D-5), discharging the containerization half of Phase 3E's
           # ratified condition C-3. **This is the first Trivy scan any
           # `agent-os` component has ever had.** `agent-os/sdk/python` is
