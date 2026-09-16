@@ -1,8 +1,10 @@
 # TDD 4F.3 — `nova-companion`
 ## The Rust daemon, the filesystem sensor, and the first real OS signal
 
-**Status:** **Design preparation. NOT RATIFIED.** §20 lists four questions that
-must be answered before implementation begins.
+**Status:** **RATIFIED 2026-09-16 (§20).** All four open questions are answered;
+§20 records each decision and what it forbids. *(This line read "Design
+preparation. NOT RATIFIED. §20 lists four questions that must be answered before
+implementation begins." until the ratification — preserved per protocol §0.3.4.)*
 **Date:** 2026-09-16
 **Branch:** `phase-4f3-tdd`, cut from `phase-4` at `43d4036f237d416368fee9038981e2eec55e1633`
 **Protocol:** [`PROJECT_PHASE_COMPLETION_PROTOCOL.md`](../../PROJECT_PHASE_COMPLETION_PROTOCOL.md),
@@ -42,7 +44,7 @@ from the 4F.2 ledger:
 | 6 | **`FilesystemSensor` registered under `sensors_by_source["filesystem"]`** | `perception-engine` | **L-12** |
 
 Without 6, deliverables 1–5 produce a daemon whose every request 404s. §5 explains
-why this lands in Python rather than Rust, and §20.1 asks for that to be ratified.
+why this lands in Python rather than Rust, **ratified as D-4F3-1** (§20.1).
 
 ### 1.1 Non-goals
 
@@ -177,8 +179,9 @@ whose events arrive over HTTP — which is what makes AC-7 clause 2's revocation
 real: pausing it makes the route drop observations at the pipeline level, which
 4F.2 already implements and tests.
 
-**§20.1 asks for this split to be ratified**, because it is a design decision the
-authoritative TDD leaves implicit.
+**This split is ratified as D-4F3-1** (§20.1). Implementing the Python `Sensor`
+Protocol in Rust, and adding a registration endpoint to avoid the split, are both
+explicitly prohibited.
 
 ---
 
@@ -251,8 +254,11 @@ worth defending, because the opposite arrangement looks safer and is not:
 
 **The trust boundary is therefore the engine's process, not the wire.** The
 companion → engine hop carries a real path and runs on the internal Docker
-network only. §20.2 asks whether that is acceptable or whether the hash must move
-into the companion.
+network only. **Ratified as D-4F3-2** (§20.2), which states the security
+requirement over *outputs*: the raw path must not appear in the persisted
+payload, the outbox row, the published event, or any downstream world-model
+data. It exists transiently in the request path by design, because the engine
+needs the source value to derive the handle.
 
 ### 9.2 Identity
 
@@ -263,12 +269,19 @@ so the companion cannot supply one — a property 4F.2 tests directly, and which
 
 ### 9.3 Consent
 
-**Open question — §20.3.** `api/consent.py` resolves sensors through the same
-`sensors_by_source` map, so a registered `"filesystem"` source becomes
-consent-addressable the moment it exists. But 4F.2's `handle_workspace_event`
-does **not** call `has_active_consent`, and Doc 22 Principle 8 requires explicit
-per-source consent. Whether watching a directory requires a consent grant is a
-policy decision, not an implementation detail.
+**Ratified as D-4F3-3** (§20.3): **a policy boundary, not a new implementation.**
+
+`api/consent.py` resolves sensors through the same `sensors_by_source` map, so a
+registered `"filesystem"` source becomes consent-addressable the moment it
+exists. But 4F.2's `handle_workspace_event` does **not** call
+`has_active_consent`, and Doc 22 Principle 8 requires explicit per-source
+consent.
+
+**4F.3 adds no consent subsystem** — no API, no database, no policy engine — and
+**does not claim one exists**. What it does instead is bind the watcher to an
+**explicitly configured directory/source only**, never the whole filesystem and
+never a default that resolves to one, which is what makes deferring the policy
+question safe. The gap is disclosed and carried as **L-14** (§19).
 
 ### 9.4 What the companion must not do
 
@@ -389,9 +402,13 @@ stage, so the assertion fires.
 
 So the sanctioned path is to **teach the guard a second runtime base**, keeping
 the property it enforces (the runtime stage upgrades its packages) while
-admitting a non-Python image. **§20.4 asks for the shape of that change to be
-ratified before implementation**, because a test-infrastructure change is exactly
-where a guard gets quietly weakened.
+admitting a non-Python image. **Ratified as D-4F3-4** (§20.4): the guard is
+**generalized structurally for multiple runtime families** — Python images keep
+their existing requirement, Rust images get their own explicit permitted base and
+hardening line, and **the test must fail if a new runtime family appears without
+an explicit rule**. Adding the companion to `UNSCANNED`, bypassing Trivy,
+weakening or deleting the test, and changing CI policy to avoid scanning the Rust
+image are each explicitly prohibited.
 
 `test_dockerfile_workspace_deps.py` is **not** affected — it globs
 `services/*/pyproject.toml` and `agent-os/*/pyproject.toml`, so a Rust component
@@ -507,6 +524,7 @@ and the 4F.1 completion record is not retrofitted with the ledger it lacks.
 
 From the [4F.2 completion record](../../roadmap/architecture-reviews/phase-4f2-workspace-perception-completion-record.md) §11.
 **Thirteen rows exist; none is closed, reinterpreted or deleted by this document.**
+This slice's ratifications open a fourteenth, **L-14** (§19.1).
 
 | Row | Relevance to 4F.3 |
 |---|---|
@@ -518,71 +536,127 @@ From the [4F.2 completion record](../../roadmap/architecture-reviews/phase-4f2-w
 | **L-6** README / *"a new engine now exists"* | **Unchanged and still open.** 4F.3 adds a component, not an engine |
 | L-8 `ws-gateway/README.md` | 4F closure. Unchanged |
 
+### 19.1 New ledger row opened by this slice's ratifications
+
+| Row | Obligation | Why it is deferred | Settled by |
+|---|---|---|---|
+| **L-14** | **Doc 22 Principle 8 per-source consent for the `"filesystem"` source** | D-4F3-3 (§20.3) ratifies consent as a **policy boundary, not a new implementation**: 4F.3 adds no consent subsystem and does not claim one exists. The architecture provides no filesystem-specific consent mechanism today — `has_active_consent` exists and is addressable, but the workspace path does not call it. The risk is bounded by binding the watcher to an **explicitly configured directory/source only** | **4F closure**, or earlier if a filesystem consent policy is ratified |
+
 **Carry-forwards: CF-9, CF-10 and CF-11 all remain OPEN.** 4F.3 touches none of
 them. CF-9 is 4F.4's, CF-11 is 4F.6's, CF-10 is not a 4F dependency.
 
 ---
 
-## 20. Open questions — ratification required before implementation
+## 20. Ratified decisions — 2026-09-16
 
-Four. The first three are design decisions the authoritative sources leave
-implicit; the fourth is a blocking CI finding.
+All four questions raised by this document's preparation pass are **answered and
+binding**. The question each replaced is preserved in its own subsection so the
+reasoning that produced the decision is not lost.
 
-### 20.1 The Python `FilesystemSensor` — is the split ratified?
+### 20.1 D-4F3-1 — the sensor split. **APPROVED.**
 
-§5 establishes that a Python `Sensor` registry entry must exist inside
-`perception-engine` for 4F.2's route to function, and that it performs no
-detection. TDD 4F §7 places "the filesystem sensor" in `nova-companion` without
-distinguishing the OS watcher from the registry entry.
+**The filesystem sensor is intentionally split across two layers:**
 
-**Recommendation: ratify the split as described in §5** — a
-`sensors/filesystem_sensor.py` in `perception-engine`, mirroring `VoiceSensor`
-and `CameraSensor`, holding no filesystem handle.
+| Layer | Owns |
+|---|---|
+| **Rust `nova-companion`** | Real OS filesystem observation |
+| **Python `perception-engine`** | `sensors_by_source["filesystem"]` registration, and the existing intake and domain processing |
 
-**The alternative, for completeness:** add a sensor-registration endpoint so the
-companion registers itself at startup. **Not recommended** — it creates a write
-surface that can register arbitrary sources, and 2D-C's design explicitly made
-registration a startup-time configuration concern rather than a runtime API.
+**The registration entry is a required implementation detail, not an
+optional convenience** — the existing intake route gates on
+`sensors_by_source["filesystem"]`, so without it every request 404s.
 
-### 20.2 Where is the path hashed?
+**Prohibited:**
+- **Do not** attempt to implement the Python `Sensor` Protocol in Rust.
+- **Do not** add a registration endpoint merely to avoid this split.
 
-§9.1 proposes the companion sends the real path and the engine hashes it, so the
-handle format has exactly one implementation.
+*The question this replaced:* §5 established that a Python `Sensor` registry
+entry must exist for 4F.2's route to function and that it performs no detection,
+while TDD 4F §7 places "the filesystem sensor" in `nova-companion` without
+distinguishing the OS watcher from the registry entry. The alternative
+considered and rejected was a sensor-registration endpoint, which would create a
+write surface able to register arbitrary sources and would contradict 2D-C's
+decision to make registration a startup-time configuration concern.
 
-**Recommendation: ratify engine-side hashing**, and with it the statement that
-the trust boundary is the engine's process rather than the wire.
+### 20.2 D-4F3-2 — path hashing. **APPROVED.**
 
-**If the wire must carry no path**, the hash moves to Rust and the TDD needs a
-pinned, cross-language-tested handle format — a materially larger slice, and one
-that trades a clear failure mode for a silent one.
+**`nova-companion` sends the real filesystem path to the existing perception
+intake. `perception-engine` is the single authority responsible for hashing the
+path and producing the persisted/enriched handle.**
 
-### 20.3 Does a filesystem observation require consent?
+**Prohibited:** **do not** implement a second path-hashing algorithm in Rust.
 
-Doc 22 Principle 8 requires explicit per-source consent. 4F.2's workspace path
-does **not** check `has_active_consent`; the biometric path checks it only before
-matching. Once `"filesystem"` is a registered source it becomes
-consent-addressable through the existing endpoint.
+**Ratified clarification of the security requirement.** The path exists
+**transiently** inside the companion and the request-processing path, because the
+engine needs the source value to derive its handle. The requirement is therefore
+stated over *outputs*, not over the wire:
 
-**No recommendation offered.** This is a policy decision about whether watching a
-user's own configured directory, under ADR-025's single-trusted-user model, is
-the same kind of act as capturing their voice. **Whichever way it is ratified,
-4F.3 must not change 4F.2's route behaviour without that ratification.**
+> **The raw path must not be present in the persisted payload, the outbox row,
+> the published event, or any downstream world-model data.**
 
-### 20.4 How is the Dockerfile hardening guard taught the new base?
+This is the property 4F.2 already tests, and the property 4F.3's S-4 re-asserts
+against a **real** OS path. §9.1's framing — "the trust boundary is the engine's
+process, not the wire" — is ratified as an accurate description of that boundary.
 
-§14.1 is a **blocking** finding: the guard fails the moment the matrix gains a
-non-Python image, and its own message forbids deleting it.
+*The question this replaced:* whether the hash belongs in Rust or Python. Moving
+it to Rust would put a second implementation of the handle format in a second
+language, where a divergence produces duplicate world objects for one file rather
+than a loud failure.
 
-**Recommendation: generalize `RUNTIME_STAGE` from one string to a small mapping
-of permitted runtime bases**, each with its own required hardening line, and
-assert every matrix entry matches exactly one. This preserves the property —
-every scanned image upgrades its base packages in its runtime stage — while
-admitting a second base, and it keeps the anti-vacuity tests that already guard
-the parser.
+### 20.3 D-4F3-3 — consent. **RATIFIED AS A POLICY BOUNDARY, NOT A NEW IMPLEMENTATION.**
 
-**What must not happen:** adding the companion to `UNSCANNED`. That would remove
-Trivy coverage from the one component in this repository that ships a
-compiled binary, and TDD 4F §16.4 explicitly requires the matrix entry.
+**4F.3 must not invent or introduce a new consent subsystem.**
+
+| Required | |
+|---|---|
+| Scope of watching | **Only an explicitly configured directory/source.** Never the entire filesystem, and never a default that resolves to one |
+| Consent mechanism | **None added.** No new consent API, no consent database, no policy engine in this slice |
+
+**Doc 22 Principle 8's per-source consent requirement is preserved as an
+explicitly documented policy boundary and a deferred concern**, because the
+current architecture provides no filesystem-specific consent mechanism:
+`has_active_consent` exists and is addressable, but 4F.2's workspace path does
+not call it and 4F.3 does not add that call.
+
+**Prohibited:** **do not** silently claim that a filesystem consent mechanism
+exists. The absence is disclosed, not designed around.
+
+This deferral is carried as a new ledger row — **L-14**, §19 — so 4F's Gate
+Review inherits it rather than rediscovering it.
+
+*The question this replaced:* whether watching a user's own configured directory,
+under ADR-025's single-trusted-user model, is the same kind of act as capturing
+their voice. The decision defers the policy question while binding the
+implementation to the narrow, configured-only behaviour that makes deferring it
+safe.
+
+### 20.4 D-4F3-4 — the Docker runtime-hardening guard. **APPROVED.**
+
+**The existing runtime-hardening test must be generalized structurally for
+multiple runtime families.**
+
+| Runtime family | Requirement |
+|---|---|
+| **Python images** | Retain the existing Python runtime-base hardening requirement, unchanged |
+| **Rust images** | Receive their own **explicit** permitted runtime base and corresponding hardening requirement |
+
+**The test must fail if a new runtime family is introduced without an explicit
+hardening rule.** That is the property being preserved: the guard's job is to
+make an unhardened runtime stage impossible to ship unnoticed, and generalizing
+it must not turn it into a check that silently passes anything it does not
+recognize.
+
+**Prohibited, each explicitly:**
+- **Do not** add the companion to `UNSCANNED`.
+- **Do not** bypass Trivy.
+- **Do not** delete or weaken the runtime-hardening test.
+- **Do not** hard-code a false Python-only assumption.
+- **Do not** modify CI policy to avoid scanning the Rust image.
+
+*The question this replaced:* §14.1's blocking finding — `RUNTIME_STAGE` is
+pinned to `"FROM python:3.12-slim"` and the test is parametrized over every
+matrix entry, so it fails the moment a Rust image joins. The guard's own failure
+message anticipated exactly this and forbade deleting it.
 
 ---
 
