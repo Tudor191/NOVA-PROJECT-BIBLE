@@ -48,6 +48,7 @@ from nova_perception_engine.events.published import PUBLISHABLE_SUBJECTS
 from nova_perception_engine.events.subscribed import SUBSCRIBABLE_SUBJECTS
 from nova_perception_engine.observability import create_metrics
 from nova_perception_engine.sensors.camera_sensor import CameraSensor
+from nova_perception_engine.sensors.filesystem_sensor import FilesystemSensor
 from nova_perception_engine.sensors.voice_sensor import VoiceSensor
 
 if TYPE_CHECKING:
@@ -100,10 +101,20 @@ def create_app(
         camera_sensor = CameraSensor(
             repository=repo, ai_model_port=ai_model_port, encryption_key=encryption_key
         )
+        # Phase 4F.3 (L-12). The registry entry for the `nova-companion`
+        # filesystem source -- ratified as D-4F3-1. It performs no detection;
+        # real OS observation is the companion's, in Rust. It exists because
+        # `handle_workspace_event` resolves `sensors_by_source[source]` and
+        # gates on `state() != "running"`, so without it every workspace
+        # observation 404s.
+        filesystem_sensor = FilesystemSensor()
+
         await voice_sensor.initialize()
         await voice_sensor.start()
         await camera_sensor.initialize()
         await camera_sensor.start()
+        await filesystem_sensor.initialize()
+        await filesystem_sensor.start()
 
         await bus.connect()
         await bus.subscribe(
@@ -122,16 +133,21 @@ def create_app(
         app.state.sensors_by_id = {
             voice_sensor.sensor_id: voice_sensor,
             camera_sensor.sensor_id: camera_sensor,
+            filesystem_sensor.sensor_id: filesystem_sensor,
         }
-        app.state.sensors_by_source = {"microphone": voice_sensor, "camera": camera_sensor}
+        app.state.sensors_by_source = {
+            "microphone": voice_sensor,
+            "camera": camera_sensor,
+            "filesystem": filesystem_sensor,
+        }
         app.state.correlation_buffer = WindowCorrelationBuffer()
 
-        # Phase 4F.2. The debouncer is real and wired; the filesystem sensor
-        # that feeds it is 4F.3's `nova-companion` work, so `sensors_by_source`
-        # gains no "filesystem" entry here -- registering a source with no
-        # sensor behind it would make the route 202 on an observation nothing
-        # produced. Until that sensor registers, the workspace route 404s on
-        # an unknown source, which is the honest answer.
+        # Phase 4F.2. The debouncer is real and wired.
+        #
+        # *(This comment read "the filesystem sensor that feeds it is 4F.3's
+        # `nova-companion` work, so `sensors_by_source` gains no 'filesystem'
+        # entry here ... the workspace route 404s on an unknown source, which
+        # is the honest answer." -- true until 4F.3 registered it above.)*
         app.state.workspace_debouncer = WorkspaceObservationDebouncer(
             window=timedelta(seconds=settings.workspace_debounce_seconds)
         )
@@ -152,7 +168,7 @@ def create_app(
         # §3.3) -- `stop()` from a non-running/paused state is an illegal
         # transition (domain/sensor.py's own state machine, §5), so shutdown
         # guards it the same way `api/consent.py`'s revocation handler does.
-        for sensor in (voice_sensor, camera_sensor):
+        for sensor in (voice_sensor, camera_sensor, filesystem_sensor):
             if sensor.state() in ("running", "paused"):
                 await sensor.stop()
         await bus.close()

@@ -28,6 +28,7 @@ engine performs no gating itself.
 | Published | `perception.attention.observed` | `AttentionObservation` -- matches the wildcard. |
 | Published | `perception.wake.detected` | Wake-phrase trigger -- deliberately does **not** match the wildcard. |
 | Published | `perception.addressee_signal.candidate` | Raw addressee-candidate signals, no verdict field -- deliberately does **not** match the wildcard. |
+| Published | `perception.workspace.observed` | **Phase 4F.2.** `PerceptionWorkspaceObservedPayload` -- the first **object-shaped** perception event, matching the wildcard and falling through World Model's dispatcher to its object-graph handler with **zero changes there**. Carries a **file-path hash**, never the raw path. **Internal only:** absent from `PUBLIC_TOPICS`, and `ws-gateway`'s bus allow-list was narrowed from `perception.*` to the three browser-relevant subjects so the gateway process cannot receive it. |
 | Published | `perception.consent.changed` | Consent grant/revocation audit event. |
 | Published | `perception.sensor.health_changed` | Sensor health-status change. |
 | Published (RPC) | `ai_model.detect_wake_phrase.request`, `ai_model.embed_voice.request`, `ai_model.embed_face.request`, `ai_model.estimate_gaze.request` | This engine's own outbound calls to `ai-model-orchestration-engine` (ADR-020). |
@@ -50,10 +51,36 @@ queried through World Model's `GET /v1/world/context`, not duplicated here).
 - `GET /v1/perception/consent` -- consent status.
 - `POST /v1/perception/consent` -- grant consent for a source.
 - `DELETE /v1/perception/consent/{source}` -- revoke consent (stops the matching sensor synchronously).
+- `POST /v1/perception/workspace-observations` -- **Phase 4F.2.** Structured intake for workspace observations: JSON `{path, observed_at}`, with `source` and an optional `correlation_id` as query parameters. A **sibling** of the capture-window route above, not a replacement -- that one takes a raw `application/octet-stream` window and runs biometric detection over it, which structured metadata cannot enter. **`user_id` is resolved server-side** from `Settings.primary_user_id` (ADR-025); the request model has no `user_id` and no `object_id` field, so a caller can forge neither. Internal only: `/v1/perception` is **not** among `api-gateway`'s proxied prefixes, so no browser can reach it.
 - `GET /v1/perception/sensors` -- sensor health status.
 - `POST /v1/perception/sensors/{id}/calibrate` -- calibration.
 - `GET /v1/perception/diagnostics` -- current sensor state/health/capabilities dump.
 - `GET /internal/health`, `GET /internal/readiness`, `GET /internal/metrics` -- unprefixed ops/probe surface.
+
+## Sensors
+
+| Source | Sensor | Observes |
+|---|---|---|
+| `microphone` | `VoiceSensor` | Wake phrase, voiceprint -- via `ai-model-orchestration-engine` (ADR-020) |
+| `camera` | `CameraSensor` | Gaze/attention, faceprint -- same boundary |
+| `filesystem` | `FilesystemSensor` | **Phase 4F.3.** Nothing directly -- see below |
+
+**`FilesystemSensor` performs no detection** (**D-4F3-1**). Real OS observation
+belongs to `nova-companion`, the Rust daemon in `companion/`, which submits
+through the workspace route above. This class is the *registry and lifecycle*
+half of that split: the route resolves `sensors_by_source["filesystem"]` and
+gates on `state() != "running"`, so pausing it makes the engine drop the
+companion's observations whatever the companion is still doing -- which is what
+makes AC-7 clause 2's revocation real at the pipeline level.
+
+`VoiceSensor` and `CameraSensor` are the precedent: perception-engine classes
+representing a capability executed elsewhere.
+
+**Its `permission_status()` is not a consent claim.** **D-4F3-3** is explicit
+that 4F.3 adds no consent mechanism, and Doc 22 Principle 8's per-source consent
+requirement for the filesystem source remains an open policy question carried as
+ledger row **L-14**. What bounds it meanwhile is that the companion watches only
+an explicitly configured directory.
 
 ## Known limitations (Phase 2D-B scope)
 

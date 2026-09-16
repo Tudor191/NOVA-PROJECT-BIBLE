@@ -108,6 +108,13 @@ jobs:
           # `tools/scaffold-engine.py` creates an engine.
           - service: cognitive-state-engine
             dockerfile: services/cognitive-state-engine/Dockerfile
+          # Phase 4F.3. The repository's first non-Python image -- a Rust
+          # binary. It joins this matrix like any other image rather than
+          # being exempted: `tools/tests/test_dockerfile_runtime_hardening.py`
+          # was generalized to know its runtime base explicitly (D-4F3-4), so
+          # Trivy covers the one component here that ships a compiled binary.
+          - service: nova-companion
+            dockerfile: companion/nova-companion/Dockerfile
           # Phase 4C (D-5), discharging the containerization half of Phase 3E's
           # ratified condition C-3. **This is the first Trivy scan any
           # `agent-os` component has ever had.** `agent-os/sdk/python` is
