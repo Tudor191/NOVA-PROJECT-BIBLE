@@ -368,6 +368,61 @@ There is no UI surface, no panel and no browser-reachable route. Playwright is
 untouched. The end-to-end run that exercises a browser is **4F.8's**, and the
 panel it would read is **4F.7's**.
 
+### 13.1 The downstream world-model leg — why it stays outside 4F.3 — 2026-09-17
+
+*Additive, per protocol §0.3.4. Nothing above is rewritten.*
+
+A pre-gate audit raised, as finding **F-5**, that nothing in 4F.3 proves a
+workspace observation is **persisted by `world-model-engine`**. That is correct,
+and it is deliberate. It is recorded here so 4F's Gate Review inherits the
+boundary rather than rediscovering it.
+
+**It is not a shortfall against 4F.3's own acceptance claims.** §6's **S-4** is
+ratified as *"Asserted on the enqueued payload, as 4F.2 already does."* That is
+met, and exceeded: the raw path is now proven absent from the enqueued payload,
+from the committed Postgres outbox row, **and** from the envelope a subscriber
+actually receives over a real NATS connection.
+
+**Four reasons it cannot be honestly closed inside this slice**, each a fact
+about the current architecture rather than a preference:
+
+1. **`world-model-engine` has no real-infrastructure test tier at all** — zero
+   `real_infra` tests, and it is absent from `real-infra-checks.yml`'s matrix.
+   Proving its persistence means creating that tier from nothing: a first
+   real-Postgres fixture for `object_state_history`, plus a new matrix row.
+2. **Driving its real consumer crosses ADR-004.** The subscription lives in that
+   engine's own `main.py` lifespan, and import-linter's *"Engines are
+   independent"* contract makes `nova_perception_engine` ↔
+   `nova_world_model_engine` a structural prohibition. Placing the import in
+   `tests/` — where the linter does not look — would evade the control rather
+   than honour it.
+3. **The one existing multi-engine harness does not contain the companion.**
+   `docker-compose.local.yml` runs `perception-engine`, its outbox worker,
+   `world-model-engine`, Postgres and NATS together, and the Playwright golden
+   path already exercises them — but `nova-companion` is not a service in it.
+   Adding one means mounting a watch root into a deployed stack, which decides
+   what the companion may observe: exactly the consent-surface decision
+   **D-4F3-3** forbids this slice from making.
+4. Every remaining route closes the gap only by **faking the consumer, faking
+   the transport, or duplicating world-model's implementation** — each forbidden,
+   and each would assert the conclusion rather than test it.
+
+**`world-model-engine` having its own handler tests is not proof of this path**,
+and a successful NATS publication is not proof of downstream persistence. Both
+are true today and neither is claimed as more than it is.
+
+**No new ledger row is required: the leg is already owned.** TDD 4F §20.1 fixes
+the AC-7 measurement chain as
+
+```
+… → Event Bus → world-model-engine → observable Digital Twin / Cognitive State state
+```
+
+and §18 assigns that E2E to **4F.8** — *"The final implementation slice … Performs
+the real acceptance verification."* The downstream persistence leg is therefore
+an existing 4F.8 obligation, not an unowned gap, and opening a fifteenth row for
+it would duplicate one the milestone already carries.
+
 ---
 
 ## 14. CI
@@ -503,6 +558,58 @@ must be measured and reported at 4F.3's closure, not deferred to 4F's**.
 If 4F crosses 50,000, SAD 15 §10's hard gate applies: feature development pauses
 and the Engineering Review Milestone is filed. **Code is never moved or reduced
 to game the metric.**
+
+### 17.1 Measured at 4F.3, and one scope ambiguity recorded — 2026-09-17
+
+*Additive, per protocol §0.3.4. Nothing above is rewritten and no ratified
+methodology is changed here.*
+
+**Measured: 46,005 on the 4F scope. Headroom to the 50,000 hard gate: 3,995.**
+`cloc` v2.06 `--skip-uniqueness` over a pristine `git archive`, the 4E Gate
+Review's tool and flags unchanged. The methodology is now scripted and
+reproduces the 45,982 figure at `d9d922f` exactly.
+
+Of the growth since 4F.2's 45,280, **+481 is the companion's Rust source**, +142
+is its `Cargo.toml`/`Dockerfile`/`README.md` (see below), and **+23** is the
+`describe()` path-redaction fix in `companion/sensors/src/lib.rs`. The four
+integration and regression test files added for S-2/S-3/S-4 and F-7 contribute
+**0** — tests are outside every scope (TDD 4F §17).
+
+**The ambiguity, stated precisely rather than resolved here.** Two authoritative
+statements do not pick out the same file set for `companion/`:
+
+| Source | Wording |
+|---|---|
+| TDD 4F §17 | *"the measured scope is **extended to include `companion/`**"* — a directory |
+| [Protocol](../../PROJECT_PHASE_COMPLETION_PROTOCOL.md) | *"Production SLOC = **`src/` application code + Alembic migrations**, excluding blanks, comments, tests, generated code, and documentation"* |
+
+They differ by **142 lines** — `Cargo.toml` ×3 (44), `Dockerfile` (15) and
+`README.md` (83). The README is *documentation*, which the protocol excludes by
+name; the other two are neither application source nor a migration. No Python
+component contributes an equivalent, because every other scope entry is written
+as `<component>/src`, so `companion/` counted as a bare directory is measured
+**more generously than any engine**.
+
+| Reading | Figure | Headroom |
+|---|---|---|
+| **A — as reported**: `companion/` less `companion/*/tests` | **46,005** | 3,995 |
+| **B — protocol definition**: `companion/*/src` only | **45,863** | 4,137 |
+
+**The gate is not crossed under either reading, and the choice changes no
+decision** — which is why this is a documentation reconciliation and not a gate
+question. **Reading A is retained** as the reported figure because it is the one
+the ratified wording produces and the one 4F.2's record and this section's own
+baseline series were measured under; changing it now to make the documents agree
+would be exactly the silent methodology change the protocol forbids.
+
+**Disposition: this remains OPEN and is not dischargeable at 4F.3.** Ledger
+**L-5** already owns it (*"`00-master-scope.md` §17 SLOC table … Settled by 4F
+closure"*), §17 above requires the methodology entry to be written into
+`project-health-master.md` §2 *"when 4F's health record is written"*, and
+protocol §4.3 makes that entry mandatory only when the tool or scope changed. **No
+new ledger row is opened**: recording both figures here is what L-5 needs in
+order to be settled at 4F closure with an explicit decision rather than a
+rediscovery.
 
 ---
 
@@ -679,3 +786,31 @@ against `phase-4` at `43d4036` during this preparation pass, not recalled.
 
 **No Rust toolchain, `cargo` job or non-Python artifact exists in CI today** —
 confirmed, as TDD 4F §16.4 states.
+
+### 21.1 How to count Event Bus subjects — 2026-09-17
+
+*Additive. The figure of **119** stated throughout this document is correct and
+is not amended; this records only how to reproduce it.*
+
+**Count the runtime registry, never the decorator text:**
+
+```python
+len(_REGISTRY)  # after importing every nova_contracts submodule → 119
+```
+
+A grep for `@register_payload("…")` across `nova-contracts/src` returns **120**,
+and the extra match is not a subject: it is the usage example
+`@register_payload("some.subject")` inside `registry.py`'s own **module
+docstring**. A pre-gate report of this slice briefly cited 120 as authoritative
+on the strength of that grep; it was wrong, and no repository document ever
+carried the figure.
+
+The distinction is not new. Phase 4E's Gate Review already recorded both numbers
+separately and correctly — *"118 registered subjects at base, 118 at head;
+`@register_payload` call sites 119 at both"* — the same one-line offset, from the
+same docstring. Adding 4F.2's single subject gives **119 registered / 120 call
+sites**, which is what the tree holds today.
+
+**No test pins this total**, so it is a reported figure rather than an enforced
+invariant. What *is* enforced is narrower and lives in `ws-gateway`'s
+`test_protocol.py`: that no raw perception subject becomes browser-subscribable.
