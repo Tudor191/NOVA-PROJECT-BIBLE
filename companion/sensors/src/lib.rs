@@ -178,12 +178,52 @@ pub enum WatchError {
     Io(std::io::Error),
 }
 
+/// Render a `notify::Error` **without its path list** (finding **F-7**).
+///
+/// `notify`'s own `Display` ends with `" about {paths:?}"` whenever
+/// `Error::paths` is non-empty, and the Linux backend attaches the watched path
+/// to nearly every error it raises (`Error::io(e).add_path(path)`, throughout
+/// `inotify.rs`). Rendering that verbatim would put the configured directory
+/// chain into a log line through the one code path that never looks like it
+/// handles user data — an error formatter.
+///
+/// **The kind is kept in full**, because it is the operationally useful half
+/// and carries no user data: `ErrorKind::Generic`'s strings are notify's own
+/// fixed literals and internal channel/mutex diagnostics, and `ErrorKind::Io`
+/// wraps a raw syscall error whose `Display` is the OS message alone. Only
+/// `Error::paths` is reduced — to final segments, which is exactly the rule the
+/// per-event logs already follow via `loggable_name`, and no more than the
+/// startup log already reports about the configured root.
+fn describe(error: &notify::Error) -> String {
+    let kind = match &error.kind {
+        notify::ErrorKind::PathNotFound => "path not found".to_owned(),
+        notify::ErrorKind::WatchNotFound => "watch not found".to_owned(),
+        notify::ErrorKind::MaxFilesWatch => "OS file watch limit reached".to_owned(),
+        notify::ErrorKind::InvalidConfig(config) => format!("invalid configuration: {config:?}"),
+        notify::ErrorKind::Generic(message) => message.clone(),
+        notify::ErrorKind::Io(source) => source.to_string(),
+    };
+
+    let names: Vec<String> = error
+        .paths
+        .iter()
+        .filter_map(|path| path.file_name())
+        .map(|name| name.to_string_lossy().into_owned())
+        .collect();
+
+    if names.is_empty() {
+        kind
+    } else {
+        format!("{kind} (affecting {})", names.join(", "))
+    }
+}
+
 impl std::fmt::Display for WatchError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             // The path is named here because this is a startup configuration
             // error the operator must act on, and it is their own configured
-            // value being echoed back.
+            // value being echoed back. Deliberate, and the only such place.
             Self::NotADirectory(path) => {
                 write!(
                     formatter,
@@ -191,7 +231,12 @@ impl std::fmt::Display for WatchError {
                     path.display()
                 )
             }
-            Self::Notify(error) => write!(formatter, "filesystem watcher failed: {error}"),
+            Self::Notify(error) => {
+                write!(formatter, "filesystem watcher failed: {}", describe(error))
+            }
+            // `std::io::Error`'s own `Display` is the OS message alone -- std
+            // does not attach the operand path -- so the `canonicalize` failure
+            // this wraps needs no equivalent treatment.
             Self::Io(error) => write!(formatter, "filesystem watcher io failed: {error}"),
         }
     }
