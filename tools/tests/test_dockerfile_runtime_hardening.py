@@ -64,29 +64,66 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 #: pass.
 HARDENING_LINE = "RUN apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/*"
 
-#: The runtime stage always starts here. Every image in the matrix shares this
-#: base, which is precisely why one CVE against it reddens all of them at once.
+#: **Runtime families, enumerated — ratified as D-4F3-4 (Phase 4F.3).**
+#:
+#: This was a single `RUNTIME_STAGE = "FROM python:3.12-slim"` for as long as
+#: every scanned image was Python. Phase 4F.3 adds `nova-companion`, a Rust
+#: binary whose runtime stage carries no Python at all, and the old parser's own
+#: failure message anticipated exactly this: *"Either it moved off the shared
+#: base — in which case this guard needs to learn the new one."* It learns it
+#: here rather than being deleted, bypassed, or quietly special-cased.
+#:
+#: Both families are Debian-based, so both take the **same** hardening line —
+#: which is the point. Generalizing the *base* did not generalize the
+#: *requirement*: a new family must state its hardening rule explicitly, and
+#: `test_an_unknown_runtime_family_fails_rather_than_passing_silently` proves an
+#: unlisted base fails rather than sliding through.
+RUNTIME_FAMILIES: dict[str, str] = {
+    "FROM python:3.12-slim": HARDENING_LINE,
+    "FROM debian:trixie-slim": HARDENING_LINE,
+}
+
+#: Retained so the Python-only assertions below still read as they did, and so
+#: any external reference to this name keeps working.
 RUNTIME_STAGE = "FROM python:3.12-slim"
 
 
-def _runtime_stage_lines(dockerfile: Path) -> list[str]:
-    """The lines after the **last** `FROM python:3.12-slim`.
+def _runtime_stage(dockerfile: Path) -> tuple[str, list[str]]:
+    """The recognised runtime base, and the lines after its **last** occurrence.
 
     Taking the last one is what makes this a runtime-stage check rather than a
     file-wide substring search. These are multi-stage builds whose *builder*
-    stage opens with the identical `FROM`, and hardening the builder does
-    nothing for the shipped image: the runtime stage copies `/app` out of it and
-    starts again from an unpatched base. A naive `in dockerfile_text` check
-    would pass on exactly the image that is still vulnerable.
+    stage may open with the identical `FROM`, and hardening the builder does
+    nothing for the shipped image: the runtime stage copies the artifact out of
+    it and starts again from an unpatched base. A naive `in dockerfile_text`
+    check would pass on exactly the image that is still vulnerable.
+
+    **A Dockerfile whose runtime base is not in `RUNTIME_FAMILIES` fails here.**
+    That is the property D-4F3-4 requires: introducing a new runtime family
+    without an explicit hardening rule must fail, not pass by default.
     """
     lines = [line.strip() for line in dockerfile.read_text().splitlines()]
-    starts = [i for i, line in enumerate(lines) if line == RUNTIME_STAGE]
-    assert starts, (
-        f"{dockerfile} has no {RUNTIME_STAGE!r} stage. Either it moved off the "
-        f"shared base — in which case this guard needs to learn the new one — or "
-        f"this parser is broken. Do not delete the test to make this go away."
+    found = [
+        (base, index)
+        for index, line in enumerate(lines)
+        for base in RUNTIME_FAMILIES
+        if line == base
+    ]
+    assert found, (
+        f"{dockerfile} opens its runtime stage with none of the permitted bases "
+        f"{sorted(RUNTIME_FAMILIES)}. Either it moved onto a new runtime family — "
+        f"in which case add that base and its hardening rule to RUNTIME_FAMILIES, "
+        f"explicitly — or this parser is broken. Do not delete the test, and do "
+        f"not widen the match to make this go away: an unrecognised base passing "
+        f"silently is the one failure this guard exists to prevent."
     )
-    return lines[starts[-1] + 1 :]
+    base, index = max(found, key=lambda pair: pair[1])
+    return base, lines[index + 1 :]
+
+
+def _runtime_stage_lines(dockerfile: Path) -> list[str]:
+    """Back-compatible accessor for the lines alone."""
+    return _runtime_stage(dockerfile)[1]
 
 
 @pytest.mark.parametrize(
@@ -98,15 +135,18 @@ def test_every_scanned_image_upgrades_its_base_packages(entry: dict) -> None:
     dockerfile = REPO_ROOT / entry["dockerfile"]
     assert dockerfile.is_file(), f"{entry['dockerfile']} does not exist"
 
-    assert HARDENING_LINE in _runtime_stage_lines(dockerfile), (
+    base, runtime = _runtime_stage(dockerfile)
+    required = RUNTIME_FAMILIES[base]
+
+    assert required in runtime, (
         f"{entry['service']}'s runtime stage does not run\n\n"
-        f"    {HARDENING_LINE}\n\n"
+        f"    {required}\n\n"
         f"so its shipped image keeps whatever package versions "
-        f"{RUNTIME_STAGE} happens to carry. Trivy scans it at CRITICAL,HIGH "
+        f"{base} happens to carry. Trivy scans it at CRITICAL,HIGH "
         f"with exit-code 1, so this fails the build the day Debian publishes a "
         f"fixed CVE against that base — and takes its sibling jobs down with it, "
         f"because the matrix has no fail-fast: false. Add the line to the "
-        f"runtime stage, immediately after {RUNTIME_STAGE}, exactly as the other "
+        f"runtime stage, immediately after {base}, exactly as the other "
         f"images have it (convention established by 97fa103, 2026-08-17)."
     )
 
@@ -176,4 +216,73 @@ def test_the_runtime_stage_parser_ignores_the_builder_stage() -> None:
     )
     assert any(line.startswith("CMD ") for line in runtime), (
         "_runtime_stage_lines did not reach the runtime stage's CMD"
+    )
+
+
+# --- D-4F3-4: the generalization must not become a silent pass ---------------
+
+
+def test_an_unknown_runtime_family_fails_rather_than_passing_silently(tmp_path: Path) -> None:
+    """**The property D-4F3-4 exists to protect.**
+
+    Generalizing `RUNTIME_STAGE` into `RUNTIME_FAMILIES` made this guard able to
+    recognise more than one base. The danger in that change is the opposite of
+    the one it fixed: a parser that shrugs at anything it does not know would
+    pass every future image without checking it.
+
+    So an unlisted base is asserted to **fail**. A new runtime family has to be
+    added to `RUNTIME_FAMILIES` with its hardening rule, deliberately, by
+    someone who thought about what hardening that family needs.
+    """
+    rogue = tmp_path / "Dockerfile"
+    rogue.write_text(
+        "FROM alpine:3.20 AS builder\nRUN true\n\nFROM alpine:3.20\nCMD [\"/app/x\"]\n"
+    )
+    with pytest.raises(AssertionError, match="none of the permitted bases"):
+        _runtime_stage(rogue)
+
+
+def test_every_permitted_family_carries_an_explicit_hardening_rule() -> None:
+    """No family may map to an empty or absent requirement. A base listed with
+    nothing to enforce would be an exemption wearing the shape of a rule."""
+    assert RUNTIME_FAMILIES, "RUNTIME_FAMILIES parsed as empty; fix this, do not delete it"
+    for base, required in RUNTIME_FAMILIES.items():
+        assert base.startswith("FROM "), f"{base!r} is not a FROM line"
+        assert required and required.startswith("RUN "), (
+            f"{base!r} has no explicit hardening rule; an entry without one is an exemption"
+        )
+
+
+def test_the_companion_is_scanned_like_every_other_image() -> None:
+    """**D-4F3-4's prohibitions, asserted rather than trusted.**
+
+    The companion must be in the matrix, must not be exempted, and must satisfy
+    the same property as every Python image. Adding it to `UNSCANNED` or
+    dropping it from the matrix would remove Trivy from the one component in
+    this repository that ships a compiled binary.
+    """
+    from test_build_and_scan_matrix import UNSCANNED
+
+    entries = {entry["service"]: entry["dockerfile"] for entry in _matrix_entries()}
+    assert "nova-companion" in entries, "the companion image is not in the build-and-scan matrix"
+
+    dockerfile_path = entries["nova-companion"]
+    assert dockerfile_path not in UNSCANNED, "the companion image was exempted from scanning"
+
+    base, runtime = _runtime_stage(REPO_ROOT / dockerfile_path)
+    assert base == "FROM debian:trixie-slim"
+    assert RUNTIME_FAMILIES[base] in runtime
+
+
+def test_the_companion_ships_no_build_toolchain() -> None:
+    """A Rust runtime stage that started `FROM rust:*` would ship a compiler and
+    its whole dependency tree into a scanned image, for a binary that needs
+    neither. The builder stage uses `rust:`; the runtime stage must not."""
+    base, runtime = _runtime_stage(REPO_ROOT / "companion" / "nova-companion" / "Dockerfile")
+    assert base == "FROM debian:trixie-slim"
+    assert not any(line.startswith("FROM rust:") for line in runtime), (
+        "the companion's runtime stage inherits the Rust toolchain image"
+    )
+    assert any(line.startswith("CMD ") for line in runtime), (
+        "_runtime_stage did not reach the companion's runtime CMD"
     )

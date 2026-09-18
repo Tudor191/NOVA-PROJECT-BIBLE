@@ -78,6 +78,22 @@ jobs:
       # agent loaded first, plus "import file mismatch" on the duplicate test
       # module names. mypy has the identical collision. `ruff check` is static
       # and needs no isolation, so it runs once over the whole tree.
+      # Phase 4F.3 (D-4F-7, TDD 4F §16.4). `companion/` is a Cargo workspace,
+      # not a pnpm or uv workspace member, so Turborepo and `uv` never see it --
+      # the same reason `tools/tests` and the Agent Packages above run as their
+      # own steps. One step, three commands, no global CI policy change and no
+      # Rust anywhere else in the pipeline.
+      #
+      # `--locked` so CI fails on a stale `Cargo.lock` rather than silently
+      # resolving something the committed lockfile does not describe.
+      - name: Rust companion (companion/, not a workspace member)
+        run: |
+          set -euo pipefail
+          cd companion
+          cargo fmt --all --check
+          cargo clippy --all-targets --locked -- -D warnings
+          cargo test --all-targets --locked
+
       - name: Lint Agent Packages (agents/*, not workspace members)
         run: uv run ruff check agents/
 

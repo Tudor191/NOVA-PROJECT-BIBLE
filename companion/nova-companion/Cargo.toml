@@ -1,0 +1,24 @@
+[package]
+name = "nova-companion"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "nova-companion"
+path = "src/main.rs"
+
+[dependencies]
+nova-companion-sensors = { path = "../sensors" }
+notify.workspace = true
+serde_json.workspace = true
+time.workspace = true
+ureq.workspace = true
+
+[dev-dependencies]
+tempfile = "3"
+
+[lib]
+name = "nova_companion"
+path = "src/lib.rs"
