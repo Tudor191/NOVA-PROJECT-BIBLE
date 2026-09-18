@@ -31,6 +31,7 @@ from uuid import UUID
 
 from nova_contracts import Action, RetryPolicy, RollbackStrategy
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -228,3 +229,49 @@ class PostgresActionRepository:
                 user_id=row.user_id,
                 minimum_confidence_by_risk=dict(row.minimum_confidence_by_risk),
             )
+
+    async def upsert_identity_confidence_policy(
+        self, policy: IdentityConfidencePolicy
+    ) -> IdentityConfidencePolicy:
+        """Phase 4F.4 -- CF-9's write path.
+
+        A real `INSERT ... ON CONFLICT DO UPDATE` rather than a read-then-write:
+        the table is keyed by `user_id`, so a check-then-insert would race two
+        concurrent writers into an `IntegrityError` on a surface whose whole
+        purpose is to be idempotent.
+
+        **The stored map is replaced wholesale**, never merged -- see the port's
+        own docstring for why removing a tier has to be expressible.
+        """
+        async with self._session_factory() as session:
+            statement = (
+                pg_insert(IdentityConfidencePolicyORM)
+                .values(
+                    user_id=policy.user_id,
+                    minimum_confidence_by_risk=dict(policy.minimum_confidence_by_risk),
+                )
+                .on_conflict_do_update(
+                    index_elements=[IdentityConfidencePolicyORM.user_id],
+                    set_={
+                        "minimum_confidence_by_risk": dict(policy.minimum_confidence_by_risk)
+                    },
+                )
+            )
+            await session.execute(statement)
+            await session.commit()
+        return policy
+
+    async def delete_identity_confidence_policy(self, user_id: UUID) -> bool:
+        """Phase 4F.4. Returns `True` when a row was removed.
+
+        The engine is left **fail-closed** afterwards: stage 3 finds no policy
+        and uses 1.0 at every risk tier, which is the same state a deployment
+        that never wrote one is in.
+        """
+        async with self._session_factory() as session:
+            row = await session.get(IdentityConfidencePolicyORM, user_id)
+            if row is None:
+                return False
+            await session.delete(row)
+            await session.commit()
+            return True
