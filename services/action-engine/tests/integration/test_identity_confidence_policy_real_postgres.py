@@ -33,13 +33,17 @@ this file was written in** — no Docker daemon is reachable there.
 
 from __future__ import annotations
 
+import asyncio
 import os
+import socket
+import time
 from collections.abc import AsyncIterator
 from pathlib import Path
 from uuid import UUID, uuid4
 
+import httpx
 import pytest
-from fastapi.testclient import TestClient
+import uvicorn
 from nova_action_engine.config import Settings
 from nova_action_engine.domain.pipeline import execute_action
 from nova_action_engine.main import create_app
@@ -100,7 +104,20 @@ def repository(database: AsyncEngine) -> PostgresActionRepository:
 
 
 @pytest.fixture
-def client(repository: PostgresActionRepository, monkeypatch: pytest.MonkeyPatch):  # type: ignore[no-untyped-def]
+async def client(
+    repository: PostgresActionRepository, monkeypatch: pytest.MonkeyPatch
+) -> AsyncIterator[httpx.AsyncClient]:
+    """A real HTTP client against a **real uvicorn server in this test's own
+    event loop**.
+
+    Not `TestClient`: it drives the app through an `anyio` portal on a separate
+    thread with its own event loop, and the SQLAlchemy/asyncpg connections this
+    test creates belong to *this* loop. Crossing them raises
+    `got Future attached to a different loop` — which is exactly how the first
+    CI run of this file failed. Serving in-loop removes the thread boundary
+    entirely, and costs nothing: the request still crosses a real TCP socket to
+    a real uvicorn server running the real app.
+    """
     monkeypatch.setenv("EVENT_BUS_BACKEND", "in_memory")
     app = create_app(
         Settings(primary_user_id=PRIMARY_USER_ID),
@@ -109,8 +126,26 @@ def client(repository: PostgresActionRepository, monkeypatch: pytest.MonkeyPatch
         communication_port=FakeCommunicationPort(),
         identity_port=FakeIdentityPort(),
     )
-    with TestClient(app) as running:
-        yield running
+    config = uvicorn.Config(app, host="127.0.0.1", port=0, log_level="warning")
+    server = uvicorn.Server(config)
+    task = asyncio.create_task(server.serve())
+
+    deadline = time.monotonic() + 30.0
+    while not server.started:
+        if task.done():  # surface a startup failure rather than timing out on it
+            await task
+        if time.monotonic() > deadline:
+            raise RuntimeError("uvicorn did not start within the deadline")
+        await asyncio.sleep(0.02)
+
+    bound: socket.socket = server.servers[0].sockets[0]
+    base_url = f"http://127.0.0.1:{bound.getsockname()[1]}"
+    try:
+        async with httpx.AsyncClient(base_url=base_url, timeout=10.0) as running:
+            yield running
+    finally:
+        server.should_exit = True
+        await task
 
 
 async def _rows(database: AsyncEngine) -> list[dict]:
@@ -152,6 +187,11 @@ async def _run_low_risk_action(
             requested_by=PRIMARY_USER_ID,
             execution_target="filesystem",
             parameters={"operation": LOW_RISK_OPERATION},
+            # Required by the contract; omitted in the first draft, which is
+            # what the first CI run caught.
+            verification_method="none",
+            requesting_engine="tdd-4f4-test",
+            correlation_id=uuid4(),
         ),
         repository=repository,
         capability_port=FakeCapabilityPort(),
@@ -167,11 +207,11 @@ async def _run_low_risk_action(
 
 
 async def test_w1_a_policy_written_through_the_api_is_persisted_and_read_back(
-    client: TestClient, repository: PostgresActionRepository, database: AsyncEngine
+    client: httpx.AsyncClient, repository: PostgresActionRepository, database: AsyncEngine
 ) -> None:
     """**CF-9 closure condition 1.** Created through a production surface, and
     read back by the same method stage 3 uses, in real Postgres."""
-    written = client.put(ROUTE, json={"minimum_confidence_by_risk": {"low": 0.5}})
+    written = await client.put(ROUTE, json={"minimum_confidence_by_risk": {"low": 0.5}})
     assert written.status_code == 200, written.text
 
     rows = await _rows(database)
@@ -185,12 +225,12 @@ async def test_w1_a_policy_written_through_the_api_is_persisted_and_read_back(
 
 
 async def test_the_upsert_replaces_rather_than_duplicating_or_merging(
-    client: TestClient, database: AsyncEngine
+    client: httpx.AsyncClient, database: AsyncEngine
 ) -> None:
     """One row per user is a PRIMARY KEY fact, and removing a tier must stay
     expressible — both are only decidable against the real table."""
-    client.put(ROUTE, json={"minimum_confidence_by_risk": {"low": 0.5, "moderate": 0.6}})
-    client.put(ROUTE, json={"minimum_confidence_by_risk": {"low": 0.4}})
+    await client.put(ROUTE, json={"minimum_confidence_by_risk": {"low": 0.5, "moderate": 0.6}})
+    await client.put(ROUTE, json={"minimum_confidence_by_risk": {"low": 0.4}})
 
     rows = await _rows(database)
     assert len(rows) == 1, f"the upsert created a second row: {rows}"
@@ -215,44 +255,44 @@ async def test_w3_absent_policy_denies_a_low_risk_action(
 
 
 async def test_w2_a_policy_written_through_the_api_admits_the_same_action(
-    client: TestClient, repository: PostgresActionRepository
+    client: httpx.AsyncClient, repository: PostgresActionRepository
 ) -> None:
     """**The slice's exit criterion: "Stage 3 can pass for LOW risk."**
 
     The only thing that changed between this test and the one above is a row
     written through the production HTTP surface.
     """
-    client.put(ROUTE, json={"minimum_confidence_by_risk": {"low": 0.5}})
+    await client.put(ROUTE, json={"minimum_confidence_by_risk": {"low": 0.5}})
 
     assert await _run_low_risk_action(repository, confidence=REAL_CONFIDENCE) != "denied"
 
 
 async def test_a_threshold_above_the_real_confidence_still_denies(
-    client: TestClient, repository: PostgresActionRepository
+    client: httpx.AsyncClient, repository: PostgresActionRepository
 ) -> None:
     """Writing a policy is not the same as weakening the gate: a threshold the
     signal cannot meet still denies."""
-    client.put(ROUTE, json={"minimum_confidence_by_risk": {"low": 0.75}})
+    await client.put(ROUTE, json={"minimum_confidence_by_risk": {"low": 0.75}})
 
     assert await _run_low_risk_action(repository, confidence=0.5) == "denied"
 
 
 async def test_a_tier_omitted_from_the_map_stays_fail_closed(
-    client: TestClient, repository: PostgresActionRepository
+    client: httpx.AsyncClient, repository: PostgresActionRepository
 ) -> None:
     """**§16.5's central property.** Strictness is expressed by omission: a
     policy that configures only `moderate` leaves `low` at 1.0."""
-    client.put(ROUTE, json={"minimum_confidence_by_risk": {"moderate": 0.5}})
+    await client.put(ROUTE, json={"minimum_confidence_by_risk": {"moderate": 0.5}})
 
     assert await _run_low_risk_action(repository, confidence=REAL_CONFIDENCE) == "denied"
 
 
 async def test_an_absent_identity_signal_still_denies_even_with_a_policy(
-    client: TestClient, repository: PostgresActionRepository
+    client: httpx.AsyncClient, repository: PostgresActionRepository
 ) -> None:
     """TDD 3D §10's other fail-closed path, re-asserted because this slice is
     the first thing that could have disturbed it: no confidence means 0.0."""
-    client.put(ROUTE, json={"minimum_confidence_by_risk": {"low": 0.5}})
+    await client.put(ROUTE, json={"minimum_confidence_by_risk": {"low": 0.5}})
 
     assert await _run_low_risk_action(repository, confidence=None) == "denied"
 
@@ -261,17 +301,17 @@ async def test_an_absent_identity_signal_still_denies_even_with_a_policy(
 
 
 async def test_w8_delete_restores_fail_closed_behaviour(
-    client: TestClient, repository: PostgresActionRepository, database: AsyncEngine
+    client: httpx.AsyncClient, repository: PostgresActionRepository, database: AsyncEngine
 ) -> None:
     """**The most important test in this file.**
 
     Admission, then deletion, then denial of the identical action — proving
     DELETE removes the policy rather than leaving a permissive remnant.
     """
-    client.put(ROUTE, json={"minimum_confidence_by_risk": {"low": 0.5}})
+    await client.put(ROUTE, json={"minimum_confidence_by_risk": {"low": 0.5}})
     assert await _run_low_risk_action(repository, confidence=REAL_CONFIDENCE) != "denied"
 
-    assert client.delete(ROUTE).status_code == 204
+    assert (await client.delete(ROUTE)).status_code == 204
     assert await _rows(database) == []
 
     assert await _run_low_risk_action(repository, confidence=REAL_CONFIDENCE) == "denied"
@@ -281,10 +321,10 @@ async def test_w8_delete_restores_fail_closed_behaviour(
 
 
 async def test_a_client_supplied_user_id_never_reaches_the_real_row(
-    client: TestClient, database: AsyncEngine
+    client: httpx.AsyncClient, database: AsyncEngine
 ) -> None:
     hostile = uuid4()
-    response = client.put(
+    response = await client.put(
         ROUTE,
         json={"minimum_confidence_by_risk": {"low": 0.5}, "user_id": str(hostile)},
     )
@@ -296,14 +336,16 @@ async def test_a_client_supplied_user_id_never_reaches_the_real_row(
 
 
 async def test_rejected_input_leaves_the_real_table_untouched(
-    client: TestClient, database: AsyncEngine
+    client: httpx.AsyncClient, database: AsyncEngine
 ) -> None:
     """Invalid input must not mutate state — proven against the table, not
     against a fake's dictionary."""
-    client.put(ROUTE, json={"minimum_confidence_by_risk": {"low": 0.5}})
+    await client.put(ROUTE, json={"minimum_confidence_by_risk": {"low": 0.5}})
 
-    assert client.put(ROUTE, json={"minimum_confidence_by_risk": {"low": 0.9}}).status_code == 422
-    assert client.put(ROUTE, json={"minimum_confidence_by_risk": {"nope": 0.5}}).status_code == 422
+    too_high = await client.put(ROUTE, json={"minimum_confidence_by_risk": {"low": 0.9}})
+    unknown_tier = await client.put(ROUTE, json={"minimum_confidence_by_risk": {"nope": 0.5}})
+    assert too_high.status_code == 422
+    assert unknown_tier.status_code == 422
 
     rows = await _rows(database)
     assert rows[0]["minimum_confidence_by_risk"] == {"low": 0.5}
