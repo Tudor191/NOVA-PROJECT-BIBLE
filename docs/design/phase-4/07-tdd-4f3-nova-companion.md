@@ -652,6 +652,54 @@ This slice's ratifications open a fourteenth, **L-14** (§19.1).
 **Carry-forwards: CF-9, CF-10 and CF-11 all remain OPEN.** 4F.3 touches none of
 them. CF-9 is 4F.4's, CF-11 is 4F.6's, CF-10 is not a 4F dependency.
 
+### 19.2 L-11's settler is corrected — 2026-09-18
+
+*Additive, per protocol §0.3.4. The 4F.2 completion record is **not** rewritten;
+its L-11 row stands as written and this records the correction against it.*
+
+**L-11 is NOT settled by 4F.3, and its recorded settler is wrong.** The 4F.2
+ledger dates it *"Settled by **4F.3**"*. This document — ratified later, and
+specifically about this slice's scope — declines it twice: §1.1's non-goals
+table lists *"Multi-modal **fusion** of workspace signals … fusion is not in this
+slice's row"*, and §19's table says *"**Still not in 4F.3's scope row**; §20 does
+not propose moving it."* The ratifications did not move it in, and the
+implementation did not quietly add it.
+
+**Verified against the code, not inferred from the prose:**
+
+| Check | Result |
+|---|---|
+| `workspace_orchestration.py` / `domain/workspace.py` reference `correlation_buffer` or `identity_fusion` | **No** — neither name appears |
+| 4F.3 changed `domain/correlation_buffer.py` or `domain/identity_fusion.py` | **No** — `git diff` against `phase-4` is empty for both |
+| Either fusion module mentions `workspace` | **No** |
+
+S-1 through S-4 are **not** evidence for L-11 and are not offered as such: they
+concern detection, transport, persistence and path absence, none of which is
+fusion.
+
+**Correct settler, derived from the ratified documents rather than chosen.**
+TDD 4F §18 names fusion in **4F.2's row only**; no row for 4F.4, 4F.5, 4F.6,
+4F.7 or 4F.8 names it. With 4F.2 closed and 4F.3 declining it, no slice row owns
+it. Protocol §0.2's backstop therefore applies — *"A Sub-Phase may not be
+declared complete while any ledger row from any of its Slices is unsettled"* — so
+**L-11's settler becomes 4F closure**, where it must be either implemented by a
+slice that claims it or recorded as an accepted deferral beyond 4F.
+
+**No new ledger row is opened.** L-11 already exists and keeps its number; only
+its *Settled by* field is corrected. Creating a fifteenth row for the same
+obligation would duplicate it.
+
+**One observation for whoever settles it, offered as context and not as a
+discharge.** TDD 4F §9 defines Fusion as extending `correlation_buffer.py` and
+`identity_fusion.py`, under the constraint that it *"never raises confidence
+above what its inputs support"* with `SINGLE_SIGNAL_CONFIDENCE_CEILING = 0.75`
+unchanged — that is **identity** fusion over multi-modal identity evidence. A
+`perception.workspace.observed` payload carries no identity evidence: its
+`user_id` is resolved server-side from `Settings.primary_user_id` (ADR-025), not
+observed. Whether multi-modal fusion is therefore a no-op for this signal type,
+or whether it means something else here, is a determination for 4F closure to
+make explicitly. **This document does not make it.**
+
 ---
 
 ## 20. Ratified decisions — 2026-09-16
