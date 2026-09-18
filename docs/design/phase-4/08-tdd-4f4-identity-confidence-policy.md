@@ -1,8 +1,10 @@
 # TDD 4F.4 — CF-9's write surface
 ## The missing write path for `IdentityConfidencePolicy`, in the engine that owns it
 
-**Status:** **DESIGN PREPARATION. NOT RATIFIED.** §15 lists four questions that
-must be answered before implementation begins.
+**Status:** **RATIFIED 2026-09-18 (§16).** All four questions are answered; §16
+records each decision and what it forbids. *(This line read "DESIGN PREPARATION.
+NOT RATIFIED. §15 lists four questions that must be answered before
+implementation begins." until the ratification — preserved per protocol §0.3.4.)*
 **Date:** 2026-09-18
 **Branch:** `phase-4f4-tdd`, cut from `phase-4f.3` at `41f783a04a5170cade2c74e8342ff75509cb9435`
 **Protocol:** [`PROJECT_PHASE_COMPLETION_PROTOCOL.md`](../../PROJECT_PHASE_COMPLETION_PROTOCOL.md),
@@ -76,7 +78,7 @@ This document records it as **OPEN**. See §13.
 | Stage 3's evaluation | **Exists** and is **not modified by this slice** |
 | `api-gateway` `/v1/action` prefix | **Exists** — `domain/routing.py:126`, forwards the whole subtree to `action-engine`. **No new prefix, no gateway change** |
 | `RiskLevel` | **Exists** — `nova_contracts.events.planning`, five values: `negligible`, `low`, `moderate`, `high`, `critical` |
-| `Settings.primary_user_id` | **Exists** — the ADR-025 server-side identity idiom |
+| `Settings.primary_user_id` | **ABSENT in `action-engine`** — corrected 2026-09-18, having been asserted here before it was checked. The idiom exists in `perception-engine` and `autonomy-engine`, not this engine, so **4F.4 must add the setting**. It is a one-line, ADR-025-consistent addition that §5.2's *"Identity: resolved server-side from `primary_user_id`"* requires, mirroring `autonomy-engine`'s non-optional form |
 | `action-engine` real-infra tier | **Exists** — in `real-infra-checks.yml`'s matrix, with `test_repository_real_postgres.py` |
 
 **The write path is the only thing missing.** Every other component of CF-9's
@@ -126,10 +128,11 @@ from the slice number.
 | 1 | **Write methods on the repository port and its Postgres implementation** — upsert and delete for `IdentityConfidencePolicy` | `action-engine` `domain/ports.py`, `repository/postgres_action_repository.py` |
 | 2 | **HTTP surface** — read, upsert, delete the calling deployment's own policy | `action-engine` `api/identity_confidence_policy.py` (new module) |
 | 3 | **Request/response schemas with validation** — bounded confidences, known risk keys | same module |
-| 4 | **Router registration** | `action-engine` `main.py` |
+| 4 | **Router registration** and **`Settings.primary_user_id`** (absent in this engine — see §2.1) | `action-engine` `main.py`, `config.py` |
 | 5 | **Tests** — unit, integration, and the real-Postgres evidence §11 requires | `action-engine/tests/` |
+| 6 | **Ceiling drift guard** — asserts `action-engine`'s configurable maximum and `perception-engine`'s `SINGLE_SIGNAL_CONFIDENCE_CEILING` agree, by reading both as source text so no engine imports another (§16.5) | `tools/tests/` |
 
-**Five deliverables. No migration, no new table, no new model, no new ORM class,
+**Six deliverables. No migration, no new table, no new model, no new ORM class,
 no Event Bus subject, no gateway change.**
 
 ---
@@ -332,6 +335,7 @@ slice adds no CI matrix row.
 | # | Obligation | Why it is 4F.4's |
 |---|---|---|
 | **CF-9's *capability*** | The write surface itself | TDD 4F §18's 4F.4 row and **D-4F-2** |
+| **L-15** | **Opened by this slice** — policy mutations are unaudited. Owner **`action-engine`**, settled at **4F closure** or on a separately ratified audit design (**D-4F4-3**, §16.3) | Ratified 2026-09-18 |
 
 **That is the complete list.** No ledger row L-1…L-14 is dated to 4F.4 by any
 authoritative document.
@@ -482,7 +486,91 @@ chooses must not appear in `src/`.
 
 ---
 
-## 16. SLOC budget
+## 16. Ratified decisions — 2026-09-18
+
+All four of §15's questions are answered. §15 is preserved exactly as written,
+per protocol §0.3.4; this section records the decisions and what each forbids.
+
+### 16.1 D-4F4-1 — risk tier **is** the capability class. **APPROVED (a).**
+
+For ADR-032 decision point 2, **risk tier is the capability class** for
+`IdentityConfidencePolicy`. **The existing risk-tier-keyed schema is
+authoritative** and is the form CF-9's eventual closure evidence will cite.
+
+**Forbidden:** capability IDs, a capability table, any new schema, any second
+keying dimension.
+
+### 16.2 D-4F4-2 — single-resource API. **APPROVED (a).**
+
+```
+GET    /v1/action/identity-confidence-policy
+PUT    /v1/action/identity-confidence-policy
+DELETE /v1/action/identity-confidence-policy
+```
+
+`user_id` stays **server-derived** from the trusted caller context. **A
+client-supplied `user_id` is never an authoritative identity.** `GET` with no
+policy returns **404**. `DELETE` restores the fail-closed state.
+
+**Forbidden:** an invented collection id, a caller-supplied identity, a
+synthesized empty policy on `GET`.
+
+### 16.3 D-4F4-3 — no audit trail in 4F.4; **L-15 opened.** **APPROVED (a).**
+
+4F.4 implements **no** audit trail for policy threshold changes.
+
+| Row | Obligation | Why deferred | Owner | Settled by |
+|---|---|---|---|---|
+| **L-15** | **Administrative changes to `IdentityConfidencePolicy` are unaudited.** Creating, updating or deleting an identity-confidence threshold is a security-relevant administrative act, and nothing records who changed it, when, or from what to what | §5.2 fixes the minimum surface at *"create/read/update a policy … and nothing more"*. `action_execution_history` models the *action* lifecycle, not administrative mutation, so using it would need a schema decision outside this slice | **`action-engine`** | **4F closure**, or earlier if an audit design is separately ratified |
+
+**Forbidden:** an Event Bus subject created merely to carry this audit gap;
+closing L-15 later without evidence.
+
+### 16.4 D-4F4-4 — no production threshold value. **APPROVED (a).**
+
+**No production default threshold, and no seed.** A deployment that installs
+nothing keeps the 1.0 fail-closed default at every risk tier.
+
+4F.8's AC-8 run creates the LOW-risk policy it needs **through the production
+API**, with a value ratified at that acceptance run.
+
+**Test-only fixtures are permitted**, and **no fixture value may reach
+production source or production initialization** — no default, no constant in
+`src/` standing in for a chosen threshold, no migration insert.
+
+### 16.5 The security ceiling, as implemented
+
+The ratification requires that *"threshold values that violate the existing
+security ceiling must be rejected"*. Implemented as: **a written threshold may
+not exceed `0.75`**, the real achievable single-signal identity confidence.
+
+**This removes no security capability, because strictness is expressed by
+omission.** Stage 3 uses 1.0 for any risk tier absent from the map, so:
+
+| Intent | How it is expressed |
+|---|---|
+| Maximum strictness for a tier | **Omit the tier.** Threshold stays 1.0 |
+| Maximum strictness everywhere | **No policy row**, or `DELETE` |
+| A deliberate, reachable relaxation | List the tier with a value `<= 0.75` |
+
+So the rule reads: **you may only write a threshold you could actually
+satisfy.** A value above `0.75` is unsatisfiable by any identity signal that
+exists today, so accepting it would store a policy that looks configured and can
+never pass — the failure mode the rule exists to prevent.
+
+**ADR-004 is not violated to enforce it.** `action-engine` **does not import**
+`perception-engine`'s `SINGLE_SIGNAL_CONFIDENCE_CEILING`; it declares its own
+constant, and a drift guard in `tools/tests/` — which already scans the
+repository for exactly this class of invariant — reads both as **source text**
+rather than importing either.
+
+**If fusion (L-11) ever raises achievable confidence above 0.75, this bound must
+be revisited**, and the drift guard is what will force that conversation rather
+than letting the two numbers silently diverge.
+
+---
+
+## 17. SLOC budget
 
 **Current: 46,005 on the 4F scope. Headroom to the 50,000 hard gate: 3,995.**
 
@@ -509,7 +597,7 @@ enough that it is not the one at risk. **F-2's open question** — whether
 
 ---
 
-## 17. Implementation and closure sequence
+## 18. Implementation and closure sequence
 
 1. **Ratify §15's four questions.** A-4F4-1, A-4F4-2 and A-4F4-3 change what is
    built; A-4F4-4 changes what may be written into `src/`.
