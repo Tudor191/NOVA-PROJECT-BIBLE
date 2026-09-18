@@ -212,3 +212,29 @@ class ActionRepository(Protocol):
     async def find_identity_confidence_policy(
         self, user_id: UUID
     ) -> IdentityConfidencePolicy | None: ...
+
+    # Phase 4F.4 -- CF-9's missing write path. The read above has existed since
+    # 3D; nothing in the repository could create the row it reads, so stage 3's
+    # threshold was 1.0 at every risk tier forever (TDD 4F §5.1). These two
+    # methods are the whole of that fix: no new table, no second store, and no
+    # change to how the row is read or compared.
+
+    async def upsert_identity_confidence_policy(
+        self, policy: IdentityConfidencePolicy
+    ) -> IdentityConfidencePolicy:
+        """Create or replace the single policy row for `policy.user_id`.
+
+        **Replace, not merge.** The table holds one row per user keyed by
+        `user_id`, and the stored map is the complete configuration: a merge
+        would make it impossible to *remove* a risk tier's threshold, and
+        removing one is how an operator restores that tier to the fail-closed
+        1.0 default (TDD 4F.4 §16.5)."""
+        ...
+
+    async def delete_identity_confidence_policy(self, user_id: UUID) -> bool:
+        """Remove the row, returning `True` if one was deleted.
+
+        Deleting restores **fail-closed at every risk tier**, because stage 3
+        reads 1.0 whenever no policy is found. It never leaves a permissive
+        remnant behind."""
+        ...
