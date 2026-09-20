@@ -1,9 +1,12 @@
 # TDD 4F.5 — Autonomy Level 2
 ## Selectable, policy-permitted, single dispatch, and `action.execute`'s first producer
 
-**Status:** **DESIGN PREPARATION. NOT RATIFIED.** §20 lists **four** questions
-that must be answered before implementation begins; three of them change what
-gets built and one changes a security semantic.
+**Status:** **RATIFIED 2026-09-20 (§22).** All four of §20's questions are
+answered; §22 records each decision, what it forbids, and the safety invariants
+it carries. *(This line read "DESIGN PREPARATION. NOT RATIFIED. §20 lists four
+questions that must be answered before implementation begins; three of them
+change what gets built and one changes a security semantic." until the
+ratification later the same day — preserved per protocol §0.3.4.)*
 **Date:** 2026-09-20
 **Branch:** `phase-4f5-tdd`, cut from `phase-4` at `9ec221fc00c8a96a3189cd34b7e6df2fdfe78bc9`
 (the 4F.4 merge commit). **`phase-4f.5` does not exist and must not be created
@@ -150,15 +153,18 @@ does today. 4F.5 changes nothing about that.
 | # | Deliverable | Where |
 |---|---|---|
 | 1 | **Level 2 becomes selectable** — add `AutonomyLevel.ASSISTED` to `SELECTABLE_LEVELS`; `PUT /v1/autonomy/level` stops returning 422 for `2` | `domain/models.py` |
-| 2 | **`permits_execution` becomes level-aware** — returns `True` for Level 2 and above, `False` below; `_forbid_execution` is **replaced**, not deleted, by the guard §16 control 3 requires | `domain/levels.py`, `domain/decision.py` |
-| 3 | **A policy effect that affirmatively permits auto-execution** — bounded to LOW risk, opt-in, fail-closed by absence | `domain/models.py`, `domain/policy.py` — **subject to §20's A-4F5-1** |
-| 4 | **The single dispatch point** — one read of `GateReport.requires_approval`; `True` → suggestion (unchanged Level-1 path), `False` → `action.execute` | `domain/decision.py` |
-| 5 | **`action.execute`'s first producer** — an outbound RPC port and its Event Bus adapter; `"action.execute"` added to `PUBLISHABLE_SUBJECTS` | `domain/ports.py`, new `clients/` module, `events/published.py`, `main.py` |
-| 6 | **`DecisionRequest` carries what the payload requires** — the execution fields `ActionExecuteRequestPayload` mandates | `domain/decision.py` — **subject to §20's A-4F5-2** |
-| 7 | **Tests** — unit, integration, and real-Postgres/real-NATS evidence §12 requires | `autonomy-engine/tests/` |
+| 2 | **`permits_execution` becomes level-aware** — `True` for `level >= ASSISTED`, `False` below (**D-4F5-4**); `_forbid_execution` is **replaced**, not deleted, by an execution-path guard. **The flag is eligibility, never permission** — §22.4 | `domain/levels.py`, `domain/decision.py` |
+| 3 | **`PolicyEffect.AUTO_EXECUTE`** — affirmative, opt-in, inert above `low`, fail-closed by absence, never bypassing a later gate (**D-4F5-1**, §22.1). **Stored in the existing `TEXT` column** | `domain/models.py`, `domain/policy.py` |
+| 4 | **The single dispatch point** — one read of `GateReport.requires_approval`; `True` → suggestion (unchanged Level-1 path), `False` → the dispatch **precondition set** of §22.4, all of which must hold | `domain/decision.py` |
+| 5 | **`action.execute`'s first producer** — an outbound **request/reply** RPC port and its Event Bus adapter, with a **15-second bounded timeout** (**D-4F5-3**); `"action.execute"` added to `PUBLISHABLE_SUBJECTS` | `domain/ports.py`, new `clients/` module, `events/published.py`, `main.py`, `config.py` |
+| 6 | **`DecisionRequest` gains `action_type`, `execution_target`, `verification_method`** — required only at the dispatch branch; **absence yields a suggestion, never a guess** (**D-4F5-2**, §22.2) | `domain/decision.py` |
+| 7 | **A distinguishable timeout outcome** — persisted in the **existing** decision log, distinct from a policy denial and from an ordinary execution failure (**D-4F5-3**) | `domain/models.py`, `domain/decision.py` |
+| 8 | **Tests** — unit, integration, and real-Postgres/real-NATS evidence §12 requires, including every invariant in §22.5 | `autonomy-engine/tests/` |
 
-**Seven deliverables. No migration, no new table, no new ORM model, no new Event
+**Eight deliverables. No migration, no new table, no new ORM model, no new Event
 Bus subject, no `PUBLIC_TOPICS` change, no gateway change, no new REST route.**
+*(This paragraph read "Seven deliverables" until the 2026-09-20 ratification split
+the timeout outcome out as its own deliverable; preserved per protocol §0.3.4.)*
 
 ---
 
@@ -348,10 +354,18 @@ Numbered `X-n` to avoid collision with 4F.4's `W-n`.
 | **X-10** | **`autonomy-engine` publishes `action.execute` and nothing else** | `PUBLISHABLE_SUBJECTS == {"action.execute"}`, asserted; plus a bus-level rejection test for any other subject |
 | **X-11** | **The decision log records the Level-2 execution** | `outcome=EXECUTE`, the permitting policy checks, and the level — read back from real Postgres |
 | **X-12** | **CF-10 is still unresolved** | 4E's five sub-properties re-asserted verbatim; trust is `UNAVAILABLE`, never `0.0` |
+| **X-13** | **A dispatch with no reply within 15 s becomes a timeout outcome, with no retry and no duplicate dispatch** (**D-4F5-3**) | Real-infra test against a deliberately silent responder: the outcome is the **timeout** outcome — distinguishable from a policy denial and from an ordinary execution failure — it is read back from the **existing** decision log, and the RPC is observed to have been issued **exactly once** |
+| **X-14** | **A Level-2 request missing any execution field produces a suggestion and no RPC** (**D-4F5-2**) | Parametrized over each of `action_type`, `execution_target`, `verification_method` absent in turn, with a matching `AUTO_EXECUTE` policy present and every gate passing. Outcome is `PROPOSE`; **zero** RPCs; nothing is defaulted or inferred |
+| **X-15** | **`permits_execution` is eligibility, not permission** (**D-4F5-4**) | With `permits_execution(ASSISTED)` returning `True`, each precondition of §22.4 is removed in turn and **each removal independently produces no dispatch** |
+| **X-16** | **Trust unavailable does not enable dispatch** | CF-10's `UNAVAILABLE` state, with an `AUTO_EXECUTE` policy and a LOW-risk request: the absence of a trust score is **never** read as a pass |
+| **X-17** | **`action.execute` is issued as request/reply, never fire-and-forget** | An AST/structural assertion that the dispatch path calls `.request()` and that **no `.publish()` call names `action.execute`** anywhere in `autonomy-engine` |
 
-**X-5, X-6, X-7 and X-9 are the ones that matter most.** A Level-2 implementation
-that auto-executed slightly too eagerly would satisfy X-1, X-3 and X-11 and still
-be a serious security defect.
+**X-5, X-6, X-7, X-9, X-14, X-15 and X-16 are the ones that matter most.** A
+Level-2 implementation that auto-executed slightly too eagerly would satisfy X-1,
+X-3 and X-11 and still be a serious security defect.
+
+*(X-13 … X-17 were added by the 2026-09-20 ratification; X-1 … X-12 are unchanged
+from the pre-ratification text. Preserved per protocol §0.3.4.)*
 
 ### 11.1 Negative and security tests — defined before implementation
 
@@ -367,6 +381,34 @@ be a serious security defect.
 10. `action-engine`, `perception-engine`, `world-model-engine`, `ws-gateway`,
     `api-gateway`, `nova-contracts` diffs **empty**.
 11. No migration file added; no ORM model added or altered.
+
+### 11.2 The fourteen ratified safety invariants — 2026-09-20
+
+**Every one is a required test, not a design aspiration.** Added by the
+ratification; §11.1 above is unchanged and several of these restate it, which is
+deliberate — this is the list the closure evidence is checked against.
+
+| # | Invariant | Bound to |
+|---|---|---|
+| **1** | **Absent policy → no dispatch** | X-5 |
+| **2** | **`DENY` → no dispatch** | X-7 |
+| **3** | **`AUTO_EXECUTE` + LOW + all gates pass → exactly one dispatch** | X-3 — *exactly* one; a second dispatch is a failure, not a retry |
+| **4** | **`AUTO_EXECUTE` + `moderate` or higher → no automatic execution** | X-6 |
+| **5** | **`DENY` beats `AUTO_EXECUTE`** | X-7, at every policy ordering |
+| **6** | **Missing execution fields → suggestion, no dispatch** | X-14 |
+| **7** | **Trust unavailable → no dispatch** | X-16 |
+| **8** | **Permission denied → no dispatch** | §11.1 item 5 |
+| **9** | **Flag alone → no dispatch** | X-9, X-15 |
+| **10** | **RPC timeout → timeout outcome, no retry, no duplicate dispatch** | X-13 |
+| **11** | **`action.execute` remains request/reply** | X-17 |
+| **12** | **No `.publish()` is used for `action.execute`** | X-17 |
+| **13** | **`action-engine` stage 3 remains unchanged** | Zero diff in `action-engine`; TDD 4F §16 control 13 |
+| **14** | **Existing fail-closed behaviour remains unchanged** | The 4D negative controls still pass unmodified |
+
+**Invariants 1, 2, 5, 6, 7, 8 and 9 are all the same claim from seven
+directions:** nothing except an affirmative, in-bounds, fully-gated decision may
+ever produce a dispatch. They are enumerated separately because each has its own
+way of going wrong.
 
 ---
 
@@ -546,6 +588,10 @@ At the end of 4F.5, protocol §0.1 requires categories 1, 2, 8, 9, 10, 11, 13 an
 
 ## 20. Ambiguities requiring ratification
 
+> **All four were answered on 2026-09-20. See §22.** This section is preserved
+> exactly as written before the ratification, per protocol §0.3.4 — the options
+> and recommendations below are the record of what was asked, not open questions.
+
 **Four. None is resolved in this document.** Three change what gets built; one
 changes a security semantic. **Implementation must not begin until each is
 answered.**
@@ -689,12 +735,13 @@ against the same mistake.
 
 ## 21. Implementation and closure sequence
 
-1. **Ratify §20's four questions.** A-4F5-1, A-4F5-2 and A-4F5-4 change what is
-   built; A-4F5-3 changes runtime behaviour and needs a number.
+1. ~~**Ratify §20's four questions.**~~ **DONE 2026-09-20 — §22.** *(This step
+   read "A-4F5-1, A-4F5-2 and A-4F5-4 change what is built; A-4F5-3 changes
+   runtime behaviour and needs a number"; preserved per protocol §0.3.4.)*
 2. **Merge this TDD into `phase-4`** and verify the resulting HEAD.
 3. **Create `phase-4f.5` from that fresh `phase-4` HEAD.** It does not exist yet
-   and must not be created before steps 1 and 2.
-4. Implement deliverables 1–7. `action-engine` is not touched.
+   and must not be created before step 2.
+4. Implement deliverables 1–8. `action-engine` is not touched.
 5. Verify locally: full suite, lint, mypy, import-linter, codegen drift, SLOC.
 6. Real-infra evidence for X-1, X-3, X-5 and X-11 against real Postgres and a
    real Event Bus.
@@ -706,3 +753,139 @@ against the same mistake.
    stated as none.
 
 **Phase 4F is not complete at the end of 4F.5.** 4F.6, 4F.7 and 4F.8 remain.
+
+---
+
+## 22. Ratified decisions — 2026-09-20
+
+All four of §20's questions are answered. §20 is preserved exactly as written,
+per protocol §0.3.4; this section records the decisions, what each forbids, and
+the invariants they carry.
+
+### 22.1 D-4F5-1 — `PolicyEffect.AUTO_EXECUTE`. **APPROVED (a).**
+
+An **affirmative** policy effect named **`AUTO_EXECUTE`**. **Not `ALLOW`** — the
+name must not suggest something that could overturn a denial, because it cannot.
+
+| Condition | `requires_approval` | Dispatch |
+|---|---|---|
+| **No policy at all** | **stays `True`** | **No** |
+| A policy set with no matching `AUTO_EXECUTE` | **stays `True`** | **No** |
+| A matching **`DENY`** | **stays `True`**, outcome is `DENY` | **No** |
+| A matching `AUTO_EXECUTE` **above `low`** | **stays `True`** — the effect is **inert** | **No** |
+| A matching `AUTO_EXECUTE` at or below `low`, nothing denying | **`False`** | **Only if every §22.4 precondition also holds** |
+
+**The default is never touched by absence.** `GateReport.requires_approval` keeps
+its `True` default and is lowered only by an affirmative, in-bounds match — so
+fail-closed is a property of the structure, not of a correctly-written policy set.
+
+**`AUTO_EXECUTE` must not bypass anything.** It is one input to the dispatch
+decision and never a short-circuit:
+
+- It **does not** bypass the Permission Matrix — a permission denial still denies.
+- It **does not** bypass the Trust stage — §22.4.
+- It **does not** bypass existing fail-closed behaviour anywhere.
+- It **does not** change `action-engine` stage 3, which is untouched by this slice.
+- **`DENY` takes precedence unconditionally**, at any policy ordering.
+
+**Forbidden:** an `ALLOW` effect; any effect that can overturn a `DENY`; an
+effect that fires above the `low` ceiling; **a production default policy**; seed
+data; a migration; any new persistence structure. **The existing storage is
+reused** — `autonomy.policy.effect` is `TEXT NOT NULL` with **no CHECK
+constraint** (§9), so the new value persists with no schema change at all.
+
+### 22.2 D-4F5-2 — execution fields on `DecisionRequest`. **APPROVED (a).**
+
+`DecisionRequest` gains **`action_type`**, **`execution_target`** and
+**`verification_method`**. They are **required only when the decision reaches the
+Level-2 dispatch branch**; a Level-0 or Level-1 decision is unaffected.
+
+Six binding rules:
+
+1. **Missing execution fields must NEVER result in guessed execution.**
+2. Missing execution fields **produce a Level-1 suggestion.**
+3. Missing execution fields **produce NO `action.execute` request.**
+4. Level 2 **with complete execution fields is eligible for dispatch only after
+   all existing gates pass** — eligibility is not permission (§22.4).
+5. **No `PermissionCategory` → `ActionType` guessing table is introduced.** The
+   mapping would be ten-to-two and invented rather than derived (§20's A-4F5-2).
+6. **No implicit defaults for execution fields.** Not in `src/`, not in a
+   settings object, not in the dispatcher.
+
+**Forbidden:** inferring `action_type` from `category` or `capability_class`;
+defaulting `execution_target`; defaulting `verification_method`; treating an
+incomplete request as an error rather than as a suggestion.
+
+### 22.3 D-4F5-3 — a bounded **15-second** `action.execute` timeout. **RATIFIED.**
+
+| | |
+|---|---|
+| **Timeout** | **15 seconds**, on the `action.execute` RPC |
+| **Retry** | **None.** A timeout is terminal for that decision |
+| **Second dispatch** | **None.** One decision issues at most one RPC, ever |
+| **Outcome** | A **distinguishable timeout outcome**, distinct from a policy denial **and** from an ordinary execution failure |
+| **Persistence** | The **existing** decision log. `autonomy.decision_log.outcome` is `TEXT` with no CHECK constraint (§9), so this needs no migration |
+| **Scope** | **Only this call.** No global RPC timeout is changed |
+
+**Forbidden:** a retry; a second dispatch; a queue; a scheduler; any change to
+`action-engine`'s lifecycle or its own `approval_timeout_seconds`; any change to
+a global or shared RPC timeout; collapsing timeout into the generic failure
+outcome, which would make an unanswered dispatch indistinguishable from a denial.
+
+**Why 15 s is safe on both sides.** It is far below `action-engine`'s 300 s
+approval-loop default, so a Level-2 dispatch that stalls degrades to a recorded
+timeout rather than hanging the control plane — and a LOW-risk, policy-permitted
+action should not reach the approval loop at all. **A timeout is recorded, not
+assumed to have failed or succeeded**: `action-engine` may still complete the
+action it received, and the decision log says only that no reply arrived in time.
+
+### 22.4 D-4F5-4 — `permits_execution` is **eligibility, never permission**. **APPROVED (a).**
+
+`permits_execution(level)` returns **`True` only for `level >= ASSISTED`**.
+
+**This does not mean every Level-2 decision executes**, and the implementation
+must make that impossible to misread. **Dispatch requires all seven of:**
+
+1. **Level 2** or above
+2. **Policy permits** — a matching, in-bounds `AUTO_EXECUTE` (§22.1)
+3. **Permission Matrix permits**
+4. **Trust gates pass**
+5. **Required execution fields present** (§22.2)
+6. **The `action.execute` path is available** — the port is wired and the subject
+   is publishable
+7. **No deny gate is active**
+
+**If any one fails:** no `action.execute`, the decision remains non-executing,
+and fail-safe behaviour is preserved. **Each precondition is independently
+load-bearing**, which X-15 asserts by removing them one at a time.
+
+**The guard must not be a standalone permission to execute.** `_forbid_execution`
+is **replaced, not deleted**: the new guard asserts the *execution path exists*
+rather than that the flag is unset, so TDD 4F §16 control 3 — *"Level 2 cannot
+execute by flag alone"* — keeps a target to fail against. The protection changes
+from *"no level may execute"* to *"no level may execute without a wired path"*,
+against the same mistake.
+
+**Forbidden:** deleting the guard; making `permits_execution` the sole condition
+read at the dispatch point; reading the level directly in the dispatcher so two
+places know the rule.
+
+### 22.5 The safety invariants these decisions carry
+
+**§11.2's fourteen invariants are part of this ratification**, each a required
+test. They are listed there rather than duplicated here so that the acceptance
+evidence and the ratification cannot drift apart.
+
+### 22.6 What the ratification does **not** change
+
+- **CF-9, CF-10 and CF-11 all stay OPEN.** 4F.5 contributes closure evidence to
+  none of them, and **must not claim to close CF-11**, because it creates **no
+  production caller of `decide()`** (§1.2).
+- **All fourteen ledger rows** (§17.2) are carried forward unchanged. None is
+  closed, absorbed, renamed or renumbered.
+- **No new Event Bus subject**; registry stays **119**; `PUBLIC_TOPICS` stays
+  **18**; `SUBSCRIBABLE_SUBJECTS` stays empty.
+- **No migration, no ORM model, no new persistence structure.**
+- **`action-engine` is not modified**, and stage 3 stays byte-identical.
+- **Ownership boundaries are unchanged**: `autonomy-engine` decides,
+  `action-engine` executes, `cognitive-state-engine` will trigger in 4F.6.
