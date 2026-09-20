@@ -437,7 +437,11 @@ otherwise.
 
 **4F.4 absorbs none of these.**
 
-### 9.4 One new finding, requiring the user's ratification before it gets a number
+### 9.4 One new finding — **ratified as L-16 on 2026-09-20**
+
+*(This heading read "One new finding, requiring the user's ratification before it
+gets a number" until the ratification later the same day. Preserved per protocol
+§0.3.4; the finding's text below is unchanged.)*
 
 Adding three routes made two documents **incomplete** — neither is false, but
 both enumerate this engine's API surface and neither lists the new routes:
@@ -458,6 +462,15 @@ L-15, which was recommended in TDD 4F.4 §15 and numbered only on ratification.
 It is recorded as a finding so that it is visible rather than quietly absorbed,
 and so 4F's Gate Review inherits it either way. **Neither document was edited by
 this slice** — READMEs are category 7, which a slice defers.
+
+**Ratified 2026-09-20.** The user ratified the `action-engine/README.md` row as
+**L-16**, OPEN, owner **`action-engine` / Phase 4F closure**, settled at Phase
+4F closure unless separately resolved earlier. **§11.5 is its ledger entry.**
+The ratification confirmed both boundaries this finding drew: the
+`docs/architecture/11-api-architecture.md` incompleteness **stays under L-10
+exactly as already recorded and is not duplicated as L-16**, and **no second
+new identifier was created**. `services/action-engine/README.md` is still **not
+edited** — L-16 is opened, not settled.
 
 ---
 
@@ -492,7 +505,11 @@ not accurate before.
 
 *(L-7 and L-12 were settled by 4F.3 and are not repeated here.)*
 
-### 11.2 Still open, each with its owner — thirteen rows
+### 11.2 Still open, each with its owner — fourteen rows
+
+*(This heading read "thirteen rows" until **L-16** was ratified on 2026-09-20 and
+added below. Preserved per protocol §0.3.4. No pre-existing row's number,
+wording, owner or settlement changed.)*
 
 | # | Obligation | Owner | Blocks 4F.4? |
 |---|---|---|---|
@@ -509,6 +526,7 @@ not accurate before.
 | L-13 | `known_projects` population | **4F closure or later** | No |
 | L-14 | Doc 22 Principle 8 per-source consent for `filesystem` | **4F closure**, or earlier if separately ratified | No |
 | **L-15** | **Opened by 4F.4 — see §11.3** | **`action-engine`** | No |
+| **L-16** | **Opened by 4F.4, ratified 2026-09-20 — see §11.5** | **`action-engine` / Phase 4F closure** | No |
 
 **Every row above is carried forward unchanged.** None is closed, absorbed,
 renamed or renumbered by this slice.
@@ -540,6 +558,33 @@ renamed or renumbered by this slice.
 difference. 4F.4 adds no Rust and no companion file, so **the question is
 unchanged and the gate is uncrossed under either reading**.
 
+### 11.5 L-16 — opened by this slice, ratified 2026-09-20, and explicitly still OPEN
+
+| | |
+|---|---|
+| **Row** | **L-16** |
+| **Status** | **OPEN** |
+| **Obligation** | `services/action-engine/README.md` does **not** list the new Identity Confidence Policy API routes under its §*"Owned APIs"* section |
+| **Scope** | Update that section to include the 4F.4 Identity Confidence Policy **`GET` / `PUT` / `DELETE`** surface at `/v1/action/identity-confidence-policy` |
+| **Owner** | **`action-engine` / Phase 4F closure** |
+| **Settlement** | **Phase 4F closure**, unless separately resolved earlier |
+
+**This is documentation incompleteness — not a false statement, and not a
+runtime defect.** The README's §*"Owned APIs"* list is accurate about every
+route it names and its §*"The ADR-032 identity-confidence gate"* description
+remains correct; the list is simply missing the three routes this slice added.
+No behaviour, contract or security property is affected.
+
+**Verified at `0ef76c9`, not assumed:**
+
+- **The README was not edited.** READMEs are category 7, which protocol §0.1
+  defers for a Slice. **L-16 is opened, not settled.**
+- **No second identifier was created.** The
+  `docs/architecture/11-api-architecture.md` incompleteness **remains under
+  L-10**, exactly as §11.2 already records it, and is **not** duplicated here.
+- **No pre-existing ledger row was renumbered, renamed, reworded or closed** to
+  make room for L-16.
+
 ---
 
 ## 12. Final status
@@ -569,9 +614,11 @@ is named in §11 with an owner.
 - **CF-9 remains OPEN.** Conditions 1, 3 and 4 are evidenced; 2 is answered by
   ratification and awaits citation; **5 is unmet.**
 - **L-15 remains OPEN**, owned by `action-engine`.
+- **L-16 remains OPEN**, ratified 2026-09-20, owned by `action-engine` / Phase
+  4F closure (§11.5). *(This bullet read "One new finding (§9.4) awaits the
+  user's ratification before it receives a ledger number" until the ratification
+  later the same day; preserved per protocol §0.3.4.)*
 - **CF-10, CF-11, L-1…L-6, L-8…L-11, L-13 and L-14 all remain OPEN.**
-- **One new finding (§9.4) awaits the user's ratification** before it receives a
-  ledger number.
 - **4F.8 owns** the downstream world-model E2E and the AC-7/AC-8 acceptance run.
 
 ### 12.1 SLOC
