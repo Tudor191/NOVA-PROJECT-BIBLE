@@ -1,9 +1,12 @@
 # TDD 4F.5 — Autonomy Level 2
 ## Selectable, policy-permitted, single dispatch, and `action.execute`'s first producer
 
-**Status:** **RATIFIED 2026-09-20 (§22).** All four of §20's questions are
-answered; §22 records each decision, what it forbids, and the safety invariants
-it carries. *(This line read "DESIGN PREPARATION. NOT RATIFIED. §20 lists four
+**Status:** **RATIFIED 2026-09-20 (§22), with the Trust contract reconciled the
+same day (§22.7).** All four of §20's questions are answered; §22 records each
+decision, what it forbids, and the safety invariants it carries. **§22.7 resolves
+a contradiction the implementation-branch preparation found** between §22.4's
+original *"Trust gates pass"* and the Trust Engine as it actually exists under an
+open CF-10 — documentation only; no ratified decision is withdrawn. *(This line read "DESIGN PREPARATION. NOT RATIFIED. §20 lists four
 questions that must be answered before implementation begins; three of them
 change what gets built and one changes a security semantic." until the
 ratification later the same day — preserved per protocol §0.3.4.)*
@@ -316,7 +319,7 @@ NOVA act without being asked. Every control below exists for that reason.
 | **Flag alone is never enough** | §16 control 3: making `permits_execution` return `True` while the dispatch publication is removed **must still fail**. The replacement guard must assert the execution path exists, not merely that the flag is set |
 | **Identity** | Server-derived `primary_user_id` throughout. Single-user trusted-local preserved. `DecisionRequest.user_id` is set by the caller *inside the trust boundary*, never from an HTTP body |
 | **`action-engine` stage 3** | **Byte-identical** (§16 control 13). Absent identity-confidence policy still denies at 1.0. 4F.5 does not touch `action-engine` at all |
-| **Trust** | CF-10 unchanged: `UNAVAILABLE`, `score=None`, never a default number, never a gate |
+| **Trust** | CF-10 unchanged: `UNAVAILABLE`, `score=None`, never a default number, **and 4F.5 adds no Trust gate** — §22.7. `UNAVAILABLE` is non-blocking here and is **not** a PASS |
 | **Browser reachability** | None added. No new prefix, no new public topic, no socket |
 | **Audit** | Every Level-2 decision writes a `DecisionLogEntry` with `outcome=EXECUTE`, the policy checks that permitted it, and the level. **The decision log is the audit trail**, and it already exists |
 
@@ -344,7 +347,7 @@ Numbered `X-n` to avoid collision with 4F.4's `W-n`.
 |---|---|---|
 | **X-1** | **Level 2 is selectable.** `PUT /v1/autonomy/level {"level": 2}` returns **200** and persists, in real Postgres | Real-infra test through the production route; `GET` reads back `2` |
 | **X-2** | **Level 3–5 still return 422**, with the reason distinguishing "defined but not enabled" from "no defined semantics" | The existing distinction must survive; a test per level |
-| **X-3** | **A policy-permitted LOW-risk request at Level 2 dispatches `action.execute`** | Real-infra test: real `decide()` → real Event Bus → the RPC is observed with the correct payload |
+| **X-3** | **`AUTO_EXECUTE` + LOW + every *currently applicable* execution gate satisfied → exactly one `action.execute` dispatch** | Real-infra test: real `decide()` → real Event Bus → the RPC is observed **exactly once** with the correct payload. *"Currently applicable"* is §22.4's seven preconditions **as §22.7 defines precondition 4** — Trust `UNAVAILABLE` under an open CF-10 does not block, **and is not thereby a Trust PASS**. *(This row read "A policy-permitted LOW-risk request at Level 2 dispatches `action.execute`" until the 2026-09-20 Trust-contract reconciliation; preserved per protocol §0.3.4)* |
 | **X-4** | **An identical request at Level 1 produces a suggestion and no RPC** | Same request, same policies, level changed. **The negative half of AC-8** |
 | **X-5** | **Absent policy at Level 2 requires approval and dispatches nothing** | **The fail-closed control, and it is mandatory.** Empty policy set → suggestion, not execution |
 | **X-6** | **`moderate` and above never auto-execute**, at any policy setting, at Level 2 | Parametrized over every tier above `low`, with a permitting policy present |
@@ -357,7 +360,7 @@ Numbered `X-n` to avoid collision with 4F.4's `W-n`.
 | **X-13** | **A dispatch with no reply within 15 s becomes a timeout outcome, with no retry and no duplicate dispatch** (**D-4F5-3**) | Real-infra test against a deliberately silent responder: the outcome is the **timeout** outcome — distinguishable from a policy denial and from an ordinary execution failure — it is read back from the **existing** decision log, and the RPC is observed to have been issued **exactly once** |
 | **X-14** | **A Level-2 request missing any execution field produces a suggestion and no RPC** (**D-4F5-2**) | Parametrized over each of `action_type`, `execution_target`, `verification_method` absent in turn, with a matching `AUTO_EXECUTE` policy present and every gate passing. Outcome is `PROPOSE`; **zero** RPCs; nothing is defaulted or inferred |
 | **X-15** | **`permits_execution` is eligibility, not permission** (**D-4F5-4**) | With `permits_execution(ASSISTED)` returning `True`, each precondition of §22.4 is removed in turn and **each removal independently produces no dispatch** |
-| **X-16** | **Trust unavailable does not enable dispatch** | CF-10's `UNAVAILABLE` state, with an `AUTO_EXECUTE` policy and a LOW-risk request: the absence of a trust score is **never** read as a pass |
+| **X-16** | **Trust `UNAVAILABLE` is never coerced into a passing score or threshold result** | With CF-10's `UNAVAILABLE` state, an `AUTO_EXECUTE` policy and a LOW-risk request: `TrustScore.score` **stays `None`** and is never rewritten to `0.0`, `1.0` or any default; `satisfies_threshold` is **not** consulted and, if it were, `None` would return `False`; and no code path records or reports Trust as having *passed*. The dispatch that does occur is attributable to §22.4's preconditions 1–3 and 5–7, **not** to a Trust result. *(This row read "Trust unavailable does not enable dispatch" until the 2026-09-20 Trust-contract reconciliation, which found that reading made X-3 unsatisfiable under an open CF-10; preserved per protocol §0.3.4)* |
 | **X-17** | **`action.execute` is issued as request/reply, never fire-and-forget** | An AST/structural assertion that the dispatch path calls `.request()` and that **no `.publish()` call names `action.execute`** anywhere in `autonomy-engine` |
 
 **X-5, X-6, X-7, X-9, X-14, X-15 and X-16 are the ones that matter most.** A
@@ -392,11 +395,14 @@ deliberate — this is the list the closure evidence is checked against.
 |---|---|---|
 | **1** | **Absent policy → no dispatch** | X-5 |
 | **2** | **`DENY` → no dispatch** | X-7 |
-| **3** | **`AUTO_EXECUTE` + LOW + all gates pass → exactly one dispatch** | X-3 — *exactly* one; a second dispatch is a failure, not a retry |
+| **3** | **`AUTO_EXECUTE` + LOW + every currently applicable execution gate satisfied → exactly one dispatch** | X-3 — *exactly* one; a second dispatch is a failure, not a retry. *(Read "all gates pass" until 2026-09-20; see §22.7)* |
 | **4** | **`AUTO_EXECUTE` + `moderate` or higher → no automatic execution** | X-6 |
 | **5** | **`DENY` beats `AUTO_EXECUTE`** | X-7, at every policy ordering |
 | **6** | **Missing execution fields → suggestion, no dispatch** | X-14 |
-| **7** | **Trust unavailable → no dispatch** | X-16 |
+| **7a** | **Trust `UNAVAILABLE` is not a PASS** — nothing records, reports or branches on Trust as having passed | X-16 |
+| **7b** | **Trust `UNAVAILABLE` is not converted to a numeric score** — `score` stays `None`; never `0.0`, never `1.0`, never a default | X-16, and 4D's own control |
+| **7c** | **Trust `UNAVAILABLE` does not itself block the 4F.5 Level-2 path while CF-10 is OPEN** | §22.7 — the dispatch is attributable to preconditions 1–3 and 5–7 |
+| **7d** | **A future explicit Trust DENY remains blocking** | §22.4 precondition 4; asserted against a constructed DENY state, **without 4F.5 building the Trust implementation that would produce one** |
 | **8** | **Permission denied → no dispatch** | §11.1 item 5 |
 | **9** | **Flag alone → no dispatch** | X-9, X-15 |
 | **10** | **RPC timeout → timeout outcome, no retry, no duplicate dispatch** | X-13 |
@@ -405,10 +411,18 @@ deliberate — this is the list the closure evidence is checked against.
 | **13** | **`action-engine` stage 3 remains unchanged** | Zero diff in `action-engine`; TDD 4F §16 control 13 |
 | **14** | **Existing fail-closed behaviour remains unchanged** | The 4D negative controls still pass unmodified |
 
-**Invariants 1, 2, 5, 6, 7, 8 and 9 are all the same claim from seven
+**Invariants 1, 2, 5, 6, 7d, 8 and 9 are all the same claim from seven
 directions:** nothing except an affirmative, in-bounds, fully-gated decision may
 ever produce a dispatch. They are enumerated separately because each has its own
 way of going wrong.
+
+**Invariant 7 is the exception, and it is split deliberately.** 7a, 7b and 7d
+constrain how Trust may be *interpreted*; **7c states that `UNAVAILABLE` is not
+itself a blocker while CF-10 is OPEN.** That is not a relaxation of 7a/7b — a
+state that blocks nothing is still not a state that passes anything. §22.7 gives
+the reasoning. *(Invariant 7 read "Trust unavailable → no dispatch" as a single
+row until the 2026-09-20 Trust-contract reconciliation; preserved per protocol
+§0.3.4. The count is still fourteen numbered invariants, 7 having become 7a–7d.)*
 
 ---
 
@@ -783,7 +797,9 @@ fail-closed is a property of the structure, not of a correctly-written policy se
 decision and never a short-circuit:
 
 - It **does not** bypass the Permission Matrix — a permission denial still denies.
-- It **does not** bypass the Trust stage — §22.4.
+- It **does not** bypass the Trust stage — §22.4, as §22.7 defines it. Trust is
+  still evaluated and recorded on every decision; `AUTO_EXECUTE` does not skip
+  it, and does not turn its `UNAVAILABLE` state into a pass.
 - It **does not** bypass existing fail-closed behaviour anywhere.
 - It **does not** change `action-engine` stage 3, which is untouched by this slice.
 - **`DENY` takes precedence unconditionally**, at any policy ordering.
@@ -849,7 +865,13 @@ must make that impossible to misread. **Dispatch requires all seven of:**
 1. **Level 2** or above
 2. **Policy permits** — a matching, in-bounds `AUTO_EXECUTE` (§22.1)
 3. **Permission Matrix permits**
-4. **Trust gates pass**
+4. **No Trust DENY is in effect** — see **§22.7**, which defines the three
+   distinct Trust states and states that **`UNAVAILABLE` is non-blocking in
+   4F.5 while CF-10 is OPEN**. *(This precondition read "**Trust gates pass**"
+   until the 2026-09-20 Trust-contract reconciliation; preserved per protocol
+   §0.3.4. That wording was ambiguous — it did not distinguish PASS from
+   UNAVAILABLE, and under an open CF-10 it made the Level-2 path permanently
+   undispatchable, which would have made X-3 unsatisfiable.)*
 5. **Required execution fields present** (§22.2)
 6. **The `action.execute` path is available** — the port is wired and the subject
    is publishable
@@ -858,6 +880,10 @@ must make that impossible to misread. **Dispatch requires all seven of:**
 **If any one fails:** no `action.execute`, the decision remains non-executing,
 and fail-safe behaviour is preserved. **Each precondition is independently
 load-bearing**, which X-15 asserts by removing them one at a time.
+
+**Precondition 4 is the one that is *satisfiable by the absence of a denial*,
+not by a positive result.** That is deliberate and bounded, and §22.7 gives the
+reasoning in full.
 
 **The guard must not be a standalone permission to execute.** `_forbid_execution`
 is **replaced, not deleted**: the new guard asserts the *execution path exists*
@@ -889,3 +915,91 @@ evidence and the ratification cannot drift apart.
 - **`action-engine` is not modified**, and stage 3 stays byte-identical.
 - **Ownership boundaries are unchanged**: `autonomy-engine` decides,
   `action-engine` executes, `cognitive-state-engine` will trigger in 4F.6.
+
+### 22.7 The Trust contract — reconciled 2026-09-20
+
+**This section was added after ratification**, when the implementation-branch
+preparation found that §22.4's original precondition 4, *"Trust gates pass"*,
+contradicted the Trust Engine as it actually exists. Added additively per
+protocol §0.3.4; nothing in §22.1–§22.4 is withdrawn.
+
+#### The contradiction, stated exactly
+
+| | |
+|---|---|
+| **What the TDD asked for** | *"Trust gates pass"* as a mandatory dispatch precondition |
+| **What the code is** | `trust.py`: *"**Trust does not deny in 4D.** Nothing executes at Levels 0-1, so there is no threshold for trust to gate."* `satisfies_threshold` exists with **zero production callers**, and **no threshold value is defined anywhere** |
+| **What CF-10 guarantees** | The Trust Engine is **`UNAVAILABLE`**, so `score` is `None`, so `satisfies_threshold(None, …)` is **`False` for every threshold** |
+| **The consequence** | Read literally, precondition 4 could never be satisfied while CF-10 is OPEN. **Level 2 would be permanently undispatchable, X-3 would be unsatisfiable, and 4F.8's AC-8 unreachable** |
+
+#### The three Trust states, named separately
+
+The original wording collapsed three different things into one word. They are
+now distinguished, and only one of them blocks:
+
+| State | Meaning | Effect on the 4F.5 dispatch path |
+|---|---|---|
+| **PASS** | A real score exists and satisfies a real threshold | **Not reachable in 4F.5.** No threshold exists, and 4F.5 does not create one |
+| **DENY** | A Trust implementation affirmatively refuses | **Blocking** — precondition 4 fails. **4F.5 does not build the implementation that could produce this state**, but the precondition is written so that one later can |
+| **UNAVAILABLE** | CF-10's state: `score=None`, `status=UNAVAILABLE` | **Non-blocking in 4F.5**, and **explicitly not a PASS** |
+
+#### What `UNAVAILABLE` is, and what it is not
+
+**It is not a pass.** No code path may record, report, branch on or log Trust as
+having passed. A dispatch that occurs is attributable to §22.4's preconditions
+1–3 and 5–7 — **never** to a Trust result.
+
+**It is not a number.** `TrustScore.score` stays `None`. It is never rewritten to
+`0.0` (which would read as *perfect* trust after the score→corrections
+inversion), never to `1.0`, never to a configured default, and never to a
+sentinel. 4D's own doctrine is unchanged: *"'no data yet' is not the same claim
+as 'measured zero corrections'."*
+
+**It is not a threshold result.** 4F.5 introduces **no Trust threshold**, so
+there is nothing for a score to be compared against. `satisfies_threshold` is
+**not consulted** on the dispatch path; were it consulted, `None` would correctly
+return `False`.
+
+**It does not block, in 4F.5 only, while CF-10 is OPEN.** Trust is evaluated and
+recorded exactly as it is today, and its absence does not veto the Level-2 path.
+
+#### Why 4F.5 does not create a Trust gate — the architectural rationale
+
+1. **It would mean inventing Trust semantics.** A blocking gate needs a
+   threshold, and a threshold is a security decision with no owner here. ADR-032's
+   *"choosing the first one is a security decision"* applies with equal force to
+   trust, and 4F.4 established the precedent: **a slice does not choose a
+   security number.** Inventing one to make a precondition satisfiable would be
+   the exact failure mode D-4F4-4 was ratified to prevent.
+2. **It would breach the existing 4D Trust boundary.** `trust.py` is explicit
+   that trust is *recorded, not gating*, and that `satisfies_threshold` was
+   written ahead of time so that *"whichever milestone first needs to gate on
+   it"* would not invent the semantics under deadline. **4F.5 is not that
+   milestone — CF-10's implementation is.**
+3. **It would make Level 2 undemonstrable.** Under an open CF-10 a blocking
+   Trust gate is permanently closed, so the slice could ship no evidence for its
+   own exit criterion, and 4F.8's AC-8 could never run. **A gate that is closed
+   for a reason unrelated to the decision is not a safety property; it is a dead
+   path.**
+4. **It keeps the ownership where it belongs.** CF-10's eventual implementation
+   owns real Trust-based blocking semantics — the threshold, the states and the
+   policy. **It can add that blocking behaviour without touching `action-engine`
+   stage 3**, because stage 3 is a separate, independently fail-closed gate that
+   4F.5 does not modify and that continues to run on every action regardless.
+
+#### What this does not change
+
+- **CF-10 stays OPEN**, untouched, and **4F.5 must not close it**. X-12 still
+  re-asserts 4E's five sub-properties verbatim.
+- **No Trust threshold, default score, or coercion from `None`** is introduced —
+  in `src/`, in configuration, or in a test fixture that could leak into either.
+- **`action-engine` stage 3 is unchanged and still fail-closed**: absent
+  identity-confidence policy still denies at 1.0, and an absent identity signal
+  is still `0.0` confidence. **The security property that actually stops a bad
+  action at Level 2 lives there**, and this reconciliation does not weaken it.
+- **Every other ratified decision stands**: `AUTO_EXECUTE` at or below `low`
+  only; `DENY` always wins; missing execution fields yield a suggestion;
+  `permits_execution` is eligibility not permission; the Permission Matrix
+  remains **independently blocking**; no retry; the 15-second request/reply
+  timeout; request/reply never publish; CF-9 and CF-11 stay OPEN; all fourteen
+  ledger rows unchanged.
