@@ -299,6 +299,30 @@ the system permissive would satisfy W-1 and W-2 and still be a defect.
 8. `perception-engine` and `api-gateway` diffs are **empty**.
 9. No migration file added; no ORM model added or altered.
 
+### 10.2 Discrepancy closure — 2026-09-20
+
+**Additive, per protocol §0.3.4.** §4 and §10.1 above are unchanged and were not
+wrong; the final pre-Gate audit at `0af5466` found two places where the
+*implementation* had not yet met them, and this records where each is now met.
+
+| # | What the audit found | Closed by |
+|---|---|---|
+| **D-1** | **§10.1 item 6 was half implemented.** `test_an_empty_map_is_accepted_and_is_not_the_same_as_no_row` proved an empty map is *accepted*, but nothing stored `{}` and then drove stage 3. The nearest test omitted a tier from a **non-empty** map, which is a different input | `test_an_empty_stored_map_is_not_an_absent_row_and_stays_fail_closed` — real Postgres, written through the production `PUT`, verified by independent SQL **and** by `find_identity_confidence_policy` returning a policy rather than `None`, then denied by the real `execute_action` at LOW risk with confidence `0.70` |
+| **D-2** | **§4 deliverable 5 names three test tiers**; `services/action-engine/tests/unit/` had no 4F.4 test | `tests/unit/test_identity_confidence_policy_validation.py` — 12 tests exercising `IdentityConfidencePolicyRequest` as a plain model, with no app, client, repository or fake |
+
+**Neither closure changed production code.** The property D-1 asserts held
+before the test existed — `risk.value in policy.minimum_confidence_by_risk` is
+false for every tier when the map is `{}` — so this is evidence that was owed,
+not a defect that was repaired.
+
+**What D-2 adds that the integration tier cannot show:** the accepted key set is
+**parametrized over `RiskLevel` itself**, so a hardcoded subset would fail there
+while passing every HTTP test (which only ever send `low` and `moderate`); the
+above-ceiling rejection is asserted to **name omission as the remedy**, which is
+the whole reason §16.5 removes no security capability; and the ceiling is probed
+at **one ULP above `0.75`** rather than at a round `0.76`, pinning the
+comparison as a strict `>`.
+
 ---
 
 ## 11. Real-infrastructure requirements

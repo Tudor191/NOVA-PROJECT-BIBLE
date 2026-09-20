@@ -287,6 +287,43 @@ async def test_a_tier_omitted_from_the_map_stays_fail_closed(
     assert await _run_low_risk_action(repository, confidence=REAL_CONFIDENCE) == "denied"
 
 
+async def test_an_empty_stored_map_is_not_an_absent_row_and_stays_fail_closed(
+    client: httpx.AsyncClient, repository: PostgresActionRepository, database: AsyncEngine
+) -> None:
+    """**TDD 4F.4 §10.1 negative test 6**, and the degenerate end of §16.5.
+
+    Two different security states share one observable behaviour, and this
+    separates them. An **absent row** and a **stored empty map** both leave
+    stage 3 at the fail-closed 1.0 for every tier -- but only one of them is a
+    configuration an operator performed on purpose. The row is asserted to
+    *exist* (real SQL, and `find_identity_confidence_policy` returning a policy
+    rather than `None`, which is the exact distinction stage 3's
+    `policy is not None` sees) and the LOW-risk action is asserted to be denied
+    anyway.
+
+    That is what makes "maximum strictness everywhere" expressible as a written
+    row instead of only as the absence of one: an empty map configures nothing,
+    so `risk.value in policy.minimum_confidence_by_risk` is false at LOW and the
+    threshold stays 1.0 -- above the 0.75 a real single signal can reach.
+
+    LOW is the tier TDD 4F §18's exit criterion names; every other tier reaches
+    1.0 through the same lookup on the same empty mapping.
+    """
+    written = await client.put(ROUTE, json={"minimum_confidence_by_risk": {}})
+    assert written.status_code == 200, written.text
+
+    rows = await _rows(database)
+    assert len(rows) == 1, f"an empty map must still store a row, got {rows}"
+    assert rows[0]["user_id"] == PRIMARY_USER_ID
+    assert rows[0]["minimum_confidence_by_risk"] == {}
+
+    policy = await repository.find_identity_confidence_policy(PRIMARY_USER_ID)
+    assert policy is not None, "an empty map must not read back as an absent policy"
+    assert policy.minimum_confidence_by_risk == {}
+
+    assert await _run_low_risk_action(repository, confidence=REAL_CONFIDENCE) == "denied"
+
+
 async def test_an_absent_identity_signal_still_denies_even_with_a_policy(
     client: httpx.AsyncClient, repository: PostgresActionRepository
 ) -> None:
