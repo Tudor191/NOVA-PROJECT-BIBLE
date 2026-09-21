@@ -49,17 +49,43 @@ def test_levels_zero_to_two_are_defined_and_three_to_five_are_not() -> None:
 
 
 # --- Negative control 2 ------------------------------------------------------
-def test_control_2_only_levels_zero_and_one_are_selectable() -> None:
-    """**Negative control 2.** Adding Level 2 to `SELECTABLE_LEVELS` fails
-    here. Decision D-1 assigns enabling it to milestone 4F."""
-    assert {AutonomyLevel.OBSERVATION_ONLY, AutonomyLevel.SUGGESTIVE} == SELECTABLE_LEVELS
-    assert AutonomyLevel.ASSISTED not in SELECTABLE_LEVELS
+def test_control_2_only_levels_zero_one_and_two_are_selectable() -> None:
+    """**Negative control 2, retargeted by 4F.5.** Adding Level 3, 4 or 5 to
+    `SELECTABLE_LEVELS` fails here.
+
+    *(4D asserted `{OBSERVATION_ONLY, SUGGESTIVE} == SELECTABLE_LEVELS` and
+    `ASSISTED not in SELECTABLE_LEVELS`, because D-1 deferred enabling Level 2
+    to milestone 4F. 4F.5 is that milestone. The control is not weakened --
+    it still pins the exact set, and the levels with no defined semantics are
+    still refused.)*
+
+    **Selecting Level 2 is not permission to execute.** That separation is
+    `test_control_1_eligibility_is_not_permission` below."""
+    assert {
+        AutonomyLevel.OBSERVATION_ONLY,
+        AutonomyLevel.SUGGESTIVE,
+        AutonomyLevel.ASSISTED,
+    } == SELECTABLE_LEVELS
+    for undefined in (
+        AutonomyLevel.SUPERVISED,
+        AutonomyLevel.HIGHLY_AUTONOMOUS,
+        AutonomyLevel.FULL_ORGANIZATIONAL,
+    ):
+        assert undefined not in SELECTABLE_LEVELS
 
 
-def test_control_2_selectable_is_a_strict_subset_of_defined() -> None:
-    """"Defined" and "enabled" must stay different ideas -- collapsing the two
-    sets is exactly what D-1 turns on."""
-    assert SELECTABLE_LEVELS < DEFINED_LEVELS
+def test_control_2_selectable_never_exceeds_defined() -> None:
+    """A level can never be *selectable* without being *defined*.
+
+    *(4D asserted the stronger `SELECTABLE_LEVELS < DEFINED_LEVELS`, a strict
+    subset, because Level 2 was defined and disabled. 4F.5 enabled it, so the
+    two sets now coincide. The invariant that survives -- and the dangerous
+    direction -- is that selectable may never grow beyond defined; a level with
+    no semantics must never become choosable.)*
+
+    They remain two separate constants, so a future level can be defined
+    without being enabled, which is the distinction D-1 turned on."""
+    assert SELECTABLE_LEVELS <= DEFINED_LEVELS
 
 
 def test_require_selectable_accepts_zero_and_one() -> None:
@@ -67,15 +93,14 @@ def test_require_selectable_accepts_zero_and_one() -> None:
         assert require_selectable(level) is level
 
 
-def test_require_selectable_rejects_level_two_as_defined_but_disabled() -> None:
-    """TDD §13: *"Level set to 2-5 -> 422 with the reason. Not silently
-    clamped."* The reason must say Level 2 is real and arrives in 4F."""
-    with pytest.raises(LevelNotSelectableError) as excinfo:
-        require_selectable(AutonomyLevel.ASSISTED)
-    message = str(excinfo.value)
-    assert "defined" in message
-    assert "4F" in message
-    assert "D-1" in message
+def test_require_selectable_accepts_level_two_since_4f5() -> None:
+    """4F.5 enabled Level 2, so `require_selectable` returns it unchanged.
+
+    *(4D asserted this raised `LevelNotSelectableError` with a reason naming
+    "defined", "4F" and "D-1" -- Level 2 was real but not yet enabled. It is
+    enabled now; the 422 path for Levels 3-5 is asserted immediately below and
+    is unchanged.)*"""
+    assert require_selectable(AutonomyLevel.ASSISTED) is AutonomyLevel.ASSISTED
 
 
 @pytest.mark.parametrize(
@@ -114,12 +139,17 @@ def test_level_zero_never_proposes_and_level_one_does() -> None:
 
 # --- Negative control 1 ------------------------------------------------------
 @pytest.mark.parametrize("level", list(AutonomyLevel))
-def test_control_1_no_level_permits_execution(level: AutonomyLevel) -> None:
-    """**Negative control 1.** No level -- selectable, merely defined, or named
-    only -- permits unattended execution in this release. Making
-    `permits_execution` return `True` anywhere fails here, and again in
-    `test_decision_pipeline.py` where the pipeline raises on it."""
-    assert permits_execution(level) is False
+def test_control_1_execution_eligibility_starts_at_level_two(level: AutonomyLevel) -> None:
+    """**Negative control 1, retargeted by 4F.5 (D-4F5-4).**
+
+    *(4D asserted `permits_execution(level) is False` for **every** level --
+    "no level, selectable, merely defined, or named only, permits unattended
+    execution in this release". D-1 deferred Level 2 to 4F; 4F.5 enabled it.)*
+
+    **Eligibility, not permission.** Lowering the boundary below `ASSISTED`
+    fails here, and `test_control_1_eligibility_is_not_permission` asserts that
+    a `True` here authorizes nothing on its own."""
+    assert permits_execution(level) is (level >= AutonomyLevel.ASSISTED)
 
 
 def test_level_name_is_the_bibles_wording() -> None:

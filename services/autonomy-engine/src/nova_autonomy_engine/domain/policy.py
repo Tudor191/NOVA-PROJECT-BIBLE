@@ -21,8 +21,13 @@ negative control behind it:
    environment variable. The same policy set and request always produce the
    same verdict and the same `checks` list.
 
-**There is no `allow` effect** (`PolicyEffect`, `models.py`) and therefore no
-branch here that can turn a denial into a permission.
+**There is still no `allow` effect** (`PolicyEffect`, `models.py`), and no
+branch here can turn a denial into a permission. 4F.5 added `AUTO_EXECUTE`,
+which is a different thing: it is *affirmative* rather than *permissive*, it is
+evaluated only after `denied` and `requires_approval` are both known, and it is
+inert above `RiskLevel.LOW`. Doctrine item 3 is unchanged by it -- an empty
+policy set still yields `auto_execute=False`, so absence is still not
+permission.
 
 Disabled policies are **not consulted at all** -- they are absent from
 `checks` rather than recorded as `matched=False`, which would conflate "this
@@ -43,7 +48,7 @@ from nova_autonomy_engine.domain.models import (
     PolicyEffect,
     PolicyMatch,
 )
-from nova_autonomy_engine.domain.risk import risk_at_least
+from nova_autonomy_engine.domain.risk import risk_at_least, risk_at_most
 
 __all__ = ["PolicyEvaluation", "evaluate_policies", "policy_matches"]
 
@@ -62,6 +67,19 @@ class PolicyEvaluation(BaseModel):
     denied: bool = False
     reason: str | None = None
     requires_approval: bool = False
+    auto_execute: bool = False
+    """**4F.5 (D-4F5-1).** `True` only when a matching, enabled `AUTO_EXECUTE`
+    policy fired **at or below `RiskLevel.LOW`**, nothing denied, and no
+    `REQUIRE_APPROVAL` policy also matched.
+
+    **It defaults to `False` and absence never changes it**, which is what
+    keeps an empty policy set non-permissive: `evaluate_gates` lowers
+    `GateReport.requires_approval` only when this is `True`, so "no policy"
+    leaves approval required rather than granting execution.
+
+    Note the asymmetry with `requires_approval` above: that field is a record
+    for the log, while this one is load-bearing. It is a *necessary* condition
+    for dispatch, never a sufficient one -- TDD 4F.5 §22.4 lists six more."""
     checks: list[PolicyCheck] = Field(default_factory=list)
 
 
@@ -108,6 +126,7 @@ def evaluate_policies(
     denied = False
     reason: str | None = None
     requires_approval = False
+    auto_execute_matched = False
 
     for policy in policies:
         if not policy.enabled:
@@ -131,7 +150,38 @@ def evaluate_policies(
                 )
         elif policy.effect is PolicyEffect.REQUIRE_APPROVAL:
             requires_approval = True
+        elif policy.effect is PolicyEffect.AUTO_EXECUTE:
+            # Recorded as matched above either way; whether it *counts* is
+            # decided once, after the loop, so ordering cannot change it.
+            auto_execute_matched = True
+
+    # 4F.5: three independent conditions narrow a matching AUTO_EXECUTE down to
+    # an actual permission, and every one of them is a deliberate refusal.
+    #
+    #   `not denied`            -- deny wins unconditionally (item 1 of this
+    #                              module's doctrine), at any policy ordering.
+    #   `not requires_approval` -- a tier the operator marked for approval is
+    #                              not auto-executed because a second policy
+    #                              also matched. The stricter effect wins.
+    #   `risk_at_most(low)`     -- the effect is inert above `low`, so Bible
+    #                              Part 14's "low risk actions execute
+    #                              automatically" cannot be widened by policy.
+    #
+    # `risk_at_most` is inclusive of `negligible`: "low risk" in the Bible's
+    # sense is the tiers at or below `low`, not `low` alone. Reading it as
+    # equality would leave `negligible` stricter than `low`, which is
+    # incoherent rather than merely conservative.
+    auto_execute = (
+        auto_execute_matched
+        and not denied
+        and not requires_approval
+        and risk_at_most(risk, RiskLevel.LOW)
+    )
 
     return PolicyEvaluation(
-        denied=denied, reason=reason, requires_approval=requires_approval, checks=checks
+        denied=denied,
+        reason=reason,
+        requires_approval=requires_approval,
+        auto_execute=auto_execute,
+        checks=checks,
     )

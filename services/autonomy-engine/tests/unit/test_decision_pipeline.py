@@ -186,16 +186,24 @@ async def test_a_policy_evaluation_that_raises_denies(monkeypatch: pytest.Monkey
 
 
 # --- Negative control 1 ------------------------------------------------------
-async def test_control_1_forcing_execute_at_level_one_fails(
+async def test_control_3_a_flag_without_a_wired_path_still_fails(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """**Negative control 1.** If `permits_execution` is ever made to return
-    `True` without a real execution path being built, every decision raises
-    instead of silently acquiring one."""
+    """**TDD 4F §16 control 3**, which 4F.5 retargeted from 4D's control 1.
+
+    *(4D asserted that making `permits_execution` return `True` **at all**
+    raised, because no level was allowed to execute. 4F.5 enables Level 2, so
+    the guard's meaning changes from "no level may execute" to "no level may
+    execute without the wired execution path" -- the same protection against
+    the same mistake.)*
+
+    **Level 2 cannot execute by flag alone.** With no `ActionDispatchPort`
+    supplied, an execution-eligible level raises rather than silently acquiring
+    permission, so a flag-only enablement cannot produce a passing suite."""
     monkeypatch.setattr(levels_module, "permits_execution", lambda _level: True)
     monkeypatch.setattr(decision_module, "permits_execution", lambda _level: True)
 
-    with pytest.raises(AssertionError, match="unattended execution"):
+    with pytest.raises(AssertionError, match="not a flag"):
         await decide(
             _request(),
             level=AutonomyLevel.SUGGESTIVE,

@@ -29,11 +29,24 @@ def _policy(
     )
 
 
-def test_there_is_no_allow_effect() -> None:
-    """TDD §6: an `allow` effect could only matter at Level 2+, which 4D does
-    not enable, so shipping it would ship an effect with no reachable
-    behaviour."""
-    assert {effect.value for effect in PolicyEffect} == {"deny", "require_approval"}
+def test_there_is_still_no_allow_effect() -> None:
+    """**There is no `ALLOW`, and 4F.5 did not add one.**
+
+    *(4D asserted the member set was exactly `{"deny", "require_approval"}`,
+    reasoning that an affirmative effect "could only matter at Level 2+, which
+    4D does not enable". 4F.5 enables it and adds `AUTO_EXECUTE` -- a different
+    thing from `ALLOW`, and the name matters: `ALLOW` reads as something that
+    could overturn a denial, which `AUTO_EXECUTE` can never do. `DENY` beating
+    it is pinned by `test_deny_beats_auto_execute`.)*
+
+    The exact set is still pinned, so a fourth effect cannot arrive unnoticed.
+    """
+    assert {effect.value for effect in PolicyEffect} == {
+        "deny",
+        "require_approval",
+        "auto_execute",
+    }
+    assert not hasattr(PolicyEffect, "ALLOW")
 
 
 def test_an_empty_policy_set_is_not_permissive() -> None:

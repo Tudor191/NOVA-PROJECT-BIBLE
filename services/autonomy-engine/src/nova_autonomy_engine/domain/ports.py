@@ -28,6 +28,7 @@ from __future__ import annotations
 from typing import Protocol, runtime_checkable
 from uuid import UUID
 
+from nova_contracts import ActionExecuteRequestPayload
 from pydantic import BaseModel
 
 from nova_autonomy_engine.domain.models import (
@@ -44,6 +45,9 @@ from nova_autonomy_engine.domain.models import (
 
 __all__ = [
     "FORBIDDEN_REPOSITORY_METHODS",
+    "ActionDispatchPort",
+    "ActionDispatchResult",
+    "ActionDispatchTimeout",
     "AutonomyRepository",
     "ConversationalTrustRead",
     "ConversationalTrustSource",
@@ -116,6 +120,55 @@ class ConversationalTrustSource(Protocol):
     """
 
     async def read(self, user_id: UUID) -> ConversationalTrustRead: ...
+
+
+class ActionDispatchTimeout(Exception):
+    """No reply to `action.execute` arrived within the bounded wait.
+
+    **A distinct type, not a `None` return**, because a timeout and a refusal
+    are different facts and TDD 4F.5 **D-4F5-3** requires them to stay
+    distinguishable all the way to the decision log.
+
+    **It does not mean the action did not run.** `action-engine` may have
+    executed it and replied late; this says only that nothing came back in
+    time. `decide()` therefore records `DecisionOutcome.TIMEOUT` and **never
+    retries or dispatches a second time** -- a retry could double-execute an
+    action whose first attempt succeeded."""
+
+
+class ActionDispatchResult(BaseModel):
+    """What `action-engine` replied. Mirrors the fields of `action.execute`'s
+    registered reply (`ActionResultPayload`) that this engine acts on, rather
+    than re-exporting the contract type into `domain/` -- the same
+    own-the-shape convention `ConversationalTrustRead` follows above."""
+
+    action_id: UUID
+    status: str
+    error: str | None = None
+
+
+@runtime_checkable
+class ActionDispatchPort(Protocol):
+    """Sends one `action.execute` **request** and awaits its reply.
+
+    **Request/reply, never fire-and-forget** (TDD 4F.5 §8.1). `action.execute`
+    is the RPC `action-engine` serves; publishing it would discard the reply on
+    a subject that has one, and the decision log would then record "executed"
+    without evidence.
+
+    **One call per qualifying decision, at most.** There is no retry, no queue
+    and no scheduler in this port or behind it: a transport that failed is an
+    `ActionDispatchTimeout`, and the decision ends there.
+
+    An implementation raises `ActionDispatchTimeout` on the bounded wait
+    elapsing, and otherwise returns what `action-engine` said."""
+
+    async def dispatch(
+        self,
+        payload: ActionExecuteRequestPayload,
+        *,
+        correlation_id: UUID | None = None,
+    ) -> ActionDispatchResult: ...
 
 
 @runtime_checkable
