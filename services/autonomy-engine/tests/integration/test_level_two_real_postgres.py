@@ -31,12 +31,17 @@ from __future__ import annotations
 
 import asyncio
 import os
+import socket
+import time
 from collections.abc import AsyncIterator
 from pathlib import Path
 from uuid import UUID, uuid4
 
+import httpx
 import pytest
+import uvicorn
 from nova_autonomy_engine.clients.action_dispatch import ActionDispatchClient
+from nova_autonomy_engine.config import Settings
 from nova_autonomy_engine.domain.decision import DecisionRequest, decide
 from nova_autonomy_engine.domain.models import (
     AutonomyLevel,
@@ -52,6 +57,7 @@ from nova_autonomy_engine.domain.models import (
 from nova_autonomy_engine.domain.ports import ActionDispatchTimeout
 from nova_autonomy_engine.events.published import PUBLISHABLE_SUBJECTS
 from nova_autonomy_engine.events.subscribed import SUBSCRIBABLE_SUBJECTS
+from nova_autonomy_engine.main import create_app
 from nova_autonomy_engine.repository.postgres_autonomy_repository import (
     PostgresAutonomyRepository,
 )
@@ -181,11 +187,94 @@ async def _rows(database: AsyncEngine) -> list[dict]:
     async with database.connect() as connection:
         result = await connection.execute(
             text(
-                "SELECT subject_id, autonomy_level, outcome, reason "
+                "SELECT subject_id, autonomy_level, outcome, reason, policy_checks "
                 "FROM autonomy.decision_log ORDER BY created_at"
             )
         )
         return [dict(row) for row in result.mappings().all()]
+
+
+# --- X-1: Level 2 is selectable, through the production route ---------------
+
+
+@pytest.fixture
+async def http(database: AsyncEngine) -> AsyncIterator[httpx.AsyncClient]:
+    """A real HTTP client against a **real uvicorn server in this test's own
+    event loop**, backed by the real Postgres repository.
+
+    Not `TestClient`: it drives the app through an `anyio` portal on a separate
+    thread with its own event loop, and the asyncpg connections this test
+    creates belong to *this* loop — crossing them raises "got Future attached
+    to a different loop". Serving in-loop removes the thread boundary, and the
+    request still crosses a real TCP socket to a real server.
+    """
+    app = create_app(
+        Settings(primary_user_id=USER),
+        repository=PostgresAutonomyRepository(create_session_factory(database)),
+    )
+    config = uvicorn.Config(app, host="127.0.0.1", port=0, log_level="warning")
+    server = uvicorn.Server(config)
+    task = asyncio.create_task(server.serve())
+
+    deadline = time.monotonic() + 30.0
+    while not server.started:
+        if task.done():  # surface a startup failure rather than timing out on it
+            await task
+        if time.monotonic() > deadline:
+            raise RuntimeError("uvicorn did not start within the deadline")
+        await asyncio.sleep(0.02)
+
+    bound: socket.socket = server.servers[0].sockets[0]
+    try:
+        async with httpx.AsyncClient(
+            base_url=f"http://127.0.0.1:{bound.getsockname()[1]}", timeout=10.0
+        ) as client:
+            yield client
+    finally:
+        server.should_exit = True
+        await task
+
+
+async def test_x1_level_two_is_selectable_through_the_production_route(
+    http: httpx.AsyncClient, database: AsyncEngine
+) -> None:
+    """**X-1.** `PUT /v1/autonomy/level {"level": 2}` returns **200** and
+    persists in real Postgres, read back through the production `GET`.
+
+    The 4D refusal is gone, and the row is real — a fake repository could not
+    decide that the `SMALLINT` column accepts it or that the round trip
+    survives a commit.
+    """
+    async with database.begin() as connection:
+        await connection.execute(text("DELETE FROM autonomy.autonomy_level_setting"))
+
+    written = await http.put("/v1/autonomy/level", json={"level": 2})
+    assert written.status_code == 200, written.text
+    assert written.json()["level"] == 2
+
+    read_back = await http.get("/v1/autonomy/level")
+    assert read_back.json()["level"] == 2
+    assert read_back.json()["configured"] is True
+
+    # Verified independently of the repository that wrote it.
+    async with database.connect() as connection:
+        result = await connection.execute(
+            text("SELECT level FROM autonomy.autonomy_level_setting WHERE user_id = :u"),
+            {"u": USER},
+        )
+        assert result.scalar_one() == int(AutonomyLevel.ASSISTED)
+
+
+@pytest.mark.parametrize("level", [3, 4, 5])
+async def test_x2_levels_three_to_five_are_still_refused_through_the_route(
+    http: httpx.AsyncClient, level: int
+) -> None:
+    """**X-2** against real Postgres: the refusal survives, and nothing is
+    stored for a level with no defined semantics."""
+    response = await http.put("/v1/autonomy/level", json={"level": level})
+
+    assert response.status_code == 422
+    assert "no defined semantics" in response.json()["detail"]
 
 
 # --- the real RPC ------------------------------------------------------------
@@ -225,6 +314,15 @@ async def test_a_level_two_decision_dispatches_over_real_nats_and_persists_execu
     assert rows[0]["subject_id"] == result.log_entry.subject_id
     assert rows[0]["outcome"] == DecisionOutcome.EXECUTE.value
     assert rows[0]["autonomy_level"] == int(AutonomyLevel.ASSISTED)
+
+    # X-11's third clause: **the permitting policy checks** are in the row, so
+    # the log explains *why* the action was allowed to execute rather than only
+    # that it was. A dispatch whose justification is not recorded would be an
+    # audit gap, and the decision log is this slice's whole audit trail.
+    recorded = rows[0]["policy_checks"]
+    assert len(recorded) == 1
+    assert recorded[0]["effect"] == PolicyEffect.AUTO_EXECUTE.value
+    assert recorded[0]["matched"] is True
 
 
 async def test_trust_unavailable_did_not_block_that_dispatch(

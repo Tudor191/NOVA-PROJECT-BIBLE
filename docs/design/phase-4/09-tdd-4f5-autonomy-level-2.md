@@ -516,10 +516,38 @@ and remains **L-5's** to settle at 4F closure.
 |---|---|---|
 | **Level 2's three states** | Selectable, policy-permitted, executing | TDD 4F §18's 4F.5 row and §6 |
 | **4D control 8's replacement** | The tighter *"publishes `action.execute` and nothing else"* property | TDD 4F §11.2, §16 control 6 |
+| **L-17** | **Opened by 4F.5's implementation audit, ratified 2026-09-21 — see §17.1.1** | Owner **`autonomy-engine` frontend / a later policy-authoring or UI scope** |
 
-**No new ledger row is proposed by this slice as designed.** If implementation
-reveals one, it must be surfaced explicitly and numbered only on ratification —
-the precedent set by L-15 and L-16.
+*(This section read "**No new ledger row is proposed by this slice as designed.**
+If implementation reveals one, it must be surfaced explicitly and numbered only
+on ratification — the precedent set by L-15 and L-16." Implementation did reveal
+one; it was surfaced rather than absorbed, and numbered only on ratification,
+exactly as that sentence required. Preserved per protocol §0.3.4.)*
+
+#### 17.1.1 L-17 — the frontend policy-effect enum
+
+| | |
+|---|---|
+| **Row** | **L-17** |
+| **Status** | **OPEN** |
+| **Obligation** | **The autonomy frontend policy-authoring enum is stale and does not expose the ratified `AUTO_EXECUTE` effect supported by the 4F.5 API.** `apps/web-client/src/entities/autonomy.ts` declares `POLICY_EFFECTS = ["deny", "require_approval"]`, and its comment still reads *"4D ships no `allow` effect"* |
+| **Owner** | **`autonomy-engine` frontend** |
+| **Settled by** | **A later policy-authoring / UI scope** |
+
+**This is a product-scope gap, not a defect and not a security hole.** The
+backend accepts `AUTO_EXECUTE` through the existing `POST`/`PATCH
+/v1/autonomy/policies` routes, which TDD 4F §12 names as the surface; the panel
+simply cannot author one yet. Nothing is mis-rendered and nothing is bypassed:
+an operator who writes the policy through the API gets exactly the semantics
+§22.1 ratified, and every gate still runs.
+
+**Why 4F.5 does not close it.** §18 lists *"A policy authoring UI — **Not in 4F
+at all** — no slice row names one"* as an explicit non-goal, and §5's boundary
+table forbids new browser exposure. Widening the panel here would be the
+unilateral scope expansion the non-goal exists to prevent.
+
+**Verified at `d2cdf2e`, not assumed:** `apps/` has **zero** files changed by
+this slice, and `AUTO_EXECUTE` appears nowhere under `apps/`.
 
 ### 17.2 Explicitly NOT 4F.5's — every existing row, ownership unchanged
 
