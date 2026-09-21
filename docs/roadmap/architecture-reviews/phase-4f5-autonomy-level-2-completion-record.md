@@ -48,20 +48,31 @@ evidence for the dispatch path, the real bounded timeout and decision-log
 persistence is delegated to CI, and §6.1 enumerates every delegated test by name.
 No claim of real-infrastructure success is made in this document.
 
+> **SUPERSEDED 2026-09-21 — see §12.** The delegation resolved. CI executed the
+> tests, **found four real defects**, and after the ratified fix pass
+> `real-infra (autonomy-engine)` reports **30 passed, 0 failed, 272
+> deselected** with **40/40 checks green**. The text above is preserved exactly
+> as written because it was true and correctly disclosed when written — and
+> because it is the reason the defects were found rather than shipped. **§12
+> carries the current status; this paragraph is history.** Docker remained
+> unavailable locally throughout, so **no local real-infra execution is
+> claimed** even now: every real-infra result in this record came from CI.
+
 ---
 
 ## 1. Status
 
 | | |
 |---|---|
-| **Slice 4F.5** | **IMPLEMENTATION-COMPLETE; locally verified; real-infrastructure evidence PENDING in CI** |
+| **Slice 4F.5** | **COMPLETE and VERIFIED** — implementation, local checks **and executed real-infrastructure evidence**, all green (§12). *(This row read "IMPLEMENTATION-COMPLETE; locally verified; real-infrastructure evidence PENDING in CI" until 2026-09-21, which was accurate while the evidence was pending; preserved per protocol §0.3.4)* |
 | **Phase 4F** | **NOT complete.** 4F.6–4F.8 not started |
 | **4F.1 – 4F.4** | **Intact.** None is touched, rewritten or reinterpreted |
 | **`main`** | `7e273e62e942ecd5528ca807e65933d6bb675669` — **untouched** |
 | **`phase-4`** | `e83f1f314451c795184301e1d83205a31412fce2` — **untouched** |
 | **`phase-4f.5`** | **All verification below was performed at `6a1ca27f99ba224d8fc755548bfdcd9a8fb39fb5`**, the last commit that touches code. The branch head is higher: it also carries the documentation-only commits that create this record (§7) |
-| **CF-9 / CF-10 / CF-11** | **All OPEN** (§8.2) |
-| **Deferred ledger** | **15 rows**, L-17 opened by this slice (§10) |
+| **CF-9 / CF-10 / CF-11** | **All OPEN** (§8.2). **Unchanged by the fix pass** |
+| **Deferred ledger** | **16 rows** — L-17 opened by this slice, **L-18 opened by the fix pass** (§10). *(This read "15 rows" before L-18; preserved per protocol §0.3.4)* |
+| **CI** | **40/40 SUCCESS** at `f0ee8ae` (§12.7) |
 
 ### 1.1 The slice's exit criterion (TDD 4F §18)
 
@@ -89,9 +100,9 @@ Each is TDD 4F.5 §11's claim, then the evidence. **X-17 was added by the
 
 | # | Claim | Evidence | Status |
 |---|---|---|---|
-| **X-1** | Level 2 selectable, persisted in real Postgres | `test_x1_level_two_is_selectable_through_the_production_route` — real uvicorn in-loop, real HTTP, real repository, `SMALLINT` verified by **independent SQL** | **PASS** (CI) |
+| **X-1** | Level 2 selectable, persisted in real Postgres | `test_x1_level_two_is_selectable_through_the_production_route` — real uvicorn in-loop, real HTTP, real repository, `SMALLINT` verified by **independent SQL** | **PASS** (executed) |
 | **X-2** | Levels 3–5 still 422 with the reason | `test_levels_three_to_five_are_rejected_with_422_and_a_reason[3,4,5]` + real-route variant | **PASS** |
-| **X-3** | `AUTO_EXECUTE` + LOW + every applicable gate → **exactly one** dispatch | `test_a_level_two_decision_dispatches_over_real_nats_and_persists_execute`; unit twin asserts `len(payloads) == 1` | **PASS** (CI) |
+| **X-3** | `AUTO_EXECUTE` + LOW + every applicable gate → **exactly one** dispatch | `test_a_level_two_decision_dispatches_over_real_nats_and_persists_execute`; unit twin asserts `len(payloads) == 1` | **PASS** (executed) |
 | **X-4** | Identical request at Level 1 → suggestion, no RPC | `test_x4_the_identical_request_at_level_one_proposes_and_dispatches_nothing` | **PASS** |
 | **X-5** | Absent policy → approval, dispatches nothing | `test_invariant_1_absent_policy_does_not_dispatch` + real-bus variant | **PASS** |
 | **X-6** | `moderate`+ never auto-executes | `test_invariant_4_auto_execute_is_inert_above_low[moderate,high,critical]` | **PASS** |
@@ -99,16 +110,27 @@ Each is TDD 4F.5 §11's claim, then the evidence. **X-17 was added by the
 | **X-8** | No code path differs up to the dispatch point | `test_x8_both_runs_consult_the_same_gates_in_the_same_order` — `SpyTrustSource`, both runs reach trust | **PASS** |
 | **X-9** | Level 2 cannot execute by flag alone | `test_control_3_a_flag_without_a_wired_path_still_fails`; `test_level_two_without_a_wired_dispatcher_raises_rather_than_executing` | **PASS** |
 | **X-10** | Publishes `action.execute` and nothing else | `test_control_6_this_engine_publishes_action_execute_and_nothing_else` + real-bus `SubjectNotAllowedError` | **PASS** |
-| **X-11** | Decision log records the execution, with the permitting policy checks | `test_a_level_two_decision_dispatches_over_real_nats_and_persists_execute` — asserts `outcome`, `autonomy_level` **and** `policy_checks` | **PASS** (CI) |
+| **X-11** | Decision log records the execution, with the permitting policy checks | `test_a_level_two_decision_dispatches_over_real_nats_and_persists_execute` — asserts `outcome`, `autonomy_level` **and** `policy_checks` | **PASS** (executed) |
 | **X-12** | CF-10 still unresolved | 4E's five sub-properties `test_control_9a`–`9e` pass **unmodified** in `digital-twin-engine`, incl. **9d** (autonomy's trust adapter byte-identical); plus `score is None`, `input_status is UNAVAILABLE` | **PASS** |
-| **X-13** | No reply in 15 s → timeout outcome, no retry, no duplicate | `test_a_silent_responder_produces_a_persisted_timeout_and_no_retry` + 4 unit tests | **PASS** (CI) |
+| **X-13** | No reply in 15 s → timeout outcome, no retry, no duplicate | `test_a_silent_responder_produces_a_persisted_timeout_and_no_retry` + 4 unit tests | **PASS** (executed) |
 | **X-14** | Missing any execution field → suggestion, no RPC | `test_invariant_6_a_missing_execution_field_yields_a_suggestion[×3]` + real-bus variant | **PASS** |
 | **X-15** | `permits_execution` is eligibility, not permission | `test_x15_each_precondition_is_independently_load_bearing` — four removals, each alone stops dispatch | **PASS** |
 | **X-16** | Trust `UNAVAILABLE` never coerced into a pass | `test_invariant_7a/7b`, `test_no_threshold_is_consulted_on_the_dispatch_path` | **PASS** |
 | **X-17** | Request/reply, never fire-and-forget | `test_control_6_the_only_bus_call_is_a_request_for_action_execute` — AST: `requesters == ["action_dispatch.py"]` | **PASS** |
 
-**(CI)** marks a criterion whose evidence is a `real_infra` test that has **not
-executed locally** — see §0.1 and §6.1.
+**(executed)** marks a criterion whose evidence is a `real_infra` test that
+**has now run against real PostgreSQL and a real NATS broker in CI** and
+passed — see §12.5.
+
+> **Correction, 2026-09-21 — additive, per protocol §0.3.4.** These four rows
+> (**X-1**, **X-3**, **X-11**, **X-13**) read **"PASS (CI)"**, under a legend
+> that read *"**(CI)** marks a criterion whose evidence is a `real_infra` test
+> that has **not executed locally**."* That was the honest marking while the
+> evidence was pending. CI then **falsified three of the four**: X-1 and X-11
+> failed outright and X-13 failed in part, on two test-only SQL defects and one
+> genuine production gap (§12.1–§12.3). **X-3 was the only one of the four that
+> CI proved on its first run.** All four are now proven by **executed**
+> evidence at `f0ee8ae`; the marker is changed rather than the history.
 
 **X-5, X-6, X-7, X-9, X-14, X-15 and X-16 are the ones that matter most.** A
 Level-2 implementation that dispatched slightly too eagerly would satisfy X-1,
@@ -251,6 +273,16 @@ real-infra. Nine 4D controls retargeted.
 anywhere**. They collect cleanly (28 selected of 291 for the engine, no import
 errors) and their execution is **delegated entirely to CI**.
 
+> **SUPERSEDED 2026-09-21 — see §12.5.** The delegation resolved, and the file
+> now holds **14** tests rather than 12. `real-infra (autonomy-engine)` reports
+> **30 passed, 0 failed, 272 deselected** — the 14 above plus the 16
+> pre-existing — and **all 14 other real-infra jobs passed**. The paragraph
+> above is preserved as written: it was true, and protocol §10.1's *"disclosure
+> obligation, not a pass"* is exactly what made the four defects CI found
+> findable. **`docker info` still reports NOT available locally**, so this
+> record claims **no local real-infra execution** at any point; every
+> real-infra result here came from CI.
+
 ### 6.1 Every delegated test, by name (protocol §10.1)
 
 1. `test_x1_level_two_is_selectable_through_the_production_route`
@@ -311,6 +343,23 @@ itself**, which is where §11.1's commit evidence is obtained.
 
 **CI evidence: PENDING.** The PR is opened to obtain it. **No CI result is
 claimed in this document**, and the record's status in §1 reflects that.
+
+> **SUPERSEDED 2026-09-21 — see §12.7.** CI ran, went **RED**, and the ratified
+> fix pass added four commits on top of this record. The branch now reads:
+>
+> | SHA | |
+> |---|---|
+> | `d2cdf2e` | The implementation |
+> | `6a1ca27` | The audit's evidence gaps; ratifies **L-17** |
+> | `8af7d72`, `a593d04` | This record, and its branch-shape correction |
+> | **`568bb2f`** | **`NoRespondersError` is not a timeout** — the one production change of the fix pass (§12.3) |
+> | **`442e71b`** | The two schema-name test defects, and the no-responder tests (§12.1, §12.2) |
+> | **`082fe00`** | The retargeted 4D Level-2 control and its `vitest` twin (§12.4) |
+> | **`f0ee8ae`** | The TDD amendments: §22.8, §22.9 and **L-18** |
+>
+> **`f0ee8ae` is the final verified SHA**, with **40/40 checks SUCCESS**. Still
+> linear, still **no rebase, no squash, no force-push**. The paragraph above is
+> preserved because "PENDING" was the correct statement when written.
 
 > **Correction, 2026-09-21 — additive, per protocol §0.3.4.** This section first
 > read *"`phase-4f.5`, two commits above `phase-4`"* and listed two SHAs. That
@@ -388,7 +437,9 @@ which is why Phase 4F is not complete.
 
 **None.** 4F.5 settles no pre-existing ledger row.
 
-### 10.2 Still open, each with its owner — fifteen rows
+### 10.2 Still open, each with its owner — sixteen rows
+
+*(This heading read "fifteen rows" until **L-18** was opened on 2026-09-21; preserved per protocol §0.3.4.)*
 
 | # | Obligation | Owner | Blocks 4F.5? |
 |---|---|---|---|
@@ -407,9 +458,10 @@ which is why Phase 4F is not complete.
 | L-15 | `IdentityConfidencePolicy` mutations unaudited | **`action-engine`** | No |
 | L-16 | `action-engine/README.md` Owned APIs list | **`action-engine` / 4F closure** | No |
 | **L-17** | **Opened by 4F.5 — see §10.3** | **`autonomy-engine` frontend** | No |
+| **L-18** | **Opened by 4F.5's fix pass — see §10.4** | **`nova-eventbus-sdk`** | No |
 
 **L-1 … L-16 are carried forward unchanged.** None is closed, absorbed, renamed
-or renumbered.
+or renumbered. **L-17 and L-18 are both OPEN**, and 4F.5 closes neither.
 
 ### 10.3 L-17 — opened by this slice, ratified 2026-09-21
 
@@ -430,6 +482,31 @@ bypassed.
 **Not in 4F at all**"* as an explicit non-goal, and §5 forbids new browser
 exposure. **Verified: `apps/` has zero files changed**, and `AUTO_EXECUTE`
 appears nowhere under `apps/`.
+
+### 10.4 L-18 — opened by the fix pass, ratified 2026-09-21
+
+| | |
+|---|---|
+| **Row** | **L-18** |
+| **Status** | **OPEN** |
+| **Obligation** | **The NATS backend does not translate `NoRespondersError` into the SDK's transport abstraction, leaving multiple request clients exposed to raw NATS transport errors.** `packages/nova-eventbus-sdk/.../backends/nats.py` catches `nats.errors.TimeoutError` and re-raises the builtin `TimeoutError`, but has no equivalent for the zero-subscriber signal, so `nats.errors.NoRespondersError` escapes `BoundEventBus` unchanged |
+| **Owner** | **`nova-eventbus-sdk` / a later maintenance scope** |
+| **Settled by** | **An SDK pass that completes the translation layer** |
+
+**Repository-wide, not 4F.5-specific.** `NoResponders` appears **nowhere** in
+the repository, and **every** bus client catches exactly `TimeoutError` and
+nothing else — across `perception-engine`, `executive-cognition-engine`,
+`capability-engine`, `communication-engine`, `digital-twin-engine` and others.
+Each carries the same exposure whenever its target engine is not subscribed.
+4F.5 is simply the first slice whose subject has **no** production subscriber,
+so it is the first to reach the condition.
+
+**Why 4F.5 does not close it.** The ratified fix site is
+`ActionDispatchClient` alone (TDD §22.8.4). **`nova-eventbus-sdk` was
+deliberately not modified — 0 files** — because changing it would alter
+transport-error handling for six engines at once, inside a slice whose boundary
+table forbids touching them, and would deserve its own tests and ratification.
+**4F.5 defends itself and discloses the rest.**
 
 ---
 
@@ -462,10 +539,26 @@ pass, and they cover exactly the code this slice changed (§6.2).
   exposure, no migration, no ORM change**, and **`action-engine` untouched**.
 - **L-17 is OPEN**; L-1 … L-16 carried forward unchanged.
 
+> **SUPERSEDED 2026-09-21 — see §12.** Everything in the bulleted list above
+> still holds and is re-confirmed at `f0ee8ae`, with **one addition**: **L-18
+> is also OPEN** (§10.4). What changed is the headline: the slice is no longer
+> *"NOT fully verified"* — CI executed the delegated tests, found four defects,
+> and after the ratified fix pass reports **40/40 green** including **30/30**
+> autonomy-engine real-infra tests. The two paragraphs opening this section are
+> preserved because they were accurate, and deliberately so, when written.
+
 ### 11.1 SLOC
 
 **46,313 on the 4F scope. Headroom to the 50,000 hard gate: 3,687. The gate is
 NOT crossed.**
+
+> **Updated 2026-09-21.** At the final verified SHA `f0ee8ae` the figure is
+> **46,337**, headroom **3,663** — **the gate is still NOT crossed**. The fix
+> pass added **+24** to the 4F scope (Comparable **36,718**, Wider **42,059**,
+> Full **45,691**), all of it `autonomy-engine` production source; the new
+> tests contribute **0**, since tests are outside every scope. Same `cloc`
+> v2.06 `--skip-uniqueness` over a pristine `git archive`, same flags. The
+> figures below are preserved as measured at `6a1ca27`.
 
 `cloc` v2.06 `--skip-uniqueness` over a pristine `git archive` of `6a1ca27`, the
 4E Gate Review's tool and flags unchanged: Comparable **36,694**, Wider
@@ -477,3 +570,196 @@ production source; the 55 tests contribute **0**, since tests are outside every
 scope (TDD 4F §17).
 
 **Code was never moved or reduced to game the metric.**
+
+---
+
+## 12. Correction — 2026-09-21: CI executed the delegated tests
+
+**Additive, per protocol §0.3.4.** Nothing above is deleted or rewritten. Every
+statement in §0.1 through §11 was accurate when written, and the ones CI later
+superseded carry a dated pointer to this section.
+
+**This is the section that matters most in the whole record**, because it is
+the one where the disclosed gap closed *against* the slice rather than for it.
+Protocol §10.1 calls un-executed real-infra evidence *"a disclosure obligation,
+not a pass."* §0.1 honoured that. **CI then found four real defects** — three
+mine, one a genuine production gap — which is precisely what the obligation
+exists to surface. Had the record claimed a pass, all four would have shipped.
+
+### 12.0 What CI found, at a glance
+
+| | First CI run (`a593d04`) | After the fix pass (`f0ee8ae`) |
+|---|---|---|
+| Checks | **2 failed** of 40 | **40/40 SUCCESS** |
+| `real-infra (autonomy-engine)` | **4 failed**, 24 passed | **30 passed, 0 failed**, 272 deselected |
+| Playwright | **failed** | **success** |
+
+### 12.1 A1 — a test-only SQL read-back defect
+
+**The failure.** `UndefinedTableError: relation "autonomy.autonomy_level_setting"
+does not exist`, on `DELETE FROM autonomy.autonomy_level_setting`.
+
+**The authority.** `alembic/versions/0001_initial_schema.py` creates
+**`autonomy.autonomy_level`**. The `_setting` suffix existed **only** in the
+test's raw SQL.
+
+**Production code and the migration were not defective.** Nothing in `src/`
+and nothing in the migration chain referenced the wrong name, and
+`test_the_migration_creates_exactly_the_five_tables` **passed in the same run**,
+proving the schema was built correctly. **Fixed in the test only.**
+
+### 12.2 A2 — a second test-only SQL read-back defect
+
+**The failure.** `UndefinedColumnError: column "subject_id" does not exist`, on
+`SELECT subject_id, … FROM autonomy.decision_log`.
+
+**The authority.** The domain field is **`subject_id`**; the persisted column is
+**`action_id`**, as doc 07 defines it. `postgres_autonomy_repository` maps them
+in **both** directions — `_log_to_orm` writes `action_id=entry.subject_id`, and
+`_log_to_domain` reads `subject_id=row.action_id`.
+
+**The production write succeeded and the repository mapping is correct.** In the
+failing run, `await repository.append_decision_log(result.log_entry)` **completed
+against real Postgres**; only the test's *independent* read-back — deliberately
+raw SQL, so a repository bug could not agree with itself — named the domain
+field where the column name was required. **Fixed in the test only**, and the
+helper now records the field-versus-column distinction so it cannot recur.
+
+### 12.3 A3 — a genuine production runtime gap, and its resolution
+
+**This one was real.** `ActionDispatchClient` caught only `TimeoutError`, so
+`nats.errors.NoRespondersError` propagated raw out of `dispatch()` — and
+`_dispatch_or_propose` did not handle it either.
+
+**`NoRespondersError` is distinct from the 4F.5 `TIMEOUT` outcome.**
+
+| | **`TIMEOUT`** (§22.3) | **Unavailable** (§22.8) |
+|---|---|---|
+| What happened | The request reached a responder; no reply within **15 s** | The broker had **zero subscribers** and answered at once |
+| Did the action run? | **Unknown — it may have** | **No. There is no responder, so no execution occurred** |
+| Outcome recorded | `DecisionOutcome.TIMEOUT` | **`DecisionOutcome.PROPOSE`** |
+
+**The resolution.** The adapter now translates the broker's zero-subscriber
+signal into the typed **`ActionDispatchUnavailable`** condition. That condition
+**fails §22.4 precondition 6** — *"the `action.execute` path is available"* —
+whose structural pre-dispatch check (port wired, subject publishable) is now
+complemented by runtime responder availability. §22.4's own consequence then
+applies unchanged: no `action.execute`, the decision stays non-executing,
+fail-safe preserved. **The existing non-executing proposal path is reused.**
+
+**No new outcome, table, column, migration or audit mechanism was introduced.**
+**The existing `PROPOSE` `DecisionLogEntry` plus its `Suggestion` are the audit
+representation** — they already carry the level, the policy checks, the subject
+id and a reason. The reason is made *specific* ("no subscriber… the action was
+not executed… not retried") so an unreachable executor and an ordinary approval
+requirement do not read alike, and it **omits the timeout's "may still have
+executed" hedge**, which would be the opposite claim on this path. One attempt,
+**no retry**. `TIMEOUT` semantics are untouched and remain reserved for the
+bounded 15-second no-reply condition.
+
+**Fixed in `ActionDispatchClient` only.** `nova-eventbus-sdk` is **not**
+modified; the wider gap is **L-18** (§10.4).
+
+### 12.4 The Playwright control — a stale 4D-era expectation
+
+`apps/web-client/tests/e2e/autonomy-suggestion.spec.ts` asserted **Level 2 is
+present and disabled** — 4D decision **D-1**, whose own wording assigns enabling
+Level 2 to *milestone 4F*. **4F.5 is that milestone**, and **X-1 intentionally
+makes Level 2 selectable**, so the expectation was stale by design rather than
+wrong. `_level_options()` renders levels 0–2 and marks each selectable from
+`SELECTABLE_LEVELS`; once `ASSISTED` joined it, nothing rendered the
+`level-disabled` state at all.
+
+**The test was retargeted, not deleted.** It now requires that no element
+renders the disabled state, that the Assisted option is present exactly once,
+and that its control is **enabled** — strictly stronger than the single
+`toBeDisabled()` it replaces. The control keeps its identity and its 4D wording
+as a dated note.
+
+**The `vitest` twin was de-vacuated in the same pass.** It had kept passing
+because its stubbed payload still described the 4D state — it was asserting a
+fixture, not the engine. Leaving it would have left a green test guarding a
+state that no longer exists. The spec's own comment had predicted exactly this:
+*"Asserted here as well as in `vitest` because only the real engine can be wrong
+about it."*
+
+**No production web-client source was changed — `apps/web-client/src/`: 0
+files.** No UI capability was added and no API behaviour changed.
+
+### 12.5 Real-infrastructure evidence — executed, in CI
+
+| | |
+|---|---|
+| `real-infra (autonomy-engine)` | **30 passed, 0 failed, 272 deselected** |
+| Composition | **14** in `test_level_two_real_postgres.py` + **16** pre-existing |
+| All other real-infra jobs | **Passed** — 14 of 14 |
+| Local execution | **None claimed.** `docker info` reports **NOT available** in the authoring environment, at every point in this slice |
+| Source of the evidence | **CI**, at `f0ee8ae` |
+
+**X-1, X-3, X-11 and X-13 are proven by executed real-infrastructure
+evidence** against real PostgreSQL and a real NATS broker. X-3 was the only one
+of the four CI proved on its first run; the other three were falsified first and
+are proven now.
+
+### 12.6 Playwright evidence
+
+**The job completed successfully.** The stale `level-disabled` assertion was
+corrected (§12.4), and the previous run's
+`ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL` / `Exit status 1` is **gone**.
+
+**No per-test count is claimed.** The summary line sits above what the log API
+returns, and this record does not state numbers it cannot evidence. The check
+run's conclusion — **success** — is the claim, and it is the whole claim.
+
+### 12.7 Final verification, at `f0ee8ae`
+
+| | |
+|---|---|
+| **HEAD before this documentation commit** | **`f0ee8ae5a2f0f89cecf073ac7b201be09fad90f1`** |
+| **`phase-4`** | `e83f1f314451c795184301e1d83205a31412fce2` — **unchanged** |
+| **`main`** | `7e273e62e942ecd5528ca807e65933d6bb675669` — **unchanged** |
+| **Working tree** | **clean** before this documentation update |
+| **CI** | **40/40 SUCCESS** |
+| `turbo lint typecheck build test --force` | **99/99**, `Cached: 0` |
+| `ruff check` | **clean** |
+| `mypy` | **clean** |
+| import-linter | **7 kept, 0 broken** |
+| codegen | **117 files, zero drift** |
+| `tools/tests` | **295 passed** |
+| Registered subjects | **119** |
+| `PUBLIC_TOPICS` | **18** |
+| `PUBLISHABLE_SUBJECTS` | exactly `{"action.execute"}` |
+| `SUBSCRIBABLE_SUBJECTS` | **empty** |
+| **SLOC (4F scope)** | **46,337** |
+| **Headroom to the 50,000 gate** | **3,663** — **not crossed** |
+
+### 12.8 Boundaries, re-confirmed after the fix pass
+
+Measured as `git diff --name-only e83f1f3..f0ee8ae` over each path:
+
+| | |
+|---|---|
+| `action-engine` | **0 files** |
+| Stage 3 pipeline | **0 files** |
+| Migrations | **0 files** |
+| ORM / repository | **0 files** |
+| `nova-eventbus-sdk` | **0 files** — the deliberate L-18 boundary |
+| `apps/web-client/src/` | **0 production files** |
+| `nova-contracts` | **0 files** |
+| CI workflows | **0 files** |
+
+### 12.9 What remains open — unchanged by the fix pass
+
+- **CF-9 OPEN. CF-10 OPEN. CF-11 OPEN.** 4F.5 closes none of them, and the fix
+  pass changed nothing here. **CF-11 in particular remains OPEN because there
+  are still no production callers of `decide()`** — **4F.6 owns the trigger
+  path**, and 4F.5 adds no caller, so it cannot contribute closure evidence
+  even incidentally.
+- **L-17 OPEN** — the stale web-client policy-authoring enum. **Not fixed in
+  4F.5**; §18 lists a policy authoring UI as *"Not in 4F at all."*
+- **L-18 OPEN** — the broader `nova-eventbus-sdk` handling of
+  `NoRespondersError`. **4F.5 intentionally did not modify the SDK**; owner
+  remains **`nova-eventbus-sdk` / later maintenance**.
+- **Phase 4F is NOT complete.** 4F.6, 4F.7 and 4F.8 have not started.
+- **No Go / Conditional-Go / No-Go verdict is issued here** — category 3 is the
+  Gate Review, and a slice defers it. **L-1** still owns it.
