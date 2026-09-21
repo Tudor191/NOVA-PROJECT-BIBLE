@@ -136,6 +136,29 @@ class ActionDispatchTimeout(Exception):
     action whose first attempt succeeded."""
 
 
+class ActionDispatchUnavailable(Exception):
+    """**Nobody was listening on `action.execute`** -- the broker had zero
+    subscribers and said so immediately. **Phase 4F.5, ratified 2026-09-21.**
+
+    **This is not a timeout, and must never be recorded as one.** A timeout
+    means the request reached a responder and no reply came back within the
+    bounded wait, so the action *may still have executed*. This means the
+    request reached **nobody**, so the action **provably did not execute**.
+    Collapsing the two would record *"may still have executed"* against an
+    action that never left the broker -- the precise conflation TDD 4F.5
+    §22.3's forbidden list exists to prevent.
+
+    **It is §22.4 precondition 6 failing at runtime.** That precondition --
+    *"the `action.execute` path is available"* -- is checked structurally
+    before dispatch (the port is wired, the subject is publishable), and a
+    broker with no subscriber is the same precondition proving false a moment
+    later. §22.4's consequence therefore applies unchanged: no `action.execute`,
+    the decision remains non-executing, and fail-safe behaviour is preserved.
+
+    `decide()` degrades to the ordinary **proposal** path -- explicit approval,
+    nothing executed -- and **never retries**."""
+
+
 class ActionDispatchResult(BaseModel):
     """What `action-engine` replied. Mirrors the fields of `action.execute`'s
     registered reply (`ActionResultPayload`) that this engine acts on, rather
@@ -157,11 +180,18 @@ class ActionDispatchPort(Protocol):
     without evidence.
 
     **One call per qualifying decision, at most.** There is no retry, no queue
-    and no scheduler in this port or behind it: a transport that failed is an
-    `ActionDispatchTimeout`, and the decision ends there.
+    and no scheduler in this port or behind it: a transport that failed ends
+    the decision where it stands.
 
     An implementation raises `ActionDispatchTimeout` on the bounded wait
-    elapsing, and otherwise returns what `action-engine` said."""
+    elapsing, `ActionDispatchUnavailable` when the broker reports **no
+    subscriber at all**, and otherwise returns what `action-engine` said. The
+    two failures are separate types because they are separate facts: after a
+    timeout the action may have run, after an unavailable dispatch it provably
+    did not. *(This paragraph read "a transport that failed is an
+    `ActionDispatchTimeout`, and the decision ends there" until the 2026-09-21
+    ratified fix pass, which found that wording collapsed the zero-subscriber
+    case into the timeout; preserved per protocol §0.3.4.)*"""
 
     async def dispatch(
         self,

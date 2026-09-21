@@ -71,6 +71,7 @@ from nova_autonomy_engine.domain.policy import evaluate_policies
 from nova_autonomy_engine.domain.ports import (
     ActionDispatchPort,
     ActionDispatchTimeout,
+    ActionDispatchUnavailable,
     ConversationalTrustSource,
 )
 from nova_autonomy_engine.domain.trust import compute_trust_score
@@ -363,9 +364,17 @@ async def _dispatch_or_propose(
     independently load-bearing** -- X-15 asserts that by removing them one at a
     time.
 
-    **`None` means "no RPC was issued".** Every refusal below returns before
+    **`None` means "nothing was executed".** Every refusal below returns before
     `dispatcher.dispatch`, so a decision that falls through has provably
     dispatched nothing.
+
+    **`ActionDispatchUnavailable` propagates** rather than being turned into
+    `None` here, so `decide()` can say *why* the decision did not execute. It
+    is the one case where `dispatcher.dispatch` was called and still nothing
+    ran: the broker had no subscriber and answered immediately. *(This
+    paragraph read "**`None` means "no RPC was issued"**" until the 2026-09-21
+    ratified fix pass, which found that a zero-subscriber dispatch is attempted
+    but delivered to nobody; preserved per protocol §0.3.4.)*
     """
     # Precondition 1 -- level. `permits_execution` is *eligibility*: a Level-0
     # or Level-1 run with an AUTO_EXECUTE policy reaches here and is refused,
@@ -535,21 +544,33 @@ async def decide(
     # run: same request shape, same gate order, same trust read, same log
     # construction. That is what makes AC-8's "no code path differs" literally
     # true rather than rhetorically true, and what X-8 asserts with a spy.
+    unavailable: str | None = None
     if not gates.requires_approval:
-        dispatched = await _dispatch_or_propose(
-            request,
-            level=level,
-            subject_id=subject_id,
-            checks=checks,
-            trust=trust,
-            confidence=confidence,
-            dispatcher=dispatcher,
-            moment=moment,
-        )
-        if dispatched is not None:
-            return dispatched
-        # Fell through: a precondition other than policy failed, so this is a
-        # suggestion. No RPC was issued.
+        try:
+            dispatched = await _dispatch_or_propose(
+                request,
+                level=level,
+                subject_id=subject_id,
+                checks=checks,
+                trust=trust,
+                confidence=confidence,
+                dispatcher=dispatcher,
+                moment=moment,
+            )
+        except ActionDispatchUnavailable as exc:
+            # §22.4 precondition 6 proving false at runtime: the path looked
+            # wired, and the broker had nobody on the other end. §22.4's own
+            # consequence applies unchanged -- no execution, the decision stays
+            # non-executing, fail-safe preserved -- so this joins the ordinary
+            # proposal path below rather than inventing an outcome. The reason
+            # is kept specific so the log row does not read like an ordinary
+            # approval requirement. **Not a TIMEOUT:** nothing received it.
+            unavailable = str(exc)
+        else:
+            if dispatched is not None:
+                return dispatched
+            # Fell through: a precondition other than policy failed, so this is
+            # a suggestion. No RPC was issued.
 
     suggestion = Suggestion(
         id=subject_id,
@@ -567,7 +588,12 @@ async def decide(
         confidence=confidence,
         policy_checks=checks,
         outcome=DecisionOutcome.PROPOSE,
-        reason="proposed for explicit user approval; nothing is executed",
+        reason=(
+            f"proposed for explicit user approval; nothing is executed "
+            f"({unavailable})"
+            if unavailable is not None
+            else "proposed for explicit user approval; nothing is executed"
+        ),
         created_at=moment,
     )
     return DecisionResult(
