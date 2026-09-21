@@ -59,7 +59,7 @@ No claim of real-infrastructure success is made in this document.
 | **4F.1 – 4F.4** | **Intact.** None is touched, rewritten or reinterpreted |
 | **`main`** | `7e273e62e942ecd5528ca807e65933d6bb675669` — **untouched** |
 | **`phase-4`** | `e83f1f314451c795184301e1d83205a31412fce2` — **untouched** |
-| **`phase-4f.5`** | `6a1ca27f99ba224d8fc755548bfdcd9a8fb39fb5` — two commits above base |
+| **`phase-4f.5`** | **All verification below was performed at `6a1ca27f99ba224d8fc755548bfdcd9a8fb39fb5`**, the last commit that touches code. The branch head is higher: it also carries the documentation-only commits that create this record (§7) |
 | **CF-9 / CF-10 / CF-11** | **All OPEN** (§8.2) |
 | **Deferred ledger** | **15 rows**, L-17 opened by this slice (§10) |
 
@@ -293,17 +293,31 @@ slice adds no CI row and **the CI workflow is untouched**.
 
 ## 7. Category 11 — PR, branch, commit and CI evidence
 
-`phase-4f.5`, two commits above `phase-4`, linear, **no rebase, no squash, no
-force push**:
+`phase-4f.5` is linear above `phase-4`, with **no rebase, no squash, no force
+push**:
 
 | SHA | |
 |---|---|
 | `d2cdf2e` | The implementation |
 | **`6a1ca27`** | Closes the X-1 and X-11 evidence gaps the audit found; ratifies **L-17**. **Tests and documentation only — zero production files** |
+| *(this record)* | This document, and the additive correction below. **Documentation only — zero production files, zero test files** |
 
-**CI evidence: PENDING.** The PR is opened to obtain it at this exact SHA
-(protocol §11.1). **No CI result is claimed in this document**, and the record's
-status in §1 reflects that.
+**`6a1ca27` is the verification SHA.** Every figure, boundary check and test
+count in this record was measured there, and nothing above it touches code.
+
+**A record cannot cite its own SHA**, so the commits that create it are named by
+role rather than by hash. The **PR head SHA is reported in the pull request
+itself**, which is where §11.1's commit evidence is obtained.
+
+**CI evidence: PENDING.** The PR is opened to obtain it. **No CI result is
+claimed in this document**, and the record's status in §1 reflects that.
+
+> **Correction, 2026-09-21 — additive, per protocol §0.3.4.** This section first
+> read *"`phase-4f.5`, two commits above `phase-4`"* and listed two SHAs. That
+> was written before this record was committed and was true only of the code
+> history. The original wording is preserved here; the count above supersedes
+> it. **No verification figure changed** — all of them were and remain measured
+> at `6a1ca27`.
 
 ### 7.1 The audit that produced `6a1ca27`
 
