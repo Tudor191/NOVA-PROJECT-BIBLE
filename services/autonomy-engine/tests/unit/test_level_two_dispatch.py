@@ -31,7 +31,11 @@ from nova_autonomy_engine.domain.models import (
     PolicyMatch,
     TrustInputStatus,
 )
-from nova_autonomy_engine.domain.ports import ActionDispatchResult, ActionDispatchTimeout
+from nova_autonomy_engine.domain.ports import (
+    ActionDispatchResult,
+    ActionDispatchTimeout,
+    ActionDispatchUnavailable,
+)
 from nova_contracts import ActionExecuteRequestPayload
 from nova_contracts.events.planning import RiskLevel
 
@@ -476,6 +480,84 @@ async def test_a_timeout_produces_no_suggestion() -> None:
     result = await _decide(_request(), dispatcher=dispatcher)
 
     assert result.suggestion is None
+
+
+# --- no responder: §22.4 precondition 6 failing at runtime -------------------
+#
+# **Ratified 2026-09-21 (D-1).** A broker with no `action.execute` subscriber
+# is a *different fact* from a bounded wait elapsing, and the pair below is
+# what keeps the two from merging back together.
+
+
+async def test_no_responder_degrades_to_a_proposal() -> None:
+    """**§22.4 precondition 6.** The path looked wired and the broker had
+    nobody on it, so the ratified consequence applies unchanged: no execution,
+    the decision stays non-executing, fail-safe preserved."""
+    dispatcher = RecordingDispatcher(
+        raises=ActionDispatchUnavailable("no subscriber on action.execute")
+    )
+    result = await _decide(_request(), dispatcher=dispatcher)
+
+    assert result.outcome is DecisionOutcome.PROPOSE
+    assert result.log_entry.outcome is DecisionOutcome.PROPOSE
+    # Fail-safe: still reachable by explicit approval rather than discarded.
+    assert result.suggestion is not None
+
+
+async def test_no_responder_is_never_recorded_as_a_timeout() -> None:
+    """**The point of D-1.** `TIMEOUT` stays reserved for the bounded
+    15-second no-reply condition, which carries the hedge *"may still have
+    executed"*. Nothing reached a responder here."""
+    dispatcher = RecordingDispatcher(
+        raises=ActionDispatchUnavailable("no subscriber on action.execute")
+    )
+    result = await _decide(_request(), dispatcher=dispatcher)
+
+    assert result.outcome is not DecisionOutcome.TIMEOUT
+    assert result.log_entry.outcome is not DecisionOutcome.TIMEOUT
+    assert result.outcome is not DecisionOutcome.EXECUTE
+    assert result.log_entry.outcome is not DecisionOutcome.EXECUTE
+
+
+async def test_no_responder_is_not_retried_and_dispatches_once() -> None:
+    """One attempt, and the decision ends there."""
+    dispatcher = RecordingDispatcher(
+        raises=ActionDispatchUnavailable("no subscriber on action.execute")
+    )
+    await _decide(_request(), dispatcher=dispatcher)
+
+    assert len(dispatcher.payloads) == 1
+
+
+async def test_the_log_row_explains_why_it_did_not_execute() -> None:
+    """**The auditability requirement.** Reusing the existing proposal
+    persistence is only acceptable if the row is still specific: an ordinary
+    approval requirement and an unreachable executor must not read alike."""
+    dispatcher = RecordingDispatcher(
+        raises=ActionDispatchUnavailable(
+            "no subscriber on action.execute for action X; the request reached "
+            "nobody, so the action was not executed, and this is not retried"
+        )
+    )
+    result = await _decide(_request(), dispatcher=dispatcher)
+
+    reason = (result.log_entry.reason or "").lower()
+    assert "no subscriber" in reason
+    assert "was not executed" in reason
+    # It must not borrow the timeout's hedge, which would be the opposite claim.
+    assert "may still have executed" not in reason
+    assert "no reply" not in reason
+
+
+async def test_an_ordinary_proposal_is_not_labelled_unavailable() -> None:
+    """The specific reason appears **only** on the unavailable path — a Level-1
+    proposal keeps the plain wording it has always had."""
+    result = await _decide(_request(), level=AutonomyLevel.SUGGESTIVE)
+
+    reason = (result.log_entry.reason or "").lower()
+    assert result.outcome is DecisionOutcome.PROPOSE
+    assert "no subscriber" not in reason
+    assert reason == "proposed for explicit user approval; nothing is executed"
 
 
 # --- the Level-1 comparison: X-4 / X-8 --------------------------------------

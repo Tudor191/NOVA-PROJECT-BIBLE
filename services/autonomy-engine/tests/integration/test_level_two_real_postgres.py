@@ -16,6 +16,12 @@ agrees with itself:
    with itself.
 4. **The allow-list is enforced by the real bus**, not merely declared — a
    subject outside `PUBLISHABLE_SUBJECTS` is refused at the boundary.
+5. **A broker with no `action.execute` subscriber is reported as
+   *unavailable*, never as a timeout** — added 2026-09-21. *(This list read
+   "Four claims" until then. CI's first real run disproved the assumption that
+   an unanswered subject simply elapses: NATS answers **immediately** with
+   `NoRespondersError`, which no fake and no in-memory backend reproduces.
+   Preserved per protocol §0.3.4.)*
 
 **Why not the shared `postgres_session_factory` fixture.** It binds every
 session to one connection inside a transaction it rolls back, so writes never
@@ -54,14 +60,17 @@ from nova_autonomy_engine.domain.models import (
     RiskLevel,
     TrustInputStatus,
 )
-from nova_autonomy_engine.domain.ports import ActionDispatchTimeout
+from nova_autonomy_engine.domain.ports import (
+    ActionDispatchTimeout,
+    ActionDispatchUnavailable,
+)
 from nova_autonomy_engine.events.published import PUBLISHABLE_SUBJECTS
 from nova_autonomy_engine.events.subscribed import SUBSCRIBABLE_SUBJECTS
 from nova_autonomy_engine.main import create_app
 from nova_autonomy_engine.repository.postgres_autonomy_repository import (
     PostgresAutonomyRepository,
 )
-from nova_contracts import ActionResultPayload
+from nova_contracts import ActionExecuteRequestPayload, ActionResultPayload
 from nova_eventbus_sdk import BoundEventBus, SubjectNotAllowedError
 from nova_eventbus_sdk.backends.nats import NatsEventBus
 from nova_service_kit import create_engine, create_session_factory
@@ -183,11 +192,19 @@ async def _rows(database: AsyncEngine) -> list[dict]:
     Deliberately not `list_decision_log`: the claim is about what is *in the
     database*, and asking the object that wrote it would let a repository-level
     bug agree with itself.
+
+    **The column is `action_id`; the domain field is `subject_id`.** Doc 07
+    names the column `action_id` and `postgres_autonomy_repository` maps the
+    two in both directions, so raw SQL here must use the *column* name while
+    the assertions compare against `log_entry.subject_id`. *(This query named
+    `subject_id` until 2026-09-21, when CI's first real-Postgres run failed on
+    `UndefinedColumnError`. The mapping was always correct -- only this query
+    was wrong; preserved per protocol §0.3.4.)*
     """
     async with database.connect() as connection:
         result = await connection.execute(
             text(
-                "SELECT subject_id, autonomy_level, outcome, reason, policy_checks "
+                "SELECT action_id, autonomy_level, outcome, reason, policy_checks "
                 "FROM autonomy.decision_log ORDER BY created_at"
             )
         )
@@ -246,7 +263,7 @@ async def test_x1_level_two_is_selectable_through_the_production_route(
     survives a commit.
     """
     async with database.begin() as connection:
-        await connection.execute(text("DELETE FROM autonomy.autonomy_level_setting"))
+        await connection.execute(text("DELETE FROM autonomy.autonomy_level"))
 
     written = await http.put("/v1/autonomy/level", json={"level": 2})
     assert written.status_code == 200, written.text
@@ -259,7 +276,7 @@ async def test_x1_level_two_is_selectable_through_the_production_route(
     # Verified independently of the repository that wrote it.
     async with database.connect() as connection:
         result = await connection.execute(
-            text("SELECT level FROM autonomy.autonomy_level_setting WHERE user_id = :u"),
+            text("SELECT level FROM autonomy.autonomy_level WHERE user_id = :u"),
             {"u": USER},
         )
         assert result.scalar_one() == int(AutonomyLevel.ASSISTED)
@@ -311,7 +328,7 @@ async def test_a_level_two_decision_dispatches_over_real_nats_and_persists_execu
 
     rows = await _rows(database)
     assert len(rows) == 1
-    assert rows[0]["subject_id"] == result.log_entry.subject_id
+    assert rows[0]["action_id"] == result.log_entry.subject_id
     assert rows[0]["outcome"] == DecisionOutcome.EXECUTE.value
     assert rows[0]["autonomy_level"] == int(AutonomyLevel.ASSISTED)
 
@@ -442,15 +459,8 @@ async def test_a_silent_responder_produces_a_persisted_timeout_and_no_retry(
         await silent.close()
 
 
-async def test_the_dispatch_client_raises_the_typed_timeout(
-    nats_container,  # type: ignore[no-untyped-def]
-    bus: BoundEventBus,
-) -> None:
-    """The adapter translates the transport's `TimeoutError` into
-    `ActionDispatchTimeout`, so a caller never matches on a builtin."""
-    from nova_contracts import ActionExecuteRequestPayload
-
-    payload = ActionExecuteRequestPayload(
+def _execute_payload() -> ActionExecuteRequestPayload:
+    return ActionExecuteRequestPayload(
         action_id=uuid4(),
         action_type="filesystem",
         priority="normal",
@@ -461,9 +471,86 @@ async def test_the_dispatch_client_raises_the_typed_timeout(
         requesting_engine="autonomy-engine",
         correlation_id=uuid4(),
     )
-    # Nothing is serving on this connection, so the wait simply elapses.
-    with pytest.raises(ActionDispatchTimeout, match="no reply"):
-        await ActionDispatchClient(bus, timeout_seconds=1.0).dispatch(payload)
+
+
+async def test_a_real_broker_with_no_responder_is_reported_unavailable(
+    nats_container,  # type: ignore[no-untyped-def]
+    bus: BoundEventBus,
+) -> None:
+    """**The test that found the gap, kept pointed at the real broker.**
+
+    *(This test asserted `ActionDispatchTimeout` until 2026-09-21 on the
+    premise that "nothing is serving, so the wait simply elapses". CI's first
+    real-NATS run disproved that premise: a broker with **zero** subscribers
+    answers **immediately** with `NoRespondersError` rather than letting the
+    bound elapse, and the raw transport error escaped the adapter. The
+    assertion is retargeted to the behaviour the broker actually has;
+    preserved per protocol §0.3.4.)*
+
+    It stays a real-infra test **on purpose**: the adapter recognises the
+    condition by exception type name (it must not import `nats`), so only a
+    real broker can prove the name still matches."""
+    with pytest.raises(ActionDispatchUnavailable, match="no subscriber"):
+        await ActionDispatchClient(bus, timeout_seconds=15.0).dispatch(_execute_payload())
+
+
+async def test_that_unavailability_is_not_reported_as_a_timeout(
+    nats_container,  # type: ignore[no-untyped-def]
+    bus: BoundEventBus,
+) -> None:
+    """**D-1, ratified 2026-09-21.** The two are separate facts: after a
+    timeout the action may have run; after this it provably did not. A caller
+    that caught only `ActionDispatchTimeout` must not swallow this."""
+    with pytest.raises(ActionDispatchUnavailable) as caught:
+        await ActionDispatchClient(bus, timeout_seconds=15.0).dispatch(_execute_payload())
+
+    assert not isinstance(caught.value, ActionDispatchTimeout)
+    message = str(caught.value).lower()
+    assert "was not executed" in message
+    assert "not retried" in message
+    assert "no reply" not in message
+
+
+async def test_no_responder_degrades_to_a_proposal_that_executes_nothing(
+    nats_container,  # type: ignore[no-untyped-def]
+    bus: BoundEventBus,
+    repository: PostgresAutonomyRepository,
+    database: AsyncEngine,
+) -> None:
+    """**§22.4 precondition 6 failing at runtime, end to end on real
+    infrastructure.**
+
+    A fully qualifying Level-2 decision -- `AUTO_EXECUTE`, LOW, every execution
+    field present, an open grant -- against a broker with **no** `action.execute`
+    subscriber. The ratified degradation is the ordinary proposal path, and the
+    decision log must say so without claiming an execution or a timeout."""
+    result = await decide(
+        _request(),
+        level=AutonomyLevel.ASSISTED,
+        policies=[_auto_execute()],
+        grants=[_open_grant()],
+        trust_source=StubTrustSource(status=TrustInputStatus.UNAVAILABLE),
+        dispatcher=ActionDispatchClient(bus, timeout_seconds=15.0),
+    )
+
+    # Non-executing, and specifically **not** either of the two outcomes that
+    # would misreport what happened.
+    assert result.outcome is DecisionOutcome.PROPOSE
+    assert result.outcome is not DecisionOutcome.EXECUTE
+    assert result.outcome is not DecisionOutcome.TIMEOUT
+    # Fail-safe: the action is still available to the user, by explicit approval.
+    assert result.suggestion is not None
+
+    await repository.append_decision_log(result.log_entry)
+
+    rows = await _rows(database)
+    assert len(rows) == 1
+    assert rows[0]["outcome"] == DecisionOutcome.PROPOSE.value
+    assert rows[0]["action_id"] == result.log_entry.subject_id
+    # The audit row explains *why* it did not execute -- reusing the existing
+    # proposal persistence, with no new table, column or migration.
+    assert "no subscriber" in rows[0]["reason"]
+    assert "not executed" in rows[0]["reason"]
 
 
 # --- the allow-list, enforced by the real bus --------------------------------

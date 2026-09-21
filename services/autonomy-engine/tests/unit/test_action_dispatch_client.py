@@ -18,7 +18,10 @@ from nova_autonomy_engine.clients.action_dispatch import (
     ActionDispatchClient,
 )
 from nova_autonomy_engine.config import Settings
-from nova_autonomy_engine.domain.ports import ActionDispatchTimeout
+from nova_autonomy_engine.domain.ports import (
+    ActionDispatchTimeout,
+    ActionDispatchUnavailable,
+)
 from nova_contracts import ActionExecuteRequestPayload, ActionResultPayload
 from pydantic import BaseModel
 
@@ -136,6 +139,65 @@ async def test_the_timeout_message_does_not_claim_the_action_failed() -> None:
     message = str(caught.value).lower()
     assert "may still have executed" in message
     assert "not retried" in message
+
+
+class _NoRespondersError(Exception):
+    """Shaped like `nats.errors.NoRespondersError` **by name**, which is how
+    the adapter recognises it — `nats` is not a dependency of this engine, so
+    neither the adapter nor this test may import it. The real broker proves the
+    name still matches, in
+    `test_a_real_broker_with_no_responder_is_reported_unavailable`."""
+
+
+_NoRespondersError.__name__ = "NoRespondersError"
+
+
+async def test_a_broker_with_no_subscriber_becomes_the_unavailable_type() -> None:
+    """**D-1, ratified 2026-09-21.**"""
+    bus = RecordingBus(raises=_NoRespondersError("nats: no responders available"))
+
+    with pytest.raises(ActionDispatchUnavailable, match="no subscriber"):
+        await ActionDispatchClient(bus, timeout_seconds=15.0).dispatch(_payload())
+
+
+async def test_unavailable_is_not_a_timeout_and_says_the_action_did_not_run() -> None:
+    """The distinction the whole decision hangs on: a timeout leaves open that
+    `action-engine` executed the action anyway, so it must never be used for a
+    request that reached **nobody**."""
+    bus = RecordingBus(raises=_NoRespondersError("nats: no responders available"))
+
+    with pytest.raises(ActionDispatchUnavailable) as caught:
+        await ActionDispatchClient(bus, timeout_seconds=15.0).dispatch(_payload())
+
+    assert not isinstance(caught.value, ActionDispatchTimeout)
+    message = str(caught.value).lower()
+    assert "was not executed" in message
+    assert "not retried" in message
+    # The timeout's hedge must be absent: nothing reached a responder.
+    assert "may still have executed" not in message
+
+
+async def test_an_unknown_transport_error_keeps_its_own_identity() -> None:
+    """Only the zero-subscriber signal is claimed. A different fault must not
+    be quietly relabelled as a dispatch condition this engine models."""
+
+    class _SomeOtherTransportError(Exception):
+        pass
+
+    bus = RecordingBus(raises=_SomeOtherTransportError("connection reset"))
+
+    with pytest.raises(_SomeOtherTransportError):
+        await ActionDispatchClient(bus, timeout_seconds=15.0).dispatch(_payload())
+
+
+async def test_an_unavailable_dispatch_is_issued_exactly_once() -> None:
+    """No retry on this path either."""
+    bus = RecordingBus(raises=_NoRespondersError("nats: no responders available"))
+
+    with pytest.raises(ActionDispatchUnavailable):
+        await ActionDispatchClient(bus, timeout_seconds=15.0).dispatch(_payload())
+
+    assert len(bus.calls) == 1
 
 
 async def test_one_dispatch_issues_exactly_one_request() -> None:
