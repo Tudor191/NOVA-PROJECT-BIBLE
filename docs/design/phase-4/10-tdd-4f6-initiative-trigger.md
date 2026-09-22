@@ -1,46 +1,41 @@
 # TDD 4F.6 — The initiative trigger: Level 2's *Triggered* state
 
-**Status: PROPOSED. Nothing here is ratified.** This document is the
-preparation deliverable for Phase 4F.6 and exists to be reviewed. It contains
-**one blocking architectural finding** (§3.3) that must be settled before any
-implementation begins.
+**Revision 2 — 2026-09-22.** Revision 1 reported a blocking architectural
+contradiction (§0). **That finding was accepted, and A-4F6-1 and A-4F6-7 are
+now ratified.** A-4F6-2 … A-4F6-5 carry **proposals backed by a second
+repository analysis**; none is ratified, and **§16 is the authority on which is
+which.**
 
 Subordinate to [TDD 4F](06-tdd-4f-companion-and-cognitive-state.md) §6, §6.1,
-§6.2, §11.4, §12, §13, §18 and D-4F-3 · [TDD
-4F.5](09-tdd-4f5-autonomy-level-2.md) in full ·
-[TDD 4D](04-tdd-4d-autonomy-engine.md) §8.1, §13 ·
+§6.2, §11.2, §11.3, §11.4, §12, §13, §18 and D-4F-3 · [TDD
+4F.5](09-tdd-4f5-autonomy-level-2.md) in full · [TDD
+4D](04-tdd-4d-autonomy-engine.md) §8.1, §13 ·
 [PROJECT_PHASE_COMPLETION_PROTOCOL.md](../../PROJECT_PHASE_COMPLETION_PROTOCOL.md)
-(read from `origin/main`, sha256 `21185dd1…`).
+(read from `origin/main`, sha256 `21185dd1…`, 1131 lines).
 
-Prepared at `phase-4` = **`4f1602ac086c421fc1a6beb54b7effb10f3ef6d9`**, the
-merge commit of 4F.5 (PR #36). Every repository fact below was verified against
-that tree, not recalled.
+Prepared at `phase-4` = **`4f1602ac086c421fc1a6beb54b7effb10f3ef6d9`**, 4F.5's
+merge commit. Every repository fact below was verified against that tree.
 
 ---
 
-## 0. The headline, before anything else
+## 0. The finding that produced this revision — preserved
 
-**TDD 4F's own ratified constraints, read together, leave 4F.6 with no legal
-transport for the trigger.** Three of them:
+Revision 1 reported that three ratified statements in TDD 4F, read together,
+left no legal transport for the trigger:
 
 | Source | Constraint |
 |---|---|
-| §13, `cognitive-state-engine` row | **"Event Bus: Subscribes to existing subjects; publishes nothing (§11.3)"** |
-| §11.4 | **"No `autonomy.*` subject."** |
-| §12 | **"`autonomy-engine` gains no new route."** |
+| §13, `cognitive-state-engine` row | *"Event Bus: Subscribes to existing subjects; **publishes nothing** (§11.3)"* |
+| §11.4 | *"**No `autonomy.*` subject.**"* |
+| §12 | *"**`autonomy-engine` gains no new route.**"* |
 
-…and yet §13's *Produces* row for the same engine reads: **"Cognitive state …
-and `DecisionRequest`s into `autonomy-engine` (§6.2)."**
+…against §13's own *Produces* row: *"Cognitive state … and **`DecisionRequest`s
+into `autonomy-engine`** (§6.2)."*
 
-A producer that publishes nothing, on a bus with no subject it may use, into an
-engine that gains no route, **cannot deliver anything**. This is not a gap in
-my reading — §7 records the repository evidence, and there is no fourth
-mechanism in this codebase.
-
-**This is the same class of finding as 4F.5's Trust contradiction**, which was
-surfaced during branch preparation rather than resolved unilaterally, and it is
-surfaced the same way here. **§3.3 states the options; A-4F6-1 is the decision.
-No implementation may begin until it is ratified.**
+**The finding was accepted as genuine and blocking.** §14 is the additive
+amendment that resolves it. **This section is preserved rather than deleted**,
+per protocol principle 4 — the contradiction was real, and the record of it is
+what justifies the exception §14 grants.
 
 ---
 
@@ -50,303 +45,307 @@ No implementation may begin until it is ratified.**
 
 | # | Deliverable |
 |---|---|
-| **1** | **State 4, *Triggered*** — the only one of Level 2's five states still unbuilt (§2) |
-| **2** | **The trigger producer** in `cognitive-state-engine`: what makes it fire, and what it emits |
-| **3** | **The trigger transport** — pending **A-4F6-1** |
-| **4** | **The first production caller of `decide()`** in `autonomy-engine`, including loading level, policies and grants, and persisting the outcome |
-| **5** | **Fail-safe behaviour** for every malformed, missing, duplicate, stale or unavailable trigger condition (§5) |
-| **6** | **Duplicate/idempotency behaviour** — pending **A-4F6-3** |
-| **7** | **The evidence CF-11 closure requires** — gathered, but **CF-11 is not closed by 4F.6 alone** (§8) |
+| **1** | **State 4, *Triggered*** — the last unbuilt state of Level 2 (§2) |
+| **2** | The **trigger producer** in `cognitive-state-engine` |
+| **3** | The **transport**: `autonomy.decision.requested` (§3, **RATIFIED**) |
+| **4** | The **first production caller of `decide()`** (§7, **RATIFIED** boundary) |
+| **5** | **Fail-safe behaviour** for every path in §9 |
+| **6** | **Duplicate behaviour** (§5) and **stale-trigger behaviour** (§6), as ratified |
+| **7** | **Evidence toward CF-11**, which **4F.6 does not close** (§15) |
 
 ### 1.2 What 4F.6 does not own
 
-- **Anything 4F.5 already built.** Selectability, `AUTO_EXECUTE`, the seven
-  §22.4 preconditions, the 15-second bound, `ActionDispatchUnavailable`, the
-  Trust contract. 4F.6 **calls** that machinery; it does not reinterpret one
-  line of it.
-- **The cognitive-state panel and `/v1/cognitive-state` prefix** — **4F.7**.
-- **AC-7 / AC-8 end-to-end acceptance** — **4F.8**.
-- **The 4F Gate Review** — category 3, **L-1**, owned by 4F.8.
-- **CF-9** (§9.1) and **CF-10** (§9.2).
+Everything 4F.5 built — selectability, `AUTO_EXECUTE`, the seven §22.4
+preconditions, the 15-second bound, `ActionDispatchUnavailable`, the Trust
+contract. 4F.6 **calls** that machinery and reinterprets none of it. The
+cognitive-state panel and `/v1/cognitive-state` prefix are **4F.7's**; AC-7/AC-8
+acceptance is **4F.8's**; the Gate Review is **L-1**.
 
 ---
 
-## 2. The Level 2 state machine — what 4F.5 left
+## 2. The Level 2 state machine — one row changes
 
-TDD 4F §6's five states, at `4f1602a`. **4F.6 changes exactly one row.**
-
-| # | State | Status at `4f1602a` | 4F.6 |
+| # | State | At `4f1602a` | 4F.6 |
 |---|---|---|---|
-| **1** | **Defined** | **Done** — `DEFINED_LEVELS == {0, 1, 2}` | Nothing |
-| **2** | **Selectable** | **Done by 4F.5** — `SELECTABLE_LEVELS == {0, 1, 2}`; `PUT /v1/autonomy/level {"level": 2}` returns 200 | Nothing |
-| **3** | **Policy-permitted** | **Done by 4F.5** — `PolicyEffect.AUTO_EXECUTE`, affirmative, LOW-only | Nothing |
-| **4** | **Triggered** | **NOT DONE. CF-11.** Re-verified at `4f1602a`: **zero** production callers of `decide()` | **All of it** |
-| **5** | **Executing** | **Done by 4F.5** — `ActionDispatchClient`, one bounded request/reply, no retry | Nothing |
+| **1** | **Defined** | **Done** — `DEFINED_LEVELS == {0,1,2}` | Nothing |
+| **2** | **Selectable** | **Done by 4F.5** — `SELECTABLE_LEVELS == {0,1,2}` | Nothing |
+| **3** | **Policy-permitted** | **Done by 4F.5** — `AUTO_EXECUTE`, affirmative, LOW-only | Nothing |
+| **4** | **Triggered** | **NOT DONE. CF-11.** Re-verified: **zero** production callers of `decide()` | **All of it** |
+| **5** | **Executing** | **Done by 4F.5** — one bounded request/reply, no retry | Nothing |
 
-**Verified, not assumed:** `grep` for `decide(` across
-`services/autonomy-engine/src/` at `4f1602a` returns **only** the definition and
-docstring references. **Zero production callers.**
-
-### 2.1 What *Triggered* means, precisely
-
-**A production component, reachable in a deployed system without a test
-harness, causes `decide()` to run with a `DecisionRequest` it constructed from
-real evidence.**
-
-Three clauses, each load-bearing:
-
-- **"production component"** — not a test, not a script, not a fixture. 4F.5's
-  real-infra tests call `decide()` directly and say so; that is deliberately
-  **not** a trigger.
-- **"reachable in a deployed system"** — the path exists in the running
-  topology, not only in code. CF-11's closure language is *"production-reachable
-  and demonstrated end to end."*
-- **"from real evidence"** — the request is derived from cognitive state, not
-  from a constant. A hardcoded `DecisionRequest` on a timer would satisfy the
-  letter of *Triggered* and none of its purpose.
-
-**Triggered ≠ Executing.** A trigger that produces a `PROPOSE` outcome has
-still triggered. Conflating the two would make the trigger's correctness depend
-on policy configuration, which §6.6's single-dispatch rule exists to prevent.
+**Triggered means:** a production component, reachable in a deployed system
+without a test harness, causes `decide()` to run with a `DecisionRequest` it
+built from real evidence. **Triggered ≠ Executing** — a trigger yielding
+`PROPOSE` has still triggered.
 
 ---
 
-## 3. The trigger source
+## 3. Transport — **A-4F6-1, RATIFIED**
 
-### 3.1 What the repository actually provides — verified
+```
+cognitive-state-engine  →  autonomy.decision.requested  →  autonomy-engine
+```
 
-| Question | Answer at `4f1602a` |
+| Property | Value |
 |---|---|
-| Does `cognitive-state-engine` publish anything? | **No.** `PUBLISHABLE_SUBJECTS == frozenset()` |
-| Does it subscribe to anything? | **No.** `SUBSCRIBABLE_SUBJECTS == frozenset()` |
-| Does it have any non-health route? | **No.** Only `api/health.py` |
-| Does it have an outbound client of any kind? | **No.** No `clients/` directory |
-| Does `autonomy-engine` have an intake route? | **No.** 11 routes; `POST /suggestions/{id}/decide` decides an **existing** suggestion |
-| Does `autonomy-engine` subscribe to anything? | **No.** `SUBSCRIBABLE_SUBJECTS == frozenset()` with a `TODO` comment |
-| Is there an `autonomy.*` subject? | **No.** Registry has 119 subjects; **zero** match `autonomy`, `cognitive`, `decision-request`, `initiative` or `suggestion` |
-| Do any Python engines call each other over HTTP? | **No.** Only `ai-model-orchestration-engine` (external LLM providers), `api-gateway` (its job) and `capability-engine` (external tools) import `httpx` |
-| How *do* engines reach each other? | **The Event Bus, exclusively** — `clients/*_client.py` + `BoundEventBus.request()`, in six engines |
+| **Subject** | **`autonomy.decision.requested`** |
+| **Shape** | Request/reply, mirroring `action.execute`'s proven shape |
+| **Producer** | `cognitive-state-engine` — gains `PUBLISHABLE_SUBJECTS = {"autonomy.decision.requested"}` |
+| **Consumer** | **`autonomy-engine`, and exactly one** — gains `SUBSCRIBABLE_SUBJECTS = {"autonomy.decision.requested"}` and one `serve()` |
+| **Visibility** | **Internal only. Never in `PUBLIC_TOPICS`. Never browser-reachable. Not a public API** |
+| **Registry** | **119 → 120**, permitted |
+| **Gateway** | **No prefix.** No route, no proxy entry |
 
-**Conclusion: the established engine→engine mechanism in this repository is
-Event Bus request/reply, and nothing else.** `POST /v1/perception/observations`
-(D-4F-5) is real and internal, but its client is **`nova-companion`, an
-out-of-process Rust OS agent** — it is the established pattern for an *external
-producer*, not for one engine calling another.
+**This is an exception granted specifically for 4F.6**, not a general
+relaxation. §14 carries the amendment text and its reasoning.
 
-### 3.2 What TDD 4F forbids — verified verbatim
+### 3.1 The boundary properties that replace the retired ones
 
-- §11.4: *"No `autonomy.*` subject. No `TrustMetric` subject or RPC (CF-10 stays
-  open). No new `memory.*` or `digital_twin.*` subject. No wildcard widening."*
-- D-4F-6 / §11.3: *"**No cognitive-state Event Bus subject is added.**"*
-- §12: *"**`autonomy-engine` gains no new route**: selecting Level 2 is an
-  existing operation whose 422 stops being returned for `2`."*
-- §13: *"Event Bus: Subscribes to existing subjects; **publishes nothing**."*
-- TDD 4F.5 §5: *"`autonomy-engine`'s `SUBSCRIBABLE_SUBJECTS` is empty and
-  **stays empty**"* — asserted by `test_this_engine_still_subscribes_to_nothing`.
+Each retirement is **disclosed and replaced by something tighter** — the
+precedent 4F.5 set when `action.execute` retired 4D's control 8:
 
-### 3.3 **A-4F6-1 — the blocking decision: what carries the trigger?**
+| Retired | Replacement property, test-enforced |
+|---|---|
+| `cognitive-state-engine` *"publishes nothing"* | **"publishes `autonomy.decision.requested` and nothing else"** |
+| `autonomy-engine`'s `SUBSCRIBABLE_SUBJECTS` *"stays empty"* | **"subscribes to `autonomy.decision.requested` and nothing else"** |
+| §11.4 *"no `autonomy.*` subject"* | **"exactly one `autonomy.*` subject exists, it is internal, and it is not in `PUBLIC_TOPICS`"** |
 
-Every option violates at least one ratified statement. **There is no compliant
-path**, which is why this needs ratification rather than a judgement call.
+---
 
-| Option | Mechanism | What it costs |
-|---|---|---|
-| **(a) A new internal subject, e.g. `autonomy.decision.requested`** — `cognitive-state-engine` publishes; `autonomy-engine` serves | Follows the **established** engine→engine pattern exactly, and 4F.5 already proved that pattern end to end on real NATS | Violates **§11.4** ("no `autonomy.*` subject"), **§13** ("publishes nothing") and 4F.5's *"stays empty"*. Registry 119 → 120. **Three disclosed retirements.** `PUBLIC_TOPICS` stays 18 — the subject is internal and never browser-reachable |
-| **(b) A new internal REST intake route on `autonomy-engine`** — `cognitive-state-engine` gains an HTTP client | Mirrors D-4F-5's `POST /v1/perception/observations` shape; no subject, registry stays 119; both allow-lists stay empty | Violates **§12** ("gains no new route"). **Invents a Python engine→engine HTTP pattern that does not exist**, with its own retry/timeout/auth questions the bus has already answered |
-| **(c) `autonomy-engine` subscribes to an existing subject** and derives the request itself | No new subject; registry stays 119 | **Violates D-4F-3**: the producer becomes `autonomy-engine`, not `cognitive-state-engine`. Also breaks 4F.5's *"stays empty"*. **Reverses the ratified ownership** — worst of the four |
-| **(d) Defer the trigger and re-scope 4F.6** | Honest about the contradiction | **Leaves CF-11 open with no owner** and blocks 4F.8's AC-8, which needs both levels demonstrated |
+## 4. **A-4F6-2 — the trigger condition. PROPOSED, and the repository is insufficient**
 
-**Recommendation: (a)**, with all three retirements disclosed and replaced by
-tighter properties — exactly the precedent 4F.5 set when
-`"action.execute"` entered `PUBLISHABLE_SUBJECTS` and retired 4D's control 8
-(*"this engine never calls the bus at all"*), replaced by *"may publish
-`action.execute` and nothing else."*
+### 4.1 The honest answer first
 
-**Why (a) rather than (b):** §11.4's prohibition was written in the context of
-§11.3, which is about **browser-reachable and consumer-less** subjects. The
-subject proposed here is **internal, consumed by exactly one server-side
-engine, and never added to `PUBLIC_TOPICS`** — the same shape as
-`action.execute`, which §11.2 explicitly permitted in the same document. **But
-that is an interpretation, and I will not act on it unratified.** If §11.4 is
-meant absolutely, (b) is the fallback and §12 needs the amendment instead.
+**The repository does not contain enough information to define this condition
+safely, and I will not invent one.**
 
-**Nothing below assumes an answer.** §3.4 specifies the trigger *content*,
-which is identical under (a) and (b).
+Second analysis of `cognitive-state-engine` at `4f1602a`:
 
-### 3.4 The trigger's content — transport-independent
+| Structure | Fields |
+|---|---|
+| **`ActiveThought`** | `thought_id`, `user_id`, `description`, `priority` (int ≥ 0), `confidence` (0–1), `dependencies`, `estimated_completion`, `related_memories`, `related_projects`, `current_progress` (0–1), `attention_layer`, `created_at`, `updated_at` |
+| **`AttentionLayer`** | `IMMEDIATE`, `ACTIVE`, `PASSIVE`, `DORMANT`, `ARCHIVED` |
+| **`AttentionAction`** | `Literal["promote", "demote"]` — **an attention-layer transition, nothing executable** |
+| **`FocusInputs` / `FocusedThought`** | Seven 0–1 ranking signals; a score and the signals used |
+| **Repository ops** | `upsert_thought`, `get_thought`, `list_thoughts`, `move_layer` |
+
+**`DecisionRequest` requires `category` (`PermissionCategory`), `risk`
+(`RiskLevel`), `title`, `detail`, and 4F.5's `action_type`,
+`execution_target`, `verification_method`.**
+
+**None of those exist anywhere in `cognitive-state-engine`.** Verified: a
+case-insensitive search for `risk`, `PermissionCategory`, `action_type`,
+`execution_target` and `verification` across its `src/` returns **only**
+`FocusSignal.CURRENT_RISKS` and `FocusInputs.current_risks` — a **0.0–1.0
+focus-ranking weight**, which is **not** a `RiskLevel` and must never be
+coerced into one.
+
+**An `ActiveThought` is a reasoning process, not a proposed action.** Mapping
+one to a `DecisionRequest` means supplying a permission category, a risk tier
+and three execution fields **that the thought does not carry**. Any rule for
+doing so would be invented — precisely the *"AI thinks an action would help"*
+condition this round forbids. A wrong guess here is a **security** error: it
+picks the category and risk tier that every downstream gate is evaluated
+against.
+
+### 4.2 The smallest additional ratification — **A-4F6-2a**
+
+**A thought must be able to carry an explicit, author-supplied action
+proposal.** The smallest form:
 
 | | |
 |---|---|
-| **Producer** | `cognitive-state-engine` (D-4F-3), under §6.2's eight prohibitions |
-| **What makes it fire** | **A-4F6-2.** A cognitive-state condition — an Active Thought reaching a threshold, a Focus transition, an Attention-layer move. **The repository does not establish which, and I have not chosen one** |
-| **Payload** | A `DecisionRequest`-shaped contract: `category`, `risk`, `title`, `detail`, `capability_class`, `priority`, plus 4F.5's `action_type`, `execution_target`, `verification_method`, plus the rationale and cognitive-state evidence §6.2 permits |
-| **`user_id`** | **Never carried by the producer.** §12: *"Identity resolved server-side from `primary_user_id` … so 4F never creates a caller-supplied-`user_id` route."* The existing decide route already does this. **A producer-supplied `user_id` would be a privilege-escalation surface** |
-| **Validation** | The contract validates at the boundary; a payload that fails validation is **rejected without invoking `decide()`** (§5) |
-| **Correlation ID** | The SDK already generates one per envelope and `ActionDispatchClient` already passes the decision's `subject_id` as the dispatch correlation id. 4F.6 **threads the trigger's correlation id through to the decision**, so trigger → decision → `action.execute` share one traceable identity |
-| **Authorization boundary** | **Unchanged.** Every gate 4F.5 built still runs: Policy Engine, Permission Matrix, Trust, and all seven §22.4 preconditions. **The trigger is an input, never an authorization** |
-| **Deduplication** | **A-4F6-3** (§6) |
-| **Where `decide()` is invoked** | A new application-service function in `autonomy-engine` — **not** in the API layer and **not** in `domain/` — that loads level, policies and grants from the repository, calls `decide()`, and persists the result |
+| **New structure** | `ProposedAction`, attached optionally to `ActiveThought` |
+| **Fields** | `category: PermissionCategory`, `risk: RiskLevel`, `action_type`, `execution_target`, `verification_method`, `title`, `detail` |
+| **Rule** | **A thought without a `ProposedAction` never triggers.** Absence is not a low-risk default |
+| **Condition** | **Deterministic**: a thought that (1) carries a complete `ProposedAction` and (2) is **promoted to `IMMEDIATE`** — Part 6's *"critical events requiring instant action"*, the one layer whose Bible definition is about acting — emits exactly one trigger per promotion |
+| **Invalid states** | No `ProposedAction`; partial `ProposedAction`; a thought already triggered for this promotion; `attention_layer != IMMEDIATE`; a demotion |
+| **Why cognitive-state-engine** | D-4F-3 and §6.2 give it the *"MAY produce: a `DecisionRequest`, an action type, subject/context, a rationale"* — §6.2 already presumes it holds action-shaped data. `ProposedAction` is that presumption made explicit rather than inferred |
+| **Cost** | A domain structure **and a schema addition**, which is larger than "a trigger" and may belong in its own slice |
+
+**Is the condition deterministic?** Yes — promotion to `IMMEDIATE` is an
+observable state transition through `move_layer`, and `next_layer` is a pure
+function over a fixed transition table. **Is it already represented?** The
+*transition* is. **The action semantics are not.**
+
+**If A-4F6-2a is rejected, 4F.6 has no safe trigger condition and must be
+re-scoped.** That is the honest position.
 
 ---
 
-## 4. Decision invocation
+## 5. **A-4F6-3 — duplicate suppression. PROPOSED: reuse, conditionally**
 
-`decide()`'s signature is fixed by 4F.5 and **4F.6 must not change it**:
+### 5.1 What exists — verified
+
+| Mechanism | Reality at `4f1602a` |
+|---|---|
+| **`action-engine`'s idempotency guard** | **Real and strong.** `_idempotent_reply_if_terminal(action_id)` runs *"before any stage runs, and before the Action row is even inserted, so a genuine retry never re-triggers any side effect, **including the approval loop**"*. A terminal action replays its stored result |
+| **DB uniqueness** | `ActionORM` PK on `action.id` → `IntegrityError` → `ActionAlreadyExistsError` |
+| **`DecisionLogEntry.subject_id`** | Persisted as the `action_id` column; passed as the dispatch correlation id, so decision and action share one identity |
+| **`autonomy.decision_log` constraints** | **PK only.** No unique index on `action_id` — verified in `0001_initial_schema.py` |
+| **`subject_id` generation** | **`uuid4()`**, `decision.py:480` — **non-deterministic** |
+| **Envelope `correlation_id`** | Generated per bus request; **not** a dedup key |
+
+### 5.2 Why reuse does not work as-is
+
+Two identical triggers produce two `uuid4()` `subject_id`s → two different
+`action_id`s → **`action-engine`'s guard never fires**, because it is keyed on
+the id it is *given*. The guard is sound; the caller currently hands it a fresh
+key every time.
+
+### 5.3 The proposal
+
+**Reuse `action-engine`'s existing guard by making the trigger's `subject_id`
+deterministic.** Derive it as a **UUIDv5 over a stable trigger identity** —
+under A-4F6-2a, `(thought_id, the promotion that produced the trigger)`.
+
+| | |
+|---|---|
+| **New mechanism** | **None.** No column, no constraint, no migration |
+| **Effect** | A duplicate trigger produces the **same** `action_id`; `action-engine` replays the stored terminal result and **executes nothing twice** |
+| **Cost** | `decide()` must accept a caller-supplied `subject_id` on the trigger path, or derive it before calling. **That is a change to a 4F.5 signature and needs to be explicit** |
+| **Residual** | Two `decision_log` rows may still be written for one logical trigger. That is **consistent** with *"the decision log records every attempt"*, but it should be a conscious acceptance |
+
+**This proposal depends on A-4F6-2a**, because the stable identity it hashes
+does not exist until a `ProposedAction` and its promotion do.
+
+**Fallback if A-4F6-2a is rejected:** no suppression, and the at-least-once
+question below must be answered first.
+
+### 5.4 An open sub-question
+
+**Whether the chosen transport delivers at-most-once or at-least-once is not
+established in this repository.** Core NATS request/reply is at-most-once with
+no redelivery, which would make duplicates a *producer* concern only — but that
+should be confirmed rather than assumed.
+
+---
+
+## 6. **A-4F6-4 — stale-trigger TTL. PROPOSED: no TTL, because nothing justifies a number**
+
+### 6.1 What exists — verified
+
+A repository-wide search for `ttl`, `expires_at`, `expiry`, `max_age` and
+`stale` across every engine's `src/` returns **exactly one** numeric lifetime:
+`session_cookie_max_age_seconds` in `api-gateway` — an **auth cookie**, not a
+request lifecycle.
+
+**No request-shaped payload in this repository carries a TTL, an expiry or a
+maximum age.** `EventEnvelope` has `occurred_at`; nothing consumes it as a
+deadline. The only bounded wait anywhere on this path is 4F.5's **15-second
+dispatch timeout**, which bounds *waiting for a reply*, not *request freshness*.
+
+### 6.2 The proposal
+
+**No TTL in 4F.6**, because there is no justified number and inventing one
+would be arbitrary.
+
+| Option | Trade-off |
+|---|---|
+| **(a) No TTL — recommended** | Nothing invented. **Risk:** a trigger delayed by a slow consumer or a restart is acted on later than intended. Bounded in practice by request/reply's own timeout, which fails the *producer* rather than executing late |
+| **(b) A TTL equal to the 15-second dispatch bound** | Uses a number the project has already ratified — but **for a different purpose**. Reusing it implies the two are related when they are not |
+| **(c) A new ratified TTL** | Honest, but the number has no evidential basis today |
+
+**If a TTL is later ratified:** `EventEnvelope.occurred_at` is the authoritative
+clock (producer-side, already on every envelope); an expired request is
+**refused without invoking `decide()`**; and — per the *"records every
+attempt"* principle — **whether an expired request is persisted is itself a
+ratification**, since no decision was made and `DecisionLogEntry` requires an
+outcome. Tests would drive a synthetic `occurred_at` past the bound and assert
+no dispatch, no execution, and the ratified persistence behaviour.
+
+---
+
+## 7. **A-4F6-7 — the `decide()` caller. RATIFIED boundary, module proposed from precedent**
+
+**Ratified:** the caller lives at the **application/orchestration boundary**
+inside `autonomy-engine`. **Not `api/`. Not `domain/`.**
+
+**Proposed module — from the existing architecture, not invented:**
 
 ```
-decide(request, *, level, policies, grants, trust_source, dispatcher, now)
+services/autonomy-engine/src/nova_autonomy_engine/decision_orchestration.py
 ```
 
-| Input | Where 4F.6 gets it | Note |
+**The precedent is established and consistent:** package-root orchestration
+modules exist as `<noun>_orchestration.py`, beside `main.py`, outside both
+`api/` and `domain/` —
+
+- `perception-engine/…/observation_orchestration.py`
+- `communication-engine/…/conversation_orchestration.py`
+
+`observation_orchestration.py` is the closest analogue: it is the module that
+takes an inbound payload and drives an existing-but-uncalled domain chain —
+exactly 4F.6's shape.
+
+**Responsibilities:** validate the payload; resolve `user_id` **server-side**;
+load level, policies and grants; call `decide()`; persist the outcome. **It
+contains no gate logic** — every gate stays in `domain/`.
+
+---
+
+## 8. The payload contract
+
+| Field | Source | Note |
 |---|---|---|
-| `request` | Built from the trigger payload + server-side `primary_user_id` | **Never** the producer's `user_id` |
-| `level` | `repository.get_level(user_id)`, defaulting as the decide route already does | Level 2 is not assumed; a Level-0/1 trigger is valid and must propose or observe |
-| `policies` | `repository.list_policies(user_id)` | |
-| `grants` | `repository.list_permission_grants(user_id)` | |
-| `trust_source` | The wired `ConversationalTrustSource` — `UnavailableConversationalTrustSource` under CF-10 | **Unchanged.** §22.7 holds |
-| `dispatcher` | `app.state.dispatcher`, wired in 4F.5 | |
-| `now` | Default | |
+| `category` | `ProposedAction` (**A-4F6-2a**) | `PermissionCategory` |
+| `risk` | `ProposedAction` | `RiskLevel` — **never** derived from `current_risks` |
+| `title`, `detail` | `ProposedAction` / thought `description` | |
+| `action_type`, `execution_target`, `verification_method` | `ProposedAction` | Absent → suggestion, never a guess (X-14) |
+| `priority` | `ActiveThought.priority` | |
+| `rationale` / evidence | The thought and its focus signals | §6.2 permits |
+| `correlation_id` | Producer-set, threaded through | trigger → decision → `action.execute` share one identity |
+| **`user_id`** | **NEVER carried.** Resolved server-side from `primary_user_id` | §12: *"4F never creates a caller-supplied-`user_id` route."* A producer-supplied `user_id` is a **privilege-escalation surface** |
 
-**Outcome handling.** Each of `decide()`'s five outcomes already has defined
-meaning; 4F.6 **persists** them and adds none:
+---
 
-| Outcome | Trigger path behaviour |
+## 9. Safety
+
+| Condition | Behaviour | Established? |
+|---|---|---|
+| Malformed trigger | Rejected at contract validation; `decide()` **not** invoked | Yes |
+| Missing required field | Same | Yes |
+| Missing execution fields | `decide()` runs; precondition 5 → suggestion | Yes — X-14 |
+| Producer-supplied `user_id` | **Rejected** | Yes — §12 |
+| Unavailable trigger source | No trigger, no decision. **Absence is never execution** | Yes |
+| Duplicate trigger | **A-4F6-3** | Proposed |
+| Stale trigger | **A-4F6-4** | Proposed |
+| Invalid autonomy level | Impossible from the trigger — level is read server-side | Yes |
+| Policy denial | `DENY`, logged, no dispatch | Yes — X-7 |
+| Trust denial | Precondition 4 blocks | Yes — §22.7 |
+| Trust unavailable | **Non-blocking, never a PASS** | Yes — §22.7 |
+| Dispatch unavailable | Precondition 6 fails → `PROPOSE`, no retry | Yes — §22.8 |
+| Dispatch timeout | `TIMEOUT`, no retry | Yes — §22.3 |
+| Unexpected transport error | **A-4F6-5** | Proposed |
+
+### 9.1 **A-4F6-5 — unexpected transport errors. PROPOSED**
+
+**The repository's actual convention, verified:** **no `serve()` handler
+catches anything.** `action-engine`'s `action.execute` handler calls
+`model_validate` and the domain function with **no `try`/`except`**, and the
+SDK's `_callback` has none either. An exception therefore propagates, **no
+reply is published**, and the requester experiences a **timeout**.
+
+**Consequences for 4F.6, stated plainly:** an error raised before persistence
+means **no `DecisionLogEntry` is written** and the trigger is **silently lost** —
+fail-safe with respect to *execution* (nothing runs), but **not** with respect
+to *auditability*.
+
+| Option | Trade-off |
 |---|---|
-| `EXECUTE` | Persist the decision log entry. The action already ran through `action-engine` |
-| `PROPOSE` | Persist the suggestion **and** the log entry — the existing `insert_suggestion` path, which today has zero production callers |
-| `DENY` / `OBSERVE_ONLY` | Persist the log entry. No suggestion |
-| `TIMEOUT` | Persist the log entry. **No retry** — D-4F5-3 |
+| **(a) Propagate — matches the existing convention exactly** | Consistent with every other consumer; no new pattern. **The trigger vanishes with no audit row** |
+| **(b) Record-and-drop** — catch, persist a non-executing outcome, return a reply | Auditable. **But `DecisionLogEntry` requires a `DecisionOutcome`, and no member means "the trigger failed before a decision"** — adding one is a new outcome, which 4F.5 deliberately refused to do for `ActionDispatchUnavailable` |
+| **(c) Propagate, plus observability** — no reply, but a metric/log at the boundary | Keeps the convention, makes the loss visible without inventing an outcome. **Recommended** |
 
-**Timeout behaviour is 4F.5's and unchanged**: 15 seconds, one attempt,
-`TIMEOUT` recorded, never retried. **4F.6 must not add a retry at the trigger
-layer either** — that would reintroduce the double-execution risk D-4F5-3
-forbids, one level up.
+**In all three: `decide()` is not invoked; no retry is added at the trigger
+layer** — a trigger-level retry would reintroduce the double-execution risk
+D-4F5-3 forbids, one level up. **Acknowledgement** is not applicable to core
+request/reply: there is no ack, only a reply or its absence.
 
----
-
-## 5. Safety — fail-safe behaviour for every path
-
-**The rule: a trigger is an input, never an authorization.** Nothing below may
-weaken a gate.
-
-| Condition | Required behaviour | Established? |
-|---|---|---|
-| **Malformed trigger** | Rejected at the contract boundary. `decide()` **not** invoked | **Yes** — contract validation is repo-wide |
-| **Missing trigger fields** | Same, if a required field. Optional execution fields absent → `decide()` runs and **precondition 5 yields a suggestion** | **Yes** — 4F.5 X-14 |
-| **Unavailable trigger source** | No trigger, no decision. The system stays at its prior state. **Absence of a trigger is never execution** | **Yes** — by construction |
-| **Duplicate trigger** | **A-4F6-3** | **NO** |
-| **Stale trigger** | **A-4F6-4.** Is there a maximum age after which a request is refused? The repository establishes no TTL for any request-shaped payload | **NO** |
-| **Invalid autonomy level** | Level is read server-side from the repository, never from the trigger, so an "invalid level" cannot originate in the trigger | **Yes** |
-| **Policy denial** | `DENY` outcome, log entry, no dispatch | **Yes** — 4F.5 X-7 |
-| **Trust denial** | Precondition 4 blocks dispatch | **Yes** — §22.7, X-16 |
-| **Trust unavailable** | **Non-blocking, never a PASS.** Not coerced | **Yes** — §22.7, CF-10 |
-| **Missing execution fields** | Suggestion, no RPC | **Yes** — X-14 |
-| **Dispatch unavailable** | `ActionDispatchUnavailable` → precondition 6 fails → `PROPOSE`, no retry | **Yes** — §22.8 |
-| **Dispatch timeout** | `TIMEOUT` outcome, no retry | **Yes** — §22.3 |
-| **Unexpected transport error** | **A-4F6-5.** 4F.5 deliberately lets unknown transport errors keep their own identity rather than be relabelled. **What the trigger layer does with one is undefined** — propagate, or record and drop? | **NO** |
-
-**Four of fourteen are undefined.** They are flagged, not invented.
-
----
-
-## 6. Duplication and idempotency — **A-4F6-3**
-
-### 6.1 What already exists
-
-- **`DecisionLogEntry.subject_id`** — the decision's own identity, persisted as
-  the `action_id` column, and passed as the dispatch correlation id.
-- **`action-engine`'s idempotency guard**, keyed on the caller-supplied
-  `action_id`. 4F.5's TDD notes that re-sending the same id would be *"a
-  deliberate retry rather than an accident."*
-- **Envelope correlation ids**, generated per bus request.
-
-### 6.2 What does not exist
-
-**No trigger-level dedup key, and no uniqueness constraint that would stop two
-identical `DecisionRequest`s becoming two decisions and two dispatches.** The
-`decision_log` table has no unique index beyond its primary key — verified in
-`0001_initial_schema.py`.
-
-### 6.3 The decision
-
-**Is duplicate suppression required, and if so, keyed on what?**
-
-| Option | Consequence |
-|---|---|
-| **(a) None** — every trigger is a decision | Simplest, and consistent with *"the decision log records every attempt."* **But a producer bug or an at-least-once redelivery becomes repeated LOW-risk auto-execution** |
-| **(b) Reuse `action-engine`'s existing `action_id` guard** — the trigger derives a deterministic `subject_id` from its own identity | **No new mechanism**, which is what the brief prefers. Requires a deterministic derivation to be ratified |
-| **(c) A new idempotency key and a uniqueness constraint** | A migration, a new column, new semantics. **Requires ratification and probably does not belong in a slice** |
-
-**Recommendation: (b), if a deterministic derivation can be agreed; otherwise
-(a) with the redelivery risk stated explicitly.** I have not chosen.
-
-**Note under option (a):** whether the bus delivers at-most-once or
-at-least-once for the chosen transport is itself a fact to establish before
-accepting (a).
-
----
-
-## 7. Event Bus
-
-| | At `4f1602a` | After 4F.6 |
-|---|---|---|
-| Registered subjects | **119** | **119** under (b)/(c)/(d); **120** under (a) — **proposed, not approved** |
-| `PUBLIC_TOPICS` | **18** | **18, unchanged under every option.** No browser exposure |
-| `autonomy-engine` `PUBLISHABLE_SUBJECTS` | `{"action.execute"}` | **Unchanged** |
-| `autonomy-engine` `SUBSCRIBABLE_SUBJECTS` | **empty** | **empty** under (b)/(d); **one entry** under (a) — retires a 4F.5 property |
-| `cognitive-state-engine` `PUBLISHABLE_SUBJECTS` | **empty** | **empty** under (b)/(c)/(d); **one entry** under (a) — retires a §13 property |
-
-### 7.1 Proposed new subject — **NOT APPROVED**
-
-Listed only so the decision is concrete. **Do not implement.**
-
-| Field | Proposed |
-|---|---|
-| **Name** | `autonomy.decision.requested` |
-| **Shape** | Request/reply, mirroring `action.execute`'s proven shape |
-| **Producer** | `cognitive-state-engine` |
-| **Consumer** | `autonomy-engine`, via `serve()` |
-| **Public?** | **No.** Never added to `PUBLIC_TOPICS`; internal, server-side only |
-| **Status** | **PROPOSED under A-4F6-1(a). Blocked by §11.4 until ratified** |
-
----
-
-## 8. CF-11 — what closure actually requires
-
-**CF-11 is not closed by 4F.6 writing a trigger.** TDD 4F §6.1 is explicit:
-
-> *"4F implementing a producer does not close CF-11 by implication. Closure
-> requires that the producer be **production-reachable** and **demonstrated end
-> to end**; until that is verified and recorded, CF-11 stays OPEN."*
-
-| # | Closure condition | Who can evidence it |
-|---|---|---|
-| 1 | A production component constructs a `DecisionRequest` from real evidence | **4F.6** |
-| 2 | It reaches `decide()` through a deployed path, no test harness | **4F.6** |
-| 3 | The path is demonstrated **end to end** in a running system | **Likely 4F.8**, which owns AC-8 in a browser |
-| 4 | Verified and **recorded** in the closing document | **4F closure / the Gate Review (L-1)** |
-
-**Expected status after 4F.6: OPEN**, with conditions 1 and 2 evidenced and 3–4
-outstanding. **4F.6 must not record CF-11 as closed**, and this TDD does not
-close it.
-
----
-
-## 9. CF-9 and CF-10
-
-### 9.1 CF-9 — **not 4F.6's**
-
-Conditions 1, 3 and 4 are evidenced by 4F.4; condition 2 is answered by
-ratification **D-4F4-1** and awaits citation; **condition 5 is unmet** and is a
-category 3–5 documentation obligation that protocol §0.1 defers for a slice.
-**4F.6 contributes nothing and must not close it. Expected after 4F.6: OPEN.**
-
-### 9.2 CF-10 — **not 4F.6's**, and structurally blocked
-
-Closing CF-10 needs a Trust read surface — a served `digital_twin.*` subject or
-an HTTP route — and **§11.4 forbids exactly that** (*"No `TrustMetric` subject
-or RPC (CF-10 stays open)"*). The trigger path must keep Trust `UNAVAILABLE`,
-non-blocking and never a PASS, per §22.7. **Expected after 4F.6: OPEN.**
+**Related, and already open:** **L-18** — the SDK does not translate
+`NoRespondersError`. If `autonomy-engine` is not subscribed, the **producer**
+receives a raw `nats.errors.NoRespondersError`. 4F.6 must decide what the
+producer does with that; **it must not fix the SDK** (L-18 is not 4F.6's).
 
 ---
 
@@ -354,103 +353,183 @@ non-blocking and never a PASS, per §22.7. **Expected after 4F.6: OPEN.**
 
 | Tier | Coverage |
 |---|---|
-| **Unit** | Trigger construction from cognitive state; the §6.2 prohibitions as properties; payload validation; server-side `user_id` resolution; outcome→persistence mapping for all five outcomes |
-| **Integration** | Trigger → `decide()` → repository, with fakes for bus and trust; every §5 row that is *established*; Level 0/1/2 producing observe / propose / execute respectively from the **same** trigger |
-| **`real_infra`** | **The load-bearing tier.** Real Postgres + real NATS: a real trigger from a real producer reaching a real `decide()`, with the decision and its log row read back by **independent SQL**; a real dispatch to a real responder; `ActionDispatchUnavailable` degradation with no responder; duplicate-trigger behaviour once A-4F6-3 is settled |
-| **Contract** | `PUBLIC_TOPICS` still 18; `action.execute` still not public; both engines' allow-lists exactly as ratified; **no engine imports another**; §6.2's eight prohibitions asserted structurally |
-| **Negative** | Malformed payload; missing required field; producer-supplied `user_id` **rejected**; trigger at Level 0/1 never executing; policy-denied trigger; trust-denied trigger; above-LOW risk trigger never auto-executing; trigger with missing execution fields |
-| **Duplicate** | Pending **A-4F6-3** |
-| **E2E** | **Not 4F.6's.** AC-8 in a browser is 4F.8's |
+| **Unit** | Trigger construction; the §6.2 prohibitions as properties; payload validation; server-side `user_id` resolution; outcome→persistence for all five outcomes; deterministic `subject_id` derivation if A-4F6-3 is ratified |
+| **Integration** | Trigger → `decide()` → repository with fakes; Level 0/1/2 producing observe/propose/execute from the **same** trigger |
+| **`real_infra`** | **Load-bearing.** Real Postgres + real NATS: a real producer publishing `autonomy.decision.requested`, a real `serve()` consumer, a real `decide()`, read back by **independent SQL**; real dispatch to a real responder; `ActionDispatchUnavailable` degradation; duplicate-trigger behaviour |
+| **Contract** | `PUBLIC_TOPICS` **still 18**; `autonomy.decision.requested` **not** public; registry **120**; both engines' allow-lists **exactly** as ratified; no engine imports another; §6.2's eight prohibitions structural |
+| **Negative** | Malformed payload; missing field; **producer-supplied `user_id` rejected**; Level 0/1 never executing; policy-denied; trust-denied; above-LOW never auto-executing; missing execution fields |
+| **E2E** | **Not 4F.6's** — AC-8 in a browser is 4F.8's |
 
-**Evidence required for the trigger → `decide()` → outcome path:** a real-infra
-test in which **no test code calls `decide()` directly** — the production
-trigger path does, and the assertion reads the persisted result. Anything
-weaker re-proves 4F.5 rather than proving 4F.6.
+**The decisive evidence:** a real-infra test in which **no test code calls
+`decide()` directly**. Anything weaker re-proves 4F.5.
 
 ---
 
 ## 11. Boundaries — what may change
 
-| Allowed | Why |
+`services/cognitive-state-engine/src/**` · `services/autonomy-engine/src/**` ·
+both test trees · `packages/nova-contracts/**` (**the one subject only**) ·
+`docs/**` · a `real-infra` CI matrix row for `cognitive-state-engine` **only if
+absent** · a `cognitive_state` schema addition **only under A-4F6-2a**.
+
+---
+
+## 12. Non-goals
+
+`action-engine` · Stage 3 · **`nova-eventbus-sdk` (L-18 is not 4F.6's)** ·
+`apps/web-client/src/` (L-17; the panel is 4F.7's) · `autonomy` migrations and
+ORM · **`PUBLIC_TOPICS` (18, unchanged)** · the gateway · 4F.5's dispatch
+semantics · the §22.7 Trust contract · CI workflow policy · **`main`**.
+
+---
+
+## 13. Residual open questions
+
+- **A-4F6-2a** — does a thought gain an explicit `ProposedAction`? **If not,
+  4F.6 must be re-scoped.**
+- At-most-once vs at-least-once delivery for the chosen transport (§5.4).
+- Whether `decide()` may accept a caller-supplied `subject_id` (§5.3).
+- Whether an expired request is persisted, if a TTL is ever ratified (§6.2).
+- What the **producer** does with a raw `NoRespondersError` while **L-18** is
+  open (§9.1).
+
+---
+
+## 14. **A-4F6-6 — the architecture amendment, exact text**
+
+**To be appended additively to TDD 4F. Historical wording is preserved, not
+rewritten.**
+
+> ### 11.5 D-4F-9 — one internal `autonomy.*` subject, for the 4F.6 trigger. **RATIFIED 2026-09-22.**
+>
+> §11.4 reads *"No `autonomy.* ` subject."* §13 records that
+> `cognitive-state-engine` *"publishes nothing."* §12 records that
+> *"`autonomy-engine` gains no new route."* **All three stand as written, and
+> none is deleted.** This section adds a bounded exception to the first two.
+>
+> **Why the exception is needed.** §13's own *Produces* row requires
+> `cognitive-state-engine` to deliver **`DecisionRequest`s into
+> `autonomy-engine`** (§6.2), and 4F.6's preparation established that the three
+> statements above leave **no mechanism** by which it can: the engine has both
+> allow-lists empty, only a health route and no outbound client;
+> `autonomy-engine` has no intake route and an empty `SUBSCRIBABLE_SUBJECTS`;
+> the registry contains no subject that fits; and **no Python engine in this
+> repository calls another over HTTP** — engine-to-engine is the Event Bus,
+> exclusively. The constraints were jointly unsatisfiable.
+>
+> **What §11.4's prohibition was protecting.** It sits beside §11.3, whose
+> subject is **browser-reachable and consumer-less** subjects: *"a subject
+> exists to be consumed, not to be complete"*, and *"`PUBLIC_TOPICS` is the sole
+> browser realtime allow-list."* The prohibition guards the **public surface**
+> and against subjects **nobody consumes**. **It was not written against an
+> internal, server-side subject with exactly one consumer** — the same document
+> permitted `action.execute` in §11.2 on precisely that basis.
+>
+> **The exception, and its bounds.** **One** subject,
+> **`autonomy.decision.requested`**, is approved **for 4F.6 specifically**:
+>
+> - **Internal only.** **Never** added to `PUBLIC_TOPICS`, which stays at
+>   **18**. Never browser-reachable. Not a public API. No gateway prefix.
+> - **Exactly one server-side consumer**, `autonomy-engine`.
+> - Registry **119 → 120**.
+> - **This is not a general relaxation.** §11.4 otherwise stands: no
+>   `TrustMetric` subject or RPC (**CF-10 stays open**), no new `memory.*` or
+>   `digital_twin.*` subject, no wildcard widening, no `perception.*` in
+>   `PUBLIC_TOPICS`.
+>
+> **The two statements this amends, and their replacements.** Each retirement is
+> **disclosed and replaced by a tighter, test-enforced property** — the
+> precedent §11.2 set when `action.execute` retired 4D's control 8:
+>
+> | Amended | Original wording | Replacement property |
+> |---|---|---|
+> | §13, Event Bus row | *"publishes nothing (§11.3)"* | *"publishes `autonomy.decision.requested` and **nothing else**"* |
+> | §11.4, first clause | *"No `autonomy.* ` subject."* | *"**Exactly one** `autonomy.* ` subject exists; it is internal, server-side, single-consumer, and **not** in `PUBLIC_TOPICS`"* |
+>
+> **§12 is not amended.** *"`autonomy-engine` gains no new route"* remains true
+> and is now **strengthened** by this decision: the trigger arrives over the
+> bus, so no route is added. Its original sentence stands unqualified.
+>
+> **§13's *Produces* row is unchanged** — it already said
+> `cognitive-state-engine` produces `DecisionRequest`s into `autonomy-engine`.
+> This amendment supplies the mechanism that sentence always presupposed.
+>
+> *(Preserved per protocol principle 4: the original clauses of §11.4 and §13
+> are quoted above verbatim and are not edited in place. This section is the
+> dated note that explains what changed and why.)*
+
+---
+
+## 15. CF-9, CF-10 and CF-11 — all remain OPEN
+
+**4F.6 closes none of them, and this TDD closes none of them.**
+
+### 15.1 CF-11 — four distinct things, not one
+
+| # | Claim | Who evidences it | After 4F.6 |
+|---|---|---|---|
+| **1** | **A production caller of `decide()` exists** | **4F.6** | **Expected: evidenced** |
+| **2** | **Trigger delivery works** — a real producer's message reaches that caller over real infrastructure | **4F.6** | **Expected: evidenced** |
+| **3** | **End-to-end Level 2 trigger-to-action behaviour** — trigger → decision → `action.execute` → `action-engine`, demonstrated in a running system | **4F.8** (AC-8) | **NOT evidenced by 4F.6** |
+| **4** | **Final Phase 4 closure evidence** — verified and **recorded** in the closing document | **4F closure / the Gate Review (L-1)** | **NOT evidenced by 4F.6** |
+
+**These must not be conflated.** §6.1: *"4F implementing a producer does not
+close CF-11 by implication."* **1 and 2 are necessary and not sufficient.
+Expected status after 4F.6: OPEN.**
+
+### 15.2 CF-9 — **OPEN. Not 4F.6's**
+
+Conditions 1, 3, 4 evidenced by 4F.4; condition 2 answered by **D-4F4-1**,
+awaiting citation; **condition 5 unmet** — a category 3–5 documentation
+obligation protocol §0.1 defers for a slice. 4F.6 contributes nothing.
+
+### 15.3 CF-10 — **OPEN, and structurally blocked. Not 4F.6's**
+
+Closure needs a Trust read surface — a served `digital_twin.*` subject or an
+HTTP route — which §11.4 **still forbids**, unamended by §14. The trigger path
+keeps Trust `UNAVAILABLE`, non-blocking, never a PASS.
+
+---
+
+## 16. RATIFICATION STATUS
+
+### RATIFIED
+
+| ID | Decision |
 |---|---|
-| `services/cognitive-state-engine/src/**` | The trigger producer. D-4F-3 |
-| `services/autonomy-engine/src/**` | The first production caller of `decide()` |
-| `services/cognitive-state-engine/tests/**`, `services/autonomy-engine/tests/**` | Evidence |
-| `packages/nova-contracts/**` | **Only under A-4F6-1(a)**, and only to add the one internal subject |
-| `docs/**` | This TDD, the completion record, the master-scope index |
-| A `real-infra` CI matrix row for `cognitive-state-engine` | **Only if one does not already exist** — verify before touching CI |
+| **A-4F6-1** | **Internal Event Bus subject `autonomy.decision.requested`.** `cognitive-state-engine` → `autonomy-engine`. Internal only, one server-side consumer, never in `PUBLIC_TOPICS`, never browser-reachable, not a public API. Registry 119 → 120 permitted. An additive amendment, explained in §14 |
+| **A-4F6-7** | **The production `decide()` caller lives at the application/orchestration boundary inside `autonomy-engine` — not `api/`, not `domain/`.** The module is proposed in §7 from existing precedent; **the boundary is ratified, the filename is not** |
 
----
+### PROPOSED — REQUIRES USER RATIFICATION
 
-## 12. Non-goals — what must not change
-
-- **`action-engine`** — execution/approval boundary owner. Zero files.
-- **Stage 3** (`nova_action_engine/domain/pipeline.py`) — zero files.
-- **`nova-eventbus-sdk`** — **L-18** is open and is not 4F.6's.
-- **`apps/web-client/src/`** — **L-17** is open; the panel is 4F.7's.
-- **Migrations and ORM** — zero, unless A-4F6-3 resolves to (c), which would
-  itself need ratification.
-- **`PUBLIC_TOPICS`** — 18, unchanged. No browser exposure of any trigger.
-- **The gateway** — no new prefix. `/v1/cognitive-state` is 4F.7's.
-- **4F.5's dispatch semantics** — `TIMEOUT`, `ActionDispatchUnavailable`, the
-  seven preconditions, the 15-second bound, no retry: **all unchanged**.
-- **The Trust contract** — §22.7 holds exactly.
-- **CI workflow policy** — no global change.
-- **`main`** — untouched.
-
----
-
-## 13. Ratification checklist
-
-**Nothing may be implemented until every one of these is decided.**
-
-| ID | Decision | Blocking? |
+| ID | Proposal | Confidence |
 |---|---|---|
-| **A-4F6-1** | **The trigger transport.** New internal subject (a), internal REST route (b), autonomy subscribes (c), or defer (d). **Every option violates a ratified statement; the decision is which to amend, additively.** Recommendation: **(a)** | **YES — blocks everything** |
-| **A-4F6-2** | **What makes the trigger fire** — which cognitive-state condition. The repository establishes none | **YES** |
-| **A-4F6-3** | **Duplicate suppression** — none (a), reuse `action_id` (b), or a new key (c). Recommendation: **(b)** if a deterministic derivation is agreed | **YES** |
-| **A-4F6-4** | **Stale-trigger TTL** — is there a maximum age, and what happens past it? | **YES** |
-| **A-4F6-5** | **Unexpected transport errors at the trigger layer** — propagate, or record and drop? | **YES** |
-| **A-4F6-6** | **Which 4F statements are amended**, and their replacement properties: §11.4, §12, §13's *"publishes nothing"*, and 4F.5's *"`SUBSCRIBABLE_SUBJECTS` stays empty"*. Additive, per protocol principle 4 | **YES, if (a) or (b)** |
-| **A-4F6-7** | **Whether `decide()`'s caller is an application-service module**, and where it lives — not `api/`, not `domain/` | No — but should be settled |
+| **A-4F6-2** | **The repository is insufficient.** No trigger condition can be defined safely without **A-4F6-2a** — an explicit `ProposedAction` on `ActiveThought`. Proposed condition: *a thought carrying a complete `ProposedAction`, promoted to `IMMEDIATE`* | **The insufficiency is established. The proposed remedy is not ratified** |
+| **A-4F6-2a** | Add `ProposedAction` to the cognitive-state domain (and schema). **May belong in its own slice** | Not ratified |
+| **A-4F6-3** | **Reuse `action-engine`'s existing `action_id` guard** by deriving `subject_id` deterministically (UUIDv5 over a stable trigger identity). **No new mechanism.** **Depends on A-4F6-2a** | Mechanism verified; derivation not ratified |
+| **A-4F6-4** | **No TTL.** Nothing in the repository justifies a number — the only lifetime constant is an auth cookie's | Not ratified |
+| **A-4F6-5** | **Propagate, plus observability (c)** — matching the repository's actual convention, without inventing a `DecisionOutcome` | Not ratified |
+| **A-4F6-6** | **The §14 amendment text**, as written | **Text proposed; not yet applied to TDD 4F** |
+
+**None of A-4F6-2 … A-4F6-5 is ratified merely because a proposal exists here.**
+
+### DEFERRED
+
+| Item | Owner |
+|---|---|
+| End-to-end Level 2 trigger-to-action (CF-11 condition 3) | **4F.8** |
+| CF-11 conditions 3 and 4; **CF-11 stays OPEN** | **4F.8 / 4F closure** |
+| **CF-9** condition 5 and condition 2's citation | **4F closure** |
+| **CF-10** — structurally blocked by §11.4 | **Beyond 4F** |
+| **L-17** (web-client enum), **L-18** (SDK `NoRespondersError`) | Unchanged, both **OPEN** |
+| The cognitive-state panel and `/v1/cognitive-state` | **4F.7** |
+| At-most-once vs at-least-once delivery (§5.4) | Open sub-question |
 
 ---
 
-## 14. Completion evidence — what the 4F.6 record must prove
+## 17. Status
 
-Per protocol §0.1, a Significant Slice gets categories **1, 2, 8, 9, 10, 11, 13,
-14 in full** and **3–7, 12 as a ledger**. **Category 3 is the Gate Review, so
-4F.6 issues no verdict.**
+**A-4F6-1 and A-4F6-7 are RATIFIED. A-4F6-2 … A-4F6-6 are PROPOSED.**
 
-The record must prove:
-
-1. **State 4 is built** — a production trigger exists and reaches `decide()`.
-2. **Every acceptance criterion** with named evidence, and every negative case.
-3. **`decide()` has a production caller**, named, with the call path traced.
-4. **No test calls `decide()` directly** in the evidence for the trigger path.
-5. **Real-infra evidence, executed**, with counts — and, if Docker is
-   unavailable locally, **protocol §10.1's disclosure obligation honoured with
-   every delegated test enumerated by name**. 4F.5's first CI run found four
-   real defects precisely because that obligation was honoured.
-6. **Every §5 safety row** evidenced or explicitly deferred.
-7. **Duplicate behaviour** as ratified under A-4F6-3.
-8. **Event Bus state**: `PUBLIC_TOPICS` 18; subject count stated; both
-   allow-lists stated exactly.
-9. **Every boundary in §12 at zero files.**
-10. **CF-9 OPEN, CF-10 OPEN, CF-11 OPEN** — with CF-11's conditions 1 and 2
-    evidenced and 3–4 named as outstanding.
-11. **L-17 and L-18 still OPEN**, plus any row 4F.6 opens.
-12. **Every A-4F6 ratification cited** where it was applied.
-13. **SLOC** on the 4F scope, with headroom to the 50,000 gate.
-14. **Any retired 4F/4F.5 property disclosed**, not silent, with its replacement
-    named — the precedent 4F.5 set with 4D's control 8.
-
----
-
-## 15. Status
-
-**PROPOSED — NOT RATIFIED. No implementation authorized.**
-
-**A-4F6-1 blocks everything**, and it is a genuine contradiction in TDD 4F
-rather than an ambiguity I can resolve by reading more carefully. The
-recommendation is **(a)**; the decision is not mine.
+**Implementation remains blocked** — principally on **A-4F6-2a**, without which
+there is no safe trigger condition and 4F.6 must be re-scoped.
