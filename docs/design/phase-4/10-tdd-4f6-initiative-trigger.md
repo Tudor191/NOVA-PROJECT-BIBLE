@@ -1,24 +1,22 @@
 # TDD 4F.6 — The initiative trigger: Level 2's *Triggered* state
 
-**Revision 5 — 2026-09-22. Decision resolution.** Revisions 1–4 found the
-blocking contradiction (§0), ratified **A-4F6-1** and **A-4F6-7**, and produced
-the full analysis. **This revision resolves two of the four remaining
-blockers with recommendations, and defers a third:**
+**Revision 6 — 2026-09-22. RATIFIED.** Revisions 1–5 found the blocking
+contradiction (§0) and produced the full decision analysis. **This revision
+applies the ratifications: A-4F6-1, A-4F6-2a, A-4F6-2b Option A, A-4F6-3
+Layer 1, A-4F6-5 Design A, A-4F6-6, A-4F6-7 and the module filename are
+RATIFIED.** A-4F6-3 Layer 2 and persistent lost-trigger auditability are
+**DEFERRED**; TTL and stale-trigger semantics remain **OPEN**.
 
-- **A-4F6-2b → RECOMMENDED Option A** (§4.6), on the `RiskLevel` precedent from
-  the same Bible part — after correcting revision 4's blast-radius estimate.
-- **A-4F6-5 → RECOMMENDED Design A** (§9.1), on the convention of all three
-  catching serve handlers.
-- **A-4F6-3 Layer 2 → DEFERRED** with a named owner (§5.6).
-- **A-4F6-5 also moves out of BLOCKING** (§17), on re-examination of why it was
-  there.
+**There are no remaining BLOCKING ARCHITECTURE decisions (§17), and §19 is the
+Implementation Contract the implementation branch must satisfy.**
 
-> **Corrections carried forward.** Revision 3 claimed *"no `serve()` handler in
-> the repository catches anything"* — **false**. Revision 4 then said **four**
-> engines had degraded-reply serve handlers — **also wrong**:
+> **Corrections carried forward, not dropped.** Revision 3 claimed *"no
+> `serve()` handler in the repository catches anything"* — **false**. Revision 4
+> then said **four** engines had degraded-reply serve handlers — **also wrong**:
 > `personality-engine`'s catch is at **startup**, not in a handler. **The
-> correct count is three.** Both errors are quoted in §9.1 rather than quietly
-> dropped.
+> correct count is three.** Revision 4 also estimated Option A's blast radius at
+> 16 files; **re-export makes it ~2**, which is what changed that
+> recommendation. All are quoted in place rather than quietly amended.
 
 **§16 is the authority on what is RATIFIED, PROPOSED, OPEN or DEFERRED.**
 Nothing is ratified merely because a proposal for it exists here.
@@ -214,7 +212,7 @@ ALTER TABLE cognitive_state.active_thought
 | **API surface affected** | **None.** `cognitive-state-engine` exposes **only `api/health.py`** at `4f1602a`. The read surface is **4F.7's**, and 4F.7 decides whether to render this |
 | **Other persistence** | **None.** No `autonomy` schema change, no ORM change there |
 
-### 4.6 **A-4F6-2b — `PermissionCategory` ownership. RECOMMENDED: Option A**
+### 4.6 **A-4F6-2b — `PermissionCategory` ownership. RATIFIED: Option A**
 
 #### 4.6.1 The decisive precedent
 
@@ -300,7 +298,7 @@ ownership.
 
 #### 4.6.3 Recommendation
 
-**RECOMMENDED: Option A.**
+**RATIFIED 2026-09-22: Option A.**
 
 The evidence is specific, not general: **the sibling vocabulary from the same
 Bible part already lives in `nova-contracts`, for the stated reason that another
@@ -315,11 +313,15 @@ call site untouched, so Option A costs ~2 files. With that corrected, the two
 considerations no longer point in opposite directions and **the evidence
 supports A clearly.**
 
-**Still requires explicit ratification** — a recommendation is not a decision,
-and A-4F6-2b remains **PROPOSED (RECOMMENDED)**, not RATIFIED.
+**Ratified 2026-09-22.** `PermissionCategory` moves to
+`nova_contracts/events/autonomy.py`, with call-site compatibility preserved
+through the repository's established **re-export** pattern. **The vocabulary
+stays canonical: no duplicate in `cognitive-state-engine`, and no second
+`PermissionCategory` type.** **The source move is not performed by this
+document** — it is TDD ratification only.
 
 
-#### 4.6.4 **A-4F6-2c — does `ProposedAction` belong in 4F.6?**
+#### 4.6.4 **A-4F6-2c — does `ProposedAction` belong in 4F.6? RESOLVED: yes**
 
 **It is larger than "a trigger":** a domain structure, a vocabulary decision and
 a migration, in an engine whose read surface is 4F.7's.
@@ -329,8 +331,9 @@ a migration, in an engine whose read surface is 4F.7's.
 | **(a) Inside 4F.6** | 4F.6 stays one slice that actually delivers *Triggered*. **Cost:** a migration in a slice named for the trigger |
 | **(b) Its own slice first** | Cleaner boundaries. **Cost:** inserts a slice before 4F.6 and delays CF-11 |
 
-**Not chosen.** It affects sequencing rather than correctness, so §17 classifies
-it **non-blocking**.
+**RESOLVED 2026-09-22: option (a) — inside 4F.6.** No separate slice is created
+solely for `ProposedAction`. This is subsumed by **A-4F6-2a's ratification** and
+no longer appears as an independent decision in §16.
 
 
 ### 4.7 **A-4F6-2a — the final implementation-grade `ProposedAction` spec**
@@ -413,7 +416,7 @@ subject_id = uuid5(_DECISION_TRIGGER_NAMESPACE, str(envelope.event_id))
 
 | | |
 |---|---|
-| **Namespace** | One module-private `UUID` constant in `autonomy-engine`'s orchestration module, mirroring `_ATTENTION_NAMESPACE`. A fixed literal, **never generated at runtime** |
+| **Namespace** | **`_DECISION_TRIGGER_NAMESPACE = UUID("0c81f3b8-e30f-5f0a-9241-8985e4b83489")`** — a module-private constant in `decision_orchestration.py`, mirroring `digital-twin-engine`'s `_ATTENTION_NAMESPACE`. **A fixed literal, never generated at runtime.** Its provenance is reproducible — `uuid5(NAMESPACE_DNS, "autonomy.decision.requested.nova")` — but the **literal is what is pinned**, exactly as the precedent pins one |
 | **Input** | **`str(envelope.event_id)` and nothing else** |
 | **Canonical form** | Python's canonical `str(UUID)` — lowercase, hyphenated. **No JSON, no field ordering, no normalization** — the input is one UUID string |
 | **Owner of generation** | **The consumer, `autonomy-engine`.** Derived from the envelope it received |
@@ -584,7 +587,7 @@ with different inputs. §22.3 already forbids the analogous conflation.
 
 ---
 
-## 7. **A-4F6-7 — the caller. Boundary RATIFIED, filename resolved on evidence**
+## 7. **A-4F6-7 — the caller. Boundary and filename both RATIFIED**
 
 **Ratified:** the production `decide()` caller lives at the
 **application/orchestration boundary** inside `autonomy-engine` — **not
@@ -613,10 +616,8 @@ under `domain/` is already accepted. (`perception-engine` has no
 `domain/observation*.py`, so the convention does not require the pairing
 either.)
 
-**Resolved: `decision_orchestration.py`.** Moved from OPEN to PROPOSED on this
-evidence, and the move is recorded explicitly rather than made silently. **The
-module is not created.** This is a naming decision with **low architectural
-weight** — §17 classifies it as non-blocking.
+**RATIFIED 2026-09-22: `decision_orchestration.py`**, on the naming precedent
+above. **The module is not created by this document.**
 
 
 ---
@@ -655,7 +656,7 @@ weight** — §17 classifies it as non-blocking.
 | Dispatch timeout | `TIMEOUT`, no retry | Yes — §22.3 |
 | Unexpected transport error | **A-4F6-5** | Proposed |
 
-### 9.1 **A-4F6-5 — transport failure. RECOMMENDED: Design A**
+### 9.1 **A-4F6-5 — transport failure. RATIFIED: Design A**
 
 > **Correction, 2026-09-22 — two corrections, one to revision 3 and one to
 > revision 4.**
@@ -720,7 +721,7 @@ records **outside** `decision_log` precisely because no outcome member means
 
 #### Recommendation
 
-**RECOMMENDED: Design A.**
+**RATIFIED 2026-09-22: Design A.**
 
 Three independent reasons, each from evidence:
 
@@ -737,8 +738,19 @@ Three independent reasons, each from evidence:
 
 **The residual is stated rather than hidden:** under Design A a transport
 failure leaves **no durable, queryable record** — only logs and the producer's
-reply. **Accepting that is a safety position and belongs to ratification.**
-A-4F6-5 remains **PROPOSED (RECOMMENDED)**, not RATIFIED.
+reply. **That was accepted on ratification**, and **persistent auditability of a
+lost trigger is DEFERRED** (§16), not forgotten. **No audit table is
+introduced.**
+
+**Ratified behaviour, restated for the implementation contract:** `decide()` is
+**not invoked**; there is **no trigger-layer retry**; **no new
+`DecisionOutcome`**; **no new persistence table**; existing observability
+conventions are reused; `NoRespondersError` is handled at the **producer-side**
+application boundary (it is raised there, not here); a timeout follows the
+**existing transport convention** and the producer must not assume the consumer
+did nothing; unexpected transport errors are observed and converted into the
+established **degraded reply** representation; and **action execution never
+occurs when the trigger was not successfully delivered to `autonomy-engine`.**
 
 
 ---
@@ -821,10 +833,14 @@ semantics · the §22.7 Trust contract · CI workflow policy · **`main`**.
 
 ---
 
-## 14. **A-4F6-6 — the architecture amendment, exact text**
+## 14. **A-4F6-6 — the architecture amendment, exact text. RATIFIED**
 
-**To be appended additively to TDD 4F. Historical wording is preserved, not
-rewritten.**
+**RATIFIED 2026-09-22**, and to be appended additively to TDD 4F. **Historical
+wording is preserved, not rewritten.** The amendment applies **specifically to
+the internal engine-to-engine Event Bus surface** and to nothing else: the
+**browser/public** surface is untouched, `PUBLIC_TOPICS` stays at **18**, and
+**no `TrustMetric` subject, no `TrustMetric` RPC and no new autonomy REST route**
+is introduced.
 
 > ### 11.5 D-4F-9 — one internal `autonomy.*` subject, for the 4F.6 trigger. **RATIFIED 2026-09-22.**
 >
@@ -919,101 +935,145 @@ keeps Trust `UNAVAILABLE`, non-blocking, never a PASS.
 
 ## 16. 4F.6 FINAL RATIFICATION MATRIX
 
-**Every decision appears in exactly one category.** **RECOMMENDED** marks a
-PROPOSED item the evidence now supports; it is **not** a ratification. Category
-changes are marked **[moved]** with justification — none is silent.
+**Ratified 2026-09-22.** Every decision appears in **exactly one** category.
+Moves into RATIFIED are marked **[ratified]**.
+
+> **One clarification, so nothing reads as double-listed.** A carry-forward
+> finding's **status** and the **obligation to close it** are different objects.
+> **CF-9, CF-10 and CF-11 are OPEN** — that is their status. Their **closure
+> conditions** are **DEFERRED** to named owners. The status is listed once under
+> OPEN; the obligation is listed once under DEFERRED. No decision appears twice.
 
 ### RATIFIED
 
 | Decision | Statement |
 |---|---|
-| **Trigger subject** (**A-4F6-1**) | **`autonomy.decision.requested`.** Internal only, exactly one server-side consumer, **never in `PUBLIC_TOPICS`**, never browser-visible, **never exposed through the gateway**, not a public API. Registry **119 → 120** |
-| **Caller boundary** (**A-4F6-7**) | The `decide()` caller lives at the **application/orchestration boundary** in `autonomy-engine` — **not `api/`, not `domain/`** |
+| **A-4F6-1 — trigger subject** | **`autonomy.decision.requested`.** Internal, server-side, **exactly one consumer**, producer `cognitive-state-engine`, consumer `autonomy-engine`. **Never in `PUBLIC_TOPICS`, never browser-visible, never gateway-exposed.** Registry **119 → 120** |
+| **A-4F6-2a — `ProposedAction`** **[ratified]** | **Part of 4F.6.** Owned by **`cognitive-state-engine`**. Stored as **one nullable JSONB column** on `ActiveThought`. Required: `category`, `risk`, `action_type`, `execution_target`, `verification_method`, `title`. Optional: `detail`. **All-or-nothing**; incomplete is **invalid**; **missing never triggers**; **`risk` is authored, never derived**; **no guessing, no coercion**; **promotion to `IMMEDIATE` required**; transition stays deterministic through the existing attention-layer mechanism. **No separate slice** (supersedes A-4F6-2c) |
+| **A-4F6-2b — Option A** **[ratified]** | **`PermissionCategory` moves to `nova_contracts/events/autonomy.py`.** Call-site compatibility preserved via the repository's established **re-export** pattern through `autonomy-engine`'s existing `__all__`. **The vocabulary stays canonical — no duplicate in `cognitive-state-engine`, no second `PermissionCategory` type** |
+| **A-4F6-3 Layer 1 — transport identity** **[ratified]** | **The producer never supplies `subject_id`.** The consumer derives `subject_id = uuid5(_DECISION_TRIGGER_NAMESPACE, str(envelope.event_id))`; namespace documented in §5.2. **`event_id` is the transport identity.** **`action-engine`'s existing idempotency guard is reused. No database constraint. No migration** |
+| **A-4F6-5 — Design A** **[ratified]** | **catch → observe → structured degraded reply.** `decide()` **not invoked**; **no trigger-layer retry**; **no new `DecisionOutcome`**; **no new persistence table**; existing observability conventions reused; **action execution never occurs when the trigger was not successfully delivered** |
+| **A-4F6-6 — architecture amendment** **[ratified]** | §14's **D-4F-9**, applied formally to the **internal engine-to-engine** Event Bus surface only. Historical wording **preserved verbatim**. **No `TrustMetric` subject, no `TrustMetric` RPC, no new autonomy REST route** |
+| **A-4F6-7 — caller boundary** | The `decide()` caller lives at the **application/orchestration layer** in `autonomy-engine` — **not `api/`, not `domain/`** |
+| **Module filename** **[ratified]** | **`decision_orchestration.py`**, on the `<inbound artifact>_orchestration.py` precedent |
 
 ### PROPOSED
 
-| Decision | Proposal | Status |
-|---|---|---|
-| **`PermissionCategory` ownership** (**A-4F6-2b**) | **Option A** — move it to `nova_contracts/events/autonomy.py`, re-exported through `autonomy-engine`'s existing `__all__` | **RECOMMENDED** **[moved from OPEN]** — revision 4's 16-file blast-radius estimate was wrong; re-export makes it ~2 files, and the `RiskLevel` precedent from the same Bible part is decisive (§4.6) |
-| **Transport error behaviour** (**A-4F6-5**) | **Design A** — catch → observe → structured degraded reply → no `decide()`, no persistence, no migration | **RECOMMENDED** **[moved from OPEN]** — it is the convention of all three catching serve handlers, and `ContextReplyPayload.degraded` shows the repository signals failure **in the reply**, not a table (§9.1) |
-| **Trigger condition** (**A-4F6-2**) | Complete `ProposedAction` + promotion to `IMMEDIATE`, deterministic via existing `next_layer`/`move_layer` | Proposed |
-| **`ProposedAction` schema** (**A-4F6-2a**) | §4.7's field table; **one nullable JSONB column**, additive, no existing column altered, no API surface affected | Proposed |
-| **Duplicate identity — Layer 1** (**A-4F6-3**) | `subject_id = uuid5(ns, str(envelope.event_id))`, **consumer-derived, never payload-supplied** | Proposed |
-| **`decide()` signature** | Must accept a consumer-derived `subject_id`; the field must be **impossible to set from the payload** | Proposed |
-| **Module filename** | **`decision_orchestration.py`** — `<inbound artifact>_orchestration.py`; collision concern disproven by `communication-engine` | Proposed |
-| **§11.4 / §13 amendment** (**A-4F6-6**) | §14's exact text as **D-4F-9**; historical wording **quoted, not edited** | Proposed |
+**None.** Every proposal has been ratified, deferred or left open.
 
 ### OPEN
 
-| Item | Why |
+| Item | Status |
 |---|---|
-| **Slice placement** (**A-4F6-2c**) | Whether `ProposedAction` belongs in 4F.6 or its own slice. Sequencing, not correctness |
-| **TTL** (**A-4F6-4**) | **No TTL exists.** 4F.5's 15 s is a *reply* bound and is **unrelated**. **`EventEnvelope.occurred_at` is the future freshness reference** if one is ever introduced. **No numeric value selected** |
-| **Stale-trigger behaviour** | "Stale" may mean **age** or **supersession**; §6.3 argues supersession is what matters. Currently processed normally |
-| **Auditability of a lost trigger** | Design A leaves **no durable record**. Recommending A does **not** resolve whether that is acceptable |
-| **`autonomy-engine` `observability.py`** | The engine has none; 13 others do |
-| **Logging `correlation_id`** | **No log call in the repository carries one** |
-| **CF-9** | **OPEN.** Condition 5 unmet; condition 2 awaits citation. **4F.6 contributes nothing.** No evidence resolves it |
-| **CF-10** | **OPEN, structurally blocked** by §11.4, which §14 does **not** amend. **4F.6 contributes nothing** |
-| **CF-11** | **OPEN.** 4F.6 can evidence claims 1–2; **claim 3 is 4F.8's**, **claim 4 is 4F closure's** |
+| **A-4F6-4 — TTL** | **No TTL is introduced.** 4F.5's 15-second dispatch timeout is **not reused** — it bounds a reply, not freshness. **`EventEnvelope.occurred_at` remains the freshness reference** if a TTL is later introduced. **No numeric value selected** |
+| **Stale-trigger semantics** | **OPEN.** "Stale" may mean **age** or **supersession**; a stale trigger is processed normally today, and every gate still runs |
+| **`observability.py` packaging** | Whether `autonomy-engine` gains one. **Packaging only**: the *behaviour* is already ratified above, and this row decides nothing about it |
+| **Logging `correlation_id`** | No log call in the repository carries one; adopting it would establish a convention |
+| **CF-9** | **OPEN** — status. 4F.6 contributes nothing |
+| **CF-10** | **OPEN** — status. Structurally blocked by §11.4, which **§14 does not amend** |
+| **CF-11** | **OPEN** — status. 4F.6 evidences claims 1–2 only |
 
 ### DEFERRED
 
 | Item | Owner |
 |---|---|
-| **Duplicate identity — Layer 2** | **[moved from PROPOSED]** — §5.6: the repository cannot say whether two distinct events with identical semantics are one initiative, Layer 1 discharges the at-least-once property in full, and every gate re-runs so the exposure is repetition not escalation. **Owner: the slice that ratifies `ProposedAction`'s promotion semantics.** To be recorded as a deferred obligation |
-| CF-11 claim 3 — end-to-end | **4F.8** (AC-8) |
-| CF-11 claim 4 — recorded closure | **4F closure / Gate Review (L-1)** |
-| CF-9 condition 5 and condition 2's citation | **4F closure** |
-| CF-10 | **Beyond 4F** |
-| **L-17**, **L-18** | Untouched, both **OPEN**. **4F.6 must not fix the SDK** |
-| Panel and `/v1/cognitive-state` | **4F.7** |
+| **A-4F6-3 Layer 2 — logical duplicate semantics** | **The slice that ratifies `ProposedAction` promotion semantics.** Two different `event_id` values are **distinct transport identities**; **no logical initiative deduplication is invented, and no second deduplication mechanism is added** |
+| **Persistent auditability of a lost trigger** | A later slice. **No audit table is introduced** |
+| **CF-11 closure claims 3 and 4** | **4F.8** (end-to-end) / **4F closure** (recorded evidence) |
+| **CF-9 condition 5** (and condition 2's citation) | **4F closure** |
+| **CF-10 closure** | **Beyond 4F** — needs a Trust read surface §11.4 still forbids |
+| **L-17** — web-client policy-effect enum | A later policy-authoring / UI scope |
+| **L-18** — SDK `NoRespondersError` translation | `nova-eventbus-sdk` / later maintenance. **4F.6 must not fix the SDK** |
+| **4F.7 panel and `/v1/cognitive-state`** | **4F.7** |
 
 ---
 
-## 17. IMPLEMENTATION BLOCKERS — final review
+## 17. IMPLEMENTATION BLOCKERS — recalculated after ratification
 
-**Blocking only if implementation would require inventing a security, identity,
-persistence or externally visible semantic.** Each of the five is re-evaluated.
+**A decision blocks only if implementation would require inventing a security,
+identity, persistence or externally visible semantic.** All four of revision
+5's blockers are now ratified:
 
-### BLOCKING ARCHITECTURE
-
-| # | Decision | Why it is still blocking |
-|---|---|---|
-| **1** | **A-4F6-2a — `ProposedAction`** | **Still blocking.** Without it there is no safe trigger condition: category and risk would have to be **invented**, and they are the values every gate is evaluated against. **A security semantic** |
-| **2** | **A-4F6-2b — `PermissionCategory` ownership** | **Still blocking, though now RECOMMENDED.** ADR-004 forbids the import, so **the payload contract cannot be written at all** until the vocabulary has a home. **An externally visible semantic** — it is on the wire |
-| **3** | **A-4F6-3 Layer 1 — consumer-derived `subject_id`** | **Still blocking.** The bus is at-least-once, so idempotency is required; and `subject_id` must be **impossible to set from the payload**, or a producer could name a decision's identity. **An identity and security semantic** |
-| **4** | **A-4F6-6 — the amendment** | **Still blocking.** Until applied, the ratified subject **remains contradicted** by TDD 4F §11.4 and §13. Implementing first would leave the repository's architecture self-contradictory. **An externally visible semantic** — the subject exists on the bus |
-
-### NON-BLOCKING ARCHITECTURE
-
-| Decision | Why it no longer blocks |
+| Former blocker | Resolution |
 |---|---|
-| **A-4F6-5 — transport failure** | **[moved from BLOCKING]** — revision 4 blocked it because Design B's table *"cannot be added later without a migration."* **That reasoning was weak**: a migration is exactly how tables are added in this repository, and doing so later is ordinary additive work, not a rewrite. Design A is the established convention, changes no persistence, and **the reply contract carries the degraded signal**, so a later Design B upgrade is purely additive. **The behaviour must still be ratified, but it does not block starting** |
-| **A-4F6-3 Layer 2** | **DEFERRED** (§5.6). Layer 1 discharges the transport property; Layer 2 addresses a producer defect, and every gate re-runs |
-| **Module filename** | Naming. No semantic depends on it |
-| **`observability.py`** | Packaging, once A-4F6-5's behaviour is ratified |
-| **Logging `correlation_id`** | A logging convention |
-| **A-4F6-2c — slice placement** | Sequencing, not correctness |
-| **TTL / stale-trigger** | **Only because "no TTL" is the safe default** — every gate still runs, so a stale trigger cannot execute anything a fresh one could not. **If the ratified meaning of *stale* turns out to be supersession, this becomes blocking** |
+| **A-4F6-2a** | **RATIFIED.** The trigger condition and every field are fixed; nothing is invented |
+| **A-4F6-2b** | **RATIFIED (Option A).** The vocabulary has a canonical home, so the payload contract can be written |
+| **A-4F6-3 Layer 1** | **RATIFIED.** Identity is consumer-derived and payload-supplied `subject_id` is prohibited |
+| **A-4F6-6** | **RATIFIED.** The amendment is applied, so the subject is no longer contradicted |
 
-**Four blockers remain, down from five.**
+### **BLOCKING ARCHITECTURE: none.**
+
+**No architectural decision now prevents implementation from starting.**
+
+### NON-BLOCKING
+
+| Item | Why it does not block |
+|---|---|
+| **A-4F6-4 / stale-trigger** | **"No TTL" is the ratified behaviour for 4F.6.** Every gate still runs, so a stale trigger cannot execute anything a fresh one could not. Only the *future* semantic is open |
+| **A-4F6-3 Layer 2** | **DEFERRED.** Layer 1 discharges the at-least-once property the bus requires |
+| **Persistent auditability** | **DEFERRED.** Design A's behaviour is fully specified without it |
+| **`observability.py` packaging** | A packaging choice; the ratified behaviour is reuse of existing conventions |
+| **Logging `correlation_id`** | A logging convention |
+| **CF-9 / CF-10 / CF-11** | Carry-forward findings. **4F.6 closes none**, and none blocks it |
+
+**The remaining open items are future semantics and packaging choices, not
+prerequisites.** Per this round's instruction, none is classified as a blocker.
 
 
 ---
 
 ## 18. Status
 
-**RATIFIED: A-4F6-1 (trigger subject) and A-4F6-7 (caller boundary).**
-**Everything else is PROPOSED, OPEN or DEFERRED per §16.** Two items are
-**PROPOSED (RECOMMENDED)** — A-4F6-2b Option A and A-4F6-5 Design A — which is
-a recommendation on evidence, **not a ratification**.
+**RATIFIED, 2026-09-22.** A-4F6-1, A-4F6-2a, A-4F6-2b Option A, A-4F6-3
+Layer 1, A-4F6-5 Design A, A-4F6-6, A-4F6-7 and `decision_orchestration.py`.
 
-**Implementation remains blocked on the four BLOCKING ARCHITECTURE items in
-§17** — A-4F6-2a, A-4F6-2b, A-4F6-3 Layer 1 and A-4F6-6 — principally
-**A-4F6-2a**, without which there is no safe trigger condition.
+**No PROPOSED items remain. No BLOCKING ARCHITECTURE decisions remain.**
 
-**The TDD is now ready for explicit final ratification.**
+**DEFERRED:** A-4F6-3 Layer 2 · persistent lost-trigger auditability · CF-11
+claims 3–4 · CF-9 condition 5 · CF-10 closure · L-17 · L-18 · the 4F.7 panel.
 
-**CF-9, CF-10 and CF-11 all remain OPEN.** No evidence in this revision proves
-otherwise, and this document closes none of them.
+**OPEN:** TTL · stale-trigger semantics · `observability.py` packaging ·
+logging `correlation_id` · **CF-9, CF-10 and CF-11 statuses** — **4F.6 closes
+none of them.**
+
+**§19 is the Implementation Contract.** Implementation may begin against it on
+a separate branch; **this document creates no code.**
+
+---
+
+## 19. 4F.6 Implementation Contract
+
+**The exact behaviour the implementation branch must satisfy.** Every line is
+ratified; none is a proposal. Where a line says *never*, a test must be able to
+fail on it.
+
+| # | Requirement |
+|---|---|
+| **1 — Trigger** | A thought carrying a **complete `ProposedAction`**, **promoted to `IMMEDIATE`**. A thought without one **never** triggers. An incomplete `ProposedAction` is **invalid at the model boundary** |
+| **2 — Transport** | **`autonomy.decision.requested`**, request/reply. Producer `cognitive-state-engine`; consumer `autonomy-engine`, **exactly one** |
+| **3 — Identity** | `subject_id = uuid5(_DECISION_TRIGGER_NAMESPACE, str(envelope.event_id))`, derived **by the consumer**. **`event_id` is the transport identity** |
+| **4 — No producer-supplied `subject_id`** | The field is **absent from the payload contract**, so a producer **cannot** name a decision's identity |
+| **5 — Consumer** | **`autonomy-engine`**, via one `serve()` |
+| **6 — Decision caller** | The **application/orchestration boundary** — `decision_orchestration.py`. **Not `api/`, not `domain/`** |
+| **7 — Level** | The trigger enters the **existing** autonomy decision flow. Level, policies and grants are read **server-side** from the repository; `user_id` is resolved from `primary_user_id` and **never carried by the producer** |
+| **8 — No Layer 2 deduplication** | Two different `event_id` values are **distinct transport identities**. **No logical initiative deduplication, and no second deduplication mechanism** |
+| **9 — No TTL** | No freshness check. 4F.5's 15-second bound is **not** reused |
+| **10 — No retry** | **No trigger-layer retry**, ever |
+| **11 — Transport failure** | **catch → observe → structured degraded reply.** `decide()` is **not invoked** |
+| **12 — No execution without delivery** | **Action execution never occurs when the trigger was not successfully delivered to `autonomy-engine`** |
+| **13 — No new `DecisionOutcome`** | The five existing members are unchanged |
+| **14 — No new audit table** | No new table, no new migration in the `autonomy` schema |
+| **15 — No `PUBLIC_TOPICS` exposure** | **`PUBLIC_TOPICS` stays at 18** |
+| **16 — No gateway exposure** | No prefix, no route, no proxy entry |
+| **17 — No `TrustMetric` surface** | **No `TrustMetric` subject, no `TrustMetric` RPC.** CF-10 stays open |
+| **18 — No new autonomy REST route** | §12's statement stands unqualified |
+| **19 — `PermissionCategory` canonical** | Lives in `nova_contracts/events/autonomy.py`, re-exported for call-site compatibility. **No duplicate in `cognitive-state-engine`; no second type** |
+| **20 — 4F.5 untouched** | Dispatch semantics, the seven §22.4 preconditions, the 15-second bound, `ActionDispatchUnavailable`, the §22.7 Trust contract: **all unchanged** |
+| **21 — Boundaries at zero** | `action-engine`, Stage 3, `nova-eventbus-sdk`, `apps/web-client/src/`, CI workflows: **0 files** |
+
+**Schema changes permitted by this contract: exactly one** — the nullable JSONB
+column on `cognitive_state.active_thought`. **No `autonomy` schema change.**
+
+**Contract changes permitted: exactly two** — the
+`autonomy.decision.requested` payload, and `PermissionCategory`'s new home.
+**Registry 119 → 120.**
