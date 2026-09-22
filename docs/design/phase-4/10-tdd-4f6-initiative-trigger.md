@@ -1,11 +1,18 @@
 # TDD 4F.6 — The initiative trigger: Level 2's *Triggered* state
 
-**Revision 3 — 2026-09-22. Ratification-ready.** Revision 1 reported a
+**Revision 4 — 2026-09-22. Final decision analysis.** Revision 1 reported a
 blocking architectural contradiction (§0); revision 2 ratified **A-4F6-1** and
-**A-4F6-7**. This revision makes **A-4F6-3** and **A-4F6-5**
-implementation-grade, resolves the four residual questions individually (§13),
-and adds the **ratification checklist** (§16) and the **implementation
-blockers** (§17).
+**A-4F6-7**; revision 3 made the TDD ratification-ready. This revision adds the
+**full `PermissionCategory` ownership analysis** (§4.6), the **final
+`ProposedAction` spec** (§4.7), both **duplicate-identity layers with the seven
+identity questions answered** (§5), the **two lost-trigger designs** (§9.1), the
+**stale-trigger semantic** (§6), and the **final matrix** (§16) with
+**blocking vs non-blocking** blockers (§17).
+
+> **It also corrects a factual error in revision 3.** Revision 3 claimed *"no
+> `serve()` handler in the repository catches anything."* **Four engines do** —
+> see §9.1. The corrected evidence changes the A-4F6-5 analysis, and the
+> original claim is quoted there rather than quietly dropped.
 
 **§16 is the authority on what is RATIFIED, PROPOSED, OPEN or DEFERRED.**
 Nothing is ratified merely because a proposal for it exists here.
@@ -146,7 +153,7 @@ against would be inventing security-relevant semantics.
 
 | Field | Required | Type | Note |
 |---|---|---|---|
-| `category` | **Yes** | see §4.4 | The permission category every gate is evaluated against |
+| `category` | **Yes** | see §4.6 | The permission category every gate is evaluated against |
 | `risk` | **Yes** | `RiskLevel` | **`nova-contracts`**, shared — available |
 | `title` | **Yes** | `str`, non-empty | Mirrors `description`'s non-empty rule |
 | `action_type` | **Yes** | `str` | `action.execute` accepts only `Literal["terminal","filesystem"]` |
@@ -201,190 +208,330 @@ ALTER TABLE cognitive_state.active_thought
 | **API surface affected** | **None.** `cognitive-state-engine` exposes **only `api/health.py`** at `4f1602a`. The read surface is **4F.7's**, and 4F.7 decides whether to render this |
 | **Other persistence** | **None.** No `autonomy` schema change, no ORM change there |
 
-### 4.4 **A contract dependency that must be settled — evidence**
+### 4.6 **A-4F6-2b — `PermissionCategory` ownership. Full option analysis**
 
-| Enum | Home | Usable by `cognitive-state-engine`? |
-|---|---|---|
-| **`RiskLevel`** | **`nova_contracts.events.planning`** — shared | **Yes** |
-| **`PermissionCategory`** | **`autonomy-engine`'s own `domain/models.py`** — an engine internal | **NO** |
+**The most important unresolved issue.** `ProposedAction` needs both `risk`
+and a permission category. `RiskLevel` is in `nova-contracts` and usable;
+`PermissionCategory` is in `autonomy-engine`'s `domain/models.py`, and
+**ADR-004's `independence` contract forbids `cognitive-state-engine` importing
+it**.
 
-**ADR-004 forbids it.** The first import-linter contract is *"Engines are
-independent (ADR-004): no engine imports another engine's internals directly"*,
-type `independence` — **7 contracts kept, 0 broken** today, and importing
-`PermissionCategory` would break it.
+#### 4.6.1 Evidence gathered for this analysis
 
-`PermissionCategory` has **10 members** (`read`, `analyze`, `recommend`,
-`create`, `modify`, `delete`, `execute`, `deploy`, `purchase`, `communicate`);
-`action.execute`'s `action_type` is `Literal["terminal", "filesystem"]` — **2**.
-**Neither derives from the other**, which 4F.5 already established.
+| Fact | Evidence at `4f1602a` |
+|---|---|
+| Who uses `PermissionCategory` | **Two places only**: `services/autonomy-engine` (16 files) and `apps/web-client` (1 file) |
+| **The vocabulary is already duplicated** | `apps/web-client/src/entities/autonomy.ts:43` hand-maintains `PERMISSION_CATEGORIES` with the comment *"Bible Part 14's ten permission categories, verbatim and in its order"*, and derives a `zod` enum and a TS type from it |
+| The web client **does** consume generated contracts elsewhere | `realtime/reconcile.ts`, `entities/health.ts`, `entities/planning.ts`, `entities/approvals.ts`, `entities/pulse.ts` all `import … from "@nova/nova-contracts"` |
+| Enums referenced by a contracts payload **are** code-generated | `PlanningTaskGraphCreatedPayload.ts` contains `export type RiskLevel = "negligible" \| "low" \| "moderate" \| "high" \| "critical";` — generated, not hand-written |
+| `RiskLevel`'s own docstring | *"the one canonical risk-tier scale anywhere in this project"* |
+| Persistence | `autonomy.permission_grant` is keyed `PRIMARY KEY (user_id, category)`, column type **`TEXT`** |
+| Vocabulary sizes | `PermissionCategory` **10** members; `action.execute`'s `action_type` **2** literals. **Neither derives from the other** |
 
-**Two ways out, both requiring ratification:**
+#### 4.6.2 The options
+
+**Option A — move `PermissionCategory` into `nova-contracts`.**
+
+| | |
+|---|---|
+| **Files affected** | `packages/nova-contracts/src/nova_contracts/**` (new home); `autonomy-engine`'s `domain/models.py` (re-export or import); potentially the **16** autonomy-engine files; `apps/web-client/src/entities/autonomy.ts` could then import the generated type |
+| **Import-linter** | **Satisfied.** Both engines import a shared package, neither imports the other |
+| **Contracts** | The vocabulary becomes a first-class shared contract, like `RiskLevel` |
+| **API** | **None** — the wire form is already the string value |
+| **Bus serialization** | **None** — `StrEnum` serializes to the same strings |
+| **Migration** | **None.** `permission_grant.category` is `TEXT`; no CHECK constraint |
+| **Tests** | Import sites update; behaviour unchanged |
+| **Existing consumers change?** | **Yes** — autonomy-engine's import sites, and optionally the web client |
+| **Semantic duplication** | **Removes** the existing one: the web client could import the generated type instead of hand-maintaining ten strings |
+| **Violates ADR-004?** | **No** |
+| **Additive or breaking?** | **Additive in behaviour, broad in touch.** Moves a type out of the engine that owns the concept |
+
+**Option B — a new shared contract type in `nova-contracts` for initiative/action requests.**
+
+| | |
+|---|---|
+| **Files affected** | `packages/nova-contracts/**` only — the `autonomy.decision.requested` payload, which **must exist regardless** under A-4F6-1 |
+| **Import-linter** | **Satisfied** |
+| **Contracts** | The payload declares its own category vocabulary (a `Literal` or enum) |
+| **API** | **None** |
+| **Bus serialization** | **Native** — it *is* the wire contract |
+| **Migration** | **None** |
+| **Tests** | A contract test asserting the payload vocabulary and `PermissionCategory` **agree member-for-member** |
+| **Existing consumers change?** | **No.** `autonomy-engine` keeps its enum untouched |
+| **Semantic duplication** | **Yes — a second authority for the vocabulary**, requiring a drift test |
+| **Violates ADR-004?** | **No** |
+| **Additive or breaking?** | **Purely additive.** Smallest touch of the four |
+
+**Option C — keep `PermissionCategory` in `autonomy-engine`; carry a transport-safe primitive.**
+
+| | |
+|---|---|
+| **Files affected** | `packages/nova-contracts/**` (payload with `category: str`); the consumer validates |
+| **Import-linter** | **Satisfied** |
+| **Contracts** | The contract is **weaker**: `str` admits any value, and the vocabulary is enforced only at the consumer |
+| **API / serialization / migration** | **None** |
+| **Tests** | Negative tests for unknown categories at the consumer boundary |
+| **Existing consumers change?** | **No** |
+| **Semantic duplication** | **No duplication — but no shared vocabulary either.** The producer cannot validate what it emits |
+| **Violates ADR-004?** | **No** |
+| **Additive or breaking?** | **Additive.** But it pushes a **security-relevant** vocabulary check to runtime, and a typo becomes a rejected trigger rather than a type error |
+
+**Option D — `cognitive-state-engine` emits no category; `autonomy-engine` derives it.**
+
+| | |
+|---|---|
+| **Feasibility** | **Not repository-supported.** `PermissionCategory` (10) does not derive from `action_type` (2); 4F.5 established exactly this. Deriving would mean **inventing** the mapping |
+| **Assessment** | **Rejected on evidence**, and it would also move a producer responsibility §6.2 assigns to `cognitive-state-engine` |
+
+#### 4.6.3 Assessment
+
+**Option D is excluded by evidence.** Of the remaining three:
+
+- **B** is the smallest and purely additive, and the payload it needs **must be
+  written anyway** — but it creates a second authority for a security-relevant
+  vocabulary, mitigated by a drift test (the repository already has drift tests,
+  e.g. `tools/tests/test_identity_confidence_ceiling_drift.py`).
+- **A** is the only option that **removes** an existing duplication, and
+  `RiskLevel`'s precedent — a Bible Part 14 vocabulary living in
+  `nova-contracts` as *"the one canonical scale"* — is a direct parallel. **But
+  it touches 16 autonomy-engine files and the web client**, which 4F.6's
+  non-goals exclude.
+- **C** keeps the blast radius smallest but **weakens a security-relevant
+  contract** to `str`.
+
+**No option is clearly supported by repository evidence over the others**: A has
+the better precedent, B the better blast radius, and they point in opposite
+directions. Per this round's instruction, **the decision is marked OPEN rather
+than recommended on convenience.**
+
+**What would settle it:** whether `PermissionCategory` is considered *Bible Part
+14 vocabulary* (→ **A**, like `RiskLevel`) or *`autonomy-engine`'s internal
+domain* (→ **B**). That is a judgement about the concept's ownership, not about
+the code.
+
+#### 4.6.4 **A-4F6-2c — does `ProposedAction` belong in 4F.6?**
+
+**It is larger than "a trigger":** a domain structure, a vocabulary decision and
+a migration, in an engine whose read surface is 4F.7's.
 
 | Option | Consequence |
 |---|---|
-| **(a) The category vocabulary lives in the subject's `nova-contracts` payload** — which that subject needs regardless | No engine imports another. **But the vocabulary then has two homes**, and they must be kept in step |
-| **(b) `PermissionCategory` moves to `nova-contracts`** | One home, shared properly. **Touches `autonomy-engine`'s domain**, which is a wider change than a trigger slice |
+| **(a) Inside 4F.6** | 4F.6 stays one slice that actually delivers *Triggered*. **Cost:** a migration in a slice named for the trigger |
+| **(b) Its own slice first** | Cleaner boundaries. **Cost:** inserts a slice before 4F.6 and delays CF-11 |
 
-**Recommendation: (a)**, since the payload contract must exist anyway. **Not
-chosen — see A-4F6-2b.**
+**Not chosen.** It affects sequencing rather than correctness, so §17 classifies
+it **non-blocking**.
 
-### 4.5 Does this belong in 4F.6?
 
-**Argued honestly: it is larger than "a trigger."** It adds a domain structure,
-a contract vocabulary decision and a migration to an engine whose read surface
-is 4F.7's.
+### 4.7 **A-4F6-2a — the final implementation-grade `ProposedAction` spec**
 
-| Option | Consequence |
+| | |
 |---|---|
-| **(a) Inside 4F.6** | 4F.6 stays one coherent slice that actually delivers *Triggered*. **Cost:** a migration and a domain structure in a slice whose title is the trigger |
-| **(b) A separate slice first** | Cleaner boundaries. **Cost:** inserts a slice before 4F.6 and delays CF-11 |
+| **Type name** | **`ProposedAction`** |
+| **Ownership** | **`cognitive-state-engine`**, `domain/models.py`. D-4F-3 gives it the trigger; §6.2 lists *"an action type"*, *"subject / context"* and *"a rationale"* among what it MAY produce |
+| **Attachment** | **`ActiveThought.proposed_action: ProposedAction \| None = None`** — optional |
 
-**Recommendation: (a)**, because splitting leaves 4F.6 with nothing to
-deliver. **Not chosen — this is part of A-4F6-2a.**
+**Fields:**
+
+| Field | Type | Required | Semantics |
+|---|---|---|---|
+| `category` | **pending A-4F6-2b** | **Yes** | **The permission category every gate is evaluated against.** Authored, never inferred from the thought |
+| `risk` | `RiskLevel` (`nova-contracts`) | **Yes** | **Authored, never derived.** Deriving from `confidence`, `priority`, `current_progress` or `current_risks` is **forbidden** — `current_risks` is a 0–1 ranking weight, and coercing it is the error §22.7 forbids for Trust. Above `low` **cannot** auto-execute (4F.5 X-6), so an honest high value simply yields a suggestion |
+| `action_type` | `str` | **Yes** | What `action-engine` will execute. `action.execute` accepts only `Literal["terminal","filesystem"]`; a value outside it is **rejected by the contract at dispatch**, not silently mapped. **Does not derive from `category`** — 10 vs 2, established by 4F.5 |
+| `execution_target` | `str`, non-empty | **Yes** | *What* the action acts on. **Never defaulted** — a missing target yields a suggestion (X-14), never a guess |
+| `verification_method` | `str`, non-empty | **Yes** | How the result is verified. **Never defaulted**, same reasoning |
+| `title` | `str`, non-empty | **Yes** | Becomes `DecisionRequest.title`; surfaces in the suggestion a user approves. Non-empty mirrors `description`'s existing rule |
+| `detail` | `str` | **No**, default `""` | Becomes `DecisionRequest.detail`, which already defaults to `""` |
+
+**Validation rules:**
+
+1. **All-or-nothing.** `ProposedAction` is either **absent** or **complete**.
+   A partial instance is **invalid at the model boundary** — Pydantic required
+   fields — and is never silently completed.
+2. **Absence never triggers.** No `ProposedAction` → no trigger. The same
+   fail-closed reading as *"absent policy means approval"*.
+3. **No `user_id`.** Resolved server-side from `primary_user_id` (§8).
+4. **No `subject_id`.** Decision identity is **consumer-derived** (§5.4 Q1).
+5. **Non-empty strings** for `title`, `execution_target`, `verification_method`.
+
+**Is JSONB still the smallest schema change? — Yes.**
+
+```
+ALTER TABLE cognitive_state.active_thought
+    ADD COLUMN proposed_action JSONB NULL;
+```
+
+| | |
+|---|---|
+| **Precedent** | `dependencies`, `related_memories`, `related_projects` are **already JSONB** on this table |
+| **Existing columns** | **None altered.** No type change, no backfill, no destructive step |
+| **CHECK constraints** | The schema has **3**; this adds none and conflicts with none |
+| **Alternative considered** | A separate `proposed_action` table with a FK — **larger**: a second table, a join, and a lifecycle to keep in step with the thought |
+| **Does the existing persistence model support it unchanged?** | **Yes.** `ActiveThoughtORM` already maps JSONB columns; `upsert_thought` / `get_thought` / `list_thoughts` / `move_layer` need no signature change |
+| **API surface affected** | **None.** `cognitive-state-engine` exposes only `api/health.py`; the read surface is **4F.7's** |
+| **`autonomy` schema** | **Untouched** |
+
 
 ---
 
-## 5. **A-4F6-3 — duplicate identity. Two distinct layers**
+## 5. **A-4F6-3 — subject identity. Two layers, resolved separately**
 
-### 5.1 The established pattern — verified, and it is exactly this
+### 5.1 The established pattern, and the delivery fact
 
-`digital-twin-engine/events/handlers.py` already does this:
+`digital-twin-engine/events/handlers.py` already derives a deterministic id:
 
 ```python
 _ATTENTION_NAMESPACE = UUID("6f9d4a52-1c3f-5b8e-9f21-0a7d2c4e6b10")
 observation_id=uuid5(_ATTENTION_NAMESPACE, str(envelope.event_id))
 ```
 
-with the reasoning stated in its own docstring:
+> *"…which makes a redelivery of the **same event** idempotent — **the property
+> the at-least-once bus actually requires** — without pretending two genuinely
+> distinct observations are one."*
 
-> *"One is derived deterministically from the envelope's own `event_id`
-> (`uuid5`), which makes a redelivery of the **same event** idempotent — **the
-> property the at-least-once bus actually requires** — without pretending two
-> genuinely distinct observations are one."*
+**The bus is at-least-once** (backend: NATS + JetStream, ADR-006). Idempotency
+is therefore **required, not optional**. This is repository evidence, not a
+decision.
 
-**`uuid5` with a module-private namespace constant is therefore an established
-repository pattern, not an invention.**
+### 5.2 Layer 1 — transport duplicate identity
 
-### 5.2 Delivery semantics — **resolved by repository evidence**
+**Exact mapping:**
 
-**The bus is at-least-once.** The docstring above states it directly, and the
-backend is **NATS + JetStream** (`backends/nats.py` line 1: *"NATS JetStream
-`EventBus` backend — the default implementation (ADR-006)"*).
-
-**Consequence: redelivery must be assumed, and idempotency is required, not
-optional.** This is no longer OPEN.
-
-### 5.3 The two layers, kept distinct
-
-**Layer 1 — redelivery idempotency. Available today, no dependency.**
+```
+subject_id = uuid5(_DECISION_TRIGGER_NAMESPACE, str(envelope.event_id))
+```
 
 | | |
 |---|---|
-| **Namespace** | One module-private `UUID` constant in the consumer, e.g. `_DECISION_TRIGGER_NAMESPACE`, mirroring `_ATTENTION_NAMESPACE` |
+| **Namespace** | One module-private `UUID` constant in `autonomy-engine`'s orchestration module, mirroring `_ATTENTION_NAMESPACE`. A fixed literal, **never generated at runtime** |
 | **Input** | **`str(envelope.event_id)` and nothing else** |
-| **Canonical form** | `str(UUID)` — lowercase, hyphenated, Python's canonical form. **No JSON, no field ordering, no normalization needed** — a single UUID string |
-| **Identical** | Two deliveries carrying the **same `event_id`** — i.e. a redelivery |
-| **Distinct** | Any two envelopes with different `event_id`s, **even if every payload field matches** |
-| **Timestamps** | **No.** `occurred_at` does not participate |
-| **`correlation_id`** | **No.** It groups related work; it is not an identity |
-| **`title` / `detail`** | **No.** Payload content never participates |
+| **Canonical form** | Python's canonical `str(UUID)` — lowercase, hyphenated. **No JSON, no field ordering, no normalization** — the input is one UUID string |
+| **Owner of generation** | **The consumer, `autonomy-engine`.** Derived from the envelope it received |
+| **Identical** | Two deliveries carrying the same `event_id` — a redelivery |
+| **Distinct** | Different `event_id`s, **even if every payload field matches** |
+| **Non-participants** | `occurred_at`, `correlation_id`, `causation_id`, `title`, `detail`, and all payload content |
 
-**Layer 2 — logical duplicate suppression. Depends on A-4F6-2a.**
+### 5.3 Layer 2 — logical duplicate identity
 
-Two *genuinely distinct* triggers for the same promotion (a producer bug, or a
+Two *genuinely distinct* envelopes representing the same initiative (a producer
 restart re-emitting) carry different `event_id`s, so Layer 1 does **not**
-suppress them. Suppressing those needs a **trigger identity**:
-`uuid5(namespace, f"{thought_id}:{promotion-identity}")` — and **the promotion
-identity does not exist** until A-4F6-2a defines it. `updated_at` is the
-nearest candidate and is **not** stable enough to key on.
+suppress them.
 
-### 5.4 The connection to `action-engine`'s guard
+**Participating fields, if Layer 2 is ratified:**
 
-`_idempotent_reply_if_terminal(action_id)` runs *"before any stage runs, and
-before the Action row is even inserted, so a genuine retry never re-triggers
-any side effect, **including the approval loop**"*, replaying the stored
-terminal result; `ActionORM`'s PK gives `ActionAlreadyExistsError` underneath.
+```
+uuid5(_INITIATIVE_NAMESPACE, f"{thought_id}|{proposed_action_digest}")
+```
 
-**The guard is sound and is keyed on the `action_id` it is handed.** Today
-`subject_id = uuid4()` (`decision.py:480`), so **two deliveries of the same
-trigger produce two different `action_id`s and the guard never fires.**
+| Field | Participates? | Why |
+|---|---|---|
+| `thought_id` | **Yes** | The stable identity of the thought that proposed the action |
+| `category`, `risk`, `action_type`, `execution_target`, `verification_method` | **Yes** | They define *what* is proposed; a change is a different initiative |
+| `title`, `detail` | **No** | Human-readable text; an edited wording is not a new initiative |
+| `attention_layer` | **No** | The trigger already requires `IMMEDIATE` |
+| `updated_at`, `created_at` | **No** | **Not stable enough to key on** |
+| `priority`, `confidence`, `current_progress` | **No** | They change continuously without changing the proposal |
+| `correlation_id`, `event_id` | **No** | Layer 1's concern |
 
-**Proposal:** on the trigger path, derive `subject_id` from Layer 1 — so a
-redelivered trigger yields the **same** `action_id`, and `action-engine`'s
-**existing** guard suppresses the duplicate execution.
+**Canonical serialization** would need ratifying: a `|`-joined ordered field
+list, lowercased enum values, with a fixed field order. **This layer is blocked
+on A-4F6-2a**, since `proposed_action` does not exist yet.
 
-| | |
-|---|---|
-| **New mechanism** | **None** |
-| **Database constraint** | **None.** No repository evidence requires one: the guard already lives at the execution boundary, which is where double-execution is actually prevented |
-| **Migration** | **None** |
-| **Required change** | `decide()` must accept a caller-supplied `subject_id`, or the orchestrator must derive it before calling. **That is a change to a 4F.5 signature** and must be explicit |
-| **Residual** | Two `decision_log` rows may still exist for one logical trigger — consistent with *"the decision log records every attempt"*, but a conscious acceptance |
+### 5.4 The seven questions, answered explicitly
+
+| # | Question | Answer |
+|---|---|---|
+| **1** | **Does caller-supplied `subject_id` become part of `DecisionRequest`?** | **No — and this is the important answer.** `subject_id` must **not** be a producer-supplied payload field. It is **derived by the consumer** from the envelope. Putting it in `DecisionRequest` as a caller input would let a producer choose a decision's identity |
+| **2** | **Where is it validated?** | It is never validated because it is never received. The consumer derives it, so it is well-formed by construction |
+| **3** | **Who owns generation?** | **`autonomy-engine`**, in the orchestration module, from `envelope.event_id` |
+| **4** | **What prevents arbitrary callers creating collisions?** | **The allow-list and the derivation together.** `PUBLISHABLE_SUBJECTS` admits exactly one producer; `event_id` is SDK-generated per envelope; and since the consumer derives the id, a malicious payload **cannot** name an existing decision. A caller that forged an `event_id` could only collide with its *own* prior trigger — which is the idempotent case, not an escalation |
+| **5** | **Same event redelivered?** | Same `event_id` → same `subject_id` → same `action_id` → **`action-engine`'s guard replays the stored terminal result. Nothing executes twice** |
+| **6** | **Two distinct events, same logical initiative?** | Different `event_id`s → different `subject_id`s → **two decisions and two dispatches**. Layer 1 does not help. **Layer 2 is the only remedy, and it is blocked on A-4F6-2a** |
+| **7** | **Is `action-engine`'s guard still sufficient?** | **Sufficient for redelivery (case 5), not for case 6.** It is keyed on the `action_id` it is handed, and `_idempotent_reply_if_terminal` runs *"before any stage runs, and before the Action row is even inserted"* — so it is the correct and sufficient place for duplicate **execution**. It cannot know that two differently-keyed requests are the same initiative |
+
+### 5.5 Consequence for `decide()`
+
+`decide()` currently sets `subject_id = uuid4()` internally
+(`decision.py:480`). Layer 1 requires the **orchestrator** to supply it.
+
+**Two shapes, both requiring ratification:** an optional `subject_id`
+keyword on `decide()`, or derivation inside the orchestrator with `decide()`
+refactored to accept it. **Either changes a 4F.5 signature**, and the field
+must remain **impossible to set from the payload**.
+
+**No database constraint and no migration.** No repository evidence requires
+one: duplicate *execution* is already prevented at the execution boundary, and
+`decision_log` is deliberately append-only with *"every attempt"* recorded.
+
 
 ---
 
-## 6. **A-4F6-4 — TTL. Not implemented, and no value invented**
+## 6. **A-4F6-4 — stale triggers. The semantic, not a number**
 
-### 6.1 Why no TTL exists today
+### 6.1 Why no TTL exists
 
 A repository-wide search for `ttl`, `expires_at`, `expiry`, `max_age` and
-`stale` across every engine's `src/` returns **exactly one** numeric lifetime:
-`session_cookie_max_age_seconds` in `api-gateway` — **an auth cookie**, not a
-request lifecycle. **No request-shaped payload in this repository carries an
-expiry, a TTL or a maximum age.** `EventEnvelope` carries `occurred_at`, and
-**nothing consumes it as a deadline.**
+`stale` returns **exactly one** numeric lifetime: `session_cookie_max_age_seconds`
+in `api-gateway` — **an auth cookie**. **No request-shaped payload carries an
+expiry.** `EventEnvelope.occurred_at` exists and **nothing consumes it as a
+deadline**.
 
-### 6.2 Why 4F.5's 15-second bound is not reusable
+### 6.2 Why 4F.5's 15 seconds is not reusable
 
-**It bounds a different thing.** D-4F5-3's 15 seconds bounds **how long
-`autonomy-engine` waits for `action-engine`'s reply** — it is a *reply* timeout,
-chosen against `action-engine`'s 300-second approval loop. A trigger TTL would
-bound **how old a request may be before it is refused** — an unrelated
-quantity, with unrelated inputs.
+It bounds **how long `autonomy-engine` waits for `action-engine`'s reply**,
+chosen against that engine's 300-second approval loop. A trigger TTL would
+bound **how old a request may be before it is refused** — a different quantity
+with different inputs. §22.3 already forbids the analogous conflation.
 
-Reusing the number would imply the two are related, and **§22.3 already
-forbids the analogous conflation**: a timeout must stay distinguishable from
-other conditions rather than becoming a general-purpose number.
+### 6.3 The exact unresolved semantic
 
-### 6.3 The exact future decision, if a TTL is ever introduced
-
-| | |
+| Question | Position |
 |---|---|
-| **Decision required** | A ratified maximum trigger age, with its evidential basis — **not a round number chosen for comfort** |
-| **Authoritative clock** | **`EventEnvelope.occurred_at`** — producer-side, UTC, already on every envelope. **Not** the consumer's wall clock, which would make expiry depend on which instance received it |
-| **Clock-skew** | Must be addressed explicitly: producer and consumer clocks are not guaranteed aligned |
-| **Expired behaviour** | **Refused without invoking `decide()`** |
-| **Persisted or discarded?** | **A ratification in itself.** `DecisionLogEntry` requires a `DecisionOutcome`, and **no member means "expired before a decision"**. Persisting one would mean inventing an outcome — which 4F.5 deliberately refused to do for `ActionDispatchUnavailable`. **Discarding is therefore the lower-cost default, at the price of an unaudited drop** |
+| **What does "stale" mean?** | **Undefined, and that is the decision.** Two candidate meanings: *(i)* **age** — the request was emitted more than *N* ago; *(ii)* **supersession** — the cognitive state that justified it has since changed, so the thought is no longer in `IMMEDIATE` or its `ProposedAction` has changed. **(ii) is the meaning that actually matters for safety**, and it is not a clock question at all |
+| **Which timestamp is authoritative?** | **`EventEnvelope.occurred_at`** — producer-side, UTC, already on every envelope. Not the consumer's wall clock, which would make expiry depend on which instance received the message. **Clock skew must be addressed explicitly** |
+| **At which layer is freshness evaluated?** | **The orchestration module in `autonomy-engine`**, before `decide()` — the same boundary that validates the payload. **Not** in `domain/`, which must stay free of transport concerns |
+| **What must be ratified first?** | **(1)** Which meaning of stale applies — age, supersession, or neither. **(2)** If age: a number **with its evidential basis**. **(3)** Whether an expired trigger is persisted, which is itself a ratification because **no `DecisionOutcome` means "expired"** |
+| **What happens to a stale trigger today?** | **It is processed normally.** Every gate still runs, so a stale trigger cannot execute anything a fresh one could not. **The risk is not privilege — it is acting on a stale intention** |
 
-**4F.6 implements no TTL.**
+**4F.6 implements no TTL, and no number is selected.**
+
 
 ---
 
-## 7. **A-4F6-7 — the caller. Boundary RATIFIED, filename OPEN**
+## 7. **A-4F6-7 — the caller. Boundary RATIFIED, filename resolved on evidence**
 
 **Ratified:** the production `decide()` caller lives at the
 **application/orchestration boundary** inside `autonomy-engine` — **not
 `api/`, not `domain/`.**
 
-**Package placement — established precedent.** Orchestration modules sit at the
-**package root**, beside `main.py`, outside both `api/` and `domain/`:
+**Package placement — established.** Orchestration modules sit at the **package
+root**, beside `main.py`:
 
 - `perception-engine/…/observation_orchestration.py`
 - `communication-engine/…/conversation_orchestration.py`
 
-`observation_orchestration.py` is the closest analogue — it takes an inbound
-payload and drives an existing-but-uncalled domain chain, which is exactly
-4F.6's shape.
+**The naming convention is `<inbound artifact>_orchestration.py`** — an
+*observation* arrives at `POST /v1/perception/observations`; a *conversation*
+drives session lifecycle.
 
 | Candidate | Assessment |
 |---|---|
-| **`decision_orchestration.py`** | Matches `<noun>_orchestration.py` exactly. **But `decision` is already the name of the `domain/decision.py` module**, and two modules differing only by suffix may read as duplicates |
-| **`trigger_orchestration.py`** | Names what the module *is for* — the trigger path — and collides with nothing. Slightly narrower if other callers of `decide()` appear later |
-| **`initiative_orchestration.py`** | Matches the project's own vocabulary (*"the initiative trigger"*, *"the Initiative Engine is the natural owner"*, CF-11) and collides with nothing |
+| **`decision_orchestration.py`** | The inbound artifact is a **decision request** (`autonomy.decision.requested`), so the noun matches the convention exactly |
+| `trigger_orchestration.py` | Names the mechanism rather than the artifact — no precedent does this |
+| `initiative_orchestration.py` | Matches project vocabulary (*"the initiative trigger"*, CF-11) but **not** the subject name |
 
-**No recommendation is forced.** The boundary is ratified; **the filename stays
-OPEN** pending the final repository-evidence review. **The module is not
-created.**
+**The collision concern raised in revision 3 is disproven.**
+`communication-engine` has **both** `conversation_orchestration.py` **and**
+`domain/conversation_memory.py`, so an orchestration noun that also appears
+under `domain/` is already accepted. (`perception-engine` has no
+`domain/observation*.py`, so the convention does not require the pairing
+either.)
+
+**Resolved: `decision_orchestration.py`.** Moved from OPEN to PROPOSED on this
+evidence, and the move is recorded explicitly rather than made silently. **The
+module is not created.** This is a naming decision with **low architectural
+weight** — §17 classifies it as non-blocking.
+
 
 ---
 
@@ -422,34 +569,80 @@ created.**
 | Dispatch timeout | `TIMEOUT`, no retry | Yes — §22.3 |
 | Unexpected transport error | **A-4F6-5** | Proposed |
 
-### 9.1 **A-4F6-5 — unexpected transport errors. PROPOSED**
+### 9.1 **A-4F6-5 — transport failure and the lost trigger. PROPOSED**
 
-**The repository's actual convention, verified:** **no `serve()` handler
-catches anything.** `action-engine`'s `action.execute` handler calls
-`model_validate` and the domain function with **no `try`/`except`**, and the
-SDK's `_callback` has none either. An exception therefore propagates, **no
-reply is published**, and the requester experiences a **timeout**.
+> **Correction, 2026-09-22 — revision 3 was wrong on this point.** Revision 3
+> stated *"no `serve()` handler in the repository catches anything,"* based on
+> inspecting `action-engine` alone. **That is false.** A second pass found
+> **four** engines whose serve handlers catch:
+>
+> | Engine | Behaviour |
+> |---|---|
+> | **`capability-engine`** | `except Exception as exc:  # noqa: BLE001 -- structured reply, never a crash (TDD 3C §8)` → increments a metric → returns `CapabilityInvokeReplyPayload(outcome="failure", error=str(exc))` |
+> | **`knowledge-engine`** | `except Exception: logger.warning("knowledge.traverse.request degraded", exc_info=True)` → returns an empty-but-valid reply |
+> | **`personality-engine`**, **`world-model-engine`** | Same shape |
+> | **`action-engine`** | **No catch** — the exception propagates |
+>
+> **The dominant convention is therefore catch → observe → return a structured
+> degraded reply, never crash**, and `capability-engine` cites a TDD for it.
+> `action-engine` is the exception, not the rule. The analysis below is
+> re-derived on the corrected evidence.
 
-**Consequences for 4F.6, stated plainly:** an error raised before persistence
-means **no `DecisionLogEntry` is written** and the trigger is **silently lost** —
-fail-safe with respect to *execution* (nothing runs), but **not** with respect
-to *auditability*.
+**Observability mechanisms that exist:**
 
-| Option | Trade-off |
+| Mechanism | Evidence |
 |---|---|
-| **(a) Propagate — matches the existing convention exactly** | Consistent with every other consumer; no new pattern. **The trigger vanishes with no audit row** |
-| **(b) Record-and-drop** — catch, persist a non-executing outcome, return a reply | Auditable. **But `DecisionLogEntry` requires a `DecisionOutcome`, and no member means "the trigger failed before a decision"** — adding one is a new outcome, which 4F.5 deliberately refused to do for `ActionDispatchUnavailable` |
-| **(c) Propagate, plus observability** — no reply, but a metric/log at the boundary | Keeps the convention, makes the loss visible without inventing an outcome. **Recommended** |
+| **`observability.py` per engine** | **13 engines have one**, with OpenTelemetry `Counter`s. **`autonomy-engine` and `cognitive-state-engine` do not** (nor do `api-gateway`, `nova-core`, `ws-gateway`) |
+| **Structured logging** | `logger.warning(..., exc_info=True)` and `logger.exception(...)` are established |
+| **`correlation_id` in logs** | **Never.** A repository-wide search finds **no** log call carrying `correlation_id`. Logging it would be a **new convention** |
+| **An audit table outside a decision log** | **`memory.audit_log`** — `id`, `memory_record_id`, `action`, `actor`, `changed_at`, `detail JSONB`. The precedent for Design B |
 
-**In all three: `decide()` is not invoked; no retry is added at the trigger
-layer** — a trigger-level retry would reintroduce the double-execution risk
-D-4F5-3 forbids, one level up. **Acknowledgement** is not applicable to core
-request/reply: there is no ack, only a reply or its absence.
+#### Design A — catch + structured observability, degraded reply
 
-**Related, and already open:** **L-18** — the SDK does not translate
-`NoRespondersError`. If `autonomy-engine` is not subscribed, the **producer**
-receives a raw `nats.errors.NoRespondersError`. 4F.6 must decide what the
-producer does with that; **it must not fix the SDK** (L-18 is not 4F.6's).
+| | |
+|---|---|
+| **Location** | The `serve()` handler in `autonomy-engine`'s orchestration module |
+| **Data captured** | Subject, `event_id`, exception type and traceback via `exc_info=True`; optionally a counter if an `observability.py` is added |
+| **`correlation_id`** | **Would be logged** — deliberately extending a convention that does not exist today. Without it a lost trigger cannot be tied to its producer |
+| **Exception handling** | `except Exception` at the handler boundary, matching `capability-engine`/`knowledge-engine` |
+| **Persistence impact** | **None** |
+| **Schema impact** | **None** |
+| **Test impact** | Assert `decide()` is not called, **no** `decision_log` row, no retry, and that the failure is observable |
+| **Failure behaviour** | **Nothing executes.** The producer receives a **structured reply** rather than a timeout |
+| **Auditability** | **Logs only.** No queryable record. **A lost trigger leaves no durable trace** |
+
+#### Design B — catch + a persistent audit record outside `decision_log`
+
+| | |
+|---|---|
+| **Location** | Same handler; writes to a new append-only table, e.g. `autonomy.trigger_audit`, shaped on `memory.audit_log` |
+| **Data captured** | `id`, `event_id`, `subject`, `correlation_id`, `occurred_at`, `failure_reason`, `detail JSONB` |
+| **`correlation_id`** | **Persisted**, so a lost trigger is joinable to its producer |
+| **Exception handling** | As Design A |
+| **Persistence impact** | **A new table.** **This requires a new migration** |
+| **Schema impact** | **Yes — stated plainly**: a new table in the `autonomy` schema, which 4F.6's non-goals currently exclude |
+| **Test impact** | Design A's, plus a `real_infra` test reading the audit row back with independent SQL |
+| **Failure behaviour** | Identical to A |
+| **Auditability** | **Durable and queryable.** A lost trigger is a record, not a log line |
+
+**Neither design introduces a new `DecisionOutcome`.** Design B deliberately
+records **outside** `decision_log`, precisely because no `DecisionOutcome`
+means *"the trigger failed before a decision"* — and inventing one is what 4F.5
+refused to do for `ActionDispatchUnavailable`.
+
+**Stated clearly, as required: Design B requires new persistence — a new table
+and a new migration. It does not require a new outcome.**
+
+**In both designs:** `decide()` is **never invoked** on trigger-layer transport
+failure; **no `DecisionLogEntry` exists**; **trigger-layer retry is forbidden**
+(it would reintroduce D-4F5-3's double-execution risk one level up); and the
+producer **receives a reply** rather than being left to time out.
+
+**Not recommended here.** Design A matches the dominant convention and adds no
+schema; Design B is the only one that makes a lost trigger auditable. **The
+choice is a safety position — whether an unaudited lost trigger is acceptable —
+and belongs to ratification, not to this document.**
+
 
 ---
 
@@ -627,74 +820,88 @@ keeps Trust `UNAVAILABLE`, non-blocking, never a PASS.
 
 ---
 
-## 16. 4F.6 RATIFICATION CHECKLIST
+## 16. 4F.6 FINAL RATIFICATION MATRIX
 
-**Every 4F.6 architectural decision appears in exactly one category.**
+**Every 4F.6 architectural decision appears in exactly one category.** Category
+changes since revision 3 are marked **[moved]** with their justification —
+none is silent.
 
 ### RATIFIED
 
 | Decision | Statement |
 |---|---|
-| **Trigger subject** (**A-4F6-1**) | **`autonomy.decision.requested`.** `cognitive-state-engine` → `autonomy-engine`. **Internal only**, exactly **one** server-side consumer, **never in `PUBLIC_TOPICS`**, never browser-reachable, not a public API, **no gateway prefix**. Registry **119 → 120** permitted |
-| **Caller boundary** (**A-4F6-7**) | The production `decide()` caller lives at the **application/orchestration boundary** inside `autonomy-engine` — **not `api/`, not `domain/`** |
+| **Trigger subject** (**A-4F6-1**) | **`autonomy.decision.requested`.** `cognitive-state-engine` → `autonomy-engine`. **Internal only**, exactly **one** server-side consumer, **never in `PUBLIC_TOPICS`**, never browser-reachable, not a public API, **no gateway prefix**. Registry **119 → 120** |
+| **Caller boundary** (**A-4F6-7**) | The `decide()` caller lives at the **application/orchestration boundary** in `autonomy-engine` — **not `api/`, not `domain/`** |
 
 ### PROPOSED
 
-| Decision | Proposal | Depends on |
-|---|---|---|
-| **Trigger condition** (**A-4F6-2**) | A thought carrying a **complete `ProposedAction`**, **promoted to `IMMEDIATE`**. Deterministic through the existing `next_layer` / `move_layer` mechanism. **A thought without one never triggers** | **A-4F6-2a** |
-| **`ProposedAction` schema** (**A-4F6-2a**) | Optional structure on `ActiveThought`; 6 required fields + optional `detail`; **all-or-nothing** validation; `risk` **authored, never derived**. Smallest change: **one nullable JSONB column** `proposed_action`, additive, **no existing column altered**, **no API surface affected** | — |
-| **Category vocabulary** (**A-4F6-2b**) | `RiskLevel` is shared and usable; **`PermissionCategory` is an `autonomy-engine` internal** that ADR-004 forbids importing. Recommend **(a)** the vocabulary lives in the subject's `nova-contracts` payload; alternative **(b)** move `PermissionCategory` to `nova-contracts` | — |
-| **Slice placement** (**A-4F6-2c**) | Recommend `ProposedAction` **inside 4F.6**, because splitting leaves 4F.6 with nothing to deliver | — |
-| **Duplicate identity** (**A-4F6-3**) | **Layer 1**, available now: `uuid5(namespace, str(envelope.event_id))`, used as the trigger's `subject_id` so **`action-engine`'s existing guard** suppresses duplicate execution. **No new mechanism, no constraint, no migration.** Requires `decide()` to accept a caller-supplied `subject_id`. **Layer 2** (logical duplicates) depends on A-4F6-2a | Layer 2 → **A-4F6-2a** |
-| **Transport error behaviour** (**A-4F6-5**) | **Propagate + observability.** `decide()` never invoked; **no** log entry; **no** retry; **no new `DecisionOutcome`**. Open sub-point: whether `autonomy-engine` gains an `observability.py` | — |
-| **§11.4 / §13 amendment** (**A-4F6-6**) | The exact text in §14, appended additively to TDD 4F as **D-4F-9**. Historical wording **quoted, not edited** | — |
+| Decision | Proposal |
+|---|---|
+| **Trigger condition** (**A-4F6-2**) | A thought carrying a **complete `ProposedAction`**, **promoted to `IMMEDIATE`**, deterministic through the existing `next_layer`/`move_layer` mechanism. **A thought without one never triggers** |
+| **`ProposedAction` schema** (**A-4F6-2a**) | §4.7's final spec: 6 required fields + optional `detail`; **all-or-nothing**; `risk` **authored, never derived**; **one nullable JSONB column**, additive, **no existing column altered**, **no API surface affected** |
+| **Duplicate identity — Layer 1** (**A-4F6-3**) | `subject_id = uuid5(_DECISION_TRIGGER_NAMESPACE, str(envelope.event_id))`, **derived by the consumer, never payload-supplied**, so `action-engine`'s **existing** guard suppresses duplicate execution. **No constraint, no migration** |
+| **Duplicate identity — Layer 2** | `thought_id` + the five `ProposedAction` semantic fields; **not** title/detail/timestamps. **Blocked on A-4F6-2a** |
+| **`decide()` signature** | Must accept a consumer-derived `subject_id`. **Changes a 4F.5 signature** |
+| **Transport error behaviour** (**A-4F6-5**) | **Design A or Design B** (§9.1). Both: `decide()` never invoked, no log entry, no retry, **no new `DecisionOutcome`**, producer gets a reply. **B requires a new table and migration** |
+| **Module filename** | **`decision_orchestration.py`** — **[moved from OPEN]**, because the revision-3 collision concern is disproven by `communication-engine` and the convention is `<inbound artifact>_orchestration.py` |
+| **§11.4 / §13 amendment** (**A-4F6-6**) | §14's exact text, appended additively to TDD 4F as **D-4F-9**; historical wording **quoted, not edited** |
 
 ### OPEN
 
-| Item | Why it is open |
+| Item | Why |
 |---|---|
-| **TTL** (**A-4F6-4**) | **No value exists to adopt** — the only lifetime constant in the repository is an auth cookie's, and 4F.5's 15-second bound measures a different quantity. **No TTL in 4F.6**; accepting that absence is itself a ratification |
-| **Stale-trigger behaviour** | Follows the TTL decision. Currently: **processed normally; every gate still runs** |
-| **Module filename** | `decision_orchestration.py` / `trigger_orchestration.py` / `initiative_orchestration.py`. **Package root**, per precedent. Deliberately unresolved pending the final evidence review |
-| **`decide()` signature change** | Whether it may accept a caller-supplied `subject_id` — required by A-4F6-3 Layer 1 |
-| **Unaudited lost trigger** | Whether propagate-without-a-log-row is acceptable (§13.3) |
-| **`autonomy-engine` `observability.py`** | The engine has none today; adding one is a new module |
-| **CF-9** | **OPEN.** Conditions 1, 3, 4 evidenced by 4F.4; condition 2 answered by **D-4F4-1** awaiting citation; **condition 5 unmet** — a category 3–5 documentation obligation. **4F.6 contributes nothing.** No evidence proves otherwise |
-| **CF-10** | **OPEN, and structurally blocked.** Closure needs a Trust read surface that §11.4 **still forbids**, unamended by §14. **4F.6 contributes nothing.** No evidence proves otherwise |
-| **CF-11** | **OPEN.** 4F.6 can evidence **claims 1 and 2** (a production caller exists; trigger delivery works). **Claim 3** (end-to-end trigger-to-action) is **4F.8's**; **claim 4** (recorded closure evidence) is **4F closure's**. §6.1: *"implementing a producer does not close CF-11 by implication."* No evidence proves otherwise |
+| **`PermissionCategory` ownership** (**A-4F6-2b**) | **[moved from PROPOSED]** — revision 3 recommended option (a); this round's full analysis (§4.6) finds **A has the better precedent and B the better blast radius, pointing in opposite directions**. **No option is clearly supported**, so it is marked OPEN rather than chosen on convenience. **Blocks the payload contract entirely** |
+| **Slice placement** (**A-4F6-2c**) | Whether `ProposedAction` belongs in 4F.6 or its own slice |
+| **TTL** (**A-4F6-4**) | **No value exists to adopt.** No number selected |
+| **Stale-trigger behaviour** | **Undefined by design**: "stale" may mean **age** or **supersession**, and §6.3 argues supersession is the one that matters. Currently processed normally |
+| **Auditability of a lost trigger** | Design A leaves **no durable record**; Design B needs a table and migration. **Unresolved** |
+| **`autonomy-engine` `observability.py`** | The engine has none; 13 others do |
+| **Logging `correlation_id`** | **No log call in the repository carries one.** Design A would establish a new convention |
+| **CF-9** | **OPEN.** Conditions 1, 3, 4 evidenced by 4F.4; 2 answered by **D-4F4-1** awaiting citation; **5 unmet**. **4F.6 contributes nothing.** No evidence resolves it |
+| **CF-10** | **OPEN, structurally blocked.** Needs a Trust read surface §11.4 **still forbids**. **4F.6 contributes nothing.** No evidence resolves it |
+| **CF-11** | **OPEN.** 4F.6 can evidence **claims 1 and 2**; **claim 3** is 4F.8's, **claim 4** is 4F closure's. No evidence resolves it |
 
 ### DEFERRED
 
 | Item | Owner |
 |---|---|
-| End-to-end Level 2 trigger-to-action — **CF-11 claim 3** | **4F.8** (AC-8) |
-| Recorded CF-11 closure — **claim 4** | **4F closure / the Gate Review (L-1)** |
-| **CF-9** condition 5, and condition 2's citation | **4F closure** |
-| **CF-10** — blocked by §11.4 | **Beyond 4F** |
-| **L-17** (web-client policy-effect enum) | A later policy-authoring / UI scope — **OPEN**, untouched |
-| **L-18** (SDK `NoRespondersError`) | `nova-eventbus-sdk` / later maintenance — **OPEN**, untouched. **4F.6 must not fix the SDK** |
-| The cognitive-state panel and `/v1/cognitive-state` prefix | **4F.7** |
+| CF-11 claim 3 — end-to-end trigger-to-action | **4F.8** (AC-8) |
+| CF-11 claim 4 — recorded closure evidence | **4F closure / Gate Review (L-1)** |
+| CF-9 condition 5, and condition 2's citation | **4F closure** |
+| CF-10 | **Beyond 4F** |
+| **L-17** (web-client policy-effect enum) | Later UI scope — **OPEN**, untouched |
+| **L-18** (SDK `NoRespondersError`) | `nova-eventbus-sdk` — **OPEN**, untouched. **4F.6 must not fix it** |
+| Cognitive-state panel and `/v1/cognitive-state` | **4F.7** |
 | Whether 4F.7 renders `proposed_action` | **4F.7** |
 
 ---
 
-## 17. IMPLEMENTATION BLOCKER
+## 17. IMPLEMENTATION BLOCKERS
 
-**Implementation cannot start. These decisions are architecture, not detail,
-and none is hidden inside an implementation choice.**
+**A decision is BLOCKING only when implementation would require inventing a
+semantic or security property without it.**
 
-| # | Blocker | Why it blocks |
+### BLOCKING ARCHITECTURE
+
+| # | Decision | Why it blocks |
 |---|---|---|
-| **1** | **A-4F6-2a — `ProposedAction`** | **The primary blocker.** Without it there is **no safe trigger condition**: a `DecisionRequest` needs a permission category and a risk tier that `ActiveThought` does not carry, and inventing them would fabricate the security semantics every downstream gate is evaluated against. **If rejected, 4F.6 must be re-scoped.** |
-| **2** | **A-4F6-2b — the category vocabulary** | **ADR-004's import-linter contract forbids** `cognitive-state-engine` importing `PermissionCategory` from `autonomy-engine`. Without a ratified home, the payload contract **cannot be written at all** |
-| **3** | **A-4F6-3 — `decide()`'s `subject_id`** | The bus is **at-least-once**, so idempotency is required, not optional. It works **only** if the trigger path supplies `subject_id`, which changes a 4F.5 signature |
-| **4** | **A-4F6-6 — the amendment** | The subject in A-4F6-1 stays **contradicted by TDD 4F §11.4 and §13 until the amendment is applied.** Implementing first would leave the architecture self-contradictory in the repository |
-| **5** | **A-4F6-5 — the unaudited lost trigger** | Accepting that a transport failure leaves **no audit row** is a deliberate safety position, not an implementation detail |
+| **1** | **A-4F6-2a — `ProposedAction`** | Without it there is **no safe trigger condition**. A `DecisionRequest` needs a permission category and risk tier `ActiveThought` does not carry; supplying them would **invent the security semantics every gate is evaluated against**. If rejected, **4F.6 must be re-scoped** |
+| **2** | **A-4F6-2b — `PermissionCategory` ownership** | **ADR-004 forbids the import.** Until the vocabulary has a ratified home, **the payload contract cannot be written at all** — not a detail, a prerequisite |
+| **3** | **A-4F6-5 — the auditability position** | Choosing Design A means **accepting that a lost trigger leaves no durable record**. That is a **safety property**, and Design B's table cannot be added later without a migration |
+| **4** | **A-4F6-6 — the amendment** | Until applied, the ratified subject **remains contradicted by TDD 4F §11.4 and §13**. Implementing first would leave the architecture self-contradictory in the repository |
+| **5** | **A-4F6-3 — consumer-derived `subject_id`** | The bus is **at-least-once**, so idempotency is **required**. It works only if the orchestrator supplies `subject_id`, which changes a 4F.5 signature — and the field must be **impossible to set from the payload**, a **security** property |
 
-**Not blockers** — these may be settled during implementation without changing
-the architecture: the module filename (§7), and whether `autonomy-engine` gains
-an `observability.py` (§13.3), provided the *behaviour* in A-4F6-5 is ratified.
+### NON-BLOCKING ARCHITECTURE
+
+| Decision | Why it does not block |
+|---|---|
+| **Module filename** (`decision_orchestration.py`) | Naming. Resolved on evidence; no semantic or security property depends on it |
+| **`autonomy-engine` `observability.py`** | A packaging choice **once A-4F6-5's behaviour is ratified** — a metric can be added later without changing semantics |
+| **Logging `correlation_id`** | A logging convention, not a semantic |
+| **A-4F6-2c — slice placement** | Affects sequencing, not correctness |
+| **Layer 2 duplicate identity** | Layer 1 covers the at-least-once property the bus requires; Layer 2 addresses producer bugs and can follow |
+| **TTL / stale-trigger** | **Only because "no TTL" is the safe default**: every gate still runs, so a stale trigger cannot execute anything a fresh one could not. **If the answer were "stale means superseded", it would become blocking** |
+
 
 ---
 
@@ -703,8 +910,10 @@ an `observability.py` (§13.3), provided the *behaviour* in A-4F6-5 is ratified.
 **RATIFIED: A-4F6-1 (trigger subject) and A-4F6-7 (caller boundary).**
 **Everything else is PROPOSED, OPEN or DEFERRED per §16.**
 
-**Implementation remains blocked on the five items in §17**, principally
-**A-4F6-2a**.
+**Implementation remains blocked on the five BLOCKING ARCHITECTURE items in
+§17**, principally **A-4F6-2a** and **A-4F6-2b** — the latter now **OPEN**
+rather than recommended, because §4.6's full analysis found no option clearly
+supported by repository evidence.
 
 **CF-9, CF-10 and CF-11 all remain OPEN.** No evidence in this revision proves
 otherwise, and this document closes none of them.
