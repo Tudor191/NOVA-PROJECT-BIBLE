@@ -125,33 +125,45 @@ def test_no_data_and_unavailable_are_different_answers(client: TestClient) -> No
 
 
 # --- Level ------------------------------------------------------------------
-def test_the_level_selector_offers_zero_one_and_a_disabled_two(client: TestClient) -> None:
-    """TDD §12: *"0 and 1 selectable; 2 visibly present and disabled"*. Levels
-    3-5 are not rendered."""
+def test_the_level_selector_offers_zero_one_and_two_all_selectable(client: TestClient) -> None:
+    """Levels 3-5 are still **not rendered** -- TDD 4D §12: offering a level
+    with no defined semantics would invite a user to ask for one.
+
+    *(4D asserted `(2, False)` with a note reading "enabled in a later
+    milestone" -- TDD §12's "0 and 1 selectable; 2 visibly present and
+    disabled". 4F.5 is that milestone, so Level 2 is selectable and carries no
+    note.)*"""
     options = client.get("/v1/autonomy/level").json()["options"]
     assert [(option["level"], option["selectable"]) for option in options] == [
         (0, True),
         (1, True),
-        (2, False),
+        (2, True),
     ]
     assert [option["name"] for option in options] == ["Observation Only", "Suggestive", "Assisted"]
-    assert options[2]["note"]
+    assert options[2]["note"] is None
 
 
-@pytest.mark.parametrize("level", [0, 1])
-def test_levels_zero_and_one_can_be_set(client: TestClient, level: int) -> None:
+@pytest.mark.parametrize("level", [0, 1, 2])
+def test_levels_zero_one_and_two_can_be_set(client: TestClient, level: int) -> None:
+    """Level 2 was added by 4F.5. **Selecting it grants eligibility, not
+    permission** -- nothing executes as a consequence of this call, and the
+    dispatch preconditions are asserted in `tests/unit/test_level_two_dispatch.py`."""
     response = client.put("/v1/autonomy/level", json={"level": level})
     assert response.status_code == 200
     assert response.json()["level"] == level
     assert response.json()["configured"] is True
 
 
-@pytest.mark.parametrize("level", [2, 3, 4, 5])
-def test_levels_two_to_five_are_rejected_with_422_and_a_reason(
+@pytest.mark.parametrize("level", [3, 4, 5])
+def test_levels_three_to_five_are_rejected_with_422_and_a_reason(
     client: TestClient, level: int
 ) -> None:
-    """TDD §13: *"Level set to 2-5 -> **422** with the reason. Not silently
-    clamped."*"""
+    """TDD 4D §13: *"Level set to 2-5 -> **422** with the reason. Not silently
+    clamped."*
+
+    *(The parametrization was `[2, 3, 4, 5]` until 4F.5 enabled Level 2. The
+    refusal itself is unchanged for every level that still has no defined
+    semantics, and it is still never a silent clamp.)*"""
     response = client.put("/v1/autonomy/level", json={"level": level})
     assert response.status_code == 422
     assert str(level) in response.json()["detail"]
@@ -159,11 +171,13 @@ def test_levels_two_to_five_are_rejected_with_422_and_a_reason(
     assert client.get("/v1/autonomy/level").json()["configured"] is False
 
 
-def test_level_two_is_refused_as_defined_but_not_yet_enabled(client: TestClient) -> None:
-    """The reason must distinguish Level 2 from a level that does not exist."""
-    detail = client.put("/v1/autonomy/level", json={"level": 2}).json()["detail"]
-    assert "4F" in detail
-    assert "D-1" in detail
+def test_level_two_is_accepted_and_undefined_levels_still_say_why(client: TestClient) -> None:
+    """*(4D asserted Level 2 was refused with a reason naming "4F" and "D-1" --
+    "defined but not yet enabled". 4F.5 enabled it.)*
+
+    The refusal for a level with no semantics is unchanged, and still says so
+    rather than reporting a generic validation error."""
+    assert client.put("/v1/autonomy/level", json={"level": 2}).status_code == 200
 
     detail = client.put("/v1/autonomy/level", json={"level": 4}).json()["detail"]
     assert "no defined semantics" in detail

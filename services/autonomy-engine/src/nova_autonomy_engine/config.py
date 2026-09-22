@@ -35,6 +35,21 @@ class Settings(BaseSettings):
     the only identity. The default is a fixed sentinel rather than a random
     value so a fresh instance and a restarted one address the same rows."""
 
+    action_execute_timeout_seconds: float = 15.0
+    """**4F.5 (D-4F5-3).** The bounded client-side wait for `action.execute`'s
+    reply, and **nothing else**.
+
+    It is not a global RPC timeout, and it is not `action-engine`'s own
+    `approval_timeout_seconds` (300.0), which this engine does not touch. The
+    gap is deliberate: a LOW-risk, policy-permitted action should never reach
+    `action-engine`'s approval loop, so if a dispatch stalls past 15 seconds
+    the control plane records a `DecisionOutcome.TIMEOUT` rather than blocking
+    on a loop it has no business waiting for.
+
+    **A timeout is terminal for that decision.** Nothing is retried and nothing
+    is dispatched a second time, because `action-engine` may have executed the
+    action and simply replied late."""
+
     suggestion_page_size: int = 50
     """Default keyset page size for `GET /v1/autonomy/suggestions`. A cap, not
     an offset -- TDD §8.1/§9 forbid offset pagination anywhere."""

@@ -76,12 +76,15 @@ function levelView(overrides: Record<string, unknown> = {}) {
     options: [
       { level: 0, name: "Observation Only", selectable: true, note: null },
       { level: 1, name: "Suggestive", selectable: true, note: null },
-      {
-        level: 2,
-        name: "Assisted",
-        selectable: false,
-        note: "enabled in a later milestone",
-      },
+      // Level 2 became selectable in **4F.5** (X-1): `SELECTABLE_LEVELS` gained
+      // `ASSISTED`, so the engine now reports it with `selectable: true` and no
+      // note. This stub mirrors the engine; a stub left at the 4D state would
+      // make every assertion below pass against a state that no longer exists.
+      //
+      // *(This entry read `selectable: false, note: "enabled in a later
+      // milestone"` until 2026-09-21, matching 4D decision D-1. That was
+      // correct for 4D and is now stale; preserved per protocol §0.3.4.)*
+      { level: 2, name: "Assisted", selectable: true, note: null },
     ],
     ...overrides,
   };
@@ -230,20 +233,38 @@ describe("AutonomyPanel widgets", () => {
   });
 });
 
-// --- Level 2: present and disabled (decision D-1) ---------------------------
+// --- Level 2: present and selectable (4F.5, X-1) ----------------------------
+//
+// *(This block read "**Level 2: present and disabled (decision D-1)**" and
+// asserted the disabled attribute and the "later milestone" note until
+// 2026-09-21. 4F.5 makes Level 2 selectable, so the control is **retargeted to
+// the new expected state rather than removed** — it still pins exactly what
+// the panel does with level 2, and the stub above was corrected in the same
+// pass so this stops asserting a state the engine no longer reports.
+// Preserved per protocol §0.3.4.)*
 
 describe("the level selector", () => {
-  it("offers levels 0 and 1 and shows level 2 present but disabled", async () => {
+  it("offers levels 0, 1 and 2, with level 2 now selectable", async () => {
     stubFetch(baseRoutes());
     render(<AutonomyPanel />, { wrapper: wrapper(client()) });
 
     const options = await screen.findAllByTestId("level-option");
     expect(options).toHaveLength(3);
-    expect(screen.getAllByTestId("level-select")).toHaveLength(2);
+    // All three are selectable now, and — the retargeted half of the old
+    // assertion — **nothing** is left rendering the disabled state.
+    expect(screen.getAllByTestId("level-select")).toHaveLength(3);
+    expect(screen.queryByTestId("level-disabled")).toBeNull();
+    expect(screen.queryByTestId("level-note")).toBeNull();
 
-    const disabled = screen.getByTestId("level-disabled");
-    expect(disabled.hasAttribute("disabled")).toBe(true);
-    expect(screen.getByTestId("level-note").textContent).toContain("later milestone");
+    // Level 2 specifically: present, named, and enabled rather than merely
+    // absent from the disabled set.
+    const assisted = options.find((option) =>
+      option.textContent?.includes("Assisted"),
+    );
+    expect(assisted).toBeTruthy();
+    const button = assisted!.querySelector("[data-testid='level-select']");
+    expect(button).toBeTruthy();
+    expect(button!.hasAttribute("disabled")).toBe(false);
   });
 
   it("does not render levels 3 to 5 at all", async () => {

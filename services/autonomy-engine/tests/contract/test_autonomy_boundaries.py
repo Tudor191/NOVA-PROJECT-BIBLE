@@ -78,15 +78,23 @@ def _code_of(path: Path) -> str:
 
 
 # --- Negative control 8 ------------------------------------------------------
-def test_control_8_both_allow_lists_are_empty() -> None:
-    """**Negative control 8.** D-4D-1: *"`autonomy-engine` publishes and
-    subscribes to nothing. Both allow-lists stay empty."*
+def test_control_6_this_engine_publishes_action_execute_and_nothing_else() -> None:
+    """**TDD 4F §16 control 6**, which replaces 4D's control 8.
 
-    This is why D-4D-1 is a security simplification and not only a scope
-    reduction: with no declared subject, `BoundEventBus` refuses every publish
-    and every subscribe at runtime, so there is no autonomy subject that
-    *could* leak anywhere."""
-    assert frozenset() == PUBLISHABLE_SUBJECTS
+    *(4D asserted both allow-lists were empty, per D-4D-1: "`autonomy-engine`
+    publishes and subscribes to nothing. Both allow-lists stay empty." 4F.5
+    makes this engine `action.execute`'s first producer, which TDD 4F §11.2
+    authorised explicitly -- "Disclosed, not silent" -- and replaced with the
+    tighter property asserted here.)*
+
+    The security claim is **narrower but still exact**: one subject, named, and
+    nothing else. `BoundEventBus` refuses anything outside this set on both
+    `publish()` and `request()`, so widening the surface requires editing
+    `events/published.py` -- which fails this test.
+
+    `SUBSCRIBABLE_SUBJECTS` is still **empty**: this engine consumes nothing,
+    so there is still no autonomy subject that could leak anywhere."""
+    assert frozenset({"action.execute"}) == PUBLISHABLE_SUBJECTS
     assert frozenset() == SUBSCRIBABLE_SUBJECTS
 
 
@@ -108,16 +116,22 @@ def test_control_8_the_two_specifically_reserved_subjects_are_still_unclaimed() 
     assert "autonomy.decision.made" not in subjects
 
 
-def test_control_8_this_engine_never_calls_the_bus_at_all() -> None:
-    """The strongest available form of *"publishes and subscribes to
-    nothing"*: no call to any `EventBus` method exists in the package, so there
-    is no site at which a subject could be introduced.
+def test_control_6_the_only_bus_call_is_a_request_for_action_execute() -> None:
+    """**TDD 4F §16 control 6, structural half**, and 4F.5's X-17.
 
-    `main.py` still *binds* a `BoundEventBus` -- deliberately, so that a future
-    call raises `SubjectNotAllowedError` at runtime rather than succeeding
-    against an unbound client -- but `connect`/`close` are the only methods it
-    ever reaches."""
-    bus_methods = {"publish", "subscribe", "request", "serve", "open_stream"}
+    *(4D asserted no call to any `EventBus` method existed anywhere in the
+    package -- the strongest available form of "publishes and subscribes to
+    nothing". 4F.5 adds exactly one call site, and this test pins it to that
+    one rather than dropping the check.)*
+
+    Two properties, both load-bearing:
+
+    * **`.publish()` is never used for `action.execute`.** It is a request/reply
+      RPC; publishing it would discard the reply on a subject that has one, and
+      the decision log would record an execution it never saw confirmed.
+    * **No `subscribe`, `serve` or `open_stream` call exists at all**, so this
+      engine still consumes nothing from the bus."""
+    bus_methods = {"publish", "subscribe", "serve", "open_stream"}
     offenders: list[str] = []
     for path in _source_files():
         for node in ast.walk(ast.parse(path.read_text())):
@@ -130,6 +144,21 @@ def test_control_8_this_engine_never_calls_the_bus_at_all() -> None:
             ):
                 offenders.append(f"{path.name}:{node.lineno} {ast.unparse(node.func)}")
     assert offenders == []
+
+    # The one permitted call: `.request()`, and only in the dispatch adapter.
+    requesters = [
+        path.name
+        for path in _source_files()
+        for node in ast.walk(ast.parse(path.read_text()))
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "request"
+            and isinstance(node.func.value, ast.Attribute | ast.Name)
+            and "bus" in ast.unparse(node.func.value)
+        )
+    ]
+    assert requesters == ["action_dispatch.py"]
 
 
 def test_control_8_no_register_payload_decorator_exists_in_this_engine() -> None:

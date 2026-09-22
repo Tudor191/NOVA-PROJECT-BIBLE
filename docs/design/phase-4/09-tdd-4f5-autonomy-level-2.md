@@ -516,10 +516,64 @@ and remains **L-5's** to settle at 4F closure.
 |---|---|---|
 | **Level 2's three states** | Selectable, policy-permitted, executing | TDD 4F §18's 4F.5 row and §6 |
 | **4D control 8's replacement** | The tighter *"publishes `action.execute` and nothing else"* property | TDD 4F §11.2, §16 control 6 |
+| **L-17** | **Opened by 4F.5's implementation audit, ratified 2026-09-21 — see §17.1.1** | Owner **`autonomy-engine` frontend / a later policy-authoring or UI scope** |
+| **L-18** | **Opened by PR #36's first CI run, ratified 2026-09-21 — see §17.1.2** | Owner **`nova-eventbus-sdk` / a later maintenance scope** |
 
-**No new ledger row is proposed by this slice as designed.** If implementation
-reveals one, it must be surfaced explicitly and numbered only on ratification —
-the precedent set by L-15 and L-16.
+*(This section read "**No new ledger row is proposed by this slice as designed.**
+If implementation reveals one, it must be surfaced explicitly and numbered only
+on ratification — the precedent set by L-15 and L-16." Implementation did reveal
+one; it was surfaced rather than absorbed, and numbered only on ratification,
+exactly as that sentence required. Preserved per protocol §0.3.4.)*
+
+#### 17.1.1 L-17 — the frontend policy-effect enum
+
+| | |
+|---|---|
+| **Row** | **L-17** |
+| **Status** | **OPEN** |
+| **Obligation** | **The autonomy frontend policy-authoring enum is stale and does not expose the ratified `AUTO_EXECUTE` effect supported by the 4F.5 API.** `apps/web-client/src/entities/autonomy.ts` declares `POLICY_EFFECTS = ["deny", "require_approval"]`, and its comment still reads *"4D ships no `allow` effect"* |
+| **Owner** | **`autonomy-engine` frontend** |
+| **Settled by** | **A later policy-authoring / UI scope** |
+
+**This is a product-scope gap, not a defect and not a security hole.** The
+backend accepts `AUTO_EXECUTE` through the existing `POST`/`PATCH
+/v1/autonomy/policies` routes, which TDD 4F §12 names as the surface; the panel
+simply cannot author one yet. Nothing is mis-rendered and nothing is bypassed:
+an operator who writes the policy through the API gets exactly the semantics
+§22.1 ratified, and every gate still runs.
+
+**Why 4F.5 does not close it.** §18 lists *"A policy authoring UI — **Not in 4F
+at all** — no slice row names one"* as an explicit non-goal, and §5's boundary
+table forbids new browser exposure. Widening the panel here would be the
+unilateral scope expansion the non-goal exists to prevent.
+
+#### 17.1.2 L-18 — the SDK's untranslated transport error
+
+| | |
+|---|---|
+| **Row** | **L-18** |
+| **Status** | **OPEN** |
+| **Obligation** | **The NATS backend does not translate `NoRespondersError` into the SDK's transport abstraction, leaving multiple request clients exposed to raw NATS transport errors.** `packages/nova-eventbus-sdk/src/nova_eventbus_sdk/backends/nats.py` catches `nats.errors.TimeoutError` and re-raises the builtin `TimeoutError`, but has no equivalent for the zero-subscriber signal, so `nats.errors.NoRespondersError` escapes `BoundEventBus` unchanged |
+| **Owner** | **`nova-eventbus-sdk` / a later maintenance scope** |
+| **Settled by** | **An SDK pass that completes the translation layer** |
+| **Opened** | **2026-09-21**, by PR #36's first CI run |
+
+**This is repository-wide, not 4F.5-specific.** `NoResponders` appears nowhere
+in the repository, and **every** bus client catches exactly `TimeoutError` and
+nothing else — across `perception-engine`, `executive-cognition-engine`,
+`capability-engine`, `communication-engine`, `digital-twin-engine` and others.
+Each has the same exposure whenever its target engine is not subscribed. 4F.5
+is simply the first slice whose subject has **no** production subscriber, so it
+is the first to reach the condition.
+
+**Why 4F.5 does not close it.** D-2 scopes the fix to `ActionDispatchClient`
+(§22.8.4). Changing the SDK would alter transport-error handling for six
+engines at once, inside a slice whose boundary table forbids touching them, and
+would deserve its own tests and its own ratification. **4F.5 defends itself and
+discloses the rest.**
+
+**Verified at `d2cdf2e`, not assumed:** `apps/` has **zero** files changed by
+this slice, and `AUTO_EXECUTE` appears nowhere under `apps/`.
 
 ### 17.2 Explicitly NOT 4F.5's — every existing row, ownership unchanged
 
@@ -1003,3 +1057,103 @@ recorded exactly as it is today, and its absence does not veto the Level-2 path.
   remains **independently blocking**; no retry; the 15-second request/reply
   timeout; request/reply never publish; CF-9 and CF-11 stay OPEN; all fourteen
   ledger rows unchanged.
+
+### 22.8 The dispatch-availability contract — ratified 2026-09-21
+
+**Added after PR #36's first CI run.** The `real_infra` tests executed for the
+first time and disproved an assumption this document had carried unexamined:
+that a `action.execute` request with nobody listening would simply let the
+bounded wait elapse. It does not. NATS answers **immediately** with
+`NoRespondersError`, which no fake, no in-memory backend and no unit test
+reproduces — and which the SDK does not translate, so the raw transport error
+escaped into `decide()`.
+
+Nothing in §22.3 or §22.4 is withdrawn. This section says what the two
+already-ratified rules mean for a condition neither of them named.
+
+#### 22.8.1 `NoRespondersError` is **not** a timeout
+
+| | **Timeout** (§22.3) | **Unavailable** (this section) |
+|---|---|---|
+| **What happened** | The request reached a responder; no reply within **15 s** | The broker had **zero subscribers**; it answered at once |
+| **Did the action run?** | **Unknown — it may have** | **No. It provably did not** |
+| **Outcome** | `DecisionOutcome.TIMEOUT` | **`DecisionOutcome.PROPOSE`** |
+| **Retry** | None | None |
+
+**They must never be merged.** Recording a zero-subscriber dispatch as a
+timeout would attach *"the action may still have executed"* to an action that
+never left the broker — the same class of conflation §22.3's forbidden list
+already bans for the generic failure outcome. **`TIMEOUT` stays reserved for
+the bounded 15-second no-reply condition and nothing else.**
+
+#### 22.8.2 It is **§22.4 precondition 6 failing at runtime**
+
+Precondition 6 — *"the `action.execute` path is available"* — is checked
+**structurally** before dispatch: the port is wired and the subject is
+publishable. A broker with no subscriber is that **same precondition proving
+false a moment later**, discoverable only by asking. **The structural check is
+therefore complemented by, not replaced by, runtime responder availability.**
+
+§22.4's consequence applies unchanged and needs no new rule: *"If any one
+fails: no `action.execute`, the decision remains non-executing, and fail-safe
+behaviour is preserved."*
+
+#### 22.8.3 The degradation, and its audit record
+
+`NoRespondersError` → typed **`ActionDispatchUnavailable`** at
+`ActionDispatchClient` → `decide()` falls through to the **ordinary proposal
+path**.
+
+- **No execution**, and **no retry** — one attempt, and the decision ends.
+- **No false `EXECUTE`**, and **no false `TIMEOUT`**.
+- **No new outcome member**, **no new table**, **no new column**, **no
+  migration**, and no separate audit mechanism: the existing proposal
+  persistence already records a non-executing decision with its level, its
+  policy checks and its reason.
+- **The reason is specific.** The log row names the unavailability, so an
+  ordinary approval requirement and an unreachable executor do not read alike.
+  Reusing the shared path is only acceptable because of this.
+- **Fail-safe**: the action remains available to the user by explicit approval.
+
+**Forbidden:** an `UNDELIVERABLE` or other new `DecisionOutcome` in this slice;
+any change to `TIMEOUT`'s meaning; describing this condition as a timeout
+anywhere in code, log or record; a retry; a queue.
+
+#### 22.8.4 Fix site, and **L-18**
+
+**Fixed in `ActionDispatchClient` only.** `nova-eventbus-sdk` is **not**
+modified and no other engine client is touched, so the fix stays inside 4F.5.
+
+The adapter recognises the condition **by exception type name**, deliberately:
+`nats` is not a declared dependency of this engine, and importing the broker
+library would put transport knowledge inside a service that should see only
+`BoundEventBus`. The cost is that an upstream rename would slip past a name
+match, which is why that branch is proven against a **real broker** rather than
+a constructed exception.
+
+**L-18 is OPEN** for the wider gap — see §17.1.2.
+
+### 22.9 The web-client Level-2 control — retargeted 2026-09-21
+
+The same CI run failed `apps/web-client/tests/e2e/autonomy-suggestion.spec.ts`,
+which asserted **Level 2 is present and disabled** — 4D decision D-1, whose own
+wording assigns enabling Level 2 to *milestone 4F*. **4F.5 is that milestone**,
+and X-1 ratifies the change, so the expectation was stale by design rather than
+wrong.
+
+- **This is a retargeted 4D control, not new UI scope.** Its subject — *is
+  Level 2 selectable?* — is unchanged; only the ratified answer flipped. It is
+  the same treatment 4D control 2 already received at the pytest tier, now
+  applied to its remaining tier. The control keeps its identity and its 4D
+  wording as a dated note, and the assertion is **strengthened**, not removed:
+  no element renders the disabled state, and level 2's control is present and
+  enabled.
+- **Its `vitest` twin was corrected in the same pass.** That test kept passing
+  because its stubbed payload still described the 4D state — it asserted a
+  fixture, not the engine. The spec's own comment had predicted exactly this:
+  *"Asserted here as well as in `vitest` because only the real engine can be
+  wrong about it."*
+- **Production web-client code remains out of scope.** No file under
+  `apps/web-client/src/` is modified, no UI capability is added, and no API
+  behaviour changes. **§18's "a policy authoring UI — Not in 4F at all" stands**,
+  and **L-17 is unaffected and still OPEN.**

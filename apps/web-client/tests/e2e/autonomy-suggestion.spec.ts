@@ -53,9 +53,21 @@ test.describe("the AC-5 suggestion lifecycle", () => {
       timeout: 30_000,
     });
 
-    // Level 2 is present and disabled -- decision D-1. Asserted here as well
-    // as in `vitest` because only the real engine can be wrong about it.
-    await expect(page.getByTestId("level-disabled")).toBeDisabled();
+    // Level 2 is present and **selectable** -- 4F.5, X-1. Asserted here as
+    // well as in `vitest` because only the real engine can be wrong about it,
+    // and that is exactly what happened: the `vitest` twin kept passing
+    // against its stub while this caught the real change.
+    //
+    // *(This read `await expect(page.getByTestId("level-disabled"))
+    // .toBeDisabled();` with the comment "Level 2 is present and disabled --
+    // decision D-1" until 2026-09-21. D-1 assigned enabling Level 2 to
+    // milestone 4F, and 4F.5 is that milestone, so the **same control is
+    // retargeted to the new ratified state** rather than deleted. Preserved
+    // per protocol §0.3.4.)*
+    await expect(page.getByTestId("level-disabled")).toHaveCount(0);
+    const assisted = page.getByTestId("level-option").filter({ hasText: "Assisted" });
+    await expect(assisted).toHaveCount(1);
+    await expect(assisted.getByTestId("level-select")).toBeEnabled();
 
     // --- clause 2: "is visible in the Autonomy panel" --------------------
     const suggestion = page.getByTestId("suggestion").first();

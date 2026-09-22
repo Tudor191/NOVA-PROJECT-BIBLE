@@ -6,15 +6,21 @@ place to change them when 4F enables Level 2:
 1. **Levels 0-5 are all named** (`AutonomyLevel`) so the vocabulary matches
    Bible Part 14 and nobody invents a seventh.
 2. **Levels 0-2 are defined**; 3-5 are named only.
-3. **Levels 0-1 are selectable.** Level 2 is defined and *disabled* --
-   `require_selectable` rejects it, and TDD §13 binds that rejection to a
-   **422 with the reason, never a silent clamp**.
+3. **Levels 0-2 are selectable** since 4F.5; 3-5 are rejected, and TDD 4D §13
+   binds that rejection to a **422 with the reason, never a silent clamp**.
+   *(Read "Levels 0-1 are selectable. Level 2 is defined and disabled" until
+   4F.5 enabled it.)*
 
-**No function here can return an "execute" verdict.** `permits_execution`
-exists and returns `False` unconditionally: 4D's level set contains no level
-at which NOVA acts unattended, and a caller that needs to ask the question
-gets a straight answer instead of the question being absent and later
-answered by assumption.
+**`permits_execution` answers eligibility, not permission.** It returns `True`
+from Level 2 up, and that on its own authorizes nothing: `domain/decision.py`
+dispatches only when every precondition in TDD 4F.5 §22.4 holds independently.
+A caller that needs to ask the question gets a straight answer instead of the
+question being absent and later answered by assumption.
+
+*(In 4D this returned `False` unconditionally. The guarantee that a flag alone
+cannot create execution is unchanged -- it now lives in
+`decision._require_execution_path`, which asserts the execution path is wired
+rather than that the flag is unset.)*
 """
 
 from __future__ import annotations
@@ -67,9 +73,12 @@ def require_selectable(level: AutonomyLevel) -> AutonomyLevel:
     """Return `level` unchanged, or raise `LevelNotSelectableError`.
 
     **Returns the level rather than a bool** so a caller cannot forget to act
-    on a `False`. Level 2 is rejected here even though it is *defined*: D-1
-    assigns enabling it to 4F, and TDD §16 control 2 requires that making it
-    selectable fails the suite.
+    on a `False`. Levels 3-5 are rejected because they are named in the
+    vocabulary without defined semantics.
+
+    *(Until 4F.5 this also rejected Level 2, which was defined but disabled by
+    D-1. 4F.5 enabled it; selecting it grants eligibility, not permission --
+    see `permits_execution`.)*
     """
     if level not in SELECTABLE_LEVELS:
         if level in DEFINED_LEVELS:
@@ -93,15 +102,27 @@ def permits_proposal(level: AutonomyLevel) -> bool:
 
 
 def permits_execution(level: AutonomyLevel) -> bool:
-    """**Always `False` in 4D, at every level, by construction.**
+    """**Eligibility, never permission** -- TDD 4F.5 **D-4F5-4**, §22.4.
 
-    Level 2 (*"Low risk actions execute automatically"*) is the first level
-    whose Bible text implies an execute branch, and D-1 defers enabling it to
-    4F. Until then there is no level -- selectable or merely defined -- at
-    which this returns `True`, and TDD §16 control 1 requires that forcing
-    otherwise fails the suite.
+    `True` from Level 2 (`ASSISTED`, *"Low risk actions execute
+    automatically"*) upward. **This answers one question only: is this level
+    the kind of level at which unattended execution is conceivable at all?**
+
+    It is emphatically **not** an authorization. A `True` here means nothing on
+    its own: `domain/decision.py` dispatches only when every precondition in
+    §22.4 holds independently -- an affirmative in-bounds `AUTO_EXECUTE`
+    policy, the Permission Matrix, no Trust denial, the execution fields, a
+    wired dispatch path, and no deny gate. Any one of them failing produces a
+    suggestion and no `action.execute`.
+
+    *(This returned `False` unconditionally in 4D -- "there is no level,
+    selectable or merely defined, at which this returns `True`" -- because D-1
+    deferred enabling Level 2 to 4F. 4F.5 is that milestone. The protection
+    against a flag-only enablement did not go away; it moved into
+    `_require_execution_path`, which now asserts the path exists rather than
+    that the flag is unset.)*
     """
-    return False
+    return level >= AutonomyLevel.ASSISTED
 
 
 def level_name(level: AutonomyLevel) -> str:

@@ -90,26 +90,54 @@ DEFINED_LEVELS: frozenset[AutonomyLevel] = frozenset(
 named in the vocabulary and deliberately undefined."""
 
 SELECTABLE_LEVELS: frozenset[AutonomyLevel] = frozenset(
-    {AutonomyLevel.OBSERVATION_ONLY, AutonomyLevel.SUGGESTIVE}
+    {AutonomyLevel.OBSERVATION_ONLY, AutonomyLevel.SUGGESTIVE, AutonomyLevel.ASSISTED}
 )
-"""**Only Levels 0 and 1 may be selected.** Level 2 is defined but disabled --
-decision **D-1** assigns enabling it to milestone 4F. `SELECTABLE_LEVELS` is
-deliberately a separate, smaller set than `DEFINED_LEVELS`: collapsing them
-would make "defined" and "enabled" the same idea, which is exactly the
-distinction D-1 turns on."""
+"""**Levels 0, 1 and 2 may be selected.** Level 2 was enabled by milestone
+**4F.5**, which is what decision **D-1** deferred it to; Levels 3-5 remain
+unselectable because they have no defined semantics (`DEFINED_LEVELS`).
+
+`SELECTABLE_LEVELS` stays a separate set from `DEFINED_LEVELS` even though they
+now coincide: the two ideas are still distinct -- a level could be defined and
+later disabled -- and collapsing them would erase the distinction D-1 turns on.
+
+*(This read `{OBSERVATION_ONLY, SUGGESTIVE}` with "Only Levels 0 and 1 may be
+selected. Level 2 is defined but disabled" until 4F.5. **Selecting Level 2 is
+not permission to execute** -- `permits_execution` grants eligibility only, and
+`domain/decision.py` requires every precondition in TDD 4F.5 §22.4
+independently.)*"""
 
 
 class DecisionOutcome(StrEnum):
-    """TDD §4.3's four outcomes. `EXECUTE` is **declared and unreachable** in
-    4D: no code path produces it, and `domain/decision.py` asserts that it
-    cannot be produced at a selectable level. It is named so that a future
-    milestone enabling Level 2 extends a known vocabulary rather than
-    inventing one, and so the negative control has something to force."""
+    """TDD 4D §4.3's four outcomes, plus `TIMEOUT` from 4F.5 -- five.
+
+    **`EXECUTE` became reachable in 4F.5**, which is exactly what naming it in
+    4D was for. *(This docstring read: "`EXECUTE` is **declared and
+    unreachable** in 4D: no code path produces it, and `domain/decision.py`
+    asserts that it cannot be produced at a selectable level. It is named so
+    that a future milestone enabling Level 2 extends a known vocabulary rather
+    than inventing one, and so the negative control has something to force."
+    The vocabulary was extended rather than invented, as intended.)*
+
+    Reaching `EXECUTE` still requires every precondition in TDD 4F.5 §22.4
+    independently; the level alone never produces it."""
 
     OBSERVE_ONLY = "observe_only"
     PROPOSE = "propose"
     DENY = "deny"
     EXECUTE = "execute"
+    TIMEOUT = "timeout"
+    """**4F.5 (D-4F5-3).** The `action.execute` RPC was dispatched and no reply
+    arrived within the bounded wait.
+
+    **Distinct from `DENY` and from an execution failure, deliberately.** A
+    denial means the gates refused; a failure means `action-engine` reported
+    one. This means neither: the request was accepted by the bus and the reply
+    did not come back in time.
+
+    **It does not claim the action did not run.** `action-engine` may have
+    executed it and simply replied late; the decision log records only what
+    this engine observed. Nothing is retried and nothing is dispatched a second
+    time -- one decision issues at most one RPC, ever."""
 
 
 class SuggestionStatus(StrEnum):
@@ -159,14 +187,40 @@ Bible's own list -- ten categories, that sequence, no additions."""
 
 
 class PolicyEffect(StrEnum):
-    """**There is deliberately no `ALLOW`** (TDD §6). An `allow` effect can
-    only matter where something would otherwise happen automatically -- Level
-    2+, which 4D does not enable -- so shipping it would mean shipping an
-    effect with no reachable behaviour, and inviting a later reader to assume
-    auto-execution exists."""
+    """**There is still deliberately no `ALLOW`** (TDD 4D §6). 4F.5 added
+    `AUTO_EXECUTE` instead, and the difference is not cosmetic: an `allow`
+    effect reads as something that could *overturn* a denial, which this one
+    can never do.
+
+    *(4D shipped only `DENY` and `REQUIRE_APPROVAL`, reasoning that an
+    affirmative effect "can only matter where something would otherwise happen
+    automatically -- Level 2+, which 4D does not enable". 4F.5 is the milestone
+    that enables it, so the effect now has reachable behaviour.)*
+
+    Stored as `TEXT` in `autonomy.policy.effect`, which has no CHECK
+    constraint, so adding a member needs no migration (TDD 4F.5 §9).
+    """
 
     DENY = "deny"
     REQUIRE_APPROVAL = "require_approval"
+    AUTO_EXECUTE = "auto_execute"
+    """**Affirmative, opt-in, and bounded** (TDD 4F.5 **D-4F5-1**, §22.1).
+
+    A matching `AUTO_EXECUTE` policy is the *only* thing that can lower
+    `GateReport.requires_approval` from its `True` default, and it does so only
+    at or below `RiskLevel.LOW`. Four properties hold by construction:
+
+    * **absence changes nothing** -- no policy, or no matching one, leaves
+      approval required, so an empty policy set is still not permissive;
+    * **`DENY` wins unconditionally**, at any policy ordering;
+    * **`REQUIRE_APPROVAL` wins over it** -- a tier an operator marked for
+      approval is not auto-executed because another policy also matched;
+    * **it is inert above `low`** -- matching a `moderate` request lowers
+      nothing.
+
+    It bypasses no later gate: the Permission Matrix, the execution-field
+    requirement, the dispatch-path check and `action-engine`'s own stage 3 all
+    still run."""
 
 
 class PolicyMatch(BaseModel):
