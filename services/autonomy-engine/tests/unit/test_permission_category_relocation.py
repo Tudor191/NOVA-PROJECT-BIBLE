@@ -21,9 +21,10 @@ def test_there_is_exactly_one_permission_category_type() -> None:
 
 
 def test_the_existing_import_path_still_resolves() -> None:
-    """Sixteen files in this engine import it from `domain.models`. The
-    re-export -- the same one `RiskLevel` already uses -- is what keeps every one
-    of them unchanged."""
+    """Fifteen other files in this engine -- six in `src/`, nine in `tests/` --
+    import it from `domain.models` (counted at base `4f1602a`). The re-export --
+    the same one `RiskLevel` already uses -- is what keeps every one of them
+    unchanged."""
     import nova_autonomy_engine.domain.models as models
 
     assert "PermissionCategory" in models.__all__
