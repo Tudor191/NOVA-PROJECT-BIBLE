@@ -32,6 +32,7 @@ from nova_contracts import (
     AgentOsRestartPlanRequestPayload,
     AgentOsTaskCompletedPayload,
     AttentionShiftedPayload,
+    AutonomyDecisionRequestedPayload,
     BudgetExceededPayload,
     CapabilityInvokeReplyPayload,
     CapabilityInvokeRequestPayload,
@@ -267,6 +268,14 @@ MODELS: list[type[BaseModel]] = [
     PerceptionConsentChangedPayload,
     PerceptionSensorHealthChangedPayload,
     ResponseShapingDirectivePayload,
+    # Phase 4F.6 -- `autonomy.decision.requested`, the internal trigger
+    # subject. Registered, so it must reach the TypeScript surface even though
+    # no browser code consumes it (the coverage test enforces exactly that);
+    # its `PermissionCategory` field is what gives the web client a generated
+    # copy of that vocabulary. `AutonomyDecisionReplyPayload` is deliberately
+    # absent: it is not a registered subject and no TypeScript consumer reads
+    # it -- the same reasoning that keeps `entities.py` out of this list.
+    AutonomyDecisionRequestedPayload,
 ]
 
 PACKAGE_ROOT = Path(__file__).resolve().parent.parent

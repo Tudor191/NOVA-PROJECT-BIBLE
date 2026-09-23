@@ -81,6 +81,18 @@ class ActiveThoughtORM(Base):
     """Nullable because *"not estimated"* is a real answer. A sentinel date
     would be a fabricated timestamp, which TDD 4F §2.2 forbids outright."""
 
+    proposed_action: Mapped[dict | None] = mapped_column(JSONB(none_as_null=True), nullable=True)
+    """**Phase 4F.6**, migration `0002`. Nullable JSONB, following this table's
+    existing JSONB columns. `NULL` is *"proposes no action"*; a present value is
+    a complete `ProposedAction`, whose validators -- not a CHECK -- are the
+    authority, per this class's docstring.
+
+    **`none_as_null=True` is load-bearing.** SQLAlchemy's JSON types default to
+    writing Python `None` as the JSON value `null`, which is *not* SQL `NULL`:
+    `proposed_action IS NULL` would be false for a thought that proposes
+    nothing. The real-Postgres tier caught exactly that before merge
+    (`test_no_proposal_is_sql_null_not_a_json_value`)."""
+
     attention_layer: Mapped[str] = mapped_column(Text, nullable=False)
     """`TEXT` holding an `AttentionLayer` value. No CHECK pins the set: Part 6
     names five layers and widening that set later should be a migration, not a

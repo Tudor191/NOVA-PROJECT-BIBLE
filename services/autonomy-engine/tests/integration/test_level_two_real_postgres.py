@@ -576,12 +576,21 @@ async def test_the_real_bus_refuses_any_subject_but_action_execute(
             )
 
 
-async def test_this_engine_still_subscribes_to_nothing(bus: BoundEventBus) -> None:
-    """`SUBSCRIBABLE_SUBJECTS` is empty, so there is still no autonomy subject
-    that could leak anywhere."""
+async def test_this_engine_subscribes_to_nothing_but_the_trigger(bus: BoundEventBus) -> None:
+    """**Retargeted by Phase 4F.6, not retired.** The real bus admits the one
+    internal trigger subject and refuses everything else -- `action.execute`
+    included, which this engine requests and must never consume.
+
+    *(This test was `test_this_engine_still_subscribes_to_nothing`, with the
+    docstring: "`SUBSCRIBABLE_SUBJECTS` is empty, so there is still no autonomy
+    subject that could leak anywhere." Its one assertion is kept below
+    unchanged. Preserved per protocol §0.3.4.)*"""
 
     async def _handler(envelope):  # type: ignore[no-untyped-def]
         raise AssertionError("unreachable")
 
     with pytest.raises(SubjectNotAllowedError):
         await bus.subscribe("action.execute", _handler)
+    for forbidden in ("autonomy.decision.made", "autonomy.*", "cognitive_state.thought.promoted"):
+        with pytest.raises(SubjectNotAllowedError):
+            await bus.serve(forbidden, _handler, source_engine="autonomy-engine")

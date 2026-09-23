@@ -43,3 +43,17 @@ class Settings(BaseSettings):
     value to be tuned against real load, not a derived result, and TDD 4F §16
     control 5's spirit applies -- the cap must actually exclude something or the
     subsystem does nothing."""
+
+    decision_trigger_timeout_seconds: float = 20.0
+    """How long the producer waits for `autonomy-engine`'s **reply** to one
+    `autonomy.decision.requested` -- Phase 4F.6. **A reply-wait bound, not a
+    TTL**: A-4F6-4 keeps freshness OPEN and this does not decide it.
+
+    **Not a ratified value -- disclosed as an open implementation parameter in
+    4F.6's completion record.** The TDD specifies no reply bound for the
+    trigger. It must exceed `autonomy-engine`'s 15-second dispatch bound
+    (its `action_execute_timeout_seconds`), because the consumer's reply
+    follows a possible dispatch: any shorter and every successful Level-2
+    execution would be reported `unconfirmed`. 15 s for dispatch plus 5 s for
+    the decision and its persistence gives 20. A timeout here is reported as
+    `unconfirmed`, never as a failure, and is never retried."""

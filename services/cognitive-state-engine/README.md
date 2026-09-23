@@ -41,14 +41,43 @@ The repository is therefore not wired into `main.py` yet: nothing consumes it in
 4F.1, and wiring a dependency ahead of its consumer is the speculative work the
 TDD's scope rule excludes.
 
-## Owned events
+### Status update — 4F.6 (2026-09-23)
 
-**None, in either direction.**
+4F.6 adds the **initiative trigger** (TDD 4F.6, `docs/design/phase-4/10-tdd-4f6-initiative-trigger.md` §19):
+
+- an optional, all-or-nothing **`ProposedAction`** on each thought
+  (`domain/models.py`), stored in one nullable JSONB column (migration `0002`);
+- **`promotion_orchestration.promote_thought`** — a thought carrying a complete
+  `ProposedAction` and **promoted to `IMMEDIATE`** sends exactly one
+  `autonomy.decision.requested` request, with no retry;
+- **`clients/decision_trigger_client.py`** — the producer-side error boundary,
+  which reports `decided`, `rejected`, `degraded`, `unavailable`, `unconfirmed`
+  or `failed` and never raises.
+
+The trigger port is bound in `main.py`. The repository still is not:
+**nothing in this engine's running topology calls `promote_thought` yet**. The
+surface that drives promotions is 4F.7's, so CF-11 stays open. 4F.6 also added
+**no** Event Bus subscription. The 4F.6 row in the table above expected "the
+Event Bus subscriptions that feed it", but the ratified trigger condition is a
+promotion, not an inbound event. That row is kept as it was written.
+
+## Owned events
 
 | Direction | Subject | Payload |
 |---|---|---|
-| Publish | *(none — ratified decision D-4F-6)* | — |
-| Subscribe | *(none in 4F.1; existing subjects arrive with their handlers in 4F.6)* | — |
+| Request (publish allow-list) | `autonomy.decision.requested` — **internal**, request/reply, served only by `autonomy-engine` (D-4F-9, 4F.6) | `AutonomyDecisionRequestedPayload` |
+| Subscribe | *(none)* | — |
+
+*(Until 4F.6 this section read **"None, in either direction."**, with the rows
+"Publish — *(none — ratified decision D-4F-6)*" and "Subscribe — *(none in
+4F.1; existing subjects arrive with their handlers in 4F.6)*". Preserved per
+protocol §0.3.4.)*
+
+**D-4F-6 still stands.** The trigger is a *request for a decision*, not a
+cognitive-*state* subject. It is not in `PUBLIC_TOPICS`, it is not
+browser-visible, and it is not exposed through either gateway. The payload
+carries no `subject_id` and no `user_id`: `autonomy-engine` derives the first
+and resolves the second itself.
 
 D-4F-6: **no cognitive-state Event Bus subject is added**. `PUBLIC_TOPICS` is
 `ws-gateway`'s sole browser allow-list, so a realtime panel would need a *public*
@@ -58,6 +87,11 @@ be consumed, not to be complete (D-4D-1).
 The empty publish allow-list is also the structural half of §6.2's *must not
 publish `action.execute`*: `BoundEventBus.publish()` checks that set, so there is
 no subject at which an execution request could be emitted.
+
+*(4F.6: the allow-list is no longer empty. It holds exactly
+`autonomy.decision.requested`, and the property above is unchanged:
+`action.execute` is still not in it, and `BoundEventBus` checks the set on
+`request()` as well as `publish()`.)*
 
 See `events/published.py` / `events/subscribed.py` for the enforced allow-lists.
 
@@ -76,6 +110,11 @@ expose only normalized state intended for the UI — never raw sensor events.
 One table, `cognitive_state.active_thought`, in its own schema. **Additive only;
 zero existing tables altered.**
 
+Migration `0002` (4F.6) adds **one nullable `JSONB` column**, `proposed_action`,
+and nothing else. No existing column or CHECK constraint changes. SQL `NULL`
+means *"proposes no action"*: the ORM maps it with `none_as_null=True`, so the
+value is never a JSON `null`.
+
 Focus is **derived, not stored** — it is a pure function of the stored thoughts
 plus the caller's signals — and an Attention Layer is a **column on a thought**,
 not an entity. Neither gets a table, and no table exists here for a later slice.
@@ -92,6 +131,6 @@ timestamps were silently discarded.
 # Default tier (no Docker) -- ADR-033
 uv run --package cognitive-state-engine pytest services/cognitive-state-engine/tests -m "not real_infra"
 
-# Real-Postgres tier -- requires Docker
+# Real-Postgres / real-NATS tier -- requires Docker
 uv run --package cognitive-state-engine pytest services/cognitive-state-engine/tests -m real_infra
 ```

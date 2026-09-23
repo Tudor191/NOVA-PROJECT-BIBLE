@@ -386,7 +386,20 @@ def test_control_7_the_gateway_cannot_route_an_internal_path_at_all() -> None:
 
 
 def test_control_8_no_autonomy_subject_is_registered_anywhere() -> None:
-    assert [s for s in known_subjects() if s.startswith("autonomy.")] == []
+    """**Retargeted by Phase 4F.6, not retired.** TDD 4F D-4F-9 (ratified in
+    TDD 4F.6 §14, A-4F6-6) grants exactly one **internal** `autonomy.*`
+    subject, `autonomy.decision.requested`, owned by `autonomy-engine` and
+    `cognitive-state-engine`. The registry-wide half of this control therefore
+    pins that exact set: a second `autonomy.*` subject still fails here. 4E's
+    own claim -- this engine declares none -- is unchanged and is the next
+    test.
+
+    *(Until 4F.6 this test's whole body was `assert [s for s in
+    known_subjects() if s.startswith("autonomy.")] == []`, with no docstring.
+    Preserved per protocol §0.3.4.)*"""
+    assert [s for s in known_subjects() if s.startswith("autonomy.")] == [
+        "autonomy.decision.requested"
+    ]
 
 
 def test_control_8_this_engine_declares_no_autonomy_subject() -> None:
