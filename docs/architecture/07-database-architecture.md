@@ -19,6 +19,16 @@ the Bible's requirements well.
 | MinIO / S3 | memory-engine, knowledge-engine, nova-core (backups) | File attachments, documents, PDFs, memory/world snapshots, backup archives |
 | TimescaleDB (Phase 2+) | world-model-engine | System health time series (CPU/GPU/RAM/temperature/network history) |
 
+> **Corrected 2026-09-23 (Phase 4F.6), additively.** `cognitive-state-engine`
+> does **not** keep Active Thoughts or Attention Layers in Redis. Since Phase
+> 4F.1 they have lived in **PostgreSQL**, in the engine's own schema,
+> `cognitive_state.active_thought` (migration `0001`). The attention layer is a
+> column on that table, and Focus is derived rather than stored. Phase 4F.6's
+> migration `0002` adds exactly **one nullable `JSONB` column**,
+> `proposed_action`. No `cog:*` Redis key exists anywhere in the repository.
+> The Redis row above and the two `cog:*` rows in §5 are left as written, as
+> the original design prediction.
+
 **Rule:** exactly one engine owns each table/collection/graph label. No engine queries
 another engine's schema directly, even within the same physical Postgres instance —
 cross-engine data access is always through the owning engine's API/events. Each engine
