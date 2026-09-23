@@ -282,6 +282,32 @@ unmutated baseline first.
   33/33 and 46/46 every run.
 - **No flake was observed.**
 
+> **Correction, 2026-09-23 (pre-merge audit of PR #37), additively.** The
+> second bullet above is **inaccurate about how the runs were made**, and is
+> preserved as originally written.
+>
+> **`pytest-randomly` is not installed in this environment.** `import
+> pytest_randomly` raises `ModuleNotFoundError`, it is not declared in any
+> `pyproject.toml` or in `uv.lock`, and the only `pytest11` plugins installed
+> are `anyio`, `asyncio`, `nova_testkit` and `pytest_cov`. The `-p no:randomly`
+> flag used in those runs therefore did nothing.
+>
+> **What actually happened:**
+>
+> - **The original 10 repeated runs used pytest's normal order**, not a random
+>   one. Each still passed every time: 33/33 for the autonomy-engine file and
+>   46/46 for the three cognitive-state-engine files.
+> - **The later pre-merge audit ran the tests in explicitly shuffled order.**
+>   Each run shuffled the collected test ids with `shuf` and passed them to
+>   pytest in that order. Each run was then checked: the first test pytest
+>   actually executed had to be the first id after shuffling.
+> - **All 20 shuffled runs passed.** That is 10 per engine, at 33/33 and 46/46,
+>   with the randomised order confirmed on every run. They ran in an isolated
+>   `git archive` export of `0b155ce`.
+> - **No implementation behaviour and no test assertion changed** because of
+>   this correction. Only this record's description of the method was wrong.
+>   The real-infra bullet above is unaffected: it never claimed random order.
+
 ---
 
 ## 6. Category 10 — real infrastructure
@@ -504,6 +530,46 @@ surface, and §11.4 still forbids one.
   message argument, per Design A's ratified *"information captured"* row;
   disclosed as **F-7**.
 - **L-17** and **L-18**: OPEN, and untouched.
+
+### 8.4 Non-blocking observation: the web-client's own `PERMISSION_CATEGORIES` (added 2026-09-23)
+
+*Added by the pre-merge audit of PR #37. It is not one of F-1 … F-7, and it
+reclassifies none of them.*
+
+**What exists.** The web-client already keeps its own copy of the permission
+vocabulary, in `apps/web-client/src/entities/autonomy.ts`:
+
+- a hand-maintained `PERMISSION_CATEGORIES` list (line 43);
+- a derived TypeScript type, `export type PermissionCategory` (line 207).
+
+Both date from **Phase 4D**, commit `de6dbc9`. Today the list holds the same
+ten values, in the same order, as the canonical
+`nova_contracts.events.autonomy.PermissionCategory`; I checked this
+programmatically at `0b155ce`. Because it is maintained by hand, nothing
+enforces that it stays that way.
+
+**Why 4F.6 leaves it alone:**
+
+- **4F.6 does not modify the web-client.** `git diff --name-only 4f1602a
+  0b155ce -- apps/` lists **0 files**.
+- **The web-client is outside the ratified 4F.6 implementation boundary.** TDD
+  4F.6 §12 lists `apps/web-client/src/` as a non-goal, and §19 row 21 requires
+  it to have **0 files** changed.
+- **So the web-client's copy is not reconciled with the canonical enum in this
+  slice.** Whether it should import the generated TypeScript contract instead
+  is a question for a later web-client / UI scope.
+
+**What it does not change:**
+
+- **The 4F.6 contract result is unchanged.** §19 row 19 requires one canonical
+  `PermissionCategory`, living in `nova_contracts/events/autonomy.py`, with
+  *"no duplicate in `cognitive-state-engine`; no second type"*. That holds:
+  there is exactly one Python definition, and the web-client list is a browser
+  REST-client vocabulary, not an Event Bus contract.
+- **It is a follow-up item, not an implementation blocker.** It already
+  existed before this slice and needs documentation follow-up. **No ledger row
+  is opened for it by this correction**, so the ledger count in §1 and §10 is
+  unchanged.
 
 ---
 

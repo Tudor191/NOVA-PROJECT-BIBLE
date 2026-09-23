@@ -968,10 +968,49 @@ Moves into RATIFIED are marked **[ratified]**.
 | **A-4F6-4 — TTL** | **No TTL is introduced.** 4F.5's 15-second dispatch timeout is **not reused** — it bounds a reply, not freshness. **`EventEnvelope.occurred_at` remains the freshness reference** if a TTL is later introduced. **No numeric value selected** |
 | **Stale-trigger semantics** | **OPEN.** "Stale" may mean **age** or **supersession**; a stale trigger is processed normally today, and every gate still runs |
 | **`observability.py` packaging** | Whether `autonomy-engine` gains one. **Packaging only**: the *behaviour* is already ratified above, and this row decides nothing about it |
-| **Logging `correlation_id`** | No log call in the repository carries one; adopting it would establish a convention |
+| **Logging `correlation_id`** | No log call in the repository carries one; adopting it would establish a convention *(the first clause is factually wrong — corrected 2026-09-23 in the note below this table; the row stays OPEN)* |
 | **CF-9** | **OPEN** — status. 4F.6 contributes nothing |
 | **CF-10** | **OPEN** — status. Structurally blocked by §11.4, which **§14 does not amend** |
 | **CF-11** | **OPEN** — status. 4F.6 evidences claims 1–2 only |
+
+> **Correction, 2026-09-23 (pre-merge audit of PR #37), additively.** The
+> *"Logging `correlation_id`"* row above says *"No log call in the repository
+> carries one."* **That is factually wrong.** The row is preserved as ratified.
+>
+> At `4f1602a`, the base 4F.6 was built on, log calls already carry
+> `correlation_id`:
+>
+> - **`agent-os/supervisors/src/nova_agent_os_supervisors/clients/decision_memory_client.py:33`**:
+>   `logger.info(...)`, passing it as a message argument (`… correlation_id=%s`).
+> - **`services/planning-engine/src/nova_planning_engine/events/handlers.py:83`**:
+>   `logger.warning("decomposition failed", extra={… "correlation_id": …})`.
+> - **`services/planning-engine/src/nova_planning_engine/events/handlers.py:118`**:
+>   `logger.info("decomposition succeeded and persisted", extra={… "correlation_id": …})`.
+>
+> The pre-merge audit identified those three. **A fourth was found while this
+> correction was prepared**, by an AST scan of all 145 log calls under `src/`
+> at `4f1602a`:
+>
+> - **`services/api-gateway/src/nova_api_gateway/api/forward.py:113`**:
+>   `logger.warning("upstream unavailable", extra={… "correlation_id": …})`.
+>
+> All four files are unchanged by 4F.6.
+>
+> **What this correction does not change:**
+>
+> - **The row stays OPEN.** The existing calls use two different mechanisms, a
+>   message argument and structured `extra`, across three components, with no
+>   shared rule. That is unratified practice, not a convention. **Their
+>   existence does not ratify a project-wide logging standard.**
+> - **4F.6 introduces no new logging convention** and no logging
+>   infrastructure. Its three Design A log lines carry `correlation_id` as a
+>   message argument because §9.1's ratified Design A lists it under
+>   *"Information captured"*. The 4F.6 completion record discloses this as
+>   **F-7**, which stays open.
+> - **Whether and how `correlation_id` logging should be standardized remains
+>   an open concern.** The second clause of the row, that adopting it would
+>   establish a convention, still describes that decision.
+> - **No production logging code is changed** by this correction.
 
 ### DEFERRED
 
