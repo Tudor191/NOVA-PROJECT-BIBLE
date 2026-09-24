@@ -24,6 +24,13 @@ this subject is internal and is never browser-reachable.
 
 `SUBSCRIBABLE_SUBJECTS` stays **empty**: this engine consumes nothing from the
 bus.
+
+*(Phase 4F.6 note: that last sentence is no longer true. 4F.6 makes this engine
+the one consumer of the internal `autonomy.decision.requested` trigger --
+see `events/subscribed.py`. **This set is unchanged by 4F.6:** `action.execute`
+is still the only subject this engine may publish, and the registry went to
+120 for the trigger alone. The sentence is preserved above per protocol
+§0.3.4.)*
 """
 
 from __future__ import annotations

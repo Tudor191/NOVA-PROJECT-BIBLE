@@ -18,6 +18,14 @@ subject, so this engine publishes nothing and subscribes to nothing... The bus
 is still bound rather than omitted so the guarantee is a **runtime** one." The
 binding-rather-than-omitting choice is what made 4F.5's producer a one-line
 allow-list change instead of new wiring.)*
+
+**4F.6: the engine now subscribes to exactly one subject**, the internal
+`autonomy.decision.requested` trigger, through one `serve()` below. Its handler
+delegates to `decision_orchestration.handle_decision_request` -- the first
+production caller of `decide()` -- with the same repository, trust source and
+dispatcher the rest of the app uses, and `primary_user_id` as the only
+identity. The paragraph above is preserved as 4F.5 wrote it; its sentence
+"`SUBSCRIBABLE_SUBJECTS` stays empty" held until this slice.
 """
 
 from __future__ import annotations
@@ -26,6 +34,8 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from nova_contracts import EventEnvelope
+from nova_contracts.events.autonomy import AutonomyDecisionReplyPayload
 from nova_eventbus_sdk import BoundEventBus, get_event_bus
 from nova_observability import configure_observability, get_logger, prometheus_asgi_app
 from nova_service_kit import create_engine, create_session_factory
@@ -37,6 +47,10 @@ from nova_autonomy_engine.clients.conversational_trust import (
     UnavailableConversationalTrustSource,
 )
 from nova_autonomy_engine.config import Settings
+from nova_autonomy_engine.decision_orchestration import (
+    DECISION_TRIGGER_SUBJECT,
+    handle_decision_request,
+)
 from nova_autonomy_engine.domain.ports import (
     ActionDispatchPort,
     AutonomyRepository,
@@ -49,6 +63,24 @@ from nova_autonomy_engine.repository.postgres_autonomy_repository import (
 )
 
 logger = get_logger("autonomy-engine")
+
+
+def _make_decision_request_handler(app: FastAPI):  # type: ignore[no-untyped-def]
+    """The `serve()` handler for `autonomy.decision.requested` -- a thin
+    adapter from `app.state` to the orchestration module, in the shape of
+    `action-engine`'s `_make_execute_request_handler`."""
+
+    async def handle(envelope: EventEnvelope) -> AutonomyDecisionReplyPayload:
+        state = app.state
+        return await handle_decision_request(
+            envelope,
+            repository=state.repository,
+            trust_source=state.trust_source,
+            dispatcher=state.dispatcher,
+            user_id=state.settings.primary_user_id,
+        )
+
+    return handle
 
 
 def create_app(
@@ -88,6 +120,14 @@ def create_app(
         # rather than in the adapter.
         app.state.dispatcher = dispatcher or ActionDispatchClient(
             bus, timeout_seconds=settings.action_execute_timeout_seconds
+        )
+        # 4F.6: the initiative trigger's one consumer. Registered after every
+        # dependency above is on `app.state`, so no trigger can arrive at a
+        # handler that is not yet wired.
+        await bus.serve(
+            DECISION_TRIGGER_SUBJECT,
+            _make_decision_request_handler(app),
+            source_engine="autonomy-engine",
         )
         app.state.ready = True
         yield

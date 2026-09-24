@@ -456,6 +456,7 @@ async def decide(
     trust_source: ConversationalTrustSource,
     dispatcher: ActionDispatchPort | None = None,
     now: datetime | None = None,
+    subject_id: UUID | None = None,
 ) -> DecisionResult:
     """Produce one decision.
 
@@ -469,6 +470,14 @@ async def decide(
     one gets 4D's behaviour exactly: proposals and denials, never execution.
     *(The docstring read "**Never executes anything**, at any level." until
     4F.5 enabled Level 2.)*
+
+    **4F.6 (A-4F6-3, Layer 1):** `subject_id` lets the orchestration boundary
+    supply the decision's identity -- `decision_orchestration` derives it from
+    the trigger envelope's `event_id`, so a redelivered envelope yields the same
+    `subject_id`, the same `action_id` and `action-engine`'s existing replay.
+    It is a **keyword on this function, never a field on `DecisionRequest`**:
+    nothing a producer sends can reach it. Omitted, a fresh `uuid4()` is minted
+    exactly as before, so every existing caller is unchanged.
     """
     _require_execution_path(level, dispatcher)
     moment = now or datetime.now(UTC)
@@ -476,8 +485,8 @@ async def decide(
     # `subject_id` shape. Doc 07's column is `action_id UUID NOT NULL`, so a
     # denied decision still needs an id -- minting one here makes a denial a
     # first-class, queryable log row rather than a row with a synthetic
-    # sentinel.
-    subject_id = uuid4()
+    # sentinel. 4F.6: a caller-derived id is used instead when one is given.
+    subject_id = subject_id if subject_id is not None else uuid4()
 
     gates = evaluate_gates(request, policies=policies, grants=grants)
     checks = gates.policy_checks

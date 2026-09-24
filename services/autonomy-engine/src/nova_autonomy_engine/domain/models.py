@@ -26,6 +26,7 @@ from datetime import UTC, datetime
 from enum import IntEnum, StrEnum
 from uuid import UUID, uuid4
 
+from nova_contracts.events.autonomy import PermissionCategory
 from nova_contracts.events.planning import RiskLevel
 from pydantic import BaseModel, Field
 
@@ -151,22 +152,15 @@ class SuggestionStatus(StrEnum):
     EXPIRED = "expired"
 
 
-class PermissionCategory(StrEnum):
-    """Bible Part 14 "PERMISSION MATRIX" -- the ten categories, verbatim and in
-    the Bible's own order. `PERMISSION_CATEGORY_ORDER` pins the ordering
-    separately because `StrEnum` membership alone would let a later edit
-    reorder them silently."""
-
-    READ = "read"
-    ANALYZE = "analyze"
-    RECOMMEND = "recommend"
-    CREATE = "create"
-    MODIFY = "modify"
-    DELETE = "delete"
-    EXECUTE = "execute"
-    DEPLOY = "deploy"
-    PURCHASE = "purchase"
-    COMMUNICATE = "communicate"
+# `PermissionCategory` -- Bible Part 14's ten permission categories -- is
+# defined in `nova_contracts.events.autonomy` and re-exported through this
+# module's `__all__`, exactly as `RiskLevel` is. **Phase 4F.6, A-4F6-2b Option
+# A.** *(It was defined here, in this position, until 4F.6 put the vocabulary on
+# the wire: `cognitive-state-engine` authors a category and this engine
+# evaluates every permission gate against it, and ADR-004 forbids either
+# importing the other. It was moved, not copied, so there is still exactly one
+# definition, and every `from nova_autonomy_engine.domain.models import
+# PermissionCategory` in this engine resolves to it unchanged.)*
 
 
 PERMISSION_CATEGORY_ORDER: tuple[PermissionCategory, ...] = (

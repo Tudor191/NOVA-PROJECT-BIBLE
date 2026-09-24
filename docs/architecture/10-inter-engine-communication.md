@@ -96,6 +96,20 @@ Every row cites the Bible passage it implements.
 | 17 | Engine crash | nova-core detects missed heartbeat → `nova.module.status_changed {status: down}` | nova-core restarts the module; on recovery the module replays missed JetStream events; dependent engines are notified | Part 20 "Fault Tolerance", "Recovery Engine" |
 | 18 | Mode change (e.g., user starts gaming) | any engine or user action → `nova.mode.changed {mode: "gaming"}` | communication-engine silences non-critical notifications; autonomy-engine adjusts interruption thresholds; world-model-engine raises Attention on performance monitoring | Part 6 "Attention shifts... if gaming begins, performance monitoring becomes dominant"; Part 13 "Communication Policies" |
 
+> **Added 2026-09-23 (Phase 4F.6), additively.** Rows 8 and 13 predicted how
+> autonomy would be reached. The initiative path as actually built is:
+> **`cognitive-state-engine` → `autonomy.decision.requested`** (internal
+> request/reply) **→ `autonomy-engine`**. It fires when a thought carrying a
+> complete `ProposedAction` is promoted to the `IMMEDIATE` attention layer.
+> `autonomy-engine` derives the decision's identity from the envelope's
+> `event_id` and reads level, policies and grants server-side for
+> `primary_user_id`. It then runs the existing Policy → Permission → Trust →
+> Level decision. **Only at Level 2**, with every TDD 4F.5 §22.4 precondition
+> met, does it request **`action.execute`** from `action-engine`. The producer
+> never publishes `action.execute` and never names a user or a decision
+> identity. See [TDD 4F.6](../design/phase-4/10-tdd-4f6-initiative-trigger.md)
+> §19. Rows 8 and 13 are left as written: neither of their subjects exists.
+
 ## 3. Synchronous vs. asynchronous calls
 
 Not every cross-engine interaction should be a fire-and-forget event — some steps in

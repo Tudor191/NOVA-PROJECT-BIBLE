@@ -115,3 +115,4 @@ export type { PerceptionAddresseeSignalCandidatePayload } from "./PerceptionAddr
 export type { PerceptionConsentChangedPayload } from "./PerceptionConsentChangedPayload";
 export type { PerceptionSensorHealthChangedPayload } from "./PerceptionSensorHealthChangedPayload";
 export type { ResponseShapingDirectivePayload } from "./ResponseShapingDirectivePayload";
+export type { AutonomyDecisionRequestedPayload } from "./AutonomyDecisionRequestedPayload";

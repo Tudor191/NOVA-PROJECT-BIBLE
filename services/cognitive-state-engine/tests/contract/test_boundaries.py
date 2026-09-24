@@ -57,11 +57,26 @@ def test_there_is_source_to_scan() -> None:
     assert len(modules) >= 8, f"expected a populated package, found {len(modules)} modules"
 
 
-def test_control_11_this_engine_publishes_nothing() -> None:
-    """D-4F-6: no cognitive-state Event Bus subject, in 4F.1 or later. An empty
-    publish allow-list is also the structural half of §6.2's *must not publish
-    `action.execute`*: there is no subject at which one could be emitted."""
-    assert frozenset() == PUBLISHABLE_SUBJECTS
+def test_control_11_this_engine_publishes_the_trigger_and_nothing_else() -> None:
+    """**Retargeted by Phase 4F.6, not retired** -- TDD 4F D-4F-9 (4F.6 §14),
+    replacement property from TDD 4F.6 §3.1: *publishes
+    `autonomy.decision.requested` and nothing else.*
+
+    The structural half of §6.2's *must not publish `action.execute`* is
+    preserved exactly: `BoundEventBus` checks this set on `publish()` and
+    `request()`, and `action.execute` is not in it, so there is still no subject
+    at which an execution request could be emitted. Asserted explicitly below
+    rather than left implied by the equality.
+
+    *(This test was `test_control_11_this_engine_publishes_nothing`, asserting
+    `frozenset() == PUBLISHABLE_SUBJECTS`, with the docstring: "D-4F-6: no
+    cognitive-state Event Bus subject, in 4F.1 or later. An empty publish
+    allow-list is also the structural half of §6.2's *must not publish
+    `action.execute`*: there is no subject at which one could be emitted."
+    D-4F-6 still holds -- the trigger publishes no cognitive state. Preserved
+    per protocol §0.3.4.)*"""
+    assert frozenset({"autonomy.decision.requested"}) == PUBLISHABLE_SUBJECTS
+    assert "action.execute" not in PUBLISHABLE_SUBJECTS
 
 
 def test_the_subscribe_allow_list_is_empty_until_a_handler_exists() -> None:

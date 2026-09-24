@@ -120,6 +120,19 @@ nova.heartbeat|nova.mode.changed|nova.module.status_changed
 > The prediction is corrected here rather than the code changed to match it —
 > a subject nothing publishes is one a subscriber waits on forever.
 
+> **Added 2026-09-23 (Phase 4F.6), additively.** The first `autonomy.*`
+> subject that exists is **not** either name listed above. It is
+> **`autonomy.decision.requested`**: an **internal** request/reply subject
+> (TDD 4F D-4F-9, ratified in
+> [TDD 4F.6](../design/phase-4/10-tdd-4f6-initiative-trigger.md) §14).
+> `cognitive-state-engine` produces it, and `autonomy-engine` is its **only**
+> consumer, through one `serve()`. It is **not** in `ws-gateway`'s
+> `PUBLIC_TOPICS`, which is still 18 entries, and no browser or gateway can
+> reach it. The reply, `AutonomyDecisionReplyPayload`, is deliberately **not**
+> a registered subject; the registry holds 120. `autonomy.decision.made` and
+> `autonomy.approval.requested` above are still unbuilt reservations, and
+> 4F.6 claims neither. The taxonomy line above is left as written.
+
 Every published event carries a common envelope (defined once in `nova-contracts`):
 
 ```python

@@ -1,26 +1,31 @@
 """Every subject Cognitive State Engine is permitted to publish. See ADR-004
 (docs/architecture/00-overview-and-decisions.md).
 
-**Empty, and deliberately so -- in 4F.1 and beyond.**
+**`autonomy.decision.requested` is the only entry, and that is the security
+property.** Phase 4F.6, TDD 4F D-4F-9 (4F.6 §14).
 
-TDD 4F §11.3 (ratified decision **D-4F-6**): this engine publishes **no Event
-Bus subject at all**. A cognitive-state subject was considered and declined --
-`PUBLIC_TOPICS` is `ws-gateway`'s sole browser allow-list, so a realtime panel
-would need a *public* subject, and the panel reads normalized state over REST
-instead (§12). D-4D-1's rule governs: a subject exists to be consumed, not to be
-complete, and no non-UI consumer of cognitive state exists.
+This engine delivers its initiative trigger to `autonomy-engine` over one
+**internal**, request/reply subject. It is never in `PUBLIC_TOPICS`, never
+browser-visible and never gateway-exposed; exactly one engine serves it.
 
-**This emptiness also carries a security property.** TDD 4F §6.2 forbids this
-engine from publishing `action.execute`. An empty publish allow-list is the
-structural half of that prohibition: `BoundEventBus.publish()` checks this set,
-so there is no subject at which an execution request could be emitted even if
-some future edit tried. §16 control 11 is the test half.
+**The prohibition this set enforces is unchanged.** TDD 4F §6.2 forbids this
+engine from publishing `action.execute`, and `BoundEventBus` checks this
+frozenset on `publish()` and `request()` alike -- so there is still no subject
+at which an execution request could be emitted. The trigger is a *request for a
+decision*, and `autonomy-engine` -- the control plane -- decides. §16 control 11
+is the test half, retargeted to assert this exact set.
 
-The initiative trigger this engine gains in **4F.6** is a `DecisionRequest`
-handed to `autonomy-engine`, which is the control plane -- not an event
-published here.
+*(Until 4F.6 this set was **empty**, and this docstring read: "Empty, and
+deliberately so -- in 4F.1 and beyond. TDD 4F §11.3 (ratified decision
+**D-4F-6**): this engine publishes **no Event Bus subject at all**. ... The
+initiative trigger this engine gains in **4F.6** is a `DecisionRequest` handed
+to `autonomy-engine`, which is the control plane -- not an event published
+here." 4F.6's preparation found that statement, together with TDD 4F §11.4 and
+§12, left the trigger no transport at all; D-4F-9 resolves it with this one
+internal subject. **D-4F-6 still stands**: this is not a cognitive-*state*
+subject and publishes no cognitive state. Preserved per protocol §0.3.4.)*
 """
 
 from __future__ import annotations
 
-PUBLISHABLE_SUBJECTS: frozenset[str] = frozenset()
+PUBLISHABLE_SUBJECTS: frozenset[str] = frozenset({"autonomy.decision.requested"})

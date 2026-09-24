@@ -84,6 +84,11 @@ from nova_contracts.events.ai_model_orchestration import (
     WakePhraseDetectReplyPayload,
     WakePhraseDetectRequestPayload,
 )
+from nova_contracts.events.autonomy import (
+    AutonomyDecisionReplyPayload,
+    AutonomyDecisionRequestedPayload,
+    PermissionCategory,
+)
 from nova_contracts.events.capability import (
     Capability,
     CapabilityHandle,
@@ -266,6 +271,8 @@ __all__ = [
     "ArbitrationOutcome",
     "AttentionShiftedPayload",
     "AttentionState",
+    "AutonomyDecisionReplyPayload",
+    "AutonomyDecisionRequestedPayload",
     "BudgetExceededPayload",
     "BudgetScope",
     "Capability",
@@ -278,9 +285,9 @@ __all__ = [
     "CapabilityResolveRequestPayload",
     "ChannelType",
     "CognitivePriorityScore",
-    "CommunicationIntentDeliveredPayload",
     "CommunicationIntentDeliverReplyPayload",
     "CommunicationIntentDeliverRequestPayload",
+    "CommunicationIntentDeliveredPayload",
     "CommunicationSessionCloseReplyPayload",
     "CommunicationSessionCloseRequestPayload",
     "CommunicationSessionCompletedPayload",
@@ -375,6 +382,7 @@ __all__ = [
     "PerceptionSource",
     "PerceptionWakeDetectedPayload",
     "PerceptionWorkspaceObservedPayload",
+    "PermissionCategory",
     "PermissionSet",
     "PersonalContext",
     "PersonalityMemoryUpdatePayload",

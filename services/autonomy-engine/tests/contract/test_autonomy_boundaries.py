@@ -78,8 +78,16 @@ def _code_of(path: Path) -> str:
 
 
 # --- Negative control 8 ------------------------------------------------------
-def test_control_6_this_engine_publishes_action_execute_and_nothing_else() -> None:
-    """**TDD 4F §16 control 6**, which replaces 4D's control 8.
+def test_control_6_this_engine_publishes_action_execute_and_serves_only_the_trigger() -> None:
+    """**TDD 4F §16 control 6**, which replaces 4D's control 8 -- **retargeted
+    by Phase 4F.6, not retired.** The publish half is unchanged. The subscribe
+    half moves from *empty* to *exactly the one internal trigger subject* (TDD
+    4F.6 §19 rows 2 and 5), and that subject is asserted not to be public.
+
+    *(This test was `test_control_6_this_engine_publishes_action_execute_and_
+    nothing_else`, and asserted `frozenset() == SUBSCRIBABLE_SUBJECTS`. Its
+    original docstring follows unchanged; its last paragraph is no longer true.
+    Preserved per protocol §0.3.4.)*
 
     *(4D asserted both allow-lists were empty, per D-4D-1: "`autonomy-engine`
     publishes and subscribes to nothing. Both allow-lists stay empty." 4F.5
@@ -95,16 +103,32 @@ def test_control_6_this_engine_publishes_action_execute_and_nothing_else() -> No
     `SUBSCRIBABLE_SUBJECTS` is still **empty**: this engine consumes nothing,
     so there is still no autonomy subject that could leak anywhere."""
     assert frozenset({"action.execute"}) == PUBLISHABLE_SUBJECTS
-    assert frozenset() == SUBSCRIBABLE_SUBJECTS
+    assert frozenset({"autonomy.decision.requested"}) == SUBSCRIBABLE_SUBJECTS
+    assert not SUBSCRIBABLE_SUBJECTS & set(_public_topics())
+    # No wildcard: `BoundEventBus` matches with fnmatch, so `autonomy.*` here
+    # would silently admit every future autonomy subject.
+    assert not any("*" in subject or ">" in subject for subject in SUBSCRIBABLE_SUBJECTS)
 
 
-def test_control_8_no_autonomy_subject_is_registered_anywhere_in_the_repository() -> None:
-    """**Negative control 8**, global half. `known_subjects()` is the whole
-    repository's registry, so this also keeps `action-engine`'s own
-    `test_fork_e2_namespace_boundary_never_uses_autonomy_prefix` passing --
-    the reservation test 4D was told not to modify."""
-    offenders = [subject for subject in known_subjects() if subject.startswith("autonomy.")]
-    assert offenders == []
+def test_control_8_exactly_one_internal_autonomy_subject_exists() -> None:
+    """**Negative control 8**, global half -- **retargeted by Phase 4F.6, not
+    retired.** TDD 4F D-4F-9 (4F.6 §14) grants exactly one internal
+    `autonomy.*` subject for the initiative trigger, so the property becomes the
+    tighter one TDD 4F.6 §3.1 names: *exactly one `autonomy.*` subject exists,
+    it is internal, and it is not in `PUBLIC_TOPICS`.* A second one fails here.
+
+    *(This test was `test_control_8_no_autonomy_subject_is_registered_anywhere_
+    in_the_repository` and asserted the `autonomy.*` list was empty, with the
+    docstring: "`known_subjects()` is the whole repository's registry, so this
+    also keeps `action-engine`'s own `test_fork_e2_namespace_boundary_never_
+    uses_autonomy_prefix` passing -- the reservation test 4D was told not to
+    modify." That action-engine test checks only the two **specifically
+    reserved** names below, neither of which 4F.6 claims, so it passes
+    unmodified and `action-engine` is untouched. Preserved per protocol
+    §0.3.4.)*"""
+    autonomy_subjects = [s for s in known_subjects() if s.startswith("autonomy.")]
+    assert autonomy_subjects == ["autonomy.decision.requested"]
+    assert not set(autonomy_subjects) & set(_public_topics())
 
 
 def test_control_8_the_two_specifically_reserved_subjects_are_still_unclaimed() -> None:
@@ -116,8 +140,18 @@ def test_control_8_the_two_specifically_reserved_subjects_are_still_unclaimed() 
     assert "autonomy.decision.made" not in subjects
 
 
-def test_control_6_the_only_bus_call_is_a_request_for_action_execute() -> None:
-    """**TDD 4F §16 control 6, structural half**, and 4F.5's X-17.
+def test_control_6_the_only_bus_calls_are_one_request_and_one_serve() -> None:
+    """**TDD 4F §16 control 6, structural half**, and 4F.5's X-17 --
+    **retargeted by Phase 4F.6, not retired.** 4F.6 adds exactly one call site,
+    `bus.serve(DECISION_TRIGGER_SUBJECT, ...)` in `main.py`, and this test pins
+    it the way 4F.5 pinned its `.request()`: one serve, in one module, for one
+    subject. `publish`, `subscribe` and `open_stream` are still absent.
+
+    *(This test was `test_control_6_the_only_bus_call_is_a_request_for_action_
+    execute` and asserted that no `publish`, `subscribe`, `serve` or
+    `open_stream` call existed at all. Its original docstring follows
+    unchanged; its second bullet is no longer true. Preserved per protocol
+    §0.3.4.)*
 
     *(4D asserted no call to any `EventBus` method existed anywhere in the
     package -- the strongest available form of "publishes and subscribes to
@@ -131,7 +165,7 @@ def test_control_6_the_only_bus_call_is_a_request_for_action_execute() -> None:
       the decision log would record an execution it never saw confirmed.
     * **No `subscribe`, `serve` or `open_stream` call exists at all**, so this
       engine still consumes nothing from the bus."""
-    bus_methods = {"publish", "subscribe", "serve", "open_stream"}
+    bus_methods = {"publish", "subscribe", "open_stream"}
     offenders: list[str] = []
     for path in _source_files():
         for node in ast.walk(ast.parse(path.read_text())):
@@ -144,6 +178,24 @@ def test_control_6_the_only_bus_call_is_a_request_for_action_execute() -> None:
             ):
                 offenders.append(f"{path.name}:{node.lineno} {ast.unparse(node.func)}")
     assert offenders == []
+
+    # 4F.6: the one permitted `.serve()`, in `main.py`, on the trigger subject.
+    servers = [
+        (path.name, ast.unparse(node.args[0]))
+        for path in _source_files()
+        for node in ast.walk(ast.parse(path.read_text()))
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "serve"
+            and isinstance(node.func.value, ast.Attribute | ast.Name)
+            and "bus" in ast.unparse(node.func.value)
+        )
+    ]
+    assert servers == [("main.py", "DECISION_TRIGGER_SUBJECT")]
+    from nova_autonomy_engine.decision_orchestration import DECISION_TRIGGER_SUBJECT
+
+    assert DECISION_TRIGGER_SUBJECT == "autonomy.decision.requested"
 
     # The one permitted call: `.request()`, and only in the dispatch adapter.
     requesters = [
@@ -332,3 +384,46 @@ def test_the_only_identity_is_the_configured_primary_user() -> None:
     fields = set(Settings.model_fields)
     identity_fields = {name for name in fields if "user" in name or "ident" in name}
     assert identity_fields == {"primary_user_id"}
+
+
+# --- Phase 4F.6: the trigger subject stays internal (TDD 4F.6 §19 rows 15-18) --
+
+
+def _surface_sources() -> list[Path]:
+    """Every source file of the three surfaces a browser can reach: the two
+    gateways and the web client. Read as text, never imported -- control 10's
+    reasoning applies to another package's code just as to another engine's."""
+    roots = [
+        _REPO_ROOT / "services" / "api-gateway" / "src",
+        _REPO_ROOT / "services" / "ws-gateway" / "src",
+        _REPO_ROOT / "apps" / "web-client" / "src",
+    ]
+    suffixes = {".py", ".ts", ".tsx"}
+    return sorted(p for root in roots for p in root.rglob("*") if p.suffix in suffixes)
+
+
+def test_4f6_no_gateway_or_browser_surface_names_the_trigger_subject() -> None:
+    """**§19 rows 15-16.** Not in `PUBLIC_TOPICS` (asserted above), and not
+    named anywhere in `api-gateway`, `ws-gateway` or the web client either: no
+    prefix, no route, no proxy entry, no subscription."""
+    sources = _surface_sources()
+    assert sources, "the surface roots moved; this control would pass vacuously"
+    offenders = [
+        str(p.relative_to(_REPO_ROOT))
+        for p in sources
+        if "autonomy.decision.requested" in p.read_text(errors="ignore")
+    ]
+    assert offenders == []
+
+
+def test_4f6_no_trust_metric_subject_exists() -> None:
+    """**§19 row 17.** CF-10 stays open: no `TrustMetric` subject and no
+    `TrustMetric` RPC -- no registered subject names trust at all."""
+    assert [s for s in known_subjects() if "trust" in s.lower()] == []
+
+
+def test_4f6_adds_no_autonomy_migration() -> None:
+    """**§19 row 14.** No new table and no new migration in the `autonomy`
+    schema: Design A reports a lost trigger in the reply, not in a row."""
+    versions = sorted(p.name for p in (_SERVICE_ROOT / "alembic" / "versions").glob("*.py"))
+    assert versions == ["0001_initial_schema.py"]

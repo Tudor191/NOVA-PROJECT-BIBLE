@@ -23,7 +23,11 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
-from nova_cognitive_state_engine.domain.models import ActiveThought, AttentionLayer
+from nova_cognitive_state_engine.domain.models import (
+    ActiveThought,
+    AttentionLayer,
+    ProposedAction,
+)
 from nova_cognitive_state_engine.domain.ports import ThoughtNotFoundError
 from nova_cognitive_state_engine.repository.models import ActiveThoughtORM
 
@@ -52,6 +56,11 @@ def _to_domain(row: ActiveThoughtORM) -> ActiveThought:
         attention_layer=AttentionLayer(row.attention_layer),
         created_at=row.created_at,
         updated_at=row.updated_at,
+        proposed_action=(
+            ProposedAction.model_validate(row.proposed_action)
+            if row.proposed_action is not None
+            else None
+        ),
     )
 
 
@@ -70,6 +79,11 @@ def _values(thought: ActiveThought) -> dict:
         "attention_layer": thought.attention_layer.value,
         "created_at": thought.created_at,
         "updated_at": thought.updated_at,
+        "proposed_action": (
+            thought.proposed_action.model_dump(mode="json")
+            if thought.proposed_action is not None
+            else None
+        ),
     }
 
 
