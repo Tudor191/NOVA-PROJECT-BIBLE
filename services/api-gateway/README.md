@@ -24,6 +24,15 @@ new upstream cannot be reached until it is added deliberately.
 | `/v1/capabilities` | `capability-engine` |
 | `/v1/action` | `action-engine` |
 
+*(Updated 2026-09-26, Phase 4F.7, additively.)* The table above is the 4B set.
+4C added `/v1/agents` → `agent-os-kernel`, 4D `/v1/autonomy` → `autonomy-engine`
+and 4E `/v1/digital-twin` → `digital-twin-engine`; **4F.7 adds
+`/v1/cognitive-state` → `cognitive-state-engine`** (RS-5), making nine. The
+engine serves three `GET`s under it and answers 405 to any other method, which
+the gateway forwards unchanged; there is no `user_id` parameter to forward
+(identity is resolved in the engine). `domain/routing.py` is the authority, and
+`tests/integration/test_gateway.py` pins the exact set of nine.
+
 `executive-cognition-engine` and `nova-core` are deliberately **not** fronted —
 see `domain/routing.py`'s docstring for why. **`/internal/*` is never routable**
 ([11](../../docs/architecture/11-api-architecture.md) §3): it is not a special
@@ -43,7 +52,8 @@ request/response boundary only. Realtime delivery to the browser is
   cookie (the Phase-4-scoped session mechanism, decision **D-3**)
 - `GET /v1/auth/session` — is the current session still valid
 - `DELETE /v1/auth/session` — sign out
-- Forwarded prefixes — the five in the table above
+- Forwarded prefixes — the five in the table above *(nine since 4F.7; see the
+  note under the table)*
 - `GET /internal/health`
 - `GET /internal/readiness`
 - `GET /internal/metrics` — the Prometheus scrape endpoint, mounted as a
