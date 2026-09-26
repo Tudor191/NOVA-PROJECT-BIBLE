@@ -1286,6 +1286,26 @@ RS-3a.
 | 3 | The payload's `status` field is plain `str` with **no fixed vocabulary** (`events/perception.py`). Which values `perception-engine` publishes is a **TDD 4F.7 decision** | TDD 4F.7 §20, A-4F7-2 |
 | 4 | The Event Bus SDK's `subscribe()` is a core NATS subscription. A report dispatched while `cognitive-state-engine` is not subscribed is not delivered to it | TDD 4F.7 §15 and §18, as a known limitation |
 
+> **Updated 2026-09-26 (TDD 4F.7 §28: A-4F7-1 and A-4F7-2 RATIFIED),
+> additively.** The table above is preserved as written.
+>
+> **Consequence 3 is settled (A-4F7-2).** `perception-engine` publishes the
+> **existing lifecycle vocabulary**, `SensorState` (`perception-engine`
+> `domain/sensor.py` l.29):
+>
+> - The six values are `uninitialized`, `initialized`, `running`, `paused`,
+>   `stopped` and `failed`, read after each transition.
+> - `cognitive-state-engine` accepts exactly those six and **rejects anything
+>   else without storing it**.
+> - **No health-status vocabulary** is published or invented.
+> - **The payload contract is unchanged** (`status: str`).
+>
+> **The store is fixed (A-4F7-1).** Normalized state lives in the durable
+> current-state table `cognitive_state.sensor_state`, one record per sensor,
+> with **no history and no audit semantics**.
+>
+> Nothing here changes RS-3a or its accepted consequence.
+
 **Alternatives rejected:**
 
 - **Option A** (the panel consumes the realtime topic) contradicts §4.1's last

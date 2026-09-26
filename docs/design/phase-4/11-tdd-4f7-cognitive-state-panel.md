@@ -15,6 +15,17 @@
   production file, migration, test or workflow has been modified to prepare
   it.
 
+> **Updated 2026-09-26 (A-4F7-1 and A-4F7-2 RATIFIED — §28), additively.**
+> The status block above is preserved as written.
+>
+> - **A-4F7-1** fixes the sensor-state store: the durable current-state table
+>   `cognitive_state.sensor_state`, one record per sensor (§28.1).
+> - **A-4F7-2** fixes the vocabulary: `perception-engine`'s existing
+>   `SensorState` lifecycle values, used exactly as they are (§28.2).
+> - **No blocking decision remains, and this document is
+>   implementation-ready.** A-4F7-3 … A-4F7-6 stay PROPOSED with their
+>   recommended defaults. **Implementation has not begun.**
+
 | | |
 |---|---|
 | **Date** | 2026-09-26 |
@@ -149,6 +160,11 @@ are listed here so that none is discovered at review:
 |---|---|
 | `.github/workflows/pr-checks.yml` | The e2e job's `docker compose up` list (l.247–259) must gain **`cognitive-state-engine`**, or the panel's Playwright spec cannot reach its upstream. See A-4F7-5 for whether it must also gain `perception-engine` and its worker |
 | `uv.lock` (repository root) | Changes **only if A-4F7-4 (a)** adds `nova-service-kit` to `cognitive-state-engine`'s dependencies |
+
+> **Updated 2026-09-26 (A-4F7-1 RATIFIED — §28.1), additively.** D1's
+> condition *"if A-4F7-1 (a)"* is now met, so D1 is **unconditional**:
+> migration `0003` creates `cognitive_state.sensor_state`, and 4F.7 builds it.
+> The rest of this section is unchanged.
 
 **Unchanged: 0 files**, each asserted at closure:
 
@@ -295,6 +311,20 @@ SensorStateResponse:
 when the transition happened.** The envelope's `occurred_at` is set at
 dispatch (§3), up to about 10 s later. It is named for what it is.
 
+> **Updated 2026-09-26 (A-4F7-2 RATIFIED — §28.2), additively.** The model
+> above is preserved as written, but its `state` line is superseded:
+>
+> - **`state` is exactly `perception-engine`'s `SensorState` vocabulary:**
+>   `"uninitialized" | "initialized" | "running" | "paused" | "stopped" |
+>   "failed"`, returned unchanged. The name matches `perception-engine`'s own
+>   REST field.
+> - **The value `"unrecognized"` is withdrawn.** An unknown upstream value is
+>   rejected at the consumer and never stored or returned.
+> - **No health vocabulary** (`healthy`, `unhealthy` and the like) appears in
+>   any response.
+>
+> The other three fields are unchanged.
+
 ### 7.4 What every route enforces
 
 | Property | How |
@@ -339,6 +369,18 @@ sensor_lifecycle.transition(sensor, action, *, repository, correlation_id)
 | **`correlation_id`** | Consent revocation uses the revoked grant's `consent_id`, as `consent_changed` already does (`api/consent.py` l.82–86). The failure path uses the observation's `correlation_id`. Startup and shutdown have no request, so a fresh `uuid4()` is used |
 | **Filesystem sensor** | It reports `initialized` and `running` at startup, and `stopped` at shutdown. **It never reports `failed`**, because no such path exists (RS-3b). 4F.7 adds none |
 
+> **Updated 2026-09-26 (A-4F7-2 RATIFIED — §28.2), additively.** The
+> placeholder `status=<A-4F7-2>` above resolves to **`status=after`**, the
+> `SensorState` value `sensor.state()` returns **after** the transition.
+>
+> - **Every published `status` is one of the six lifecycle values** by
+>   construction.
+> - **`health_check()`'s `"healthy"` / `"unhealthy"` string is never
+>   published.**
+> - **The payload contract is unchanged:** `status: str`.
+>
+> P-23 and M17 (§28.4) hold this.
+
 ### 8.2 Subscription (`cognitive-state-engine`, RS-3a)
 
 - `SUBSCRIBABLE_SUBJECTS` becomes **exactly** `{"perception.sensor.health_changed"}`.
@@ -365,6 +407,28 @@ sensor_lifecycle.transition(sensor, action, *, repository, correlation_id)
 not recognise"*. It is **never mapped to `running` or `failed`**, since a guess
 in either direction is a fabricated sensor state (TDD 4F §2.2 property 5).
 `uninitialized` is never published, because no transition *enters* it.
+
+> **Updated 2026-09-26 (A-4F7-2 RATIFIED — §28.2), additively.** The table
+> and paragraph above are preserved as written, and superseded as follows.
+>
+> **Accepted values.** All six `SensorState` values are **accepted and stored
+> unchanged**, and the mapping is the identity:
+>
+> - `uninitialized`, which is never published in practice, but is a member of
+>   the vocabulary;
+> - `initialized`, `running`, `paused`, `stopped` and `failed`.
+>
+> **Every other value is rejected.** That includes `healthy`, `unhealthy`,
+> `unrecognized`, a different case, surrounding whitespace, and `""`. A
+> rejected report is **not stored**: the prior record keeps its own
+> `reported_at`, and the rejection is logged at warning.
+>
+> **The `unrecognized` state is withdrawn.** No sentinel value exists.
+>
+> The earlier concern still holds, and is now met by rejection rather than by
+> a sentinel: an unknown value is **never coerced** into a lifecycle value.
+> `domain/sensor_state.py` restates the six values as a copy of
+> `perception-engine`'s `SensorState`, and P-22 guards the copy against drift.
 
 ### 8.4 Persistence (**A-4F7-1**; the recommended option is shown)
 
@@ -396,6 +460,21 @@ INSERT … ON CONFLICT (sensor_id) DO UPDATE SET …
 - **Order.** A report older than the stored one never overwrites it.
 - **No `user_id` column**, because sensors are instance-wide (§6).
 - **No default rows and no seed.** An empty table is *"no report received"*.
+
+> **Updated 2026-09-26 (A-4F7-1 RATIFIED — §28.1), additively.** The heading's
+> *"the recommended option is shown"* now reads as **the ratified design**. The
+> table and statement above are unchanged; §28.1 makes them binding and
+> complete.
+>
+> - **Current-state storage only.** One record per `sensor_id`, maintained by
+>   upsert.
+> - **It survives restarts.** It is never truncated, reset, expired or deleted.
+> - **It is a projection** of `perception.sensor.health_changed`, not a replay
+>   store.
+> - **Explicitly not** a sensor-event history, a heartbeat history, or an audit
+>   record.
+> - **`last_event_id` is an idempotency key** for the current row only.
+> - **`state` holds only a `SensorState` value** (§28.2).
 
 ---
 
@@ -489,6 +568,15 @@ transitions. The 2D-B text is dated and not edited (TDD 4F §24.4, consequence
 | **Version table** | `alembic_version_cognitive_state`, unchanged (`alembic/env.py`) |
 | **Migrator** | `run-migrations.sh` gains `"services/cognitive-state-engine:COGNITIVE_STATE_ENGINE_"`. The prefix is read from `config.py`'s `env_prefix`, which `tools/tests/test_compose_migrations.py` checks |
 
+> **Updated 2026-09-26 (A-4F7-1 RATIFIED — §28.1), additively.** The rows
+> above that say *"only if A-4F7-1 (a)"* / *"only under A-4F7-1 (a)"* are now
+> **unconditional**: migration `0003` and `SensorStateORM` are built.
+>
+> - The table has exactly the five columns in §28.1.
+> - Its `state` column holds only a `SensorState` value.
+> - **No other table is added.** There is no history table and no audit table
+>   (§28.1; P-26).
+
 ---
 
 ## 12. The `cognitive-state/` panel
@@ -514,6 +602,18 @@ transitions. The 2D-B text is dated and not edited (TDD 4F §24.4, consequence
 | **Freshness** | **A-4F7-3 (a)**: data is fetched on mount, plus an explicit **Refresh** control that re-issues the three `GET`s. **No polling, no `refetchInterval` and no realtime subscription**, per the Autonomy and Digital Twin precedent (`entities/digitalTwin.ts` l.18–22) |
 | **No generated animation** | No CSS animation or transition and no animated indicator. Loading is static text. Part 6: *"Never generate fake animations"* (l.473) |
 | **Degradation** | Errors render through the existing `AsyncPanelBody` / `DegradationNotice`. An error is never shown as an empty panel |
+
+> **Updated 2026-09-26 (A-4F7-2 RATIFIED — §28.2), additively.** In the
+> **Sensors** row, the sentence *"`unrecognized` renders as 'unrecognized state
+> reported'"* is superseded.
+>
+> - **No `unrecognized` state exists.** The panel renders the six `SensorState`
+>   values, each labelled as `perception-engine`'s lifecycle state, together
+>   with *"last reported <reported_at>"*.
+> - **The panel's strict schema** (`entities/cognitiveState.ts`) accepts only
+>   those six. Any other value is a contract violation, rendered through the
+>   degradation notice, and is **never displayed as a state**.
+> - **No health wording.** No healthy/unhealthy wording is shown for a sensor.
 
 ---
 
@@ -546,6 +646,15 @@ transitions. The 2D-B text is dated and not edited (TDD 4F §24.4, consequence
 | `perception-engine` is down | No reports. The last stored state stays, labelled with its `reported_at` |
 | `api-gateway` upstream is down | 502 from the gateway |
 
+> **Updated 2026-09-26 (A-4F7-2 RATIFIED — §28.2), additively.** The row
+> *"An unrecognized `status` → Stored as `unrecognized` (§8.3)"* is superseded.
+>
+> - **An unrecognized `status` is rejected and not stored.**
+> - **The previous record for that `sensor_id`, if any, is unchanged**, and
+>   keeps its own `reported_at`.
+> - **The rejection is logged at warning** with `event_id`, `correlation_id`,
+>   `sensor_id` and the rejected string.
+
 ---
 
 ## 15. Known limitations — stated, not hidden
@@ -560,6 +669,19 @@ transitions. The 2D-B text is dated and not edited (TDD 4F §24.4, consequence
 | K-6 | **No pagination on `/thoughts`** | Every thought is returned in one response. Acceptable at today's size (zero rows in production); revisit with 4F.P | 4F.P / later |
 | K-7 | **No new metrics instruments** | 4F.7 reuses the logging convention and the mounted `/internal/metrics`. `observability.py` packaging stays OPEN, so SAD 15 §9.1 item 10 is only partly met | OPEN (4F.6 carry-forward) |
 | K-8 | **No performance target** | No ratified document sets one. Each route is one indexed query (`ix_active_thought_user_updated`) plus an in-memory sort bounded by the thought count. **No benchmark** is added (SAD 15 §9.1 item 7) | Gate Review (disclosed) |
+
+> **Updated 2026-09-26 (A-4F7-1 and A-4F7-2 RATIFIED — §28), additively.** Two
+> further limitations, both consequences of the ratified wording:
+>
+> - **K-9 — an unknown upstream value leaves the last known state in place.**
+>   The table stores *"the latest normalized **known** state"*, so a rejected
+>   report does not change what is shown. The report's arrival shows only in
+>   the log; the panel's `reported_at` makes the age of the shown state visible.
+>   This can only arise from contract drift, which P-22 guards.
+> - **K-10 — the vocabulary is restated, not imported.** `cognitive-state-engine`
+>   holds a copy of `SensorState`'s six values, because ADR-004 and control 7
+>   forbid importing `perception-engine`. Divergence is a P-22 test failure,
+>   not a silent drift.
 
 ---
 
@@ -612,6 +734,27 @@ test:
 **Flakiness.** Protocol §9.2 applies. P-15 and P-16 involve real subscription
 timing, so each is run **≥ 10 times** and the result is reported.
 
+> **Updated 2026-09-26 (A-4F7-1 and A-4F7-2 RATIFIED — §28.4), additively.** The
+> tables above are preserved as written. Four changes apply:
+>
+> - **P-10 is replaced by P-10′.** It accepts exactly the six `SensorState`
+>   values and rejects everything else, with nothing written.
+> - **M13 is replaced by M13′.** The mutation is storing, or coercing, an
+>   unknown value.
+> - **New criteria:** P-22 (no vocabulary drift, by parsing
+>   `perception-engine`'s source), P-23 (only lifecycle values are published),
+>   P-24 (restart persistence), P-25 (one record per sensor) and P-26 (current
+>   state only; no history or audit table).
+> - **New negative controls:** M14 … M17.
+> - **P-18's sensor case changes.** It said *"each sensor state including
+>   `unrecognized`"*. It now covers each of the **six `SensorState` values**,
+>   plus one fixture carrying an out-of-vocabulary value, which must render the
+>   degradation notice and never a state.
+>
+> P-15's redelivery and order assertions are unchanged, and now also serve
+> A-4F7-1's upsert semantics. P-24 and P-25 are `real_infra`, so the
+> flakiness rule applies to them too.
+
 ---
 
 ## 17. Documentation obligations of the implementation
@@ -636,6 +779,17 @@ timing, so each is run **≥ 10 times** and the result is reported.
   stays OPEN. The panel does **not** hydrate from realtime, so the row stays
   inaccurate, and it is ledgered rather than corrected here.
 - TDD 4F §16.1 control 11's wording is a residual owned by L-9 (TDD 4F §24.13).
+
+> **Updated 2026-09-26 (A-4F7-1 and A-4F7-2 RATIFIED — §28), additively.** The
+> 07-database row's *"(under A-4F7-1 (a))"* is now unconditional. Two
+> obligations are made explicit:
+>
+> - **`docs/architecture/07-database-architecture.md`'s note** must describe
+>   `cognitive_state.sensor_state` as **current-state storage**: one record per
+>   sensor, with no history and no audit.
+> - **The `perception-engine` README and doc 09's note** must state that the
+>   subject's `status` carries **`SensorState` lifecycle values**, per
+>   A-4F7-2. `nova-contracts` itself is **not** changed.
 
 ---
 
@@ -731,6 +885,11 @@ definition of blocking: *"inventing a security, identity, persistence or
 externally visible semantic"*. The other four have recommended defaults and do
 not block.
 
+> **Updated 2026-09-26, additively.** **A-4F7-1 and A-4F7-2 are RATIFIED**
+> (§28.1, §28.2), so **neither blocks any longer**. Their headings below keep
+> their original *"BLOCKING"* labels as the record of how they were raised.
+> A-4F7-3 … A-4F7-6 remain PROPOSED with recommended defaults.
+
 ### A-4F7-1 — Where is normalized sensor state held? **BLOCKING**
 
 | Option | Consequence |
@@ -739,6 +898,12 @@ not block.
 | (b) In-process memory only | No migration. **Every restart forgets every sensor**, and because reports are sent only on transitions, the panel then shows *"no report received"* until the next transition, which for a running sensor may be the next `perception-engine` restart. Part 6 l.445–447: *"No reasoning should be lost unnecessarily"* |
 
 **Recommendation: (a).**
+
+> **RATIFIED 2026-09-26: option (a)**, in the user's wording: *"a new durable
+> table named `cognitive_state.sensor_state` … current-state storage, not a
+> historical event log and not an audit/event-history table … one current
+> record per sensor identity with upsert/update semantics."* The full
+> specification is §28.1. **Option (b) is rejected.**
 
 ### A-4F7-2 — Which `status` values does `perception-engine` publish? **BLOCKING**
 
@@ -754,6 +919,21 @@ externally visible.
 **Recommendation: (a).** The 2D-B test's `"healthy"` is an example value in a
 builder test. It is not a published convention, since the builder has never had
 a caller.
+
+> **RATIFIED 2026-09-26: the existing lifecycle vocabulary**, in the user's
+> wording: *"Use the existing lifecycle-status vocabulary already defined by
+> the repository's sensor/perception contract … Do not invent a parallel
+> health-status enum. Do not replace lifecycle state with a generic
+> `healthy/unhealthy` abstraction."* **Option (b) is rejected.**
+>
+> Option (a) is ratified with **one correction to its last sentence**:
+>
+> - The vocabulary is `SensorState`'s **six** values. `uninitialized` is
+>   included; it is never published, but it is accepted.
+> - **An unknown value is rejected and not stored.** It is not mapped to
+>   `unrecognized`, and that value is withdrawn.
+>
+> The validation evidence and the full mapping are in §28.2.
 
 ### A-4F7-3 — How does the panel stay fresh?
 
@@ -948,6 +1128,18 @@ tested before the next begins (SAD 15 §8):
 12. The Slice Completion Record, stating the RS-9 exception.
 13. **A PR only when asked.**
 
+> **Updated 2026-09-26, additively.** Step 1's first half is done: **A-4F7-1
+> and A-4F7-2 are RATIFIED** (§28). What remains of step 1, at the
+> implementation GO, is confirming or changing A-4F7-3 … A-4F7-6.
+>
+> Steps 3, 4 and 6 now carry §28.4's criteria:
+>
+> - **Step 3:** P-24, P-25 and P-26.
+> - **Step 4:** P-10′ and P-22.
+> - **Step 6:** additionally P-23.
+>
+> The negative-control set in step 11 is **M1–M12, M13′ and M14–M17**.
+
 ---
 
 ## 27. Status
@@ -962,3 +1154,224 @@ are ratified.
 - **4F.8 remains the final implementation slice.**
 - **No branch has been created, no production file modified and no PR opened**
   in preparing this document.
+
+> **Added 2026-09-26, additively.** The status above is preserved as written.
+> **A-4F7-1 and A-4F7-2 are now RATIFIED (§28), so no blocking decision
+> remains and this document is implementation-ready.** A-4F7-3 … A-4F7-6 stay
+> PROPOSED with their recommended defaults; §26 step 1 still asks for them to
+> be confirmed or changed at the implementation GO. **Implementation has not
+> begun.**
+
+---
+
+## 28. Ratified decisions — 2026-09-26 (A-4F7-1 and A-4F7-2)
+
+### 28.0 Baseline, re-verified before ratification
+
+| Ref | Value |
+|---|---|
+| `origin/phase-4` | **`4e19ed19876f2c76dd6f6591b1aa9cc778dd2e89`** — unchanged |
+| `origin/main` | **`7e273e62e942ecd5528ca807e65933d6bb675669`** — unchanged |
+| TDD 4F.6 and its completion record | Reachable from `origin/phase-4`. Commits `c6a3c01` and `a71a081` are both ancestors |
+| Protocol | sha256 `21185dd1b2a43e87eac0a52aa5e53c8e8bbb01223014dc2a48408bbb0478de6a`, 1131 lines, `origin/main` |
+
+**Both decisions below are RATIFIED, in the wording the user approved.**
+Everything after each quotation is the implementation-ready specification
+derived from it. Where this section supersedes earlier wording in this TDD,
+the earlier wording is **preserved in place** and marked by a dated note
+(§28.3).
+
+### 28.1 A-4F7-1 — sensor-state storage. **RATIFIED 2026-09-26**
+
+> *"Use a new durable table named `cognitive_state.sensor_state`. The table
+> stores the latest normalized known state for each sensor identity. It is
+> current-state storage, not a historical event log and not an audit/event-
+> history table. Use one current record per sensor identity with
+> upsert/update semantics. Do not introduce sensor history, heartbeat history,
+> or audit semantics in 4F.7."*
+
+**The specification:**
+
+| Element | Definition |
+|---|---|
+| **Table name** | **`cognitive_state.sensor_state`**, created by migration `0003_sensor_state.py` in the existing `cognitive_state` schema. It is additive (TDD 4F §13: *"additive tables only; zero existing tables altered"*), and its version table is `alembic_version_cognitive_state` |
+| **Ownership** | **`cognitive-state-engine` owns the table and is its only writer and reader** (TDD 4F §10; control 11). **It owns the copy, not the fact.** The authority for a sensor's lifecycle stays `perception-engine` (TDD 4F §10, *"Sensor lifecycle, permission status"*), and the table is a projection of what `perception-engine` reported |
+| **Identity rule** | **One record per `sensor_id`**, enforced by `PRIMARY KEY (sensor_id)`. `sensor_id` is `perception-engine`'s own identifier, taken from the payload: `companion-filesystem`, `camera-sensor-1` or `voice-sensor-1` at `4e19ed1`. **There is no `user_id` column**, because sensors are instance-wide and the payload carries none (ADR-025) |
+| **Current-state fields** | Five columns: <br>• `sensor_id TEXT PRIMARY KEY`; <br>• `sensor_type TEXT NOT NULL`, the payload's value as last reported; <br>• `state TEXT NOT NULL`, **a `SensorState` value only**, validated by the domain type before any write (§28.2). There is no SQL CHECK, following this schema's `attention_layer` convention (`repository/models.py` l.96–99); <br>• `reported_at TIMESTAMPTZ NOT NULL`, the envelope's `occurred_at`, which is **dispatch time** (§7.3); <br>• `last_event_id UUID NOT NULL`, the envelope `event_id` **of the current record only**. It is an idempotency key for the one current row, not a log of events |
+| **Upsert / update semantics** | **One conditional statement**, never a read followed by a write: `INSERT … ON CONFLICT (sensor_id) DO UPDATE SET sensor_type, state, reported_at, last_event_id = EXCLUDED.… WHERE sensor_state.last_event_id <> EXCLUDED.last_event_id AND sensor_state.reported_at <= EXCLUDED.reported_at`. <br>• **First report:** insert. <br>• **Redelivery** (same `event_id`): no change. <br>• **An older report:** no change. <br>• **A newer or equal-time report with a different `event_id`:** replaces all four mutable columns. <br>• **The only write path** is the `perception.sensor.health_changed` handler. **No API route writes** (RS-1b) |
+| **Restart persistence** | The record **survives `cognitive-state-engine` restarts**. On startup the engine **does not truncate, reset, expire or re-derive** the table, and `GET /v1/cognitive-state/sensors` serves stored records as soon as the engine is ready. **No record is ever deleted by 4F.7**: there is no TTL, no expiry, and no removal when a sensor stops reporting. A record's age is visible through `reported_at` and never through deletion |
+| **Relationship to the event stream** | The table is a **current-state projection** of the existing subject `perception.sensor.health_changed`, received over `cognitive-state-engine`'s one core-NATS subscription (§8.2). <br>• It is **not** a replay store, and it is **not** backfilled. <br>• A report dispatched while the engine is not subscribed is not received (§15 K-1), and the table keeps the latest state it **did** receive. <br>• The subject, its payload, its publisher and `PUBLIC_TOPICS` are unchanged (§10). <br>• `ws-gateway`'s delivery of the same events to browsers is independent of this table |
+| **Non-goal: historical sensor-event storage** | **None, in 4F.7.** No row per event, no append-only table, no retained superseded states, **no heartbeat history**. A superseded state is overwritten, not kept |
+| **Non-goal: sensor audit history** | **None, in 4F.7.** No audit table, no audit columns (who, why, previous value), and no audit semantics. `last_event_id` identifies only the report the current record came from |
+
+**What stays exactly as it was:** `cognitive_state.active_thought`, and every
+other schema. The 0003 migration touches only its own new table.
+
+### 28.2 A-4F7-2 — the status vocabulary. **RATIFIED 2026-09-26**
+
+> *"Use the existing lifecycle-status vocabulary already defined by the
+> repository's sensor/perception contract. If the existing contract defines
+> values such as `running`, `stopped`, `failed`, use those exact values. Do not
+> invent a parallel health-status enum. Do not replace lifecycle state with a
+> generic `healthy/unhealthy` abstraction."*
+
+**Validated against the repository before this TDD was edited.** The canonical
+lifecycle vocabulary **exists**, so no STOP condition applies.
+
+| Question | Answer, with evidence |
+|---|---|
+| **The exact existing type** | **`SensorState`**, in `services/perception-engine/src/nova_perception_engine/domain/sensor.py` l.29: `SensorState = Literal["uninitialized", "initialized", "running", "paused", "stopped", "failed"]` |
+| **Its exact values** | Six, in the literal's order: **`uninitialized`, `initialized`, `running`, `paused`, `stopped`, `failed`** |
+| **Its sources** | The Sensor Abstraction Layer's lifecycle contract in four places: <br>• the type itself (l.29) and its transition table `_TRANSITIONS` (l.31–40), enforced by `next_state` (l.47); <br>• the `Sensor` Protocol's `state() -> SensorState` (l.121), implemented by all three sensors (`filesystem_sensor.py` l.98, `camera_sensor.py` l.119, `voice_sensor.py` l.123); <br>• `perception-engine`'s own REST field `SensorStatusResponse.state: SensorState` (`api/sensors.py` l.18–21); <br>• the Phase 2D-B design's state diagram (`docs/design/phase-2d/03-perception-engine.md` §5, l.585–596), restated in TDD 4F §7.2 |
+| **Where it is not** | **Not in `nova-contracts`.** The Event Bus payload `PerceptionSensorHealthChangedPayload.status` is plain `str` (`nova_contracts/events/perception.py` l.245), and so is the generated TypeScript (`typescript/PerceptionSensorHealthChangedPayload.ts`: `Status = string`) |
+| **The vocabulary this is not** | `perception.sensor_registration.status` (`repository/models.py` l.89) is a **separate, unconstrained health string**. `camera_sensor.py` and `voice_sensor.py`'s `health_check`s write `"healthy"` or `"unhealthy"` there (l.95–100, l.99–104). The payload's docstring pairs its `status` with that unconstrained domain string (*"does not constrain either to a fixed vocabulary today"*). **A-4F7-2 selects the lifecycle vocabulary instead, and the health string is not used** |
+
+**The mapping, end to end:**
+
+1. **Publisher (`perception-engine`).** §8.1's `status=<A-4F7-2>` resolves to
+   **`status = sensor.state()` read after the transition**. That value is typed
+   `SensorState`, so the published string is always one of the six values by
+   construction. `uninitialized` is never published, because no transition
+   *enters* it.
+2. **Contract.** **Unchanged.** `status` stays `str` in `nova-contracts` and in
+   the generated TypeScript, so there is no codegen drift and no new enum in
+   `nova-contracts`. Narrowing the field to a `Literal` would be a contract
+   change, and 4F.7 makes none.
+3. **Consumer (`cognitive-state-engine`).** An upstream `status` is **accepted
+   if and only if** it is exactly one of the six `SensorState` values. It is
+   case-sensitive, with no trimming, aliasing or synonyms.
+4. **Storage and response.** An accepted value is stored in `state` and
+   returned **unchanged** as `SensorStateResponse.state`. **The mapping is the
+   identity**, and the field name `state` matches `perception-engine`'s own
+   REST field. **The response `state` is exactly: `"uninitialized" |
+   "initialized" | "running" | "paused" | "stopped" | "failed"`.**
+
+**An unknown or unrecognized upstream value:**
+
+- **It is rejected at the consumer boundary**, exactly as an invalid payload is
+  (§8.2).
+- **It is not stored.** The existing record for that `sensor_id`, if any, stays
+  unchanged with its own `reported_at`, so the table keeps *"the latest
+  normalized **known** state"* (A-4F7-1).
+- **It is never coerced**, whether to `failed`, `stopped`, `running` or
+  anything else.
+- **It is never returned** to a client, and **no sentinel value** is
+  introduced.
+- **It is logged at warning** with the envelope's `event_id`, its
+  `correlation_id`, the `sensor_id` and the rejected string. Logs are
+  server-side, and no new metric is added (§15 K-7).
+- **Why it can only be a defect.** The only permitted publisher is
+  `perception-engine`, whose allow-list holds the subject, and it publishes
+  `sensor.state()`. So an unknown value can come only from contract drift, and
+  the drift guard (P-22) exists to catch that first.
+
+**No invented vocabulary:**
+
+- **No health-status enum.** No `healthy`, `unhealthy`, `degraded` or similar,
+  anywhere in 4F.7.
+- **No `unrecognized` state.** The `unrecognized` value this TDD proposed
+  before ratification is **withdrawn** (§28.3).
+- **A restatement, not a parallel enum.** `cognitive-state-engine` cannot
+  import `SensorState`: ADR-004, and control 7
+  (`test_control_7_no_cross_engine_import` forbids `nova_perception_engine`).
+  So it **restates the same six values once**, in `domain/sensor_state.py`, as
+  a copy of `SensorState` and not a new vocabulary.
+- **Drift fails a test.** P-22 parses `perception-engine`'s `domain/sensor.py`
+  as **source text** (AST, no import) and asserts the two sets are identical.
+  This follows `autonomy-engine`'s `_public_topics()`
+  (`tests/contract/test_autonomy_boundaries.py` l.223), which parses
+  `ws-gateway`'s literal *"rather than importing it"*, and
+  `apps/web-client/tests/unit/topics.test.ts`, whose own docstring reads:
+  *"the gateway's own module is the authority"*.
+
+### 28.3 Earlier wording in this TDD that §28 supersedes — preserved in place
+
+Each passage below is **left exactly as written**, with a dated note beside it:
+
+| Section | Superseded wording | Now |
+|---|---|---|
+| Header status block | *"two of this document's own decisions are not"* ratified | Both are (§28.1, §28.2) |
+| §5 D1, §11, §17 | *"if / only if / under A-4F7-1 (a)"* | Unconditional: `cognitive_state.sensor_state` is built |
+| §7.3 | `state` includes `"unrecognized"` | `state` is exactly the six `SensorState` values |
+| §8.1 | `status=<A-4F7-2>` | `status = sensor.state()` after the transition |
+| §8.3 | Row 2 (*"anything else … → `unrecognized`"*) and the paragraph under the table, including *"`uninitialized` is never published"* as a reason to map it away | Unknown values are **rejected, not stored**. `uninitialized` is an **accepted** vocabulary member, even though it is never published |
+| §12, Sensors row | *"`unrecognized` renders as 'unrecognized state reported'"* | No such state exists. The panel's strict schema accepts only the six values, and anything else is a contract violation rendered as a degradation notice |
+| §14 | *"An unrecognized `status` → Stored as `unrecognized` (§8.3)"* | Rejected. The previous record is unchanged (§28.2) |
+| §16 | P-10's *"every other string maps to `unrecognized`"*; M13, *"Map `unrecognized` to `running`"*; P-18's *"each sensor state including `unrecognized`"* | P-10′ and M13′ (§28.4). P-18 covers the six `SensorState` values, plus an out-of-vocabulary fixture that must render the degradation notice |
+| §20, A-4F7-2 option (a) | *"Normalization is the identity over those five, with `unrecognized` for anything else"* | The identity over **all six**, and rejection for anything else |
+
+### 28.4 Acceptance criteria and negative controls added by this ratification
+
+**They replace P-10 and M13, and add to §16.** §16's table is not edited.
+
+| # | Claim | Proof required |
+|---|---|---|
+| **P-10′** | **Vocabulary acceptance** | Unit tests, parametrized over the six `SensorState` values: each is accepted and returned unchanged. Parametrized rejections: `healthy`, `unhealthy`, `unrecognized`, `Running`, `" running"`, `""`, `degraded`. Each is rejected, **nothing is written**, and the prior record is unchanged |
+| **P-22** | **No vocabulary drift** | A `cognitive-state-engine` contract test parses `services/perception-engine/src/nova_perception_engine/domain/sensor.py` **as text**, extracts `SensorState`'s literal arguments, and asserts equality with `cognitive-state-engine`'s restated set, in the same order. It also asserts the parser found six values, as an anti-vacuity control |
+| **P-23** | **`perception-engine` publishes only lifecycle values** | Across the four call-site groups (P-12), every enqueued payload's `status` is in `typing.get_args(SensorState)` and equals `sensor.state()` read after the call |
+| **P-24** | **Restart persistence** | `real_infra`: a report applied through the production handler; the app **shut down and re-created** against the same database; `GET /sensors` returns the same record. **No startup path deletes or resets rows** |
+| **P-25** | **One record per sensor** | `real_infra`: several distinct, ordered reports for one `sensor_id` leave **exactly one row**, holding the newest. Two `sensor_id`s leave two rows |
+| **P-26** | **Current state only** | A schema control: after `alembic upgrade head`, the `cognitive_state` schema holds exactly two tables, `active_thought` and `sensor_state`, and `sensor_state` has exactly the five columns in §28.1. Nothing is ever deleted from it on an unknown value |
+
+| # | Mutation | Must fail |
+|---|---|---|
+| **M13′** | Store an unknown value, or map it to any `SensorState` value | P-10′ |
+| **M14** | Add a value to `perception-engine`'s `SensorState` without restating it | P-22 |
+| **M15** | Replace the conditional upsert with a plain `INSERT` | P-25 (the second report) |
+| **M16** | Truncate or reset `sensor_state` at startup | P-24 |
+| **M17** | Publish `health_check()`'s `"healthy"` or `"unhealthy"` as `status` | P-23 |
+
+### 28.5 Consistency review after these two decisions
+
+| Property | Holds? | Where |
+|---|---|---|
+| **4F.7 remains read-only** | **Yes.** The only write in 4F.7 is the event handler's upsert into its own `sensor_state`. **No API route writes anything** | §7.4; §28.1 (*"the only write path"*); P-1, P-14 |
+| **4F.7 does not create `ActiveThought` records** | **Yes.** `active_thought` is read only. `upsert_thought` has no caller in 4F.7 | §2; §11; P-14 |
+| **4F.7 does not author `ProposedAction`** | **Yes** | §2; RS-1b, RS-2 |
+| **4F.7 does not promote thoughts** | **Yes.** No caller of `promote_thought` or `move_layer` | §2; P-14; M11 |
+| **4F.7 does not trigger autonomy decisions** | **Yes.** `PUBLISHABLE_SUBJECTS` stays `{autonomy.decision.requested}`, and nothing in 4F.7 sends it, because only `promote_thought` does | §6; §10; P-14 |
+| **CF-9, CF-10, CF-11** | **All OPEN.** Neither decision affects them | §19.2; §24 |
+| **4F.P's ownership** | **Unchanged.** Thought ingestion, the promotion policy, `ProposedAction` authorship, CAS semantics and Layer 2 deduplication | TDD 4F §18 as amended; §19.3 |
+| **4F.8 is the final implementation slice** | **Yes** | TDD 4F §18 and its amendment |
+| **No new public subject** | **Yes.** Registry stays 120; no subject is added | §10; P-13 |
+| **Existing public-topic behaviour preserved** | **Yes.** `perception.sensor.health_changed` stays in `PUBLIC_TOPICS` with its contract unchanged. A-4F7-2 only fixes **which values** its publisher sends. RS-3a's accepted consequence (browsers receive the frames) is unchanged | §10; §28.2 |
+
+### 28.6 OPEN and deferred, unchanged by §28
+
+**OPEN:**
+
+- RS-3b (revocation detection);
+- CF-9, CF-10 and CF-11;
+- 4F.6's TTL and its stale-trigger semantics;
+- 4F.6's Layer 2 deduplication;
+- 4F.6's lost-trigger auditability;
+- 4F.6's `observability.py` packaging;
+- 4F.6's `correlation_id` logging convention;
+- L-14, L-17, L-18 and L-19;
+- `cognitive-state-engine`'s Focus-signal computation;
+- Part 6 interruption semantics;
+- the stale realtime-hydration documentation (`docs/architecture/04-frontend-architecture.md:81`).
+
+**PROPOSED, and not blocking:** A-4F7-3 … A-4F7-6.
+
+**Deferred:**
+
+- to **4F.P**: the promotion policy, thought-ingestion mapping,
+  `ProposedAction` authorship rule, CAS semantics, and Layer 2 deduplication
+  (with the TDD 4F.6 DEFERRED row);
+- to **a later slice**: persistent lost-trigger auditability (TDD 4F.6 §16);
+- **before the 4F.8 TDD**: the owner of revocation detection (RS-3b);
+- to **4F.8**: AC-7, AC-8 and CF-11 claim 3;
+- to **4F closure**: CF-11 claim 4, the Gate Review (L-1), and the residuals in
+  TDD 4F §24.13.
+
+### 28.7 Status after §28
+
+**IMPLEMENTATION-READY.** No blocking decision remains.
+
+- **Implementation does not begin until the user gives an explicit GO.** At
+  that point, per §26:
+  1. A-4F7-3 … A-4F7-6 are confirmed or changed.
+  2. `phase-4f7` is cut from the then-current `phase-4` head.
+- **No branch, migration, source file, test or workflow was created or changed**
+  to ratify §28.
