@@ -433,6 +433,26 @@ and in the implementation report.
 > §6 item 8's unverified sentence is closed: the 67 real-infra tests ran green in
 > CI's containers.
 
+> **Corrected 2026-09-26, additively (protocol §0.3.4).** Two job counts in the
+> table above are wrong. The table is kept as written, and these counts supersede
+> them:
+>
+> - **`Build & Scan`**: the table says *"27 jobs"*. The correct count is **23
+>   jobs**: **22** `build-and-scan` image builds, each Trivy-scanned, plus **1**
+>   `dependency-audit` job. The 22 is the `include` matrix of
+>   `.github/workflows/build-and-scan.yml`; run `36232289278` lists 23 jobs at
+>   `8780864`.
+> - **`Real-Infrastructure Checks`**: the table says *"12 package rows"*. The
+>   correct count is **15** package jobs. That is the `include` matrix of
+>   `.github/workflows/real-infra-checks.yml`; run `36232289283` lists 15 jobs at
+>   `8780864`.
+>
+> The corrected counts reconcile with the total: `PR Checks` 2 (`checks` and the
+> Playwright job) + `Build & Scan` 23 + `Real-Infrastructure Checks` 15 = **40**.
+> The overall result is unchanged: **40 check runs, 40 `success`, 0 failed, 0
+> cancelled**. Every conclusion, test count, run and job reference in the table
+> is also unchanged; only the two job counts were wrong.
+
 ### 7.3 Boundary audit (`git diff --name-only 598bbc3 HEAD`)
 
 | Area | Files |
