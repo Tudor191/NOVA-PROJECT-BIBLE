@@ -30,13 +30,45 @@ engine performs no gating itself.
 | Published | `perception.addressee_signal.candidate` | Raw addressee-candidate signals, no verdict field -- deliberately does **not** match the wildcard. |
 | Published | `perception.workspace.observed` | **Phase 4F.2.** `PerceptionWorkspaceObservedPayload` -- the first **object-shaped** perception event, matching the wildcard and falling through World Model's dispatcher to its object-graph handler with **zero changes there**. Carries a **file-path hash**, never the raw path. **Internal only:** absent from `PUBLIC_TOPICS`, and `ws-gateway`'s bus allow-list was narrowed from `perception.*` to the three browser-relevant subjects so the gateway process cannot receive it. |
 | Published | `perception.consent.changed` | Consent grant/revocation audit event. |
-| Published | `perception.sensor.health_changed` | Sensor health-status change. |
+| Published | `perception.sensor.health_changed` | Sensor health-status change. **Phase 4F.7 (RS-3a, A-4F7-2):** now actually published -- one report per real lifecycle transition, see below. |
 | Published (RPC) | `ai_model.detect_wake_phrase.request`, `ai_model.embed_voice.request`, `ai_model.embed_face.request`, `ai_model.estimate_gaze.request` | This engine's own outbound calls to `ai-model-orchestration-engine` (ADR-020). |
 | Subscribed | `communication.session.created`, `communication.session.completed` | Feeds `SessionActivityTracker` -- one of the addressee-candidate signals (§10). `communication.session.state_changed` is deliberately not subscribed (no `user_id` in that payload). |
 
 See `events/published.py` / `events/subscribed.py` for the enforced
 allow-lists, and `tests/contract/test_event_subject_wildcard.py` for the
 mechanical wildcard-match/non-match verification.
+
+### `perception.sensor.health_changed` -- published since Phase 4F.7 (2026-09-26)
+
+The subject was registered and allow-listed from Phase 2D-B, with a builder
+(`events/publishers.py::sensor_health_changed`) that nothing called. Since
+4F.7 (TDD 4F §24.4 **RS-3a**; TDD 4F.7 §8.1) it is published through the
+transactional outbox whenever an **existing** lifecycle call actually changes a
+sensor's state (`sensor_lifecycle.py`):
+
+| Call site | Reports | Correlation id |
+|---|---|---|
+| Startup (`main.py`) | each sensor's `initialized`, then `running` | one fresh id for the whole startup |
+| Consent revocation (`api/consent.py`) | the revoked source's sensor `stopped` | the revoked grant's `consent_id` |
+| Observation-window failure (`observation_orchestration.py`) | a camera or voice sensor's `failed` | the observation's `correlation_id` |
+| Shutdown (`main.py`) | each still-running sensor's `stopped` | one fresh id for the whole shutdown |
+
+- **`status` is a `SensorState` lifecycle value** -- `sensor.state()` read after
+  the call, one of `uninitialized`, `initialized`, `running`, `paused`,
+  `stopped`, `failed` (**A-4F7-2**). `health_check()`'s `"healthy"` /
+  `"unhealthy"` string is never published. The payload contract in
+  `nova-contracts` is unchanged (`status: str`).
+- **No report for a no-op.** A call that leaves the state where it was reports
+  nothing.
+- **No transition is added.** `pause` / `resume` still have no production
+  caller, and the filesystem sensor still has no path to `failed` (RS-3b, OPEN).
+- **A failed enqueue is logged, not raised**: the transition has already
+  happened, and nothing retries the report.
+- The subject is already in `ws-gateway`'s `PUBLIC_TOPICS`, so browsers receive
+  these frames (the accepted RS-3a consequence); `cognitive-state-engine`
+  subscribes to it and keeps the last reported state per sensor. Core NATS does
+  not deliver to a subscriber that is not connected at dispatch time
+  (TDD 4F.7 §15 K-1).
 
 ## Owned APIs
 

@@ -110,6 +110,20 @@ Every row cites the Bible passage it implements.
 > identity. See [TDD 4F.6](../design/phase-4/10-tdd-4f6-initiative-trigger.md)
 > §19. Rows 8 and 13 are left as written: neither of their subjects exists.
 
+> **Added 2026-09-26 (Phase 4F.7), additively.** A second cross-engine flow
+> reaches `cognitive-state-engine`:
+> **`perception-engine` → outbox → `perception.sensor.health_changed` →
+> `cognitive-state-engine`** (and, as before, `ws-gateway`). `perception-engine`
+> reports each real sensor lifecycle transition with the `SensorState` value it
+> reached (A-4F7-2); `cognitive-state-engine` validates it, accepts only those
+> six values, and keeps the latest per sensor in `cognitive_state.sensor_state`
+> for its read-only `/v1/cognitive-state/sensors`. **ADR-004 holds**:
+> `cognitive-state-engine` never calls `perception-engine`'s
+> `GET /v1/perception/sensors`, and neither engine imports the other — the
+> vocabulary is restated, with a test that parses `perception-engine`'s source to
+> keep the two identical. See
+> [TDD 4F.7](../design/phase-4/11-tdd-4f7-cognitive-state-panel.md) §8–§10.
+
 ## 3. Synchronous vs. asynchronous calls
 
 Not every cross-engine interaction should be a fire-and-forget event — some steps in

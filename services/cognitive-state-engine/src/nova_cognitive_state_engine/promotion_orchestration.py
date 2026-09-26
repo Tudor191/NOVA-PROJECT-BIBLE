@@ -33,6 +33,16 @@ a health route, and the cognitive-state surface that would drive promotions is
 bound in `main.py` (`app.state.trigger`); the function itself is proven over a
 real broker and real Postgres in the integration tier, which is exactly why
 **CF-11 stays OPEN** after this slice.
+
+*(Clarified 2026-09-26, Phase 4F.7 -- TDD 4F §24 RS-1b, RS-1c and RS-11. The
+paragraph above is preserved as written, but "the cognitive-state surface that
+would drive promotions is **4F.7's** panel and `/v1/cognitive-state` prefix" is
+superseded. 4F.7 is strictly read-only: it does not create thoughts, author
+`ProposedAction`s, promote, or call this function. The production promotion
+driver -- with thought ingestion, `ProposedAction` authorship, CAS on the
+transition and Layer 2 deduplication -- belongs to the promotion slice 4F.P,
+before 4F.8. Nothing in this engine's running topology calls `promote_thought`,
+and CF-11 stays OPEN.)*
 """
 
 from __future__ import annotations

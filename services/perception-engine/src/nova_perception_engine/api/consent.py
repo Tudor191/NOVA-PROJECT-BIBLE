@@ -13,6 +13,7 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
+from nova_perception_engine import sensor_lifecycle
 from nova_perception_engine.domain import consent
 from nova_perception_engine.domain.models import Source
 from nova_perception_engine.events import publishers
@@ -77,7 +78,12 @@ async def revoke_consent(source: Source, user_id: UUID, request: Request) -> Con
 
     sensor = state.sensors_by_source.get(source)
     if sensor is not None and sensor.state() in ("running", "paused"):
-        await sensor.stop()
+        # Phase 4F.7 (RS-3a): the stop is reported on
+        # `perception.sensor.health_changed`, correlated to the revoked grant as
+        # `consent_changed` below is.
+        await sensor_lifecycle.transition(
+            sensor, "stop", repository=state.repository, correlation_id=revoked.consent_id
+        )
 
     await state.repository.enqueue_outbox(
         publishers.consent_changed(

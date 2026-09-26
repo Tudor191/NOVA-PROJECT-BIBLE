@@ -805,6 +805,33 @@ services:
       migrations:
         condition: service_completed_successfully
 
+  # Phase 4F.7 (TDD 4F.7 §5 D7). The Cognitive State Engine (Bible Part 6),
+  # deployed for the first time: 4F.1 built it and 4F.6 wired its one
+  # publication, but no compose service ran it. It serves the Cognitive State
+  # panel's three read-only `GET`s behind `api-gateway` and subscribes to the
+  # one existing subject `perception.sensor.health_changed` (RS-3a). It has no
+  # outbox, so it needs no worker, and it uses no Redis.
+  cognitive-state-engine:
+    build:
+      context: ../..
+      dockerfile: services/cognitive-state-engine/Dockerfile
+    restart: unless-stopped
+    environment:
+      EVENT_BUS_BACKEND: nats
+      NATS_URL: nats://nats:4222
+      NOVA_ENGINE_NAME: cognitive-state-engine
+      COGNITIVE_STATE_ENGINE_POSTGRES_DSN: postgresql+asyncpg://${POSTGRES_USER:-nova}:${POSTGRES_PASSWORD:-nova_dev_password}@postgres:5432/${POSTGRES_DB:-nova}
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+    ports:
+      - "8020:8000"
+    depends_on:
+      nats:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
+
   planning-engine:
     build:
       context: ../..
@@ -886,6 +913,8 @@ services:
       API_GATEWAY_AUTONOMY_ENGINE_URL: http://autonomy-engine:8000
       # Phase 4E: the Digital Twin panel's data source.
       API_GATEWAY_DIGITAL_TWIN_ENGINE_URL: http://digital-twin-engine:8000
+      # Phase 4F.7: the Cognitive State panel's data source.
+      API_GATEWAY_COGNITIVE_STATE_ENGINE_URL: http://cognitive-state-engine:8000
       API_GATEWAY_REDIS_URL: redis://redis:6379/0
       API_GATEWAY_SESSION_TOKEN: ${NOVA_SESSION_TOKEN:-}
       # Local development is plain HTTP, so a Secure-only cookie would never
@@ -907,6 +936,9 @@ services:
         condition: service_started
       # Phase 4E, on the same terms.
       digital-twin-engine:
+        condition: service_started
+      # Phase 4F.7, on the same terms.
+      cognitive-state-engine:
         condition: service_started
 
   ws-gateway:

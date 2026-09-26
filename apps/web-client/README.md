@@ -57,6 +57,32 @@ empty list. The System Pulse animates once per real heartbeat and goes
 rate limit and a contract mismatch each render a `DegradationNotice` with the
 error code and correlation id — never an empty panel.
 
+## The Cognitive State panel (Phase 4F.7, 2026-09-26)
+
+`/cognitive-state` (`panels/cognitiveState/`, `entities/cognitiveState.ts`) shows
+what `cognitive-state-engine` holds: Active Thoughts grouped by Bible Part 6's
+five Attention Layers with every Part 6 field, the Focus set with its score and
+capacity, and the lifecycle state each sensor last reported (TDD 4F.7 §12).
+
+- **Read-only.** Three `GET`s through `gatewayFetch` and nothing else: no
+  mutation, no cache write, and nothing that creates or promotes a thought,
+  authors or approves a proposal, requests a decision, executes an action,
+  changes an autonomy level or touches a sensor.
+- **Fetched on mount, and on Refresh.** No polling and no realtime
+  subscription (A-4F7-3 default (a)); Refresh re-issues the same three `GET`s.
+- **Strict schemas** (`.strict()`): an unknown field, or a sensor `state`
+  outside `perception-engine`'s six lifecycle values, is a contract violation
+  rendered through the degradation notice -- never displayed as data.
+- **Honest empty states.** *No Active Thoughts.*, *Nothing is in focus.* and *No
+  sensor report has been received.* each render as that statement alone. In
+  production the thought sections are empty until the promotion slice (4F.P).
+  A `proposed_action` renders under **Proposal** and nothing says it was acted
+  on.
+
+`tests/unit/cognitive-state-panel.test.tsx`, the Cognitive State block in
+`tests/unit/security-boundary.test.ts`, and `tests/e2e/cognitive-state-panel.spec.ts`
+(CI-only, like every Playwright spec here) hold these properties.
+
 ## Checks
 
 ```

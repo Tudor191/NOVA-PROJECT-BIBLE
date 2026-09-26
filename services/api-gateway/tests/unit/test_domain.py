@@ -120,6 +120,8 @@ def _table(**overrides: str) -> RouteTable:
         "autonomy_engine_url": "http://autonomy:8000",
         # Phase 4E. The Digital Twin panel's data source.
         "digital_twin_engine_url": "http://digital-twin:8000",
+        # Phase 4F.7. The Cognitive State panel's data source.
+        "cognitive_state_engine_url": "http://cognitive-state:8000",
     }
     urls.update(overrides)
     return build_route_table(**urls)  # type: ignore[arg-type]
@@ -312,3 +314,38 @@ def test_no_digital_twin_internal_path_is_routable() -> None:
     assert table.resolve("/internal/health") is None
     with pytest.raises(ValueError, match="must start with '/v1/'"):
         RouteTable([UpstreamRoute("/internal/metrics", "digital-twin-engine", "http://d")])
+
+
+# --- Phase 4F.7: the Cognitive State panel's prefix (TDD 4F.7 §7, RS-5) -------
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/v1/cognitive-state/thoughts",
+        "/v1/cognitive-state/focus",
+        "/v1/cognitive-state/sensors",
+    ],
+)
+def test_every_4f7_route_reaches_cognitive_state_engine(path: str) -> None:
+    """TDD 4F.7 §7's three routes, forwarded 1:1 and verbatim (D-6)."""
+    route = _table().resolve(path)
+    assert route is not None, f"{path} has no upstream; the panel cannot load"
+    assert route.upstream_name == "cognitive-state-engine"
+    assert route.base_url == "http://cognitive-state:8000"
+
+
+@pytest.mark.parametrize("path", ["/v1/cognitive-stateXX", "/v1/cognitive", "/v1/perception"])
+def test_the_cognitive_state_prefix_is_not_a_pattern(path: str) -> None:
+    """A partial name is a different prefix, and `/v1/perception` is not fronted:
+    `cognitive-state-engine` never calls `perception-engine`'s REST surface
+    (ADR-004), and no panel reads it (TDD 4F.7 §6)."""
+    assert _table().resolve(path) is None
+
+
+def test_no_cognitive_state_internal_path_is_routable() -> None:
+    table = _table()
+    assert table.resolve("/internal/health") is None
+    assert table.resolve("/internal/readiness") is None
+    with pytest.raises(ValueError, match="must start with '/v1/'"):
+        RouteTable([UpstreamRoute("/internal/health", "cognitive-state-engine", "http://c")])

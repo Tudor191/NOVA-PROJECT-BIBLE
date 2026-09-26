@@ -7,6 +7,10 @@ day (§20). Not yet implemented.**
 are now closed: AC-7's measurement rule (§20.1) and the perception subject
 contract (§20.2). No architectural ambiguity remains.**
 
+> **Added 2026-09-26, additively.** The status above is preserved as written.
+> A **third ratification (§24)** settles RS-1 … RS-11 for 4F.7 and adds the
+> slice **4F.P** before 4F.8 (§18). **Slices 4F.1–4F.6 are merged.**
+
 **Written against** `phase-4` at `c04b58e0d6be4f4236b8fe8c5a7dcf79bf7d56f4`
 (the Phase 4E closure commit), on the preparation branch `phase-4f-tdd`.
 **No `phase-4f` branch exists and none is created by this document.**
@@ -97,6 +101,21 @@ CF-6, CF-8, CF-10 · **any Phase 5 work of any kind.**
 5. **No fabricated sensor data, no fake clock, no time simulation** (§16).
 6. No duplicated state ownership (§10).
 
+> **Added 2026-09-26 (4F.7 ratification, RS-5), additively.** Property 2 reads
+> *"`api-gateway` remains the **sole** external REST boundary; **no new
+> prefix**."* Its second clause contradicts §12, which adds
+> `/v1/cognitive-state` (D-6, forwarded 1:1), and §18's 4F.7 row. **§12 is
+> authoritative.** Property 2 is to be read as follows:
+>
+> - `api-gateway` remains the **sole** external REST boundary.
+> - 4F adds exactly **one** new external prefix, `/v1/cognitive-state`.
+> - That prefix is forwarded **1:1** (D-6).
+> - **No `/v1/perception` prefix** is added (D-4F-4).
+> - **No other new prefix** is added by 4F.7.
+>
+> The original sentence is preserved above and has not been edited. Full
+> record: §24, RS-5.
+
 ---
 
 ## 3. Dependencies — verified at `c04b58e`
@@ -148,6 +167,26 @@ cannot be produced honestly in CI (§16). *"the UI" → a named panel*: testable
 | *"revoking that sensor's OS-level permission"* | A genuine `chmod` on the watched directory |
 | *"stops the perception stream"* | Lifecycle `running → failed` (revoked under a live stream) or `→ stopped` |
 | *"visibly … in the panel"* | The panel renders sensor state from the engine's REST read surface |
+
+> **Added 2026-09-26 (4F.7 ratification, RS-3a and RS-3b), additively.** The
+> table above is unchanged. What it now means for the slices:
+>
+> - **4F.7 discharges only the last row**, *"visibly … in the panel"*. The panel
+>   renders whatever normalized sensor state the read surface reports, and
+>   nothing else.
+> - **The mechanism behind the two rows above it does not exist in the
+>   repository.** Those rows are *"revoking that sensor's OS-level permission"*
+>   and *"stops the perception stream"*. At `4e19ed1`, **no code path moves the
+>   filesystem sensor to `failed`**:
+>   - its `report_error` records and logs but does not transition
+>     (`perception-engine/sensors/filesystem_sensor.py`);
+>   - its `permission_status` is always `granted`;
+>   - `nova-companion` reports no status to `perception-engine`;
+>   - no test anywhere exercises `chmod`.
+> - **Revocation detection stays OPEN (RS-3b).** Its owner must be ratified
+>   before the 4F.8 TDD. 4F.7 does not implement it and does not claim it.
+>
+> Full record: §24.
 
 ### 4.2 AC-8 — UNCHANGED
 
@@ -279,6 +318,23 @@ one. **AC-8 cannot run without a trigger**, so CF-11 is a 4F dependency.
 **4F implementing a producer does not close CF-11 by implication.** Closure
 requires that the producer be *production-reachable* and demonstrated end to end;
 until that is verified and recorded, **CF-11 stays OPEN**.
+
+> **Added 2026-09-26 (4F.7 ratification, RS-6a, RS-6b and RS-1c), additively.**
+>
+> - **State 4, *Triggered*, remains a system-level property** evidenced by
+>   records. There is no per-thought "triggered" state, enum, column or
+>   persisted outcome.
+> - **The status of state 4 at `4e19ed1`.** 4F.6 built the mechanism, and its
+>   consumer runs in production. **The production end-to-end *Triggered* state
+>   is not yet evidenced**, because two things are missing:
+>   - `cognitive-state-engine` is not deployed;
+>   - nothing in production promotes an Active Thought.
+> - **What makes it evidenceable.** The production promotion driver, thought
+>   ingestion and `ProposedAction` authorship now belong to a new slice,
+>   **4F.P**, which comes before 4F.8 (§18).
+> - **CF-11 stays OPEN.**
+>
+> Full record: §24.
 
 ### 6.2 `cognitive-state-engine` as trigger owner — the ratified boundary
 
@@ -509,6 +565,82 @@ No `autonomy.*` subject. No `TrustMetric` subject or RPC (CF-10 stays open). No
 new `memory.*` or `digital_twin.*` subject. No wildcard widening. **No
 `perception.*` entry in `PUBLIC_TOPICS`.**
 
+### 11.5 D-4F-9 — one internal `autonomy.*` subject, for the 4F.6 trigger. **RATIFIED 2026-09-22.**
+
+§11.4 reads *"No `autonomy.* ` subject."* §13 records that
+`cognitive-state-engine` *"publishes nothing."* §12 records that
+*"`autonomy-engine` gains no new route."* **All three stand as written, and
+none is deleted.** This section adds a bounded exception to the first two.
+
+**Why the exception is needed.** §13's own *Produces* row requires
+`cognitive-state-engine` to deliver **`DecisionRequest`s into
+`autonomy-engine`** (§6.2), and 4F.6's preparation established that the three
+statements above leave **no mechanism** by which it can: the engine has both
+allow-lists empty, only a health route and no outbound client;
+`autonomy-engine` has no intake route and an empty `SUBSCRIBABLE_SUBJECTS`;
+the registry contains no subject that fits; and **no Python engine in this
+repository calls another over HTTP** — engine-to-engine is the Event Bus,
+exclusively. The constraints were jointly unsatisfiable.
+
+**What §11.4's prohibition was protecting.** It sits beside §11.3, whose
+subject is **browser-reachable and consumer-less** subjects: *"a subject
+exists to be consumed, not to be complete"*, and *"`PUBLIC_TOPICS` is the sole
+browser realtime allow-list."* The prohibition guards the **public surface**
+and against subjects **nobody consumes**. **It was not written against an
+internal, server-side subject with exactly one consumer** — the same document
+permitted `action.execute` in §11.2 on precisely that basis.
+
+**The exception, and its bounds.** **One** subject,
+**`autonomy.decision.requested`**, is approved **for 4F.6 specifically**:
+
+- **Internal only.** **Never** added to `PUBLIC_TOPICS`, which stays at
+  **18**. Never browser-reachable. Not a public API. No gateway prefix.
+- **Exactly one server-side consumer**, `autonomy-engine`.
+- Registry **119 → 120**.
+- **This is not a general relaxation.** §11.4 otherwise stands: no
+  `TrustMetric` subject or RPC (**CF-10 stays open**), no new `memory.*` or
+  `digital_twin.*` subject, no wildcard widening, no `perception.*` in
+  `PUBLIC_TOPICS`.
+
+**The two statements this amends, and their replacements.** Each retirement is
+**disclosed and replaced by a tighter, test-enforced property** — the
+precedent §11.2 set when `action.execute` retired 4D's control 8:
+
+| Amended | Original wording | Replacement property |
+|---|---|---|
+| §13, Event Bus row | *"publishes nothing (§11.3)"* | *"publishes `autonomy.decision.requested` and **nothing else**"* |
+| §11.4, first clause | *"No `autonomy.* ` subject."* | *"**Exactly one** `autonomy.* ` subject exists; it is internal, server-side, single-consumer, and **not** in `PUBLIC_TOPICS`"* |
+
+**§12 is not amended.** *"`autonomy-engine` gains no new route"* remains true
+and is now **strengthened** by this decision: the trigger arrives over the
+bus, so no route is added. Its original sentence stands unqualified.
+
+**§13's *Produces* row is unchanged** — it already said
+`cognitive-state-engine` produces `DecisionRequest`s into `autonomy-engine`.
+This amendment supplies the mechanism that sentence always presupposed.
+
+*(Preserved per protocol principle 4: the original clauses of §11.4 and §13
+are quoted above verbatim and are not edited in place. This section is the
+dated note that explains what changed and why.)*
+
+> **Provenance of §11.5 — appended 2026-09-26 (4F.7 ratification, RS-10),
+> additively.**
+>
+> - **Source.** The text above is TDD 4F.6 §14's ratified D-4F-9 amendment,
+>   copied **verbatim**. The only change is the removal of its blockquote
+>   markers ([`10-tdd-4f6-initiative-trigger.md`](10-tdd-4f6-initiative-trigger.md),
+>   lines 845–901 at `4e19ed1`).
+> - **Why it is appended now.** TDD 4F.6 §14 says the text was *"to be appended
+>   additively to TDD 4F"*. That append was **not performed** when 4F.6 merged
+>   (PR #37, `4e19ed1`).
+> - **What was not edited.** §11.4 and §13 are unchanged, exactly as D-4F-9
+>   itself requires.
+> - **What D-4F-9 does not amend.** §16.1 control 11 still reads *"publishes
+>   nothing"*. 4F.6 retargeted that control **in code**, as
+>   `test_control_11_this_engine_publishes_the_trigger_and_nothing_else` (4F.6
+>   completion record §3.3), but D-4F-9's own table does not name control 11.
+>   That residual is recorded, not resolved, in §24.
+
 ---
 
 ## 12. REST, realtime, and the browser
@@ -533,6 +665,41 @@ operation whose 422 stops being returned for `2`.
 **Realtime:** `ws-gateway` unchanged; `PUBLIC_TOPICS` unchanged at 18; no engine
 gains a browser-facing socket; the companion has none.
 
+> **Added 2026-09-26 (4F.7 ratification, RS-3a and RS-4a–RS-4d),
+> additively.** Nothing above is edited.
+>
+> **How sensor status reaches this read surface (RS-3a).**
+>
+> - `perception-engine` publishes the **existing** subject
+>   `perception.sensor.health_changed` on its existing sensor lifecycle
+>   transitions.
+> - `cognitive-state-engine` subscribes to it as an **internal input**. Its
+>   subscribe allow-list changes from empty to exactly that one subject.
+> - `cognitive-state-engine` serves the **normalized** sensor state under
+>   `/v1/cognitive-state`.
+> - **No new subject is added, and `PUBLIC_TOPICS` stays byte-identical.**
+>
+> **An accepted consequence, recorded rather than hidden.**
+> `perception.sensor.health_changed` has been in `PUBLIC_TOPICS` since 4B. Once
+> `perception-engine` publishes it, `ws-gateway` also delivers it to subscribed
+> browsers, and the Events panel records every frame. RS-3a accepts this as an
+> architectural consequence.
+>
+> **The read surface (RS-4a–RS-4c).**
+>
+> - `GET`-only, with identity resolved server-side from `primary_user_id`.
+> - It carries Active Thoughts with every Part 6 field, the attention layer,
+>   Focus entries with `score` and `signals_used`, and normalized sensor
+>   state.
+> - `proposed_action` is rendered **as a proposal only**.
+> - **No autonomy decision data** is included.
+>
+> **Deployment (RS-4d)** is part of 4F.7.
+>
+> The exact contract is TDD 4F.7
+> ([`11-tdd-4f7-cognitive-state-panel.md`](11-tdd-4f7-cognitive-state-panel.md)).
+> Full record: §24.
+
 ---
 
 ## 13. `cognitive-state-engine` — component specification
@@ -555,6 +722,33 @@ projects and current progress; the **Focus System** ranking by user activity,
 task importance, deadlines, system health, current risks, agent workload and
 learning opportunities; **five Attention Layers** — Immediate, Active, Passive,
 Dormant, Archived — with thoughts moving between them.
+
+> **Added 2026-09-26 (4F.7 ratification, RS-1a, RS-1b, RS-4c and RS-2),
+> additively.** The table above is not edited. For its **API** row and for who
+> moves thoughts between layers:
+>
+> - **RS-4c.** *"A Level-2-relevant read"* means the thought's **persisted
+>   `proposed_action`**. It is rendered as a proposal, **never** as
+>   triggered, decided, executing or executed. No new persistence is added for
+>   it.
+> - **RS-1b.** The *"Read-only panel surface"* is **strictly** read-only.
+>   4F.7 does not:
+>   - create Active Thoughts;
+>   - author `ProposedAction`s;
+>   - promote thoughts, or call `promotion_orchestration.promote_thought`;
+>   - add any write route under `/v1/cognitive-state`.
+> - **RS-1a.** Production promotion of an Active Thought between Attention
+>   Layers is owned by **`cognitive-state-engine`**. No other engine performs
+>   promotion decisions; other engines only supply inputs through existing
+>   Event Bus subjects.
+> - **RS-2.** Promotion, thought ingestion and `ProposedAction` authorship
+>   belong to the new slice **4F.P** (§18). The *Consumes* row's *"Perception
+>   observations and World Model context"* stays a statement of **where**
+>   inputs may come from. **Which subjects, and how they map to a thought,
+>   remain OPEN** for 4F.P's TDD. RS-3a's sensor-health subscription is a
+>   Perception input to the **read surface**, not to thought creation.
+>
+> Full record: §24.
 
 ---
 
@@ -727,6 +921,35 @@ slices within it, not new milestones** — the Phase 4 set remains 4A–4F.
 | **4F.6** | The trigger: `cognitive-state-engine` → `DecisionRequest` | CF-11's producer, under §6.2 |
 | **4F.7** | `cognitive-state/` panel + `/v1/cognitive-state` prefix | AC-7 clause 2 visibly |
 | **4F.8** | **The final implementation slice.** E2E: AC-7 (5 s, **honestly measured per §20.1** — no cron alignment, no bounded retry) and AC-8 (both levels). Performs the real acceptance verification | Both criteria in a browser, or the evidence that AC-7 cannot be met |
+
+> **Amended 2026-09-26 (4F.7 ratification, RS-1c), additively.** The table
+> above is preserved exactly as written.
+>
+> - **4F remains one milestone.** One implementation slice is added **before
+>   4F.8**.
+> - **4F.8 is still the final implementation slice**, so its row stays
+>   accurate.
+> - **The milestone now has nine slices.** Dated records that say *"eight
+>   slices"* were accurate when written and are not edited (protocol principle
+>   4).
+>
+> | Slice | Contents | Proves |
+> |---|---|---|
+> | 4F.1 – 4F.6 | Unchanged | Unchanged |
+> | **4F.7** | The row above, read with RS-1b, RS-3a, RS-3b and RS-4a–RS-4d (§24). It covers: a **strictly read-only** `GET` surface under `/v1/cognitive-state`, carrying Active Thoughts, Attention Layers, Focus, normalized sensor state, and `proposed_action` as a proposal only; the `api-gateway` prefix; the `cognitive-state/` panel; deployment wiring; `perception-engine` publishing the existing `perception.sensor.health_changed` on existing lifecycle transitions; and `cognitive-state-engine` subscribing to it. **No write path of any kind** | Only §4.1's row *"visibly … in the panel"*: the panel renders the normalized sensor state actually reported. **Not** OS-level revocation (RS-3b, OPEN) |
+> | **4F.P** *(new, 2026-09-26)* | **The production promotion slice.** It covers the production promotion driver in `cognitive-state-engine`, thought ingestion from existing Event Bus subjects, and `ProposedAction` authorship under an explicitly ratified rule. **Its TDD must explicitly ratify, before implementation:** the promotion policy; the thought-ingestion mapping; the `ProposedAction` authorship rule; the CAS transition semantics (RS-7); and A-4F6-3 Layer 2 logical deduplication | That the 4F.6 trigger gains a production caller (4F.6 finding F-6). **It closes nothing by itself.** CF-11 still needs 4F.8's end-to-end demonstration and 4F closure's recorded evidence (TDD 4F.6 §15.1) |
+> | 4F.8 | Unchanged | Unchanged |
+>
+> **Two notes on the new slice:**
+>
+> - **"4F.P" is a label, not a number.** It keeps the identifier 4F.8, which
+>   earlier TDDs and records cite, unchanged. RS-1c ratifies only *"before
+>   4F.8"*, so its order relative to 4F.7 is not fixed here.
+> - **4F.P is not started.** It has no TDD and no branch, and nothing in this
+>   amendment implements it.
+>
+> **Not assigned to any slice by this amendment.** The owner of OS-level
+> revocation detection (RS-3b) must be ratified before the 4F.8 TDD.
 
 ---
 
@@ -924,3 +1147,397 @@ ambiguity remains** — §20's two formerly-open questions are both closed by th
 second ratification. No `phase-4f` branch exists; no implementation scaffolding
 has been generated; no implementation file has been modified. **Implementation
 does not begin until the user gives an explicit GO.**
+
+> **Added 2026-09-26, additively.** The paragraph above is preserved as written.
+> It was true at `c04b58e`; since then:
+>
+> - **Slices 4F.1–4F.6 are implemented and merged** into `phase-4`, whose head
+>   is `4e19ed1`.
+> - **A third ratification (§24) settles eleven decisions**, RS-1 … RS-11, for
+>   4F.7 and for the milestone.
+> - **It adds the slice 4F.P** before 4F.8 (§18).
+> - **It appends D-4F-9 as §11.5.**
+> - **4F.7's slice TDD is prepared** as
+>   [`11-tdd-4f7-cognitive-state-panel.md`](11-tdd-4f7-cognitive-state-panel.md).
+>
+> **4F.7 implementation does not begin until the user gives an explicit GO.**
+
+---
+
+## 24. Ratified decisions — 2026-09-26 (third ratification: the 4F.7 packet)
+
+### 24.0 Baseline, verified before anything was ratified
+
+| Ref | Value |
+|---|---|
+| `origin/phase-4` | **`4e19ed19876f2c76dd6f6591b1aa9cc778dd2e89`** — the merge of PR #37 (4F.6) |
+| Its first parent | `4f1602ac086c421fc1a6beb54b7effb10f3ef6d9` — PR #36's merge, the baseline TDD 4F.6 was prepared against |
+| `origin/main` | **`7e273e62e942ecd5528ca807e65933d6bb675669`**, which is also `merge-base(origin/phase-4, origin/main)` |
+| TDD 4F.6 and its completion record | Both reachable from `origin/phase-4` (`git merge-base --is-ancestor`; `git cat-file -e`) |
+| Protocol | sha256 `21185dd1b2a43e87eac0a52aa5e53c8e8bbb01223014dc2a48408bbb0478de6a`, 1131 lines, read from `origin/main`, byte-identical on `phase-4` |
+
+**The two recorded values are not in conflict.** `4f1602a` is `phase-4`
+*before* PR #37, and `4e19ed1` is `phase-4` *after* it.
+
+### 24.1 How to read this section
+
+- **Every RS row below is RATIFIED**, in the wording the user approved.
+- **No ratified decision was contradicted by repository evidence.**
+- **Where a decision has a consequence another document did not anticipate,**
+  the consequence is recorded under that decision. It is not silently
+  absorbed.
+- **Nothing here closes CF-9, CF-10 or CF-11.**
+
+### 24.2 Promotion — ownership, 4F.7's scope and the new slice
+
+**RS-1a — RATIFIED.** Production promotion of an Active Thought between
+Attention Layers is owned by `cognitive-state-engine`. No other engine performs
+promotion decisions. Other engines only supply inputs through existing Event
+Bus subjects. *(Grounds: D-4F-3, §19; §10's ownership matrix.)*
+
+**RS-1b — RATIFIED.** **4F.7 is strictly read-only.** It does not:
+
+- create Active Thoughts;
+- author `ProposedAction`s;
+- promote thoughts;
+- call `promotion_orchestration.promote_thought`;
+- add a write route under `/v1/cognitive-state`.
+
+Statements suggesting that the 4F.7 surface drives promotion are historical
+contradictions. Each is resolved additively, with the original wording
+preserved:
+
+| Where the statement is | What happens to it |
+|---|---|
+| 4F.6 completion record §1.1 and §2.1, and finding F-6 in §8.1 | Dated additive notes in that record |
+| `services/cognitive-state-engine/README.md`, *Status update — 4F.6* | A dated additive note |
+| `promotion_orchestration.py`'s module docstring (l.29–35) and `main.py`'s lifespan comment (l.44–49) | **Not edited now**: they are production source, and this ratification step modifies none. Their additive clarification is an obligation of the 4F.7 implementation (TDD 4F.7 §17) |
+
+**RS-1c — RATIFIED: Alternative C.**
+
+- The production promotion driver, thought ingestion and `ProposedAction`
+  authorship belong to a **new implementation slice inside milestone 4F, before
+  4F.8**. It is **4F.P**, added to §18 by additive amendment.
+- **4F remains one milestone.** 4F.P is **not implemented now**.
+- **Its future TDD must explicitly ratify:**
+  - the promotion policy;
+  - the thought-ingestion mapping;
+  - the `ProposedAction` authorship rule;
+  - the CAS transition semantics;
+  - Layer 2 logical deduplication.
+- **Why D was rejected.** Alternative D was *"test/e2e-only until 4F.8"*. It
+  would have left CF-11 unevidenceable within 4F. §4.2 states that AC-8 was
+  *"deliberately not re-scoped to avoid … CF-11"*.
+
+### 24.3 Thought ingestion and `ProposedAction` authorship
+
+**RS-2a — RATIFIED (a recorded finding).** At `4e19ed1` the repository has **no
+production producer that creates Active Thoughts** and **no existing producer
+that authors a complete `ProposedAction`**. The evidence:
+
+- `upsert_thought`, `list_thoughts`, `select_focus` and `promote_thought` have
+  **no caller** in `cognitive-state-engine/src/` outside their own definitions.
+- `SUBSCRIBABLE_SUBJECTS` is empty.
+- **No registered payload carries all of `ProposedAction`'s required fields.**
+  `category`, `action_type`, `execution_target` and `verification_method` are
+  missing from every one of `world_model.context.changed`,
+  `planning.task_graph.created`, `reasoning.process.completed` and
+  `perception.workspace.observed`.
+
+**4F.7 does not invent one.**
+
+**RS-2b — RATIFIED.** The smallest future extension is:
+
+- `cognitive-state-engine` subscribes to **existing** Event Bus subjects;
+- it maps approved inputs into Active Thoughts;
+- it authors complete `ProposedAction`s according to a **future, explicitly
+  ratified** authoring rule.
+
+**The exact source subjects, the field mapping and the authoring rule stay
+OPEN** for 4F.P's TDD. No `ProposedAction` policy is invented here.
+
+### 24.4 The sensor-state data path
+
+**RS-3a — RATIFIED: Option B.** The decision:
+
+- **No new subject.** 4F.7 uses the existing `perception.sensor.health_changed`
+  (`PerceptionSensorHealthChangedPayload`).
+- **Publisher.** `perception-engine` publishes it on existing sensor lifecycle
+  transitions.
+- **Consumer.** `cognitive-state-engine` subscribes to it as an internal input.
+  Its subscribe allow-list changes from **empty** to **exactly this existing
+  subject**.
+- **Read surface.** `cognitive-state-engine` serves normalized sensor state
+  through `/v1/cognitive-state`.
+- **`PUBLIC_TOPICS` is not modified**, and stays byte-identical at 18.
+
+**An accepted architectural consequence, recorded explicitly.** The subject is
+**already public**: it has been in `ws-gateway`'s `PUBLIC_TOPICS` since 4B. So
+publishing it also makes the event available to `ws-gateway` subscribers, and
+the Events panel records every frame. This is accepted as a consequence of
+RS-3a.
+
+**Consequences recorded, not resolved here:**
+
+| # | Consequence | Where it is handled |
+|---|---|---|
+| 1 | §2.2 property 4 (*"No raw sensor event reaches the browser"*) and D-4F-4 (*"no raw sensor stream to the browser"*) are read together with the accepted consequence above. A lifecycle-status report on an already-public topic is accepted by this ratification; **no sensor observation** becomes browser-visible | This row |
+| 2 | Phase 2D-B's design (`docs/design/phase-2d/03-perception-engine.md` §12, §13.2) described the subject as published on *"repeated failures … for observability"*, with *"no engine consumer this phase"*. RS-3a broadens the publication condition to lifecycle transitions and adds an engine consumer. The 2D-B text is a dated design record and is not edited | This row |
+| 3 | The payload's `status` field is plain `str` with **no fixed vocabulary** (`events/perception.py`). Which values `perception-engine` publishes is a **TDD 4F.7 decision** | TDD 4F.7 §20, A-4F7-2 |
+| 4 | The Event Bus SDK's `subscribe()` is a core NATS subscription. A report dispatched while `cognitive-state-engine` is not subscribed is not delivered to it | TDD 4F.7 §15 and §18, as a known limitation |
+
+> **Updated 2026-09-26 (TDD 4F.7 §28: A-4F7-1 and A-4F7-2 RATIFIED),
+> additively.** The table above is preserved as written.
+>
+> **Consequence 3 is settled (A-4F7-2).** `perception-engine` publishes the
+> **existing lifecycle vocabulary**, `SensorState` (`perception-engine`
+> `domain/sensor.py` l.29):
+>
+> - The six values are `uninitialized`, `initialized`, `running`, `paused`,
+>   `stopped` and `failed`, read after each transition.
+> - `cognitive-state-engine` accepts exactly those six and **rejects anything
+>   else without storing it**.
+> - **No health-status vocabulary** is published or invented.
+> - **The payload contract is unchanged** (`status: str`).
+>
+> **The store is fixed (A-4F7-1).** Normalized state lives in the durable
+> current-state table `cognitive_state.sensor_state`, one record per sensor,
+> with **no history and no audit semantics**.
+>
+> Nothing here changes RS-3a or its accepted consequence.
+
+**Alternatives rejected:**
+
+- **Option A** (the panel consumes the realtime topic) contradicts §4.1's last
+  row and §12.
+- **Option C** contradicts §4.1. Its variants were `perception.consent.changed`,
+  which records app consent rather than OS permission; inferring failure from
+  silence; and reading `perception-engine` over HTTP, which ADR-004 forbids.
+- **Option D** (unrelated to 4F.7) contradicts §18.
+
+**RS-3b — RATIFIED as OPEN.**
+
+- **OS-level permission revocation detection stays OPEN.** 4F.7 does not
+  implement `chmod` detection and does not modify `nova-companion` for this
+  purpose.
+- **4F.7 does not claim that OS permission revocation itself is demonstrated.**
+  It only provides the read surface and visualizes whatever normalized sensor
+  state is actually supplied.
+- **The owner of revocation detection must be ratified before the 4F.8 TDD.**
+
+### 24.5 The read surface
+
+**RS-4a — RATIFIED.** The minimum `/v1/cognitive-state` read surface is
+**`GET`-only**. Identity is resolved server-side from `primary_user_id`, and no
+caller-supplied user id is accepted. The surface contains:
+
+- Active Thoughts, with all Part 6 fields;
+- the attention layer;
+- Focus entries, with `score` and `signals_used`;
+- normalized sensor state;
+- `ProposedAction`, only under RS-4c.
+
+**Empty production data must remain empty.** No synthetic thoughts, no fake
+Focus activity, no fake sensor state.
+
+**RS-4b — RATIFIED.**
+
+- 4F.7 creates **no durable Thought-to-Decision link**.
+- `cognitive-state-engine` does **not** read `autonomy-engine` data.
+- **No autonomy decision data** is included in the cognitive-state read
+  surface.
+
+**RS-4c — RATIFIED: Alternative (i).**
+
+- *"A Level-2-relevant read"* (§13) means the **persisted `proposed_action`**.
+- It is rendered **as a proposal**. It is **never** rendered as triggered,
+  decided, executing or executed.
+- **No new persistence** is added for this purpose.
+- **Alternative (ii)**, withdrawing the phrase, is rejected.
+
+**RS-4d — RATIFIED.** 4F.7 includes deployment wiring for
+`cognitive-state-engine` in two files:
+
+- `infra/docker/docker-compose.local.yml`;
+- `infra/docker/run-migrations.sh`.
+
+This uses the assignment already established by the 4F.1 completion record
+(§8: *"a compose service and `run-migrations.sh` entry (4F.7, with
+deployment)"*).
+
+### 24.6 The prefix
+
+**RS-5 — RATIFIED.** The `/v1/cognitive-state` prefix contradiction is
+resolved by an additive note under §2.2. The historical sentence is not
+rewritten. The authoritative interpretation:
+
+- `api-gateway` remains the **sole** external REST boundary.
+- 4F adds exactly **one** new external prefix, `/v1/cognitive-state`, forwarded
+  1:1.
+- **No `/v1/perception` prefix** is added.
+- **No other new prefix** is added by 4F.7.
+
+### 24.7 *Triggered*
+
+**RS-6a — RATIFIED: Option A.** *Triggered* remains a **system-level
+property**. None of the following is created:
+
+- a `Triggered` enum;
+- a triggered database field;
+- a per-thought triggered state;
+- a persisted trigger outcome.
+
+**Option B**, per-thought persisted state, is rejected.
+
+**RS-6b — RATIFIED.** 4F.6's state 4 is to be interpreted as follows:
+
+- **The consumer mechanism exists.**
+- **The production end-to-end *Triggered* state is not yet evidenced** while
+  `cognitive-state-engine` is not deployed and while no production component
+  promotes an Active Thought.
+- **CF-11 closure is not claimed.**
+
+Additive notes carry this into TDD 4F.6 §2 and the 4F.6 completion record
+§1.1.
+
+### 24.8 Promotion transition semantics
+
+**RS-7 — RATIFIED: Option E for 4F.7.**
+
+- **4F.7 makes no change** to promotion transition semantics.
+- **CAS protection is required before a production caller exists.**
+  Promotion transition semantics need it at that point, using
+  `autonomy-engine`'s `decide_suggestion` conditional-`UPDATE` pattern as
+  precedent (`repository/postgres_autonomy_repository.py`). The future
+  promotion slice ratifies the exact CAS behaviour. **CAS is not implemented
+  now.**
+- **None of the following is added:**
+  - retry;
+  - an outbox;
+  - failed-trigger persistence;
+  - TTL;
+  - stale-trigger handling;
+  - Layer 2 deduplication.
+
+### 24.9 Stand-in producers
+
+**RS-8 — RATIFIED: Option B.** All producer stand-ins are **test
+infrastructure**, including `tools/e2e_seed_autonomy_suggestion.py`.
+
+**A stand-in:**
+
+- uses real repositories and gates;
+- stays inside test infrastructure;
+- does **not** count as a production producer;
+- does **not** close CF-11;
+- does **not** prove the Level 2 *Triggered* state.
+
+**If AC-8 later uses a stand-in,** its evidence must state explicitly that the
+CF-11 dependency (§4.2) remains unmet.
+
+**Rejected:**
+
+- **Option A** (a stand-in may close CF-11) contradicts §6.1's
+  *"production-reachable"* and TDD 4F.6 §2's *"without a test harness"*.
+- **Option C** (no stand-in, ever) is contradicted by precedent. The Phase 4D
+  Gate Review accepted a disclosed stand-in as acceptance-test infrastructure
+  (`phase-4d-autonomy-engine-gate-review.md`, lines 184–192 and 719–721).
+
+### 24.10 SAD 15 §4 item 1
+
+**RS-9 — RATIFIED: Option C.** The 4F.7 PR is granted an exception to SAD 15
+§4 item 1.
+
+**The exception covers:**
+
+- `services/cognitive-state-engine/`;
+- `services/api-gateway/`;
+- `apps/web-client/`;
+- `infra/docker/`;
+- `services/perception-engine/`, because RS-3a requires it.
+
+The tests and documentation associated with these surfaces are included.
+
+**Conditions:**
+
+- SAD 15 §4 items 2–5 remain mandatory.
+- The Slice Completion Record must document the exception.
+- **No change-scope linter is created.**
+
+**Recorded, not an extension of the exception.** Some files that 4F.7 also
+needs are **not an engine's `src/`**, so SAD 15 §4 item 1 does not govern
+them:
+
+- `.github/workflows/pr-checks.yml` — the e2e job's started-service list;
+- the repository-root `uv.lock` — changed by a dependency declaration.
+
+TDD 4F.7 §5 lists each one.
+
+**Rejected:**
+
+- **Option A** would repeat, undecided, the non-conformance the Phase 4B Gate
+  Review recorded as an unmet DoD item for PR #24
+  (`phase-4b-observability-panels-gate-review.md`, lines 1764–1770).
+- **Option B** contradicts §18 (*"not new milestones"*).
+
+### 24.11 Documentation
+
+**RS-10 — RATIFIED.**
+
+- The already-ratified D-4F-9 text from TDD 4F.6 §14 is appended as **§11.5**,
+  additively.
+- §11.4's historical wording is not rewritten.
+- A provenance note sits at the end of §11.5.
+
+**RS-11 — RATIFIED.** The documentation statements that 4F.7 drives
+promotions are resolved by additive clarification:
+
+- The historical wording is preserved.
+- Ownership wording now names the future promotion slice, **4F.P**, as the owner
+  of production promotion.
+- **No production code is modified in this step.** See RS-1b's table.
+
+### 24.12 OPEN — explicitly, and not closed by any wording here
+
+- **Revocation and carry-forwards:** RS-3b (OS-level revocation detection);
+  CF-9, CF-10 and CF-11.
+- **4F.6's open and deferred semantics:**
+  - TTL and stale-trigger semantics;
+  - Layer 2 logical deduplication;
+  - persistent lost-trigger auditability;
+  - `observability.py` packaging;
+  - the `correlation_id` logging convention.
+- **Ledger rows:** L-14, L-17, L-18 and L-19.
+- **`cognitive-state-engine` semantics:**
+  - Focus-signal computation — every `FocusInputs` signal is still `None` in
+    production;
+  - Part 6 INTERRUPTIONS promotion semantics (`domain/attention.py` defers
+    them).
+- **Stale documentation:** the realtime-hydration row at
+  `docs/architecture/04-frontend-architecture.md:81`, which contradicts D-4F-6.
+- **4F.P's contents:** the promotion policy, the thought-ingestion mapping, the
+  `ProposedAction` authorship rule and the CAS semantics (RS-1c, RS-2b).
+
+### 24.13 Residuals recorded, not resolved
+
+1. **§16.1 control 11** still reads *"publishes nothing"*. Two facts bear on
+   it:
+   - D-4F-9 (§11.5) amends §13 and §11.4 but does not name control 11;
+   - 4F.6 retargeted the control's test in code.
+
+   Deciding whether to amend the control's wording is left to 4F closure's
+   category-12 sweep (ledger **L-9**).
+2. **`docs/architecture/10-inter-engine-communication.md:81`** describes
+   `world_model.context.changed` making `cognitive-state-engine` *"re-evaluate
+   Focus"*. No such subscription exists, and whether 4F.P creates one is part
+   of RS-2b's OPEN mapping.
+3. **"Exactly one new subject" predates D-4F-9.** §16.1 control 1 (*"Exactly
+   one new Event Bus subject"*) and §21 item 5 (*"exactly one Event Bus subject
+   was added"*) were written before D-4F-9. Across 4F, two subjects are now
+   registered:
+   - `perception.workspace.observed`, by 4F.2;
+   - `autonomy.decision.requested`, by 4F.6 (D-4F-9, registry 119 → 120).
+
+   D-4F-9 does not amend either statement. **4F.7 adds no subject.** Settling
+   the wording belongs to 4F closure's category-12 sweep (**L-9**) and the 4F
+   Gate Review.

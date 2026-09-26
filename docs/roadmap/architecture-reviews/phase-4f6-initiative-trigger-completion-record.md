@@ -67,6 +67,30 @@ The **producer** side, `promote_thought`, has **no production caller yet**:
 nothing in `cognitive-state-engine`'s running topology promotes a thought. That
 surface belongs to 4F.7, and it is why CF-11 stays OPEN (§8.2).
 
+> **Correction, 2026-09-26 (4F.7 ratification, RS-6b and RS-11 — TDD 4F
+> §24), additively.** The section above is preserved as written. Three
+> corrections apply to it:
+>
+> 1. **"Met" describes the consumer half only.** The consumer runs in
+>    production. By TDD 4F.6 §2's own definition, the production end-to-end
+>    *Triggered* state is **not yet evidenced**: that requires *"a production
+>    component, reachable in a deployed system without a test harness"*.
+>    Neither part holds yet:
+>    - `cognitive-state-engine` is not deployed;
+>    - no production component promotes an Active Thought.
+>
+>    *Triggered* stays a system-level property, and **CF-11 stays OPEN**.
+> 2. **"That surface belongs to 4F.7" is superseded.** 4F.7 is strictly
+>    read-only (RS-1b). It does not promote thoughts or call `promote_thought`.
+>    The production promotion driver belongs to the new slice **4F.P**, before
+>    4F.8 (RS-1c; TDD 4F §18, as amended).
+> 3. **The quotation at the top of this section is not TDD 4F §18's
+>    wording.** §18's 4F.6 row reads *"The trigger: `cognitive-state-engine` →
+>    `DecisionRequest` | CF-11's producer, under §6.2"*. The quoted phrase *"the
+>    first production caller of `decide()`, and CF-11's producer under §6.2"*
+>    matches master scope §17's description of TDD 4F.6 instead. The substance
+>    is unaffected.
+
 ---
 
 ## 2. Category 2 — acceptance criteria: the 21 rows of TDD 4F.6 §19
@@ -507,6 +531,19 @@ There are no other milestones between here and the gate.
 | **F-5** | **`correlation_id` does not reach `action.execute`.** §8 says `correlation_id` is *"threaded through: trigger → decision → `action.execute` share one identity"*. 4F.5's dispatch uses `subject_id` as `action.execute`'s correlation id | §19 row 20 freezes 4F.5's dispatch semantics, and §19 is authoritative. The chain is still reconstructable: `event_id → subject_id` (deterministic) `→ action_id` | Amend §8, or thread the id in a ratified change to 4F.5's dispatch. **Recommend amending §8 to describe the built chain** | No |
 | **F-6** | **`promote_thought` has no production caller.** Only the trigger port is bound in `main.py` | TDD 4F.6 §15.1; CF-11 claims 3–4 are owned by 4F.8 and 4F closure | None in this slice. The surface is 4F.7's | No |
 | **F-7** | **The Design A log lines include `correlation_id`.** The consumer's warnings interpolate `envelope.event_id` and `envelope.correlation_id` as message arguments | TDD 4F.6 §9.1 Design A (**RATIFIED**) lists *"Information captured: Subject, `event_id`, `correlation_id`, exception type and traceback"*. §16 keeps *"Logging `correlation_id`"* **OPEN** as a possible convention: *"No log call in the repository carries one."* I followed the ratified row. No logging infrastructure, binding or structured-context mechanism was added | (a) keep; (b) drop `correlation_id` from the three lines until the convention is settled. **Recommend the Gate Review decide**; it is a three-line change either way | No |
+
+> **Correction, 2026-09-26 (4F.7 ratification, RS-11 and RS-1c — TDD 4F
+> §24), additively.** The F-6 row above and §2.1's *"It does not ship a
+> production caller of `promote_thought` (4F.7)"* are preserved as written.
+>
+> - **Their owner attribution is superseded.** 4F.7 is **strictly read-only**
+>   (RS-1b). It does not promote thoughts, call `promote_thought`, create Active
+>   Thoughts or author `ProposedAction`s.
+> - **F-6's owner is now the production promotion slice, 4F.P**, which comes
+>   before 4F.8 (TDD 4F §18, as amended). 4F.P also owns thought ingestion,
+>   `ProposedAction` authorship, the CAS transition semantics (RS-7) and
+>   A-4F6-3 Layer 2.
+> - **F-6 stays OPEN**, and so does CF-11.
 
 ### 8.2 CF-9, CF-10 and CF-11: all OPEN
 

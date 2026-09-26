@@ -494,7 +494,12 @@ def test_mutating_verbs_on_agents_reach_no_upstream_unauthenticated(
 def test_the_route_table_fronts_no_other_agent_os_component() -> None:
     """`agent-os/registry` and `agent-os/supervisors` have no `/v1` surface
     and must not be fronted. The Agents panel reaches packages through the
-    Kernel, which asks Registry over the bus (ADR-004)."""
+    Kernel, which asks Registry over the bus (ADR-004).
+
+    *(Updated 2026-09-26, Phase 4F.7 -- TDD 4F.7 §16 P-17, RS-5.)* The exact
+    prefix set is now **nine**: 4F.7 appends `/v1/cognitive-state`. The eight
+    it held before 4F.7 are the first eight entries below, unchanged -- the
+    set is still pinned exactly, so any other addition still fails here."""
     from nova_api_gateway.domain.routing import build_route_table
 
     table = build_route_table(
@@ -506,6 +511,7 @@ def test_the_route_table_fronts_no_other_agent_os_component() -> None:
         agent_os_kernel_url="http://agent-os-kernel:8000",
         autonomy_engine_url="http://autonomy-engine:8000",
         digital_twin_engine_url="http://digital-twin-engine:8000",
+        cognitive_state_engine_url="http://cognitive-state-engine:8000",
     )
     upstreams = {route.upstream_name for route in table.routes}
 
@@ -522,4 +528,105 @@ def test_the_route_table_fronts_no_other_agent_os_component() -> None:
         "/v1/autonomy",
         # Phase 4E. The Digital Twin panel's data source (D-6, forwarded 1:1).
         "/v1/digital-twin",
+        # Phase 4F.7. The Cognitive State panel's data source (RS-5).
+        "/v1/cognitive-state",
     }
+
+
+# --- Cognitive State surface, Phase 4F.7 (TDD 4F.7 §7.4, §16 P-17) -----------
+#
+# One more prefix, the same mechanism: forwarded 1:1 and verbatim (D-6), wrapped
+# in the envelope, and an upstream status carried through. What is asserted is
+# what was forwarded -- method, URL and query -- not merely that a call happened.
+# The engine end of the path is P-21's (a real browser against the real stack).
+
+_COGNITIVE_STATE = "http://cognitive-state-engine:8000"
+
+
+@pytest.mark.parametrize("route", ["thoughts", "focus", "sensors"])
+def test_cognitive_state_gets_forward_one_to_one(
+    client: TestClient, upstream: FakeUpstream, route: str
+) -> None:
+    upstream.json_body = {"sensors": []} if route == "sensors" else {"thoughts": []}
+    _auth(client)
+    response = client.get(f"/v1/cognitive-state/{route}")
+
+    assert response.status_code == 200
+    assert response.json()["data"] == upstream.json_body
+    assert response.json()["error"] is None
+    call = upstream.calls[-1]
+    assert call["method"] == "GET"
+    assert call["url"] == f"{_COGNITIVE_STATE}/v1/cognitive-state/{route}"
+    assert call["params"] in (None, [])
+
+
+def test_cognitive_state_query_is_forwarded_intact_not_interpreted(
+    client: TestClient, upstream: FakeUpstream
+) -> None:
+    """The gateway neither strips nor honours a caller's `user_id`; it forwards
+    it verbatim, and the engine ignores it (TDD 4F.7 §7.4, asserted in
+    `cognitive-state-engine`'s P-2). Identity is never the gateway's to rewrite."""
+    _auth(client)
+    client.get("/v1/cognitive-state/thoughts?user_id=00000000-0000-0000-0000-0000000000aa&x=1")
+
+    call = upstream.calls[-1]
+    assert call["url"] == f"{_COGNITIVE_STATE}/v1/cognitive-state/thoughts"
+    assert call["params"] == [("user_id", "00000000-0000-0000-0000-0000000000aa"), ("x", "1")]
+
+
+@pytest.mark.parametrize("method", ["post", "put", "patch", "delete"])
+def test_a_cognitive_state_write_is_forwarded_and_its_405_comes_back_unchanged(
+    client: TestClient, upstream: FakeUpstream, method: str
+) -> None:
+    """The read-only guarantee lives in the engine, which declares only `GET`
+    (its P-1). The gateway forwards the verb and must carry the engine's 405
+    back as a 405 -- never turn it into a success or a different error."""
+    upstream.status_code = 405
+    upstream.json_body = {"detail": "Method Not Allowed"}
+    _auth(client)
+    response = getattr(client, method)("/v1/cognitive-state/thoughts")
+
+    assert upstream.calls[-1]["method"] == method.upper()
+    assert upstream.calls[-1]["url"] == f"{_COGNITIVE_STATE}/v1/cognitive-state/thoughts"
+    assert response.status_code == 405
+    body = response.json()
+    assert body["data"] is None
+    assert body["error"]["upstream_status"] == 405
+
+
+def test_a_cognitive_state_store_failure_is_an_error_never_an_empty_success(
+    client: TestClient, upstream: FakeUpstream
+) -> None:
+    upstream.status_code = 500
+    upstream.json_body = {"detail": "Internal Server Error"}
+    _auth(client)
+    response = client.get("/v1/cognitive-state/sensors")
+
+    assert response.status_code == 500
+    assert response.json()["data"] is None
+    assert response.json()["error"]["upstream_status"] == 500
+
+
+def test_cognitive_state_requires_a_session(client: TestClient, upstream: FakeUpstream) -> None:
+    response = client.get("/v1/cognitive-state/thoughts")
+
+    assert response.status_code == 401
+    assert upstream.calls == [], "an unauthenticated request reached the upstream"
+
+
+def test_the_cognitive_state_engines_internal_surface_is_never_forwarded(
+    client: TestClient, upstream: FakeUpstream
+) -> None:
+    """`/internal/*` is never forwarded: the gateway answers its own
+    `/internal/readiness` locally and asks no upstream. A path segment named
+    `internal` under `/v1/cognitive-state` is forwarded verbatim into the
+    engine's `/v1` subtree -- never rewritten onto its `/internal` tree."""
+    _auth(client)
+
+    before = len(upstream.calls)
+    assert client.get("/internal/readiness").status_code == 200
+    client.get("/internal/health")
+    assert len(upstream.calls) == before, "an /internal path was forwarded upstream"
+
+    client.get("/v1/cognitive-state/internal/health")
+    assert upstream.calls[-1]["url"] == f"{_COGNITIVE_STATE}/v1/cognitive-state/internal/health"
