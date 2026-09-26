@@ -412,6 +412,27 @@ Playwright `e2e` job and P-21), `Build & Scan` (incl. Trivy on the changed
 `api-gateway` images) and `Real-Infrastructure Checks` — is reported in the PR
 and in the implementation report.
 
+> **Added 2026-09-26, after CI completed, additively.** The paragraph above was
+> written before the push and is kept. CI ran on PR
+> [#38](https://github.com/Tudor191/NOVA-PROJECT-BIBLE/pull/38) at head
+> **`87808649b5427ef41f87ee90de6ac0e8cb5cedaf`** (`8780864`, the record commit,
+> whose code and tests are identical to `bf0426d`). **All 40 check runs
+> completed `success`; 0 failed, 0 cancelled.**
+>
+> | Workflow | Job(s) | Conclusion at `8780864` | Evidence |
+> |---|---|---|---|
+> | `PR Checks` | `checks` (lint, mypy, import-linter, codegen drift, the full suite, `tools/tests`) | **success** | run `36232289290`, job `108377573647` |
+> | `PR Checks` | `Playwright golden path (staged, non-blocking)` | **success** — 21 tests: **20 passed, 1 skipped**. All three P-21 tests passed: `cognitive-state-panel.spec.ts › renders exactly what the gateway serves`, `› shows the honest empty states of an unseeded stack`, `› is read-only at the edge: a write is refused, Refresh only reads`. The skip is the pre-existing `approval-lifecycle.spec.ts` test, which 4F.7 did not touch | job `108377573497` |
+> | `Build & Scan` | 27 jobs: every matrix image, incl. `cognitive-state-engine`, `perception-engine` and `api-gateway`, each Trivy-scanned; and `dependency-audit` | **success** (all) | run `36232289278` |
+> | `Real-Infrastructure Checks` | 12 package rows | **success** (all). `cognitive-state-engine`: **45 passed**, 191 deselected. `perception-engine`: **22 passed**, 208 deselected — the same tests, by name, as §6 item 5 | run `36232289283`; jobs `108377573796`, `108377573823` |
+>
+> **Consequences for this record.** P-21 in §2 is now **verified by CI** (the
+> P-21 row and its "cannot be verified in this environment" status are kept as
+> written; this note supersedes that status). With it, **31 of 31** acceptance
+> criteria are met: 30 on local evidence, confirmed in CI, and P-21 in CI only.
+> §6 item 8's unverified sentence is closed: the 67 real-infra tests ran green in
+> CI's containers.
+
 ### 7.3 Boundary audit (`git diff --name-only 598bbc3 HEAD`)
 
 | Area | Files |
@@ -574,3 +595,9 @@ F-4F7-6 and the §9 notes as inputs.
 - **A single test running `perception-engine` and `cognitive-state-engine`
   production code together:** structurally excluded by control 7; the halves
   meet at the registered contract (§1.1).
+
+> **Added 2026-09-26, after CI completed, additively.** The first three items
+> above are now verified by CI at `8780864` (§7.2 note): Playwright P-21 passed
+> with `cognitive-state-engine` in the e2e stack; the real-infra tier passed in
+> CI's containers; every image built and passed Trivy. The fourth item stands as
+> written.
