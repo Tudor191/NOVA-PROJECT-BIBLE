@@ -179,6 +179,12 @@ async def test_0002_leaves_the_check_constraints_exactly_as_0001_defined_them(
 
 
 async def test_0002_adds_no_table(database: AsyncEngine) -> None:
+    """*(Updated 2026-09-26, Phase 4F.7, additively.)* At `head` the schema also
+    holds `sensor_state`, added by **4F.7's** migration `0003` (ratified
+    A-4F7-1), not by 0002. So 0002's claim is kept exactly -- every table other
+    than 0003's is 0001's `active_thought` -- and the whole set is pinned too.
+    *(This test asserted `list(tables) == ["active_thought"]`, which held until
+    0003 existed. Preserved per protocol §0.3.4.)*"""
     async with database.connect() as connection:
         tables = (
             (
@@ -192,7 +198,8 @@ async def test_0002_adds_no_table(database: AsyncEngine) -> None:
             .scalars()
             .all()
         )
-    assert list(tables) == ["active_thought"]
+    assert [table for table in tables if table != "sensor_state"] == ["active_thought"]
+    assert sorted(tables) == ["active_thought", "sensor_state"]
 
 
 # --- the round trip ----------------------------------------------------------------

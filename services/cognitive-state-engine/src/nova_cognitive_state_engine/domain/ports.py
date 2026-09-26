@@ -31,10 +31,12 @@ from nova_contracts.events.autonomy import AutonomyDecisionRequestedPayload
 from pydantic import BaseModel
 
 from nova_cognitive_state_engine.domain.models import ActiveThought, AttentionLayer
+from nova_cognitive_state_engine.domain.sensor_state import SensorStateRecord
 
 __all__ = [
     "CognitiveStateRepository",
     "DecisionTriggerPort",
+    "SensorStateRepository",
     "ThoughtNotFoundError",
     "TriggerDelivery",
     "TriggerStatus",
@@ -125,6 +127,29 @@ class CognitiveStateRepository(Protocol):
         records a move the domain already validated; putting `next_layer`'s
         table behind a repository call would give the ladder two definitions.
         """
+
+
+class SensorStateRepository(Protocol):
+    """**Phase 4F.7, A-4F7-1** -- the current-state store for sensor reports
+    (TDD 4F.7 §28.1). A separate Protocol rather than new methods on
+    `CognitiveStateRepository`, so nothing that implements the thought port
+    has to learn about sensors.
+
+    **Current state only.** One record per `sensor_id`; there is no method that
+    appends, lists history, expires or deletes, and that absence is the
+    ratified non-goal (no sensor history, no heartbeat history, no audit)."""
+
+    async def apply_sensor_report(self, record: SensorStateRecord) -> bool:
+        """Insert, or replace the current record, **in one conditional
+        statement** -- never a read followed by a write.
+
+        Returns `True` when the stored record changed. `False` means the report
+        was a redelivery of the current record's own `event_id`, or older than
+        the stored `reported_at`; either way nothing was written."""
+
+    async def list_sensor_states(self) -> list[SensorStateRecord]:
+        """Every current record, ordered by `sensor_id`. Empty when no report
+        has been received -- never a synthesized row."""
 
 
 class DecisionTriggerPort(Protocol):

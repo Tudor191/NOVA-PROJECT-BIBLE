@@ -79,10 +79,23 @@ def test_control_11_this_engine_publishes_the_trigger_and_nothing_else() -> None
     assert "action.execute" not in PUBLISHABLE_SUBJECTS
 
 
-def test_the_subscribe_allow_list_is_empty_until_a_handler_exists() -> None:
-    """A subscription without a consumer is the dead topic `ws-gateway`'s own
-    docstring warns about. Subjects arrive in 4F.6 with their handlers."""
-    assert frozenset() == SUBSCRIBABLE_SUBJECTS
+def test_the_subscribe_allow_list_is_exactly_the_sensor_health_subject() -> None:
+    """**Retargeted by Phase 4F.7, not retired** -- TDD 4F §24.4 **RS-3a**: this
+    engine's subscribe allow-list changes *"from empty to exactly this existing
+    subject"*. The subject arrives with its handler (`events/handlers.py`), so
+    the original property -- no subscription without a consumer -- still holds.
+
+    Exact equality, so a second subject fails as loudly as the empty set now
+    would. No `autonomy.*` subject is subscribable, and nothing here is a
+    thought-ingestion input (that is 4F.P's, RS-2b).
+
+    *(This test was `test_the_subscribe_allow_list_is_empty_until_a_handler_exists`,
+    asserting `frozenset() == SUBSCRIBABLE_SUBJECTS`, with the docstring: "A
+    subscription without a consumer is the dead topic `ws-gateway`'s own
+    docstring warns about. Subjects arrive in 4F.6 with their handlers." 4F.6
+    added none. Preserved per protocol §0.3.4.)*"""
+    assert frozenset({"perception.sensor.health_changed"}) == SUBSCRIBABLE_SUBJECTS
+    assert not any(subject.startswith("autonomy.") for subject in SUBSCRIBABLE_SUBJECTS)
 
 
 def test_control_11_no_module_names_action_execute_in_executable_code() -> None:
