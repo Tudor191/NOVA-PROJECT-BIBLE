@@ -106,6 +106,19 @@ async def _rows(database: AsyncEngine) -> list[dict]:  # type: ignore[type-arg]
         return [dict(row._mapping) for row in result]
 
 
+async def _version(database: AsyncEngine, sensor_id: str) -> str | None:
+    """The row's tuple version (`xmin`), by independent SQL. Any `UPDATE` makes a
+    new tuple version even when every value is identical, so an unchanged
+    `xmin` is what proves a redelivery was **not rewritten** -- not merely
+    rewritten with the same values (TDD 4F.7 M4)."""
+    async with database.connect() as connection:
+        result = await connection.execute(
+            text("SELECT xmin::text FROM cognitive_state.sensor_state WHERE sensor_id = :id"),
+            {"id": sensor_id},
+        )
+        return result.scalar_one_or_none()
+
+
 def _record(
     state: str = "running",
     *,
@@ -204,9 +217,11 @@ async def test_p25_a_redelivery_of_the_current_event_changes_nothing(
     record = _record("running")
     await repository.apply_sensor_report(record)
     before = await _rows(database)
+    version = await _version(database, record.sensor_id)
 
     assert await repository.apply_sensor_report(record) is False
     assert await _rows(database) == before
+    assert await _version(database, record.sensor_id) == version  # not rewritten either
 
 
 async def test_p25_an_older_report_never_overwrites_a_newer_one(
@@ -413,6 +428,7 @@ async def test_p15_redelivery_stale_and_unknown_reports_change_nothing_over_the_
         await producer.publish(newer)
         await wait_until(lambda: _is(database, "companion-filesystem", "stopped"), timeout_s=10.0)
         settled = await _rows(database)
+        settled_version = await _version(database, "companion-filesystem")
 
         for index, disturbance in enumerate(
             [
@@ -429,6 +445,9 @@ async def test_p15_redelivery_stale_and_unknown_reports_change_nothing_over_the_
 
             current = [r for r in await _rows(database) if r["sensor_id"] == "companion-filesystem"]
             assert current == [r for r in settled if r["sensor_id"] == "companion-filesystem"]
+            # Not rewritten with the same values either: the row's tuple
+            # version is untouched (a redelivery is a no-op, not a re-write).
+            assert await _version(database, "companion-filesystem") == settled_version
 
 
 async def _is(database: AsyncEngine, sensor_id: str, state: str) -> bool:
