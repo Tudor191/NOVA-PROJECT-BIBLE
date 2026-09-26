@@ -25,12 +25,14 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import timedelta
 from typing import TYPE_CHECKING
+from uuid import uuid4
 
 from fastapi import FastAPI
 from nova_eventbus_sdk import bind_event_bus
 from nova_observability import configure_observability, get_logger, prometheus_asgi_app
 from nova_service_kit import make_health_router
 
+from nova_perception_engine import sensor_lifecycle
 from nova_perception_engine.api.consent import router as consent_router
 from nova_perception_engine.api.identities import router as identities_router
 from nova_perception_engine.api.observations import router as observations_router
@@ -109,12 +111,18 @@ def create_app(
         # observation 404s.
         filesystem_sensor = FilesystemSensor()
 
-        await voice_sensor.initialize()
-        await voice_sensor.start()
-        await camera_sensor.initialize()
-        await camera_sensor.start()
-        await filesystem_sensor.initialize()
-        await filesystem_sensor.start()
+        # Phase 4F.7 (RS-3a, A-4F7-2). The same six calls, in the same order,
+        # each now reporting the state it reached on
+        # `perception.sensor.health_changed` through the outbox
+        # (`sensor_lifecycle.py`). Startup has no request, so one fresh
+        # correlation id ties this startup's reports together.
+        startup_correlation_id = uuid4()
+        startup_actions: tuple[sensor_lifecycle.LifecycleAction, ...] = ("initialize", "start")
+        for sensor in (voice_sensor, camera_sensor, filesystem_sensor):
+            for action in startup_actions:
+                await sensor_lifecycle.transition(
+                    sensor, action, repository=repo, correlation_id=startup_correlation_id
+                )
 
         await bus.connect()
         await bus.subscribe(
@@ -168,9 +176,13 @@ def create_app(
         # §3.3) -- `stop()` from a non-running/paused state is an illegal
         # transition (domain/sensor.py's own state machine, §5), so shutdown
         # guards it the same way `api/consent.py`'s revocation handler does.
+        # Phase 4F.7: each `stop()` that happens is reported, as at startup.
+        shutdown_correlation_id = uuid4()
         for sensor in (voice_sensor, camera_sensor, filesystem_sensor):
             if sensor.state() in ("running", "paused"):
-                await sensor.stop()
+                await sensor_lifecycle.transition(
+                    sensor, "stop", repository=repo, correlation_id=shutdown_correlation_id
+                )
         await bus.close()
         if engine is not None:
             await engine.dispose()

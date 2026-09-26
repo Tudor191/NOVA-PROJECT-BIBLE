@@ -25,6 +25,7 @@ from nova_perception_engine.main import create_app
 
 from tests.fakes.ai_model_port import FakeAIModelOrchestrationPort
 from tests.fakes.repository import FakePerceptionRepository
+from tests.integration.startup_reports import take_startup_reports
 
 _PRIMARY_USER_ID = uuid4()
 _ENCRYPTION_KEY = "3ktMjuHsQ9TNWhEiReuORzkawsz4KEYq2zDMZByQhHo="  # test-only Fernet key
@@ -37,6 +38,10 @@ SEGMENTS = ("home", "ada", "projects", "analytical-engine", "design")
 
 @pytest.fixture
 def harness(monkeypatch):  # type: ignore[no-untyped-def]
+    """*(Updated 2026-09-26, Phase 4F.7.)* Startup now enqueues six
+    `perception.sensor.health_changed` lifecycle reports (RS-3a). They are
+    asserted exactly and then removed, so the outbox assertions below start from
+    the empty outbox they always did (`startup_reports.py`)."""
     monkeypatch.setenv("EVENT_BUS_BACKEND", "in_memory")
     repository = FakePerceptionRepository()
     app = create_app(
@@ -45,6 +50,7 @@ def harness(monkeypatch):  # type: ignore[no-untyped-def]
         ai_model_port=FakeAIModelOrchestrationPort(),
     )
     with TestClient(app) as client:
+        take_startup_reports(repository)
         yield client, repository, app
 
 
