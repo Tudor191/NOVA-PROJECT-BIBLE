@@ -61,6 +61,23 @@ surface that drives promotions is 4F.7's, so CF-11 stays open. 4F.6 also added
 Event Bus subscriptions that feed it", but the ratified trigger condition is a
 promotion, not an inbound event. That row is kept as it was written.
 
+> **Correction, 2026-09-26 (4F.7 ratification, RS-1b, RS-1c and RS-11 — TDD
+> 4F §24), additively.** The paragraph above is preserved as written, but its
+> sentence *"The surface that drives promotions is 4F.7's"* is **superseded**.
+>
+> - **4F.7 is strictly read-only.** It adds the `GET`-only `/v1/cognitive-state`
+>   surface and the panel. It does **not** create thoughts, author
+>   `ProposedAction`s, promote thoughts, call `promote_thought`, or add a write
+>   route.
+> - **Production promotion is owned by this engine** (RS-1a), and is built in
+>   the new slice **4F.P**, which comes before 4F.8. 4F.P also owns thought
+>   ingestion and `ProposedAction` authorship.
+> - **The same claim appears in two source files**:
+>   `promotion_orchestration.py`'s module docstring and `main.py`'s lifespan
+>   comment. They are production source, so this documentation step does not
+>   edit them. Their additive clarification is an obligation of the 4F.7
+>   implementation (TDD 4F.7 §17).
+
 ## Owned events
 
 | Direction | Subject | Payload |
