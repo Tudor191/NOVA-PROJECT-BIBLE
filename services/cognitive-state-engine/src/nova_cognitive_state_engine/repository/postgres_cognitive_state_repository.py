@@ -29,7 +29,8 @@ from nova_cognitive_state_engine.domain.models import (
     ProposedAction,
 )
 from nova_cognitive_state_engine.domain.ports import ThoughtNotFoundError
-from nova_cognitive_state_engine.repository.models import ActiveThoughtORM
+from nova_cognitive_state_engine.domain.sensor_state import SensorStateRecord
+from nova_cognitive_state_engine.repository.models import ActiveThoughtORM, SensorStateORM
 
 __all__ = ["PostgresCognitiveStateRepository"]
 
@@ -162,3 +163,67 @@ class PostgresCognitiveStateRepository:
             await session.flush()
             await session.refresh(row)
             return _to_domain(row)
+
+    # -- Phase 4F.7, A-4F7-1: current-state sensor storage -------------------
+
+    async def apply_sensor_report(self, record: SensorStateRecord) -> bool:
+        """**One conditional statement** -- TDD 4F.7 §28.1.
+
+        `INSERT … ON CONFLICT (sensor_id) DO UPDATE … WHERE` the stored row's
+        `last_event_id` differs **and** its `reported_at` is not newer. So:
+
+        * the first report for a sensor inserts;
+        * a redelivery of the current row's own `event_id` changes nothing --
+          the outbox reuses a row's id as `event_id` precisely so that a
+          re-publish after a crash is recognisable (`nova_service_kit/outbox.py`);
+        * a report older than the stored one changes nothing;
+        * anything else replaces the four mutable columns.
+
+        Not a read followed by a write: two concurrent reports for one sensor
+        cannot both observe the old row and both win. `autonomy-engine`'s
+        `decide_suggestion` conditional `UPDATE` is the precedent.
+
+        `RETURNING` yields a row only when the insert or update actually happened,
+        which is what the `bool` reports.
+        """
+        insert = pg_insert(SensorStateORM).values(
+            sensor_id=record.sensor_id,
+            sensor_type=record.sensor_type,
+            state=record.state,
+            reported_at=record.reported_at,
+            last_event_id=record.last_event_id,
+        )
+        statement = insert.on_conflict_do_update(
+            index_elements=[SensorStateORM.sensor_id],
+            set_={
+                "sensor_type": insert.excluded.sensor_type,
+                "state": insert.excluded.state,
+                "reported_at": insert.excluded.reported_at,
+                "last_event_id": insert.excluded.last_event_id,
+            },
+            where=(SensorStateORM.last_event_id != insert.excluded.last_event_id)
+            & (SensorStateORM.reported_at <= insert.excluded.reported_at),
+        ).returning(SensorStateORM.sensor_id)
+
+        async with self._session_factory() as session, session.begin():
+            written = (await session.execute(statement)).scalar_one_or_none()
+            return written is not None
+
+    async def list_sensor_states(self) -> list[SensorStateRecord]:
+        """Every current record, ordered by `sensor_id`. Each row is re-validated
+        through `SensorStateRecord`, so a `state` outside the six `SensorState`
+        values raises here rather than reaching a response -- reading is the last
+        place to catch a write that should never have happened."""
+        statement = select(SensorStateORM).order_by(SensorStateORM.sensor_id)
+        async with self._session_factory() as session:
+            rows = (await session.execute(statement)).scalars().all()
+            return [
+                SensorStateRecord(
+                    sensor_id=row.sensor_id,
+                    sensor_type=row.sensor_type,
+                    state=row.state,
+                    reported_at=row.reported_at,
+                    last_event_id=row.last_event_id,
+                )
+                for row in rows
+            ]

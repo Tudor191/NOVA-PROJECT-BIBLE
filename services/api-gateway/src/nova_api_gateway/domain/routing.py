@@ -71,12 +71,14 @@ def build_route_table(
     agent_os_kernel_url: str,
     autonomy_engine_url: str,
     digital_twin_engine_url: str,
+    cognitive_state_engine_url: str,
 ) -> RouteTable:
     """Every engine the gateway fronts, and nothing else.
 
     4A fronted `communication-engine` alone. 4B adds the four the
     observability panels read from, 4C the Agents panel's Kernel, 4D the
-    Autonomy panel and 4E the Digital Twin panel -- exactly as this module
+    Autonomy panel, 4E the Digital Twin panel and 4F.7 the Cognitive State
+    panel -- exactly as this module
     predicted, by appending entries rather than changing the mechanism. Each
     engine's `/v1` surface already existed; no engine API was changed to be
     fronted.
@@ -200,6 +202,18 @@ def build_route_table(
                 prefix="/v1/digital-twin",
                 upstream_name="digital-twin-engine",
                 base_url=digital_twin_engine_url.rstrip("/"),
+            ),
+            # Cognitive State panel (Phase 4F.7, TDD 4F §24 RS-5). One prefix,
+            # forwarded 1:1 (D-6). Unlike `/v1/digital-twin`, the subtree fronts
+            # exactly what the panel reads: `cognitive-state-engine` serves three
+            # `GET`s under this prefix and nothing else, with no `user_id`
+            # parameter -- identity is resolved server-side -- and answers 405 to
+            # every other method, which is forwarded unchanged. Its `/internal/*`
+            # stays unreachable: `RouteTable` refuses any prefix outside `/v1/`.
+            UpstreamRoute(
+                prefix="/v1/cognitive-state",
+                upstream_name="cognitive-state-engine",
+                base_url=cognitive_state_engine_url.rstrip("/"),
             ),
         ]
     )

@@ -274,7 +274,16 @@ async def test_the_migration_creates_exactly_one_table_in_its_own_schema(
     postgres_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     """**Additive only.** 4F.1 creates one table in a new schema and no
-    speculative table for a later slice."""
+    speculative table for a later slice.
+
+    *(Updated 2026-09-26, Phase 4F.7, additively.)* The schema now also holds
+    `sensor_state`, which is **4F.7's own** table -- migration `0003`, ratified
+    A-4F7-1 -- and not a table 4F.1 created for it. So 4F.1's claim is kept
+    exactly: every table other than 0003's is 4F.1's one table. The whole set is
+    asserted as well, so an unratified third table still fails here (P-26 holds
+    the same property in `test_sensor_state_real_infra.py`). *(This test asserted
+    `list(rows) == ["active_thought"]`, which held until 0003 existed. Preserved
+    per protocol §0.3.4.)*"""
     async with postgres_session_factory() as session:
         rows = (
             await session.execute(
@@ -284,4 +293,5 @@ async def test_the_migration_creates_exactly_one_table_in_its_own_schema(
                 )
             )
         ).scalars().all()
-    assert list(rows) == ["active_thought"]
+    assert [table for table in rows if table != "sensor_state"] == ["active_thought"]
+    assert list(rows) == ["active_thought", "sensor_state"]

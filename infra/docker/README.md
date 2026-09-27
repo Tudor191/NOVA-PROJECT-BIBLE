@@ -42,6 +42,18 @@ want to change one.
 Thirteen engine services are omitted from the table for brevity; each exposes
 `8001`-`8013` and its own `/internal/health`.
 
+*(Updated 2026-09-26, Phase 4F.7, additively.)* **`cognitive-state-engine`**
+(port `8020`) is deployed for the first time: Bible Part 6's Cognitive State
+Engine, the Cognitive State panel's data source behind `api-gateway`
+(`/v1/cognitive-state`, three `GET`s). It subscribes to the existing
+`perception.sensor.health_changed` and keeps the last lifecycle state each
+sensor reported in `cognitive_state.sensor_state`. It has no outbox, so it has
+no worker, and it uses no Redis. `api-gateway` gains
+`API_GATEWAY_COGNITIVE_STATE_ENGINE_URL` and a `service_started` edge to it, and
+the `pr-checks` e2e job starts it. Like `autonomy-engine` (`8019`) and
+`digital-twin-engine`, it has no Prometheus scrape target in
+`../observability/prometheus.yml`.
+
 The three `agent-os` services were added in **Phase 4C (4C.1, decision D-5)**,
 discharging the containerization half of Phase 3E's ratified condition **C-3**
 — these components had no Dockerfile, no compose service and no Trivy scan for
@@ -64,6 +76,13 @@ service gates on it with:
 ```
 
 so none of them can start against an empty or partially-migrated database.
+
+*(Updated 2026-09-26, Phase 4F.7.)* `services/cognitive-state-engine` joins the
+`ENGINES` array, so the migrator now brings **seventeen** histories to head --
+fifteen engines plus the two `agent-os` components. Its schema (`cognitive_state`,
+version table `alembic_version_cognitive_state`) has existed since 4F.1; it was
+not migrated here only because no compose service ran the engine. The counts in
+the paragraphs above and below describe the list as 4C left it.
 
 **Why it exists.** Until Phase 4A this stack had no migration step at all --
 engines started against an empty database and exited during lifespan startup

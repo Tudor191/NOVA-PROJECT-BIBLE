@@ -66,6 +66,7 @@ from tests.integration.companion_harness import (
     stop_companion,
     wait_until,
 )
+from tests.integration.startup_reports import STARTUP_REPORTS, SUBJECT
 
 pytestmark = pytest.mark.real_infra
 
@@ -116,7 +117,9 @@ def repository(database: AsyncEngine) -> PostgresPerceptionRepository:
 
 @pytest.fixture
 async def engine(
-    repository: PostgresPerceptionRepository, monkeypatch: pytest.MonkeyPatch
+    repository: PostgresPerceptionRepository,
+    database: AsyncEngine,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> AsyncIterator[RunningEngine]:
     monkeypatch.setenv("EVENT_BUS_BACKEND", "in_memory")
     app = create_app(
@@ -125,6 +128,21 @@ async def engine(
         ai_model_port=FakeAIModelOrchestrationPort(),
     )
     async for running in serve(app):
+        # (Updated 2026-09-26, Phase 4F.7.) Startup now commits six
+        # `perception.sensor.health_changed` lifecycle rows (RS-3a). They are
+        # read back with independent SQL, asserted exactly, and deleted, so
+        # "exactly one row" below is still about this test's own write.
+        startup = await _outbox_rows(database)
+        assert [
+            (row["payload"]["sensor_id"], row["payload"]["sensor_type"], row["payload"]["status"])
+            for row in startup
+        ] == STARTUP_REPORTS
+        assert {row["subject"] for row in startup} == {SUBJECT}
+        async with database.begin() as connection:
+            await connection.execute(
+                text("DELETE FROM perception.outbox_event WHERE subject = :subject"),
+                {"subject": SUBJECT},
+            )
         yield running
 
 

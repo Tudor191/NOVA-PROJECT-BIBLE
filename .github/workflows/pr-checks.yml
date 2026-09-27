@@ -244,6 +244,12 @@ jobs:
           # declaration: it survives only as long as that edge does, and the
           # engine whose panel AC-6 is measured in should not be a side effect
           # of a routing entry.
+          #
+          # `cognitive-state-engine` (Phase 4F.7, A-4F7-5 default (a)) is named
+          # explicitly on the same terms: the Cognitive State panel's Playwright
+          # spec reads its three `GET`s through `api-gateway`. No seed and no
+          # `perception-engine` -- the spec asserts panel/API parity and the
+          # honest empty states, which K-1's startup race cannot disturb.
           docker compose -f infra/docker/docker-compose.local.yml up -d --build \
             nats postgres redis migrations \
             nova-core \
@@ -256,7 +262,8 @@ jobs:
             api-gateway ws-gateway \
             agent-os-kernel agent-os-registry agent-os-supervisors \
             autonomy-engine \
-            memory-engine memory-engine-worker digital-twin-engine
+            memory-engine memory-engine-worker digital-twin-engine \
+            cognitive-state-engine
 
       - name: Confirm the schema migration completed
         run: |

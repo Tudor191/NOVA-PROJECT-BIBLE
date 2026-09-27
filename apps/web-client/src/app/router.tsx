@@ -142,6 +142,18 @@ const digitalTwinRoute = createRoute({
   ),
 });
 
+// Phase 4F.7. Lazily loaded like every other panel, and read-only: three GETs
+// through `api-gateway`, no mutation, no polling and no realtime half
+// (A-4F7-3 (a)). Its freshness is an explicit Refresh that re-issues the GETs.
+const cognitiveStateRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: "/cognitive-state",
+  component: lazyRouteComponent(
+    () => import("../panels/cognitiveState/CognitiveStatePanel"),
+    "CognitiveStatePanel",
+  ),
+});
+
 const routeTree = rootRoute.addChildren([
   shellRoute.addChildren([
     conversationRoute,
@@ -154,6 +166,7 @@ const routeTree = rootRoute.addChildren([
     agentsRoute,
     autonomyRoute,
     digitalTwinRoute,
+    cognitiveStateRoute,
   ]),
 ]);
 

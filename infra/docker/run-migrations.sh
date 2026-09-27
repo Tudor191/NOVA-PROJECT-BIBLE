@@ -80,6 +80,15 @@ set -euo pipefail
 # the fourteen engine histories and with each other exactly as the paragraph
 # above describes -- the shared `agent_os` schema is created idempotently by
 # whichever of the two runs first.
+#
+# (Updated 2026-09-26, Phase 4F.7 -- TDD 4F.7 §11.) `services/cognitive-state-engine`
+# is added: it has had an alembic history (`alembic_version_cognitive_state`,
+# its own `CREATE SCHEMA cognitive_state`) since 4F.1, but no compose service ran
+# it until 4F.7 deployed one. The list is now fifteen engines plus the two
+# `agent-os` components -- seventeen independent histories. The counts written
+# above ("fourteen", "sixteen") describe the list as 4C left it and are kept as
+# written; its prefix was read from that engine's own `config.py`, as for every
+# other entry.
 ENGINES=(
   "services/memory-engine:MEMORY_ENGINE_"
   "services/knowledge-engine:KNOWLEDGE_ENGINE_"
@@ -95,6 +104,7 @@ ENGINES=(
   "services/action-engine:ACTION_ENGINE_"
   "services/planning-engine:PLANNING_ENGINE_"
   "services/autonomy-engine:AUTONOMY_ENGINE_"
+  "services/cognitive-state-engine:COGNITIVE_STATE_ENGINE_"
   "agent-os/kernel:AGENT_OS_KERNEL_"
   "agent-os/registry:AGENT_OS_REGISTRY_"
 )

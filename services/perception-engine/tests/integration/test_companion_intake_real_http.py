@@ -51,6 +51,7 @@ from tests.integration.companion_harness import (
     stop_companion,
     wait_until,
 )
+from tests.integration.startup_reports import take_startup_reports
 
 pytestmark = pytest.mark.real_infra
 
@@ -86,6 +87,10 @@ async def engine(
         ai_model_port=FakeAIModelOrchestrationPort(),
     )
     async for running in serve(app):
+        # (Updated 2026-09-26, Phase 4F.7.) Startup's six lifecycle reports
+        # (RS-3a) are asserted exactly, then removed, so every count below
+        # starts from the empty outbox it always did (`startup_reports.py`).
+        take_startup_reports(repository)
         yield running
 
 

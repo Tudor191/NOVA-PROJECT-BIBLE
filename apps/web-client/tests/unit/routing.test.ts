@@ -51,6 +51,8 @@ const EXPECTED_PANELS = [
   "/agents",
   "/autonomy",
   "/digital-twin",
+  // Phase 4F.7 (TDD 4F.7 §16 P-19): eleven panels.
+  "/cognitive-state",
 ] as const;
 
 describe("panel routing", () => {
@@ -87,6 +89,8 @@ describe("panel routing", () => {
     // them would move the operator's tabs around without anything failing.
     expect(nav.indexOf("/agents")).toBeLessThan(nav.indexOf("/autonomy"));
     expect(nav.indexOf("/autonomy")).toBeLessThan(nav.indexOf("/digital-twin"));
+    expect(nav.indexOf("/digital-twin")).toBeLessThan(nav.indexOf("/cognitive-state"));
+    expect(nav).toHaveLength(11);
   });
 
   it("lazily loads the Agents panel like every other one", () => {
@@ -130,5 +134,17 @@ describe("panel routing", () => {
 
   it("nests Digital Twin under the shell so the socket is not remounted", () => {
     expect(Object.keys(router.routesById)).toContain("/shell/digital-twin");
+  });
+
+  it("lazily loads the Cognitive State panel like every other one", () => {
+    const source = readFileSync(ROUTER, "utf8");
+    const cognitive = source.match(/const cognitiveStateRoute = createRoute\(\{[\s\S]*?\}\);/);
+    expect(cognitive).not.toBeNull();
+    expect(cognitive?.[0]).toMatch(/lazyRouteComponent/);
+    expect(cognitive?.[0]).toMatch(/panels\/cognitiveState\/CognitiveStatePanel/);
+  });
+
+  it("nests Cognitive State under the shell so the socket is not remounted", () => {
+    expect(Object.keys(router.routesById)).toContain("/shell/cognitive-state");
   });
 });

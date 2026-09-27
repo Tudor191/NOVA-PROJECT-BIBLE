@@ -41,7 +41,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
-__all__ = ["ActiveThoughtORM", "Base"]
+__all__ = ["ActiveThoughtORM", "Base", "SensorStateORM"]
 
 
 class Base(DeclarativeBase):
@@ -121,3 +121,30 @@ class ActiveThoughtORM(Base):
         Index("ix_active_thought_user_layer", "user_id", "attention_layer"),
         Index("ix_active_thought_user_updated", "user_id", "updated_at"),
     )
+
+
+class SensorStateORM(Base):
+    """**Phase 4F.7, A-4F7-1** -- `cognitive_state.sensor_state`, matching
+    migration `0003` column for column (TDD 4F.7 §28.1).
+
+    **One current record per `sensor_id`.** This is current-state storage: a
+    superseded state is overwritten, not kept, and there is no history, heartbeat
+    or audit table beside it. `perception-engine` owns the fact; this table holds
+    the latest copy this engine received.
+
+    `state` is `TEXT` without a CHECK, the same convention as
+    `ActiveThoughtORM.attention_layer`: `domain/sensor_state.py`'s six
+    `SensorState` values are the authority, enforced before any write.
+    """
+
+    __tablename__ = "sensor_state"
+
+    sensor_id: Mapped[str] = mapped_column(Text, primary_key=True)
+    sensor_type: Mapped[str] = mapped_column(Text, nullable=False)
+    state: Mapped[str] = mapped_column(Text, nullable=False)
+    reported_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    """The envelope's `occurred_at`: dispatch time, not transition time."""
+
+    last_event_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
+    """The `event_id` of the report the current row came from -- an idempotency
+    key for this row, not a log."""

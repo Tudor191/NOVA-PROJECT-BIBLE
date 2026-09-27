@@ -1,7 +1,9 @@
 """`FakeSensor` -- a configurable double covering only the surface
 `observation_orchestration.handle_observation_window` actually calls
 (`state`, `detect_presence`, `detect_wake_phrase`, `estimate_attention`,
-`match_voiceprint`, `match_faceprint`, `report_error`) -- deliberately
+`match_voiceprint`, `match_faceprint`, `report_error`, and -- since Phase
+4F.7, whose lifecycle report reads the sensor's type -- `configuration`) --
+deliberately
 narrower than the real `Sensor` Protocol, since the real `VoiceSensor`/
 `CameraSensor` (exercised through `create_app`+`TestClient` in
 `tests/integration/test_api_observations.py`) already cover the full
@@ -13,11 +15,12 @@ consent/lifecycle flow just to reach them.
 
 from __future__ import annotations
 
+from typing import Literal
 from uuid import UUID
 
 from nova_perception_engine.domain.identity_fusion import ModalitySignal
 from nova_perception_engine.domain.models import AttentionObservation
-from nova_perception_engine.domain.sensor import SensorErrorReport, SensorState
+from nova_perception_engine.domain.sensor import SensorConfig, SensorErrorReport, SensorState
 
 __all__ = ["FakeSensor"]
 
@@ -34,8 +37,10 @@ class FakeSensor:
         attention: AttentionObservation | None = None,
         identity_signal: ModalitySignal | None = None,
         raise_on_detect: bool = False,
+        sensor_type: Literal["voice", "camera", "filesystem"] = "voice",
     ) -> None:
         self._state = state
+        self.sensor_type = sensor_type
         self.presence = presence
         self.wake_matched = wake_matched
         self.attention = attention or AttentionObservation(
@@ -52,6 +57,9 @@ class FakeSensor:
 
     def state(self) -> SensorState:
         return self._state
+
+    def configuration(self) -> SensorConfig:
+        return SensorConfig(sensor_id=self.sensor_id, sensor_type=self.sensor_type)
 
     def detect_presence(self, window: bytes) -> bool:
         self.presence_calls.append(window)

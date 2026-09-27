@@ -133,6 +133,29 @@ nova.heartbeat|nova.mode.changed|nova.module.status_changed
 > `autonomy.approval.requested` above are still unbuilt reservations, and
 > 4F.6 claims neither. The taxonomy line above is left as written.
 
+> **Added 2026-09-26 (Phase 4F.7), additively.** `perception.sensor.health_changed`
+> — registered and public since Phase 2D-B, but never published — gains its
+> **first production publisher** and its **first engine consumer**
+> ([TDD 4F.7](../design/phase-4/11-tdd-4f7-cognitive-state-panel.md) §8, §10):
+>
+> - **Publisher: `perception-engine`**, through its transactional outbox, on each
+>   existing sensor lifecycle transition that actually changes the state
+>   (startup, consent revocation, an observation-window failure, shutdown;
+>   TDD 4F §24.4 RS-3a). **Its `status` carries `perception-engine`'s
+>   `SensorState` lifecycle values** — `uninitialized`, `initialized`,
+>   `running`, `paused`, `stopped`, `failed` — never a `healthy`/`unhealthy`
+>   health string (ratified **A-4F7-2**). The payload contract in
+>   `nova-contracts` is unchanged (`status: str`).
+> - **Consumer: `cognitive-state-engine`**, through one core-NATS `subscribe()`,
+>   keeping the last reported state per sensor in `cognitive_state.sensor_state`.
+>   `ws-gateway` still receives it too, so browsers see these frames (RS-3a's
+>   accepted consequence).
+> - **No new subject; `PUBLIC_TOPICS` byte-identical at 18; the registry stays
+>   at 120.** As the durability table below records for perception traffic,
+>   delivery is **at-most-once**: a report dispatched while
+>   `cognitive-state-engine` is not subscribed is not received, and nothing
+>   replays it (TDD 4F.7 §15 K-1).
+
 Every published event carries a common envelope (defined once in `nova-contracts`):
 
 ```python

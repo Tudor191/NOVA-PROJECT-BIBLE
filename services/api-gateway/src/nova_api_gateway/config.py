@@ -41,6 +41,11 @@ class Settings(BaseSettings):
     domains and the AC-6 project reconstruction. One prefix,
     `/v1/digital-twin`, forwarded 1:1 (D-6)."""
 
+    cognitive_state_engine_url: str = "http://cognitive-state-engine:8000"
+    """Phase 4F.7 (RS-5). The Cognitive State panel's data source -- Active
+    Thoughts, Focus and last-reported sensor state. One prefix,
+    `/v1/cognitive-state`, forwarded 1:1 (D-6); the engine serves `GET` only."""
+
     upstream_timeout_seconds: float = 30.0
 
     # --- session (decision D-3) -------------------------------------------

@@ -56,6 +56,7 @@ from nova_contracts.events.perception import GazeDirection
 from nova_observability import get_logger
 from pydantic import BaseModel
 
+from nova_perception_engine import sensor_lifecycle
 from nova_perception_engine.domain.sensor import SensorErrorReport
 from nova_perception_engine.events.publishers import addressee_signal_candidate
 
@@ -155,12 +156,18 @@ async def handle_observation_window(
         await state.repository.enqueue_outbox(event)
     except Exception:
         logger.exception("observation_window_processing_failed", extra={"sensor_id": sensor_id})
-        sensor.report_error(
+        # Phase 4F.7 (RS-3a): a camera or voice sensor that moves to `failed`
+        # here reports it, correlated to this observation. The filesystem
+        # sensor has no `failed` path (RS-3b), so it reports nothing.
+        await sensor_lifecycle.report_sensor_error(
+            sensor,
             SensorErrorReport(
                 sensor_id=sensor_id,
                 message="observation window processing failed",
                 occurred_at=datetime.now(UTC).isoformat(),
-            )
+            ),
+            repository=state.repository,
+            correlation_id=correlation_id,
         )
         return ObservationOutcome(sensor_id=sensor_id, presence_detected=True, published=False)
 

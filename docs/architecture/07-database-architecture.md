@@ -29,6 +29,20 @@ the Bible's requirements well.
 > The Redis row above and the two `cog:*` rows in §5 are left as written, as
 > the original design prediction.
 
+> **Added 2026-09-26 (Phase 4F.7, ratified A-4F7-1), additively.** The
+> `cognitive_state` schema gains its second table, **`cognitive_state.sensor_state`**
+> (migration `0003`; [TDD 4F.7](../design/phase-4/11-tdd-4f7-cognitive-state-panel.md)
+> §28.1). It is **current-state storage**: exactly **one record per sensor**
+> (`sensor_id` primary key, plus `sensor_type`, `state`, `reported_at`,
+> `last_event_id`), maintained by a single conditional upsert, so a redelivered
+> report (same `event_id`) or an older one changes nothing. It holds **no
+> history and no audit**: no row per event, no superseded states, no heartbeat
+> log, no audit columns, no expiry and no deletion, and nothing resets it on
+> startup. `state` holds only a `perception-engine` `SensorState` lifecycle
+> value. It is a projection of `perception.sensor.health_changed`, owned and
+> read only by `cognitive-state-engine`; `perception-engine` remains the owner
+> of the sensor lifecycle itself. No existing table is altered.
+
 **Rule:** exactly one engine owns each table/collection/graph label. No engine queries
 another engine's schema directly, even within the same physical Postgres instance —
 cross-engine data access is always through the owning engine's API/events. Each engine

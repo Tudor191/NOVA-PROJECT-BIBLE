@@ -214,6 +214,80 @@ describe("the Digital Twin surface introduces no new external boundary", () => {
   });
 });
 
+const COGNITIVE_STATE_SOURCES = [
+  fileURLToPath(new URL("../../src/entities/cognitiveState.ts", import.meta.url)),
+  fileURLToPath(
+    new URL("../../src/panels/cognitiveState/CognitiveStatePanel.tsx", import.meta.url),
+  ),
+];
+
+/** Source with block and line comments removed -- the modules' docstrings name
+ * what they deliberately do not do, and a check that could not tell a citation
+ * from a call would force the code to stop explaining itself. */
+function codeOf(path: string): string {
+  return readFileSync(path, "utf8")
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/^\s*\/\/.*$/gm, "");
+}
+
+describe("the Cognitive State surface is read-only and adds no boundary (TDD 4F.7 P-19)", () => {
+  it("never names an engine host, an internal path, or a bus scheme", () => {
+    for (const path of COGNITIVE_STATE_SOURCES) {
+      const code = codeOf(path);
+      expect(code).not.toMatch(/cognitive-state-engine/);
+      expect(code).not.toMatch(/perception-engine/);
+      expect(code).not.toMatch(/autonomy-engine/);
+      expect(code).not.toMatch(/\/internal\//);
+      expect(code).not.toMatch(/nats:\/\//);
+      expect(code).not.toMatch(/:\d{4}\b/);
+    }
+  });
+
+  it("reaches the backend only through the shared gateway client", () => {
+    for (const path of COGNITIVE_STATE_SOURCES) {
+      expect(codeOf(path)).not.toMatch(/[^a-zA-Z]fetch\(/);
+    }
+    expect(codeOf(COGNITIVE_STATE_SOURCES[0])).toMatch(/gatewayFetch/);
+  });
+
+  it("calls exactly the three GET routes and nothing else", () => {
+    const entity = codeOf(COGNITIVE_STATE_SOURCES[0]);
+    const paths = [...entity.matchAll(/["`]\/v1\/[^"`$]*/g)].map((m) => m[0].slice(1));
+    expect([...paths].sort()).toEqual([
+      "/v1/cognitive-state/focus",
+      "/v1/cognitive-state/sensors",
+      "/v1/cognitive-state/thoughts",
+    ]);
+    // No `/v1/perception`, no `/v1/autonomy`: the panel reads one engine.
+    expect(codeOf(COGNITIVE_STATE_SOURCES[1])).not.toMatch(/\/v1\//);
+  });
+
+  it("issues no mutating request and writes nothing into the cache", () => {
+    for (const path of COGNITIVE_STATE_SOURCES) {
+      const code = codeOf(path);
+      // `\b` so `verification_method:` -- a proposal field -- is not a request option.
+      expect(code).not.toMatch(/\bmethod:/);
+      expect(code).not.toMatch(/\b(POST|PUT|PATCH|DELETE)\b/);
+      expect(code).not.toMatch(/useMutation/);
+      expect(code).not.toMatch(/setQueryData|setQueriesData/);
+    }
+  });
+
+  it("adds no polling, and no realtime subscription", () => {
+    for (const path of COGNITIVE_STATE_SOURCES) {
+      const code = codeOf(path);
+      expect(code).not.toMatch(/refetchInterval|setInterval|setTimeout/);
+      expect(code).not.toMatch(/useRealtime|WebSocket|subscribe\(/);
+    }
+  });
+
+  it("really is reading both modules", () => {
+    // Anti-vacuity: an unreadable or empty file would pass every check above.
+    expect(codeOf(COGNITIVE_STATE_SOURCES[0])).toMatch(/useQuery/);
+    expect(codeOf(COGNITIVE_STATE_SOURCES[1])).toMatch(/CognitiveStatePanel/);
+  });
+});
+
 // --- 2. /internal/* and engines are unaddressable ---------------------------
 
 describe("the client can only call the versioned public surface", () => {

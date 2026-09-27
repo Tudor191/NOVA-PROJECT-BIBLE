@@ -7,11 +7,13 @@ COPY pyproject.toml uv.lock ./
 COPY packages/nova-contracts/pyproject.toml packages/nova-contracts/pyproject.toml
 COPY packages/nova-eventbus-sdk/pyproject.toml packages/nova-eventbus-sdk/pyproject.toml
 COPY packages/nova-observability/pyproject.toml packages/nova-observability/pyproject.toml
+COPY packages/nova-service-kit/pyproject.toml packages/nova-service-kit/pyproject.toml
 COPY services/cognitive-state-engine/pyproject.toml services/cognitive-state-engine/pyproject.toml
 
 COPY packages/nova-contracts packages/nova-contracts
 COPY packages/nova-eventbus-sdk packages/nova-eventbus-sdk
 COPY packages/nova-observability packages/nova-observability
+COPY packages/nova-service-kit packages/nova-service-kit
 COPY services/cognitive-state-engine services/cognitive-state-engine
 
 RUN uv sync --frozen --no-dev --package cognitive-state-engine

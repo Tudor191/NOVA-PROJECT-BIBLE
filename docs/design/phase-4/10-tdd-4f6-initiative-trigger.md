@@ -93,6 +93,24 @@ without a test harness, causes `decide()` to run with a `DecisionRequest` it
 built from real evidence. **Triggered ≠ Executing** — a trigger yielding
 `PROPOSE` has still triggered.
 
+> **Added 2026-09-26 (4F.7 ratification, RS-6a and RS-6b — TDD 4F §24.7),
+> additively.** The table and the definition above are preserved.
+>
+> - **Row 4's "All of it" describes the mechanism 4F.6 built.** Both the
+>   producer and the consumer exist, and the consumer runs in production.
+> - **Against the definition above, the production end-to-end *Triggered* state
+>   is not yet evidenced.** The definition requires *"a production component,
+>   reachable in a deployed system without a test harness"*. Neither half of
+>   that holds yet:
+>   - `cognitive-state-engine` is not deployed;
+>   - no production component promotes an Active Thought.
+> - **What makes it evidenceable.** The production promotion driver belongs to
+>   the new slice **4F.P** (TDD 4F §18, as amended). Deploying the engine in
+>   4F.7 does not change this status on its own.
+> - ***Triggered* stays a system-level property.** There is no per-thought
+>   triggered state, enum, field or persisted outcome.
+> - **CF-11 stays OPEN.**
+
 ---
 
 ## 3. Transport — **A-4F6-1, RATIFIED**
@@ -1024,6 +1042,17 @@ Moves into RATIFIED are marked **[ratified]**.
 | **L-17** — web-client policy-effect enum | A later policy-authoring / UI scope |
 | **L-18** — SDK `NoRespondersError` translation | `nova-eventbus-sdk` / later maintenance. **4F.6 must not fix the SDK** |
 | **4F.7 panel and `/v1/cognitive-state`** | **4F.7** |
+
+> **Added 2026-09-26 (4F.7 ratification, RS-1c and RS-7 — TDD 4F §24),
+> additively.** The table above is preserved.
+>
+> - **The owner of A-4F6-3 Layer 2 now has a name.** *"The slice that ratifies
+>   `ProposedAction` promotion semantics"* is **4F.P**, added before 4F.8 in
+>   TDD 4F §18.
+> - **4F.P's TDD must also ratify** the CAS semantics of the promotion
+>   transition, before any production caller of `promote_thought` exists.
+> - **4F.7 is strictly read-only (RS-1b).** It owns none of these rows except
+>   its own.
 
 ---
 

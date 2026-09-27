@@ -114,6 +114,26 @@ GET    /v1/system/health                          # Part 20 dashboard feed — N
 > §2 and §13 (G-3), where whether to keep the push-fed design permanently or
 > build the endpoint is recorded as an open decision for the user.
 
+> **`/v1/cognitive-state` — added 2026-09-26 (Phase 4F.7).** Three routes,
+> fronted 1:1 by `api-gateway` and backing the Cognitive State panel
+> ([TDD 4F.7](../design/phase-4/11-tdd-4f7-cognitive-state-panel.md) §7):
+>
+> | Method | Path | Returns |
+> |---|---|---|
+> | `GET` | `/v1/cognitive-state/thoughts` | Every Active Thought of the instance's user, with every Bible Part 6 field, its Attention Layer, and `proposed_action` as a proposal |
+> | `GET` | `/v1/cognitive-state/focus` | The Focus set — `capacity` and ranked `entries` (`score`, `signals_used`) |
+> | `GET` | `/v1/cognitive-state/sensors` | The last lifecycle state each sensor reported, with `reported_at` |
+>
+> - **Read-only, structurally.** No write route exists; `POST`, `PUT`, `PATCH`
+>   and `DELETE` answer `405`, which the gateway forwards unchanged.
+> - **Identity is server-side** (ADR-025): no `user_id` parameter exists, and a
+>   caller-supplied one is ignored.
+> - **Empty is empty; an error is an error.** An empty store answers empty
+>   lists, and a store failure is an error response — never `[]`.
+> - **Nothing about decisions.** No route reads `autonomy-engine`, and no
+>   response carries a status, outcome, decision, `subject_id`, triggered or
+>   executed field.
+
 ## 3. Internal engine API contracts
 
 Every engine's FastAPI app exposes:

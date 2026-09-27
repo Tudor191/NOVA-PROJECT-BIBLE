@@ -63,6 +63,16 @@ the [Roadmap](../roadmap/ENGINEERING_ROADMAP.md).
 > container images"* now holds for `agent-os` too, and no new deployment
 > concept is introduced.
 
+> **`cognitive-state-engine` became deployable in Phase 4F.7 — noted
+> 2026-09-26.** Built in 4F.1 and extended in 4F.6, the engine had no compose
+> service until 4F.7 added one (`infra/docker/docker-compose.local.yml`, port
+> `8020`), gated on the one-shot migrator — whose `run-migrations.sh` now also
+> brings the `cognitive_state` schema to head — and fronted by `api-gateway` at
+> `/v1/cognitive-state`. Its image was already in the `build-and-scan.yml`
+> matrix; it is built from the same Dockerfile shape as every other engine. It
+> needs no worker (it has no outbox) and no Redis. See
+> [TDD 4F.7](../design/phase-4/11-tdd-4f7-cognitive-state-panel.md) §5 D7.
+
 ## 3. Enterprise/cloud topology
 
 ```mermaid
