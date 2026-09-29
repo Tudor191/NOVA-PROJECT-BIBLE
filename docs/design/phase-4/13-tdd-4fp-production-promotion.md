@@ -23,6 +23,18 @@
 >   implementation branch is cut.
 > - **Implementation has not begun.** Nothing else in the note above changes.
 
+> **Status on `phase-4fp`, 2026-09-29.** Both notes above are preserved as
+> written. They were accurate on the documentation branch `phase-4p-tdd`.
+> Their *"Implementation has not begun"* and *"before the implementation
+> branch is cut"* are historical on the implementation branch:
+>
+> - **The user's explicit GO was given**, and the branch was cut.
+> - The 4F.P implementation branch **`phase-4fp`** exists. It is based on Phase 4
+>   at `9d2d636`.
+> - **P1, P3, P5 and P6 are implemented** (commit `c0c47f9`). **P4, P7 and P8
+>   have not started.** 4F.P is **not complete**, and no PR has been opened.
+> - §30.10's note of this date gives the current status in full.
+
 - **What this is.** The implementation contract for **4F.P**, the slice RS-1c
   added **before 4F.8** (TDD 4F §18, as amended by §24). It defines NOVA's
   first production initiative path, end to end:
@@ -57,6 +69,15 @@
   branch `phase-4p-tdd`. No 4F.P or 4F.8 implementation branch exists, and no
   production file, test, migration, Dockerfile, workflow, contract or package
   was modified to prepare it.
+
+  > **Status on `phase-4fp`, 2026-09-29.** This bullet is preserved as written,
+  > and was accurate on `phase-4p-tdd`. Its *"No 4F.P … implementation branch
+  > exists"* is historical: `phase-4fp` exists, based on Phase 4 at `9d2d636`.
+  > Its commit `c0c47f9` changes `cognitive-state-engine`'s source and tests to
+  > implement P1, P3, P5 and P6. P4, P7 and P8 have not started, 4F.P is not
+  > complete, and no PR has been opened. No 4F.8 implementation branch exists
+  > (§30.10).
+
 - **CF-9, CF-10 and CF-11 stay OPEN.** 4F.P closes none of them (§18).
 - **Pre-ratification audit, 2026-09-28 (§28, §29).** Every candidate was
   re-audited against the source at `9d2d636`.
@@ -329,7 +350,7 @@ Each finding is verified at `9d2d636`. None is fixed here.
 |---|---|---|---|
 | **FP-1** | **No real Level-2 dispatch can execute** (= 4F.8's F-4F8-1, now authoritative) | §3 | A-4FP-4, A-4FP-5, A-4FP-6 |
 | **FP-2** | **`EXECUTE` is recorded for any reply** (= F-4F8-2) | §3 | A-4FP-7 |
-| **FP-3** | **`execution_target` means two things.** A-4F6-2a calls it *"what the action acts on"*. `action-engine` resolves it as a **capability name** (stage 5, TDD 3D §5.1) | `pipeline.py` l.234; TDD 4F.6 §4.7 | A-4FP-5 |
+| **FP-3** | **`execution_target` means two things.** A-4F6-2a calls it *"what the action acts on"*. `action-engine` resolves it as a **capability name** (stage 5, TDD 3D §5.1; ***corrected 2026-09-29:*** the citation "TDD 3D §5.1" is preserved as written, and names the wrong document. [TDD 3D](../phase-3/07-tdd-3d-action-engine.md) has no §5.1. The decision it refers to is §5.1, "APPROVED — `execution_target` semantics", of the Phase 3D research document [`13-3d-action-engine-research.md`](../phase-3/13-3d-action-engine-research.md), which makes `execution_target` the target capability's stable `name`. This finding's substance, and the ratified A-4FP-5 (§30.2), are unchanged) | `pipeline.py` l.234; TDD 4F.6 §4.7 | A-4FP-5 |
 | **FP-4** | **`promote_thought` is not race-safe.** It reads the thought, then `move_layer` overwrites the layer unconditionally. Two concurrent promotions of one `ACTIVE` thought can **both** reach `IMMEDIATE` and **both** fire, with different `event_id`s. That means two decisions, two `action_id`s and **two executions** | `promotion_orchestration.py` l.112–130; `move_layer` | A-4FP-8 |
 | **FP-5** | **`upsert_thought` is unsafe for ingestion.** It overwrites `attention_layer` and `proposed_action` on conflict, so re-ingesting a known input would reset a promoted thought | `upsert_thought` | A-4FP-1, A-4FP-9 |
 | **FP-6** | **The trigger and `action.execute` are at-most-once, not at-least-once.** TDD 4F.6 §5.1 and §13.1 state *"the bus is at-least-once (NATS + JetStream)"*. As built, both subjects use core NATS request/reply, so **the bus never redelivers them**. **A duplicate can only originate at the producer** (FP-4, FP-5). Layer 1 (4F.6) stays a correct safety net | `backends/nats.py` l.122, l.158 | Documentation. A-4FP-9 |
@@ -513,7 +534,7 @@ case"*). **Implementation must wait: yes.**
 | | |
 |---|---|
 | **Existing decision** | A-4F6-2a's field table: `execution_target` is *"*What* the action acts on. Never defaulted"* |
-| **Proposed change** | `execution_target` is **the name of the capability `action-engine` resolves at stage 5**, as TDD 3D §5.1 and `pipeline.py` l.234 define it. **What the action acts on travels in `parameters`.** Still never defaulted |
+| **Proposed change** | `execution_target` is **the name of the capability `action-engine` resolves at stage 5**, as TDD 3D §5.1 (***corrected 2026-09-29:*** the citation "TDD 3D §5.1" is preserved as written, and names the wrong document. The definition is §5.1 of the Phase 3D research document [`13-3d-action-engine-research.md`](../phase-3/13-3d-action-engine-research.md); see FP-3's correction in §7. This prepared text is otherwise unchanged, and the ratified A-4FP-5 in §30.2, which cites no Phase 3D document, is unchanged) and `pipeline.py` l.234 define it. **What the action acts on travels in `parameters`.** Still never defaulted |
 | **Reason** | FP-3. Authored as *"what it acts on"* (for example a path), stage 5 would fail with *"capability not found"*, and FP-9 forbids carrying a path anyway |
 | **Affected components** | `cognitive-state-engine` (docstring, authoring table); documentation of TDD 4F.6 (an additive note, at ratification) |
 | **Affected criteria** | AC-8 |
@@ -1132,6 +1153,20 @@ one PR phase-4 → main, by merge commit, only after GO (master scope §16)
 > - **Steps 3–9 have not started.** No implementation branch exists.
 > - **Nothing here starts without the user's explicit GO.**
 
+> **Status on `phase-4fp`, 2026-09-29.** Both notes above are preserved as
+> written. Their *"Steps 3–9 have not started"* and *"No implementation
+> branch exists"* were accurate on `phase-4p-tdd`, and are historical on the
+> implementation branch:
+>
+> - **Step 3 is complete.** After the user's explicit GO, `phase-4fp` was cut
+>   from `phase-4` at `9d2d636`.
+> - **Step 5 has begun**, in `cognitive-state-engine` only. P1, P3, P5 and P6
+>   are implemented (commit `c0c47f9`). P4, P7 and P8, which include the
+>   contract, `autonomy-engine` and composed-stack layers, have not started.
+> - **Step 4 and steps 6–9 remain for 4F.P as a whole.** No Slice Completion
+>   Record exists, no PR has been opened, and nothing is merged. 4F.P is not
+>   complete.
+
 ---
 
 ## 23. SLOC budget
@@ -1288,6 +1323,18 @@ on either side is changed.
 > - **Not blocking, not ratified:** A-4FP-14, whose default stands.
 > - **No blocking decision remains.** Implementation has not begun.
 > - **CF-9, CF-10 and CF-11 stay OPEN.**
+
+> **Status on `phase-4fp`, 2026-09-29.** The three statuses above are
+> preserved as written, and were accurate on `phase-4p-tdd`. Their *"4F.P is
+> not started"*, *"No implementation branch exists"* and *"Implementation
+> has not begun"* are historical on the implementation branch:
+>
+> - The 4F.P implementation branch **`phase-4fp`** exists. It is based on Phase 4
+>   at `9d2d636`.
+> - **P1, P3, P5 and P6 are implemented** (commit `c0c47f9`). **P4, P7 and P8
+>   have not started.** 4F.P is **not complete**, and no PR has been opened.
+> - **4F.8 is still not started**, and TDD 4F.8 is still NOT RATIFIED.
+> - §30.10's note of this date is the current status.
 
 ---
 
@@ -1700,6 +1747,12 @@ RETURNING *
 - **§5 gains a dated, additive note.** 4F.P now has a **prepared, unratified**
   TDD on `phase-4p-tdd`, and no implementation branch.
 - **§17's row for this document gains one dated sentence** recording this audit.
+
+> **Status on `phase-4fp`, 2026-09-29.** C-15 is preserved as written. Its
+> *"and no implementation branch"* described the branches when this audit
+> ran, on `phase-4p-tdd`. `phase-4fp` now exists, based on Phase 4 at
+> `9d2d636`, with P1, P3, P5 and P6 implemented and P4, P7 and P8 not
+> started (§30.10).
 
 ### 28.5 A-4FP-7 — consistency with 4F.5 and 4F.6, and everything it changes
 
@@ -2600,6 +2653,17 @@ this section governs.
 >   in §30.1 and §30.2. A-4FP-14 stays not blocking and not ratified.
 > - **No implementation has started.**
 
+> **Status on `phase-4fp`, 2026-09-29.** The note above is preserved as
+> written, and was accurate on `phase-4p-tdd`. On the implementation branch:
+>
+> - **Item 4 is discharged.** The user gave the explicit GO, and `phase-4fp`
+>   was cut from Phase 4 at `9d2d636`.
+> - **Items 2 and 3 are still outstanding.** 4F.8's re-verification waits for
+>   4F.P to be merged, and the FP-24 ledger row is unchanged.
+> - **Its *"No implementation has started"* is historical.** P1, P3, P5 and
+>   P6 are implemented (commit `c0c47f9`). P4, P7 and P8 have not started.
+>   4F.P is not complete, and no PR has been opened.
+
 This change applies the ratification **to this TDD and the master scope's
 index only**, as instructed. These obligations are **owed**, each
 documentation-only, additive and dated:
@@ -2730,5 +2794,44 @@ Level-2 runs use two distinct new paths.
 >   - the ratifications in §30.1 and §30.2;
 >   - A-4FP-14 not blocking and not ratified;
 >   - implementation not begun, with no implementation branch and no PR;
+>   - CF-9, CF-10 and CF-11 OPEN;
+>   - 4F.8 PREPARED, NOT RATIFIED, and blocked as §30.9 states.
+
+> **Status on the implementation branch `phase-4fp`, 2026-09-29.** Everything
+> above is preserved as written. It was accurate on the documentation branch
+> `phase-4p-tdd`, where it was written. On `phase-4fp`, its *"Implementation
+> has not begun"*, *"No 4F.P … implementation branch exists"*, *"No
+> production source, test … has been changed"* and *"implementation not
+> begun, with no implementation branch and no PR"* are historical.
+>
+> - **The branch.** The user gave the explicit GO, and the 4F.P
+>   implementation branch **`phase-4fp`** was cut from `origin/phase-4` at
+>   **`9d2d636`** (§22 step 3). This document's history was brought onto it
+>   by a normal merge, `8b22cf9`, with its commits unchanged.
+> - **Implemented, in `cognitive-state-engine` only (commit `c0c47f9`).** Of
+>   §1's deliverables:
+>   - **P1**, thought ingestion from `perception.workspace.observed`
+>     (A-4FP-1);
+>   - **P3**, the closed authoring table with T1, and `ProposedAction`'s
+>     `operation` and `parameters` (A-4FP-3, A-4FP-4, A-4FP-5);
+>   - **P5**, the CAS (A-4FP-8);
+>   - **P6**, the object identity as the initiative identity (A-4FP-9).
+>
+>   The same commit carries the creator-only promotion and its one production
+>   caller, `ingestion_orchestration.py` (A-4FP-2, A-4FP-10), with P-14
+>   retargeted and F-4F7-1's control 11 repaired.
+> - **Not started:**
+>   - **P4** (A-4FP-6): the two fields on the trigger payload,
+>     `DecisionRequest` and `_execution_payload`;
+>   - **P7** (A-4FP-7): the outcome mapping and `EXECUTION_FAILED`;
+>   - **P8** (A-4FP-11 … A-4FP-13): the composed real-execution evidence.
+>
+>   Until P4 and P7 land, the trigger payload carries neither new field, and
+>   `autonomy-engine` records `EXECUTE` for any reply, as §3 describes.
+> - **4F.P is not complete.** P9's Slice Completion Record does not exist, no
+>   PR has been opened, and nothing is merged into `phase-4`.
+> - **Unchanged:**
+>   - the ratifications in §30.1 and §30.2;
+>   - A-4FP-14 not blocking and not ratified;
 >   - CF-9, CF-10 and CF-11 OPEN;
 >   - 4F.8 PREPARED, NOT RATIFIED, and blocked as §30.9 states.

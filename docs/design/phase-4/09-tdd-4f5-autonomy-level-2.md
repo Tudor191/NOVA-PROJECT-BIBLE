@@ -248,6 +248,21 @@ literally true rather than rhetorically true.
 >   still holds.
 > - **Not yet built.** 4F.P has not started.
 
+> **Status on `phase-4fp`, 2026-09-29.** The note above is preserved as
+> written. Its *"Not yet built. 4F.P has not started"*
+> was accurate when it was written, on the documentation branch
+> `phase-4p-tdd`. On the implementation branch it is historical:
+>
+> - The 4F.P implementation branch **`phase-4fp`** exists. It is based on Phase 4
+>   at `9d2d636`.
+> - **P1, P3, P5 and P6 are implemented** (commit `c0c47f9`). **P4, P7 and P8
+>   have not started.** 4F.P is **not complete**, and no PR has been opened.
+> - **A-4FP-7 is P7, which has not started.** `autonomy-engine` is
+>   unchanged on this branch, so the diagram's *"DecisionOutcome.EXECUTE"*
+>   still describes what it records.
+> - [TDD 4F.P](13-tdd-4fp-production-promotion.md) §1 defines P1 … P9, and
+>   its §30.10 note of this date gives the current status in full.
+
 ---
 
 ## 7. API contracts
@@ -361,6 +376,20 @@ NOVA act without being asked. Every control below exists for that reason.
 > - **No migration.** `outcome` is `TEXT`, with no CHECK.
 > - **Not yet built.** 4F.P has not started.
 
+> **Status on `phase-4fp`, 2026-09-29.** The note above is preserved as
+> written. Its *"Not yet built. 4F.P has not started"*
+> was accurate when it was written, on the documentation branch
+> `phase-4p-tdd`. On the implementation branch it is historical:
+>
+> - The 4F.P implementation branch **`phase-4fp`** exists. It is based on Phase 4
+>   at `9d2d636`.
+> - **P1, P3, P5 and P6 are implemented** (commit `c0c47f9`). **P4, P7 and P8
+>   have not started.** 4F.P is **not complete**, and no PR has been opened.
+> - **A-4FP-7 is P7, which has not started.** `autonomy-engine` is
+>   unchanged on this branch, and still records `EXECUTE` for any reply.
+> - [TDD 4F.P](13-tdd-4fp-production-promotion.md) §1 defines P1 … P9, and
+>   its §30.10 note of this date gives the current status in full.
+
 ### 10.1 A precision the Bible's wording requires
 
 Bible Part 14 names Level 2 *"Low risk actions execute automatically."* `RiskLevel`
@@ -422,6 +451,20 @@ from the pre-ratification text. Preserved per protocol §0.3.4.)*
 >   failure"* are unchanged.** `EXECUTION_FAILED` is that ordinary execution
 >   failure outcome, and `TIMEOUT` stays distinct from it.
 > - **Not yet built.** 4F.P has not started.
+
+> **Status on `phase-4fp`, 2026-09-29.** The note above is preserved as
+> written. Its *"Not yet built. 4F.P has not started"*
+> was accurate when it was written, on the documentation branch
+> `phase-4p-tdd`. On the implementation branch it is historical:
+>
+> - The 4F.P implementation branch **`phase-4fp`** exists. It is based on Phase 4
+>   at `9d2d636`.
+> - **P1, P3, P5 and P6 are implemented** (commit `c0c47f9`). **P4, P7 and P8
+>   have not started.** 4F.P is **not complete**, and no PR has been opened.
+> - **A-4FP-7 is P7, which has not started.** `autonomy-engine` is
+>   unchanged on this branch, and still records `EXECUTE` for any reply.
+> - [TDD 4F.P](13-tdd-4fp-production-promotion.md) §1 defines P1 … P9, and
+>   its §30.10 note of this date gives the current status in full.
 
 ### 11.1 Negative and security tests — defined before implementation
 
@@ -956,6 +999,21 @@ incomplete request as an error rather than as a suggestion.
 >   **parameters}`. It returns `None`, which means a suggestion, if
 >   `parameters` contains `"operation"`.
 > - **Not yet built.** 4F.P has not started.
+
+> **Status on `phase-4fp`, 2026-09-29.** The note above is preserved as
+> written. Its *"Not yet built. 4F.P has not started"*
+> was accurate when it was written, on the documentation branch
+> `phase-4p-tdd`. On the implementation branch it is historical:
+>
+> - The 4F.P implementation branch **`phase-4fp`** exists. It is based on Phase 4
+>   at `9d2d636`.
+> - **P1, P3, P5 and P6 are implemented** (commit `c0c47f9`). **P4, P7 and P8
+>   have not started.** 4F.P is **not complete**, and no PR has been opened.
+> - **A-4FP-6 is P4, which has not started.** `DecisionRequest` and
+>   `_execution_payload` are unchanged on this branch, and
+>   `_execution_payload` still sends `parameters={}`.
+> - [TDD 4F.P](13-tdd-4fp-production-promotion.md) §1 defines P1 … P9, and
+>   its §30.10 note of this date gives the current status in full.
 
 ### 22.3 D-4F5-3 — a bounded **15-second** `action.execute` timeout. **RATIFIED.**
 

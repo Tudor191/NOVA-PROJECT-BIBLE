@@ -1333,6 +1333,20 @@ RS-3a.
 > - **Not yet built.** This note records a ratified amendment, not an
 >   implementation. 4F.P has not started.
 
+> **Status on `phase-4fp`, 2026-09-29.** The note above is preserved as
+> written. Its *"Not yet built … 4F.P has not started"*
+> was accurate when it was written, on the documentation branch
+> `phase-4p-tdd`. On the implementation branch it is historical:
+>
+> - The 4F.P implementation branch **`phase-4fp`** exists. It is based on Phase 4
+>   at `9d2d636`.
+> - **P1, P3, P5 and P6 are implemented** (commit `c0c47f9`). **P4, P7 and P8
+>   have not started.** 4F.P is **not complete**, and no PR has been opened.
+> - **A-4FP-1 is built on this branch** (P1): `cognitive-state-engine`
+>   subscribes to exactly the two subjects above.
+> - [TDD 4F.P](13-tdd-4fp-production-promotion.md) §1 defines P1 … P9, and
+>   its §30.10 note of this date gives the current status in full.
+
 **RS-3b — RATIFIED as OPEN.**
 
 - **OS-level permission revocation detection stays OPEN.** 4F.7 does not
@@ -1455,6 +1469,21 @@ Additive notes carry this into TDD 4F.6 §2 and the 4F.6 completion record
 > - **The one item on that list 4F.P does address is Layer 2 deduplication**,
 >   which RS-1c assigns to it. It is resolved by **A-4FP-9** without a second
 >   mechanism and without persisted trigger state.
+
+> **Status on `phase-4fp`, 2026-09-29.** The note above is preserved as
+> written. Its *"It is a ratified decision, **not yet built**. 4F.P has not started"*
+> was accurate when it was written, on the documentation branch
+> `phase-4p-tdd`. On the implementation branch it is historical:
+>
+> - The 4F.P implementation branch **`phase-4fp`** exists. It is based on Phase 4
+>   at `9d2d636`.
+> - **P1, P3, P5 and P6 are implemented** (commit `c0c47f9`). **P4, P7 and P8
+>   have not started.** 4F.P is **not complete**, and no PR has been opened.
+> - **A-4FP-8 is built on this branch** (P5). The conditional statement
+>   above is `compare_and_set_layer`, and `promote_thought` uses it. RS-7's
+>   *"None of the following is added"* list still holds.
+> - [TDD 4F.P](13-tdd-4fp-production-promotion.md) §1 defines P1 … P9, and
+>   its §30.10 note of this date gives the current status in full.
 
 ### 24.9 Stand-in producers
 

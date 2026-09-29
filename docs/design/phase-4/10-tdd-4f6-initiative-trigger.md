@@ -427,6 +427,23 @@ ALTER TABLE cognitive_state.active_thought
 >   defaulted.
 > - **Not yet built.** 4F.P has not started.
 
+> **Status on `phase-4fp`, 2026-09-29.** The note above is preserved as
+> written. Its *"Not yet built. 4F.P has not started"*
+> was accurate when it was written, on the documentation branch
+> `phase-4p-tdd`. On the implementation branch it is historical:
+>
+> - The 4F.P implementation branch **`phase-4fp`** exists. It is based on Phase 4
+>   at `9d2d636`.
+> - **P1, P3, P5 and P6 are implemented** (commit `c0c47f9`). **P4, P7 and P8
+>   have not started.** 4F.P is **not complete**, and no PR has been opened.
+> - **A-4FP-4's two fields and A-4FP-5 are built on this branch**, as part
+>   of P3: `ProposedAction` requires `operation` and `parameters`, and T1's
+>   `execution_target` is the capability name `filesystem`.
+> - **The two fields do not yet travel on the trigger payload.** That is
+>   A-4FP-6, P4, which has not started.
+> - [TDD 4F.P](13-tdd-4fp-production-promotion.md) §1 defines P1 … P9, and
+>   its §30.10 note of this date gives the current status in full.
+
 
 ---
 
@@ -467,6 +484,20 @@ decision.
 > - **Layer 1 is unchanged.** It is kept exactly as ratified, as the safety net
 >   at the execution boundary.
 > - **Not yet built.** 4F.P has not started.
+
+> **Status on `phase-4fp`, 2026-09-29.** The note above is preserved as
+> written. Its *"Not yet built. 4F.P has not started"*
+> was accurate when it was written, on the documentation branch
+> `phase-4p-tdd`. On the implementation branch it is historical:
+>
+> - The 4F.P implementation branch **`phase-4fp`** exists. It is based on Phase 4
+>   at `9d2d636`.
+> - **P1, P3, P5 and P6 are implemented** (commit `c0c47f9`). **P4, P7 and P8
+>   have not started.** 4F.P is **not complete**, and no PR has been opened.
+> - **A-4FP-9 is built on this branch** (P6), together with A-4FP-1 and
+>   A-4FP-8 (P1, P5). Layer 1 is unchanged.
+> - [TDD 4F.P](13-tdd-4fp-production-promotion.md) §1 defines P1 … P9, and
+>   its §30.10 note of this date gives the current status in full.
 
 ### 5.2 Layer 1 — transport duplicate identity
 
@@ -844,6 +875,20 @@ occurs when the trigger was not successfully delivered to `autonomy-engine`.**
 >   outcome mapping over every `ActionStatus` value.
 > - **Not yet built.** 4F.P has not started.
 
+> **Status on `phase-4fp`, 2026-09-29.** The note above is preserved as
+> written. Its *"Not yet built. 4F.P has not started"*
+> was accurate when it was written, on the documentation branch
+> `phase-4p-tdd`. On the implementation branch it is historical:
+>
+> - The 4F.P implementation branch **`phase-4fp`** exists. It is based on Phase 4
+>   at `9d2d636`.
+> - **P1, P3, P5 and P6 are implemented** (commit `c0c47f9`). **P4, P7 and P8
+>   have not started.** 4F.P is **not complete**, and no PR has been opened.
+> - **A-4FP-7 is P7, which has not started.** `DecisionOutcome` still has
+>   five members on this branch.
+> - [TDD 4F.P](13-tdd-4fp-production-promotion.md) §1 defines P1 … P9, and
+>   its §30.10 note of this date gives the current status in full.
+
 ---
 
 ## 11. Boundaries — what may change
@@ -887,6 +932,20 @@ semantics · the §22.7 Trust contract · CI workflow policy · **`main`**.
 > - **Logical duplicates are prevented at the producer** by the ratified
 >   **A-4FP-9** ([TDD 4F.P](13-tdd-4fp-production-promotion.md) §30.2).
 > - **Not yet built.** 4F.P has not started.
+
+> **Status on `phase-4fp`, 2026-09-29.** The note above is preserved as
+> written. Its *"Not yet built. 4F.P has not started"*
+> was accurate when it was written, on the documentation branch
+> `phase-4p-tdd`. On the implementation branch it is historical:
+>
+> - The 4F.P implementation branch **`phase-4fp`** exists. It is based on Phase 4
+>   at `9d2d636`.
+> - **P1, P3, P5 and P6 are implemented** (commit `c0c47f9`). **P4, P7 and P8
+>   have not started.** 4F.P is **not complete**, and no PR has been opened.
+> - **A-4FP-9 is built on this branch** (P6). The Layer 1 mechanism and
+>   its test are unchanged.
+> - [TDD 4F.P](13-tdd-4fp-production-promotion.md) §1 defines P1 … P9, and
+>   its §30.10 note of this date gives the current status in full.
 
 ### 13.2 Stale-trigger semantics
 
@@ -1139,6 +1198,20 @@ Moves into RATIFIED are marked **[ratified]**.
 > - **Not yet built.** 4F.P has not started. Every other row of the table is
 >   unchanged.
 
+> **Status on `phase-4fp`, 2026-09-29.** The note above is preserved as
+> written. Its *"Not yet built. 4F.P has not started"*
+> was accurate when it was written, on the documentation branch
+> `phase-4p-tdd`. On the implementation branch it is historical:
+>
+> - The 4F.P implementation branch **`phase-4fp`** exists. It is based on Phase 4
+>   at `9d2d636`.
+> - **P1, P3, P5 and P6 are implemented** (commit `c0c47f9`). **P4, P7 and P8
+>   have not started.** 4F.P is **not complete**, and no PR has been opened.
+> - **A-4FP-9 and the CAS, A-4FP-8, are built on this branch** (P6, P5).
+>   Nothing records a trigger.
+> - [TDD 4F.P](13-tdd-4fp-production-promotion.md) §1 defines P1 … P9, and
+>   its §30.10 note of this date gives the current status in full.
+
 ---
 
 ## 17. IMPLEMENTATION BLOCKERS — recalculated after ratification
@@ -1253,6 +1326,21 @@ column on `cognitive_state.active_thought`. **No `autonomy` schema change.**
 >   unchanged.**
 > - **Not yet built.** 4F.P has not started.
 
+> **Status on `phase-4fp`, 2026-09-29.** The note above is preserved as
+> written. Its *"Not yet built. 4F.P has not started"*
+> was accurate when it was written, on the documentation branch
+> `phase-4p-tdd`. On the implementation branch it is historical:
+>
+> - The 4F.P implementation branch **`phase-4fp`** exists. It is based on Phase 4
+>   at `9d2d636`.
+> - **P1, P3, P5 and P6 are implemented** (commit `c0c47f9`). **P4, P7 and P8
+>   have not started.** 4F.P is **not complete**, and no PR has been opened.
+> - **A-4FP-6 is P4, which has not started.** The
+>   `autonomy.decision.requested` payload, `DecisionRequest` and
+>   `_execution_payload` are unchanged on this branch.
+> - [TDD 4F.P](13-tdd-4fp-production-promotion.md) §1 defines P1 … P9, and
+>   its §30.10 note of this date gives the current status in full.
+
 > **Amended 2026-09-29 (TDD 4F.P ratification, A-4FP-7), additively.** Row 13,
 > *"No new `DecisionOutcome` — The five existing members are unchanged"*,
 > bounded 4F.6's implementation and is preserved as written.
@@ -1265,3 +1353,17 @@ column on `cognitive_state.active_thought`. **No `autonomy` schema change.**
 >   a degraded reply with no log row, and is **never** `EXECUTION_FAILED`.
 >   `TIMEOUT` and no-responder `PROPOSE` are also unchanged.
 > - **Not yet built.** 4F.P has not started.
+
+> **Status on `phase-4fp`, 2026-09-29.** The note above is preserved as
+> written. Its *"Not yet built. 4F.P has not started"*
+> was accurate when it was written, on the documentation branch
+> `phase-4p-tdd`. On the implementation branch it is historical:
+>
+> - The 4F.P implementation branch **`phase-4fp`** exists. It is based on Phase 4
+>   at `9d2d636`.
+> - **P1, P3, P5 and P6 are implemented** (commit `c0c47f9`). **P4, P7 and P8
+>   have not started.** 4F.P is **not complete**, and no PR has been opened.
+> - **A-4FP-7 is P7, which has not started.** There is no
+>   `EXECUTION_FAILED` member on this branch.
+> - [TDD 4F.P](13-tdd-4fp-production-promotion.md) §1 defines P1 … P9, and
+>   its §30.10 note of this date gives the current status in full.

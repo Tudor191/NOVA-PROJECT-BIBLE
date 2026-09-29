@@ -727,6 +727,21 @@ transitions. The 2D-B text is dated and not edited (TDD 4F §24.4, consequence
 >   and no `autonomy.*` subject becomes subscribable.
 > - **Not yet built.** 4F.P has not started.
 
+> **Status on `phase-4fp`, 2026-09-29.** The note above is preserved as
+> written. Its *"Not yet built. 4F.P has not started"*
+> was accurate when it was written, on the documentation branch
+> `phase-4p-tdd`. On the implementation branch it is historical:
+>
+> - The 4F.P implementation branch **`phase-4fp`** exists. It is based on Phase 4
+>   at `9d2d636`.
+> - **P1, P3, P5 and P6 are implemented** (commit `c0c47f9`). **P4, P7 and P8
+>   have not started.** 4F.P is **not complete**, and no PR has been opened.
+> - **A-4FP-1 is built on this branch** (P1), and P-11's test is
+>   retargeted to exactly the two subjects, with its original wording
+>   preserved.
+> - [TDD 4F.P](13-tdd-4fp-production-promotion.md) §1 defines P1 … P9, and
+>   its §30.10 note of this date gives the current status in full.
+
 > **Amended 2026-09-29 (TDD 4F.P ratification, A-4FP-10 with SD-5 and SD-6),
 > additively.** P-14 is preserved as written above.
 >
@@ -745,6 +760,23 @@ transitions. The 2D-B text is dated and not edited (TDD 4F §24.4, consequence
 >   ratified**, and its default (a) stands: `operation` and `parameters` are
 >   not exposed.
 > - **Not yet built.** 4F.P has not started.
+
+> **Status on `phase-4fp`, 2026-09-29.** The note above is preserved as
+> written. Its *"Not yet built. 4F.P has not started"*
+> was accurate when it was written, on the documentation branch
+> `phase-4p-tdd`. On the implementation branch it is historical:
+>
+> - The 4F.P implementation branch **`phase-4fp`** exists. It is based on Phase 4
+>   at `9d2d636`.
+> - **P1, P3, P5 and P6 are implemented** (commit `c0c47f9`). **P4, P7 and P8
+>   have not started.** 4F.P is **not complete**, and no PR has been opened.
+> - **A-4FP-10 is built on this branch**, in the same commit.
+>   `ingestion_orchestration.py` is the one production caller of
+>   `promote_thought`, the no-production-caller test is retargeted to it,
+>   and the served-path test is unchanged for all four modules.
+>   `operation` and `parameters` are still not exposed.
+> - [TDD 4F.P](13-tdd-4fp-production-promotion.md) §1 defines P1 … P9, and
+>   its §30.10 note of this date gives the current status in full.
 
 **Negative controls.** Protocol §9.2 requires that each property's tests fail
 when the property is removed. Every mutation below must fail at least one named
@@ -1041,6 +1073,23 @@ reported here rather than silently fixed (protocol §13.1).
 >   Option (a)'s *"Permit **exactly** the two ratified subject strings"* above
 >   becomes three for that reason alone.
 > - **Not yet built.** 4F.P has not started.
+
+> **Status on `phase-4fp`, 2026-09-29.** The note above is preserved as
+> written. Its *"Not yet built. 4F.P has not started"*
+> was accurate when it was written, on the documentation branch
+> `phase-4p-tdd`. On the implementation branch it is historical:
+>
+> - The 4F.P implementation branch **`phase-4fp`** exists. It is based on Phase 4
+>   at `9d2d636`.
+> - **P1, P3, P5 and P6 are implemented** (commit `c0c47f9`). **P4, P7 and P8
+>   have not started.** 4F.P is **not complete**, and no PR has been opened.
+> - **The repair is built on this branch**, in
+>   `tests/contract/test_boundaries.py`. It reads schema references in
+>   `ast.Constant` strings, with docstrings excluded, permits exactly the
+>   three subject strings, and is negative-controlled. A-4F7-6 itself
+>   stays PROPOSED.
+> - [TDD 4F.P](13-tdd-4fp-production-promotion.md) §1 defines P1 … P9, and
+>   its §30.10 note of this date gives the current status in full.
 
 ---
 
