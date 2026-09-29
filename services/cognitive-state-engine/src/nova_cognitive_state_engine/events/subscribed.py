@@ -25,8 +25,20 @@ already exists -- this engine will be a new *consumer* of existing contracts,
 never the author of a new one (D-4D-1)." 4F.6 added no subscription: its trigger
 condition is a promotion, not an inbound event. The last clause still holds.
 Preserved per protocol §0.3.4.)*
+
+*(Phase 4F.P -- TDD 4F.P §30.2, **A-4FP-1**, which amends RS-3a's "exactly this
+existing subject". The set is now exactly **two** subjects:
+`perception.sensor.health_changed` and `perception.workspace.observed`. The
+second is an **existing, internal** subject (`PerceptionWorkspaceObservedPayload`,
+absent from `PUBLIC_TOPICS`), consumed by `make_workspace_observation_handler`
+for thought ingestion. So "Exactly one, since Phase 4F.7" and "Not for thought
+ingestion" above are superseded, and are preserved as written: the sensor
+subscription still feeds sensor state only. No subject is authored or added,
+and `PUBLIC_TOPICS` is unchanged.)*
 """
 
 from __future__ import annotations
 
-SUBSCRIBABLE_SUBJECTS: frozenset[str] = frozenset({"perception.sensor.health_changed"})
+SUBSCRIBABLE_SUBJECTS: frozenset[str] = frozenset(
+    {"perception.sensor.health_changed", "perception.workspace.observed"}
+)

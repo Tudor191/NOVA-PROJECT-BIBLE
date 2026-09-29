@@ -71,7 +71,14 @@ PROPOSAL = {
     "verification_method": "exit_code",
     "title": "prune stale build artifacts",
     "detail": "older than thirty days",
+    "operation": "prune",
+    "parameters": {"older_than_days": 30},
 }
+
+NOT_YET_ON_THE_WIRE = {"operation", "parameters"}
+"""**Phase 4F.P, disclosed.** A-4FP-6 adds both to the trigger payload in a
+later 4F.P slice than this one; pinned so the verbatim check must change when
+they join the wire."""
 
 Handler = Callable[[EventEnvelope], Awaitable[BaseModel]]
 
@@ -199,7 +206,10 @@ async def test_promotion_to_immediate_sends_one_real_request_carrying_the_propos
 
     payload = validate_payload(SUBJECT, envelope.payload)
     assert isinstance(payload, AutonomyDecisionRequestedPayload)
+    assert set(PROPOSAL) - set(envelope.payload) == NOT_YET_ON_THE_WIRE
     for field, value in PROPOSAL.items():
+        if field in NOT_YET_ON_THE_WIRE:
+            continue
         assert envelope.payload[field] == value, field
     assert payload.thought_id == thought.thought_id
     assert payload.priority == thought.priority

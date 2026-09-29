@@ -11,10 +11,17 @@ real `CognitiveStateRepository` semantics (a missing thought raises), and the
 trigger port is a recorder, because *how many requests were sent* is a fact
 about `promote_thought` rather than about the transport -- the transport is
 proven against a real broker in `tests/integration`.
+
+*(Phase 4F.P, A-4FP-8 -- TDD 4F.P §30.2: the transition is now a
+compare-and-set. The fake keeps the real statement's semantics -- it moves the
+thought only if it is still at `expected`, and returns `None` otherwise -- and
+the tests at the end of this module cover the loss. The race itself is proven
+against real Postgres in `tests/integration/test_ingestion_real_postgres.py`.)*
 """
 
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
@@ -40,22 +47,56 @@ PROPOSAL = {
     "verification_method": "exit_code",
     "title": "prune stale build artifacts",
     "detail": "older than thirty days",
+    "operation": "prune",
+    "parameters": {"older_than_days": 30},
 }
+
+NOT_YET_ON_THE_WIRE = {"operation", "parameters"}
+"""**Phase 4F.P, disclosed.** A-4FP-6 adds both to the trigger payload; that is
+a later 4F.P slice than this one, so until it lands they are authored and
+stored but not sent. Pinned, so the verbatim test below must change when they
+join the wire rather than silently skipping them."""
 
 
 class FakeRepository:
     def __init__(self, *thoughts: ActiveThought) -> None:
         self.thoughts = {t.thought_id: t for t in thoughts}
         self.moves: list[tuple[UUID, AttentionLayer]] = []
+        self.unconditional_moves: list[tuple[UUID, AttentionLayer]] = []
+        self.updated_at: list[datetime] = []
 
     async def get_thought(self, thought_id: UUID) -> ActiveThought:
         if thought_id not in self.thoughts:
             raise ThoughtNotFoundError(thought_id)
-        return self.thoughts[thought_id]
+        thought = self.thoughts[thought_id]
+        # Yield, as a real read does, so concurrent callers genuinely interleave
+        # between the read and the compare-and-set.
+        await asyncio.sleep(0)
+        return thought
 
     async def move_layer(self, thought_id: UUID, layer: AttentionLayer) -> ActiveThought:
-        self.moves.append((thought_id, layer))
+        self.unconditional_moves.append((thought_id, layer))
         moved = self.thoughts[thought_id].model_copy(update={"attention_layer": layer})
+        self.thoughts[thought_id] = moved
+        return moved
+
+    async def compare_and_set_layer(
+        self,
+        thought_id: UUID,
+        *,
+        expected: AttentionLayer,
+        target: AttentionLayer,
+        updated_at: datetime,
+    ) -> ActiveThought | None:
+        """A-4FP-8's statement: no await between the check and the write, so it
+        is atomic on the event loop exactly as the `UPDATE … WHERE` is in
+        Postgres."""
+        current = self.thoughts.get(thought_id)
+        if current is None or current.attention_layer is not expected:
+            return None
+        self.moves.append((thought_id, target))
+        self.updated_at.append(updated_at)
+        moved = current.model_copy(update={"attention_layer": target, "updated_at": updated_at})
         self.thoughts[thought_id] = moved
         return moved
 
@@ -118,7 +159,11 @@ async def test_every_authored_field_is_copied_verbatim() -> None:
 
     payload, correlation_id = trigger.requests[0]
     sent = payload.model_dump(mode="json")
+    # Phase 4F.P: every authored field on the wire today, and the exclusion pinned.
+    assert set(PROPOSAL) - set(sent) == NOT_YET_ON_THE_WIRE
     for field, value in PROPOSAL.items():
+        if field in NOT_YET_ON_THE_WIRE:
+            continue
         assert sent[field] == value, field
     assert payload.thought_id == thought.thought_id
     assert payload.priority == thought.priority
@@ -185,11 +230,17 @@ async def test_promoting_an_already_immediate_thought_moves_nothing_and_triggers
 
 
 async def test_the_transition_goes_through_the_repository() -> None:
-    """The existing mechanism records the move -- nothing re-implements it."""
+    """The existing mechanism records the move -- nothing re-implements it.
+
+    *(Phase 4F.P, A-4FP-8: the mechanism is now `compare_and_set_layer`, and
+    `move_layer` -- kept unconditional for callers that do not trigger -- is
+    never used by `promote_thought`. `moves` records the compare-and-set; the
+    body above is otherwise unchanged.)*"""
     thought = _thought(AttentionLayer.ACTIVE)
     repository = FakeRepository(thought)
     await promote_thought(thought.thought_id, repository=repository, trigger=RecordingTrigger())
     assert repository.moves == [(thought.thought_id, AttentionLayer.IMMEDIATE)]
+    assert repository.unconditional_moves == []
 
 
 async def test_a_missing_thought_raises_and_sends_nothing() -> None:
@@ -238,3 +289,81 @@ async def test_each_trigger_gets_its_own_correlation_id() -> None:
 
     assert len(trigger.requests) == 2
     assert trigger.requests[0][1] != trigger.requests[1][1]
+
+
+# --- Phase 4F.P, A-4FP-8: the compare-and-set -------------------------------------
+
+
+class LosingRepository(FakeRepository):
+    """Another caller moves the thought between this caller's read and its
+    compare-and-set."""
+
+    async def get_thought(self, thought_id: UUID) -> ActiveThought:
+        read = await super().get_thought(thought_id)
+        self.thoughts[thought_id] = read.model_copy(
+            update={"attention_layer": AttentionLayer.IMMEDIATE}
+        )
+        return read
+
+
+async def test_the_compare_and_set_names_the_layer_read_and_the_ladders_target() -> None:
+    thought = _thought(AttentionLayer.PASSIVE)
+    repository = FakeRepository(thought)
+    await promote_thought(thought.thought_id, repository=repository, trigger=RecordingTrigger())
+    assert repository.moves == [(thought.thought_id, AttentionLayer.ACTIVE)]
+
+
+async def test_a_lost_compare_and_set_moves_nothing_and_triggers_nothing() -> None:
+    """A-4FP-8: no row back means this caller does nothing. The winner owns
+    the transition and the one trigger."""
+    thought = _thought(AttentionLayer.ACTIVE)
+    repository, trigger = LosingRepository(thought), RecordingTrigger()
+
+    result = await promote_thought(thought.thought_id, repository=repository, trigger=trigger)
+
+    assert result.moved is False
+    assert result.trigger is None
+    assert trigger.requests == []
+    assert repository.moves == []
+
+
+async def test_concurrent_promotions_of_one_thought_trigger_exactly_once() -> None:
+    """TDD 4F.P §13 row 3, on the event loop: both callers read `ACTIVE`
+    before either writes, and exactly one compare-and-set succeeds."""
+    thought = _thought(AttentionLayer.ACTIVE)
+    repository, trigger = FakeRepository(thought), RecordingTrigger()
+
+    results = await asyncio.gather(
+        *(
+            promote_thought(thought.thought_id, repository=repository, trigger=trigger)
+            for _ in range(8)
+        )
+    )
+
+    assert sum(result.moved for result in results) == 1
+    assert len(trigger.requests) == 1
+    assert repository.moves == [(thought.thought_id, AttentionLayer.IMMEDIATE)]
+
+
+async def test_the_callers_instant_is_the_updated_at_written() -> None:
+    """A-4FP-8: `updated_at` is supplied by the caller."""
+    thought = _thought(AttentionLayer.ACTIVE)
+    repository = FakeRepository(thought)
+    instant = thought.created_at
+
+    result = await promote_thought(
+        thought.thought_id, repository=repository, trigger=RecordingTrigger(), now=instant
+    )
+
+    assert repository.updated_at == [instant]
+    assert result.thought.updated_at == instant
+
+
+async def test_the_trigger_is_built_from_the_row_the_compare_and_set_returned() -> None:
+    thought = _thought(AttentionLayer.ACTIVE)
+    trigger = RecordingTrigger()
+    result = await promote_thought(
+        thought.thought_id, repository=FakeRepository(thought), trigger=trigger
+    )
+    assert result.thought.attention_layer is AttentionLayer.IMMEDIATE
+    assert trigger.requests[0][0].thought_id == result.thought.thought_id

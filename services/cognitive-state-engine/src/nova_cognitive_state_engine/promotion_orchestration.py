@@ -43,10 +43,28 @@ driver -- with thought ingestion, `ProposedAction` authorship, CAS on the
 transition and Layer 2 deduplication -- belongs to the promotion slice 4F.P,
 before 4F.8. Nothing in this engine's running topology calls `promote_thought`,
 and CF-11 stays OPEN.)*
+
+*(Phase 4F.P -- TDD 4F.P §30.2, A-4FP-8 and A-4FP-10. Both notes above are
+preserved as written, and two of their claims no longer hold:*
+
+* *"`CognitiveStateRepository.move_layer` records it" is superseded. The
+  transition is now recorded by `compare_and_set_layer`, one conditional
+  statement that moves the thought only if it is still at the layer this call
+  read. Of two concurrent promotions of one thought, exactly one moves it and
+  only that one can fire the trigger; the other gets no row back and does
+  nothing. `next_layer` still chooses the target, and `move_layer` is unchanged
+  for callers that do not trigger.*
+* *"No production caller" is superseded. `ingestion_orchestration.py` is now the
+  **one** production caller (A-4FP-10): it promotes a thought exactly once, when
+  its own insert created it (A-4FP-2).*
+
+*CF-11 stays OPEN: it closes only on 4F.P's real-execution evidence, not on
+this module.)*
 """
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 from nova_contracts.events.autonomy import AutonomyDecisionRequestedPayload
@@ -106,9 +124,15 @@ async def promote_thought(
     *,
     repository: CognitiveStateRepository,
     trigger: DecisionTriggerPort,
+    now: datetime | None = None,
 ) -> PromotionResult:
     """Promote one thought one step, and fire the trigger **only** if that step
-    reached `IMMEDIATE` and the thought carries a complete `ProposedAction`."""
+    reached `IMMEDIATE` and the thought carries a complete `ProposedAction`.
+
+    *(Phase 4F.P, A-4FP-8:)* the step is a compare-and-set. **Only the call
+    whose statement moved the thought can fire the trigger**, and the trigger
+    is built from the row that statement returned. `now` is the `updated_at`
+    the move writes; the caller's clock reading, or this engine's clock."""
     current = await repository.get_thought(thought_id)
 
     target = next_layer(current.attention_layer, "promote")
@@ -117,7 +141,17 @@ async def promote_thought(
         # nothing fires. This is what stops a repeated promote re-triggering.
         return PromotionResult(thought=current, moved=False)
 
-    moved = await repository.move_layer(thought_id, target)
+    moved = await repository.compare_and_set_layer(
+        thought_id,
+        expected=current.attention_layer,
+        target=target,
+        updated_at=now if now is not None else datetime.now(UTC),
+    )
+    if moved is None:
+        # A-4FP-8: another caller moved it between the read and the write, or
+        # it no longer exists. That caller owns the transition and any
+        # trigger; this one moved nothing and fires nothing.
+        return PromotionResult(thought=current, moved=False)
 
     if target is not AttentionLayer.IMMEDIATE or moved.proposed_action is None:
         return PromotionResult(thought=moved, moved=True)

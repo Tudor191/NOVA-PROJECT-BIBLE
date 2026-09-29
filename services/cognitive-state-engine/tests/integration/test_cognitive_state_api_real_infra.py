@@ -63,8 +63,14 @@ PROPOSAL = ProposedAction.model_validate(
         "verification_method": "checksum",
         "title": "rotate the scratch directory",
         "detail": "keep the last seven",
+        "operation": "move",
+        "parameters": {"path": "scratch", "keep": 7},
     }
 )
+
+_NOT_SERVED = {"operation", "parameters"}
+"""**Phase 4F.P, A-4FP-14's default (a)** (TDD 4F.P §30.3): a proposal carries
+both, and the read surface serves neither."""
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -177,7 +183,7 @@ def _served_thought(thought: ActiveThought) -> dict:  # type: ignore[type-arg]
         "created_at": thought.created_at.isoformat().replace("+00:00", "Z"),
         "updated_at": thought.updated_at.isoformat().replace("+00:00", "Z"),
         "proposed_action": (
-            thought.proposed_action.model_dump(mode="json")
+            thought.proposed_action.model_dump(mode="json", exclude=_NOT_SERVED)
             if thought.proposed_action is not None
             else None
         ),
@@ -276,7 +282,8 @@ async def test_p4_p8_real_rows_serialize_field_for_field(
     # `list_thoughts`' order: newest-updated first.
     assert response.json() == {"thoughts": [_served_thought(full), _served_thought(bare)]}
     served_full, served_bare = response.json()["thoughts"]
-    assert served_full["proposed_action"] == PROPOSAL.model_dump(mode="json")
+    assert served_full["proposed_action"] == PROPOSAL.model_dump(mode="json", exclude=_NOT_SERVED)
+    assert not _NOT_SERVED & set(served_full["proposed_action"])
     assert served_bare["proposed_action"] is None
     assert served_bare["estimated_completion"] is None
     assert served_bare["attention_layer"] == "dormant"

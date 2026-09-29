@@ -24,6 +24,7 @@ Preserved per protocol §0.3.4.)*
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Literal, Protocol
 from uuid import UUID
 
@@ -126,7 +127,41 @@ class CognitiveStateRepository(Protocol):
         **The transition rules are not re-implemented here.** This method
         records a move the domain already validated; putting `next_layer`'s
         table behind a repository call would give the ladder two definitions.
+
+        *(Phase 4F.P, A-4FP-8: unconditional, and kept so for callers that do
+        not trigger. `promote_thought` no longer uses it; it uses
+        `compare_and_set_layer`.)*
         """
+
+    # -- Phase 4F.P (TDD 4F.P §30.2) ----------------------------------------
+
+    async def insert_thought_if_absent(self, thought: ActiveThought) -> ActiveThought | None:
+        """**A-4FP-1.** Insert the thought **only if no row has its
+        `thought_id`**, in one statement (`INSERT … ON CONFLICT (thought_id) DO
+        NOTHING RETURNING`).
+
+        Returns the round-tripped row when this call created it, and `None`
+        when the thought already existed -- in which case **nothing was
+        written**: not a field, not a timestamp, not the layer. Of any number
+        of concurrent calls for one identity, exactly one gets a row back, and
+        only that one may promote (A-4FP-2)."""
+
+    async def compare_and_set_layer(
+        self,
+        thought_id: UUID,
+        *,
+        expected: AttentionLayer,
+        target: AttentionLayer,
+        updated_at: datetime,
+    ) -> ActiveThought | None:
+        """**A-4FP-8.** Move the thought from `expected` to `target` **only if
+        it is still at `expected`**, in one statement, writing the caller's
+        `updated_at`.
+
+        Returns the row as the statement left it when this call moved it, and
+        `None` otherwise -- the thought is absent, or another caller moved it
+        first. `None` means the caller does nothing. Like `move_layer`, it
+        records a move `domain/attention.py` chose and never chooses one."""
 
 
 class SensorStateRepository(Protocol):
