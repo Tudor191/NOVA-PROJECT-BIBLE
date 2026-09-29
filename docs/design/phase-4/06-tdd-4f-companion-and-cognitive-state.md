@@ -1315,6 +1315,24 @@ RS-3a.
   silence; and reading `perception-engine` over HTTP, which ADR-004 forbids.
 - **Option D** (unrelated to 4F.7) contradicts §18.
 
+> **Amended 2026-09-29 (TDD 4F.P ratification, A-4FP-1), additively.** RS-3a
+> is preserved as written above, including its *"changes from **empty** to
+> **exactly this existing subject**"*.
+>
+> - **What changes.** Under the ratified **A-4FP-1**
+>   ([TDD 4F.P](13-tdd-4fp-production-promotion.md) §30.2),
+>   `cognitive-state-engine`'s subscribe allow-list becomes exactly **two**
+>   existing subjects: `perception.sensor.health_changed` and
+>   `perception.workspace.observed`. The second is **internal**, and is the
+>   4F.P thought-ingestion input.
+> - **What does not change:**
+>   - no subject is added, and the registry stays 120;
+>   - `PUBLIC_TOPICS` stays at 18;
+>   - RS-3a's sensor-state data path and its accepted consequence;
+>   - RS-3b.
+> - **Not yet built.** This note records a ratified amendment, not an
+>   implementation. 4F.P has not started.
+
 **RS-3b — RATIFIED as OPEN.**
 
 - **OS-level permission revocation detection stays OPEN.** 4F.7 does not
@@ -1418,6 +1436,25 @@ Additive notes carry this into TDD 4F.6 §2 and the 4F.6 completion record
   - TTL;
   - stale-trigger handling;
   - Layer 2 deduplication.
+
+> **Amended 2026-09-29 (TDD 4F.P ratification, A-4FP-8), additively.** RS-7 is
+> preserved as written above.
+>
+> - **The exact CAS behaviour** that RS-7 left to *"the future promotion
+>   slice"* is now **ratified as A-4FP-8**
+>   ([TDD 4F.P](13-tdd-4fp-production-promotion.md) §30.2). It is one
+>   conditional statement, `UPDATE cognitive_state.active_thought SET
+>   attention_layer = :target, updated_at = :updated_at WHERE thought_id =
+>   :thought_id AND attention_layer = :expected RETURNING *`, with `updated_at`
+>   supplied by the caller. Only a caller that receives a row may trigger.
+> - It follows the `decide_suggestion` precedent RS-7 names.
+> - It is a ratified decision, **not yet built**. 4F.P has not started.
+> - **RS-7's *"None of the following is added"* list still holds for 4F.P**:
+>   no retry, no outbox, no failed-trigger persistence, no TTL, and no
+>   stale-trigger handling.
+> - **The one item on that list 4F.P does address is Layer 2 deduplication**,
+>   which RS-1c assigns to it. It is resolved by **A-4FP-9** without a second
+>   mechanism and without persisted trigger state.
 
 ### 24.9 Stand-in producers
 

@@ -711,6 +711,41 @@ transitions. The 2D-B text is dated and not edited (TDD 4F §24.4, consequence
 | **P-20** | **Deployment wiring** | `tools/tests/test_compose_migrations.py` and `tools/tests/test_e2e_stack_completeness.py` pass unchanged against the new compose service, `ENGINES` entry and e2e list. `docker compose … config --quiet` is valid |
 | **P-21** | **The real API path in a browser** | Playwright against the real stack: the panel loads through the gateway; its content equals the three `GET` bodies fetched through the gateway in the same test; each empty state renders exactly (A-4F7-5 (a)) |
 
+> **Amended 2026-09-29 (TDD 4F.P ratification, A-4FP-1), additively.** P-11 is
+> preserved as written above.
+>
+> - **What changes.** Its *"`SUBSCRIBABLE_SUBJECTS ==
+>   {"perception.sensor.health_changed"}`"* becomes, under the ratified
+>   **A-4FP-1** ([TDD 4F.P](13-tdd-4fp-production-promotion.md) §30.2),
+>   **exactly** `{"perception.sensor.health_changed",
+>   "perception.workspace.observed"}`. The second is the existing **internal**
+>   subject 4F.P ingests Active Thoughts from.
+> - **How the test changes.** P-11's test is **retargeted, not retired**, with
+>   its original wording preserved. Exact equality stays, so a third subject
+>   fails as loudly as before.
+> - **What does not change:** no subject is added; `PUBLIC_TOPICS` stays at 18;
+>   and no `autonomy.*` subject becomes subscribable.
+> - **Not yet built.** 4F.P has not started.
+
+> **Amended 2026-09-29 (TDD 4F.P ratification, A-4FP-10 with SD-5 and SD-6),
+> additively.** P-14 is preserved as written above.
+>
+> - **P-14's structural control is two tests. Under the ratified A-4FP-10**
+>   ([TDD 4F.P](13-tdd-4fp-production-promotion.md) §30.2):
+>   - **`test_p14_promote_thought_still_has_no_production_caller` is
+>     retargeted**, with its wording preserved, to *"exactly one production
+>     caller, `ingestion_orchestration.py`"*. That module is invoked by the
+>     `perception.workspace.observed` handler, which awaits it inline and
+>     processes one message at a time.
+>   - **`test_p14_nothing_on_the_served_path_writes_a_thought_or_promotes` is
+>     unchanged for all four modules it covers**: `api/cognitive_state.py`,
+>     `api/health.py`, `main.py` and `events/handlers.py`.
+> - **The read surface stays read-only (RS-1b).** P-14's OpenAPI half, with no
+>   write route and no autonomy route, is unchanged. **A-4FP-14 is not
+>   ratified**, and its default (a) stands: `operation` and `parameters` are
+>   not exposed.
+> - **Not yet built.** 4F.P has not started.
+
 **Negative controls.** Protocol §9.2 requires that each property's tests fail
 when the property is removed. Every mutation below must fail at least one named
 test:
@@ -986,6 +1021,26 @@ with single quotes**, so a double-quoted pattern can never match:
 **Recommendation: (a).** It is a test-only change inside RS-9's
 `cognitive-state-engine` surface. **This is a pre-existing defect from 4F.1**,
 reported here rather than silently fixed (protocol §13.1).
+
+> **Amended 2026-09-29 (TDD 4F.P ratification, A-4FP-10), additively.** A-4F7-6
+> is preserved as written above.
+>
+> - **Its status in this TDD stays PROPOSED.** A-4F7-6 is not ratified as a
+>   4F.7 decision.
+> - **Option (a)'s repair is adopted inside 4F.P** by the ratified
+>   **A-4FP-10** ([TDD 4F.P](13-tdd-4fp-production-promotion.md) §30.2),
+>   because 4F.P changes exactly the subject strings this control guards
+>   (F-4F7-1).
+> - **What the repaired check does.** It inspects `ast.Constant` strings, and
+>   **permits exactly the three ratified subject strings**:
+>   - `autonomy.decision.requested`, published;
+>   - `perception.sensor.health_changed`, subscribed;
+>   - `perception.workspace.observed`, subscribed (A-4FP-1).
+>
+>   It is negative-controlled, and its original wording is preserved in a note.
+>   Option (a)'s *"Permit **exactly** the two ratified subject strings"* above
+>   becomes three for that reason alone.
+> - **Not yet built.** 4F.P has not started.
 
 ---
 

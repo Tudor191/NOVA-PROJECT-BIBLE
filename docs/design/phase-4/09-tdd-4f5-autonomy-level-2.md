@@ -227,6 +227,27 @@ entry construction. §16 control 4 asserts the two runs produce the same call
 sequence up to that point. That is what makes AC-8's *"no code path differs"*
 literally true rather than rhetorically true.
 
+> **Amended 2026-09-29 (TDD 4F.P ratification, A-4FP-7), additively.** The
+> diagram above is preserved as written.
+>
+> - **What changes.** Its line *"False → action.execute RPC +
+>   DecisionOutcome.EXECUTE"* no longer describes the recorded outcome. Under
+>   the ratified **A-4FP-7** ([TDD 4F.P](13-tdd-4fp-production-promotion.md)
+>   §30.2), the outcome is chosen from `action-engine`'s reply:
+>
+>   | Reply | Recorded outcome |
+>   |---|---|
+>   | `completed` | **`EXECUTE`** |
+>   | `denied` | **`PROPOSE`**, with a suggestion |
+>   | `failed`, `rolled_back` or a non-terminal status | **`EXECUTION_FAILED`**, a new `DecisionOutcome` member |
+>
+> - **What does not change:** `TIMEOUT` (D-4F5-3); no responder → `PROPOSE`
+>   (§22.8); any other dispatch fault → a degraded reply, with no row.
+> - **The upstream half of the diagram is unchanged.** Everything up to the
+>   single dispatch point is unaffected, so AC-8's *"no code path differs"*
+>   still holds.
+> - **Not yet built.** 4F.P has not started.
+
 ---
 
 ## 7. API contracts
@@ -323,6 +344,23 @@ NOVA act without being asked. Every control below exists for that reason.
 | **Browser reachability** | None added. No new prefix, no new public topic, no socket |
 | **Audit** | Every Level-2 decision writes a `DecisionLogEntry` with `outcome=EXECUTE`, the policy checks that permitted it, and the level. **The decision log is the audit trail**, and it already exists |
 
+> **Amended 2026-09-29 (TDD 4F.P ratification, A-4FP-7), additively.** The
+> *Audit* row above is preserved as written.
+>
+> - **What changes.** Under the ratified **A-4FP-7**
+>   ([TDD 4F.P](13-tdd-4fp-production-promotion.md) §30.2), a Level-2 dispatch
+>   writes a `DecisionLogEntry` whose outcome **follows `action-engine`'s
+>   reply**. `EXECUTE` is recorded for `completed` and **nothing else**:
+>   - `denied` records `PROPOSE`, with a suggestion;
+>   - `failed`, `rolled_back` and non-terminal statuses record the new
+>     `EXECUTION_FAILED`;
+>   - `TIMEOUT` and no-responder `PROPOSE` are unchanged;
+>   - a transport fault writes no row and is **never** `EXECUTION_FAILED`.
+> - **What still holds.** The row's policy checks and level are unchanged, and
+>   the decision log is still the audit trail.
+> - **No migration.** `outcome` is `TEXT`, with no CHECK.
+> - **Not yet built.** 4F.P has not started.
+
 ### 10.1 A precision the Bible's wording requires
 
 Bible Part 14 names Level 2 *"Low risk actions execute automatically."* `RiskLevel`
@@ -369,6 +407,21 @@ X-3 and X-11 and still be a serious security defect.
 
 *(X-13 … X-17 were added by the 2026-09-20 ratification; X-1 … X-12 are unchanged
 from the pre-ratification text. Preserved per protocol §0.3.4.)*
+
+> **Amended 2026-09-29 (TDD 4F.P ratification, A-4FP-7), additively.** X-11 is
+> preserved as written above, and it remains 4F.5's accepted evidence.
+>
+> - **What changes.** Under the ratified **A-4FP-7**
+>   ([TDD 4F.P](13-tdd-4fp-production-promotion.md) §30.2), X-11's
+>   `outcome=EXECUTE` holds **only when `action-engine` reports `completed`**.
+>   A `denied` reply records `PROPOSE`. A `failed`, `rolled_back` or
+>   non-terminal reply records the new `EXECUTION_FAILED`.
+> - **4F.5's evidence is unaffected.** X-11's test used a stand-in responder
+>   that replies `completed`.
+> - **X-13 and D-4F5-3's *"distinguishable … from an ordinary execution
+>   failure"* are unchanged.** `EXECUTION_FAILED` is that ordinary execution
+>   failure outcome, and `TIMEOUT` stays distinct from it.
+> - **Not yet built.** 4F.P has not started.
 
 ### 11.1 Negative and security tests — defined before implementation
 
@@ -885,6 +938,24 @@ Six binding rules:
 **Forbidden:** inferring `action_type` from `category` or `capability_class`;
 defaulting `execution_target`; defaulting `verification_method`; treating an
 incomplete request as an error rather than as a suggestion.
+
+> **Amended 2026-09-29 (TDD 4F.P ratification, A-4FP-6 with SD-3),
+> additively.** D-4F5-2 is preserved as written above, including *"gains
+> **`action_type`**, **`execution_target`** and **`verification_method`**"*.
+>
+> - **What changes.** Under the ratified **A-4FP-6**
+>   ([TDD 4F.P](13-tdd-4fp-production-promotion.md) §30.2), `DecisionRequest`
+>   also gains **`operation`** and **`parameters`**, both defaulting to `None`.
+>   **Both join D-4F5-2's execution fields, which go from three to five.**
+> - **D-4F5-2's rules on absence and defaults (rules 1–3 and 6) apply to both
+>   new fields**, as they do to the other three. Either one absent at the
+>   dispatch branch produces a suggestion and no `action.execute`. **Neither is
+>   ever defaulted to `{}`** or to any other value (SD-3).
+> - **The dispatch payload.** 4F.5's `_execution_payload`, which sends
+>   `parameters={}`, instead builds `parameters = {"operation": operation,
+>   **parameters}`. It returns `None`, which means a suggestion, if
+>   `parameters` contains `"operation"`.
+> - **Not yet built.** 4F.P has not started.
 
 ### 22.3 D-4F5-3 — a bounded **15-second** `action.execute` timeout. **RATIFIED.**
 
