@@ -3,6 +3,17 @@
 
 **Status: PREPARED 2026-09-27. NOT RATIFIED. NOT implementation-ready.**
 
+> **RATIFIED 2026-09-29 (§30).** The status line above is preserved as
+> written.
+>
+> - **SD-1 … SD-6 and A-4FP-1 … A-4FP-13 are RATIFIED.** §30.1 and §30.2 hold
+>   the ratified wording, and **§30 governs** wherever earlier text differs.
+> - **A-4FP-14 is NOT BLOCKING**, and its default stands.
+> - **No blocking decision remains.**
+> - **Implementation has not begun.** Before the implementation branch is cut:
+>   §30.6's additive notes, and the user's explicit GO.
+> - **CF-9, CF-10 and CF-11 stay OPEN.** 4F.8 stays blocked as §30.9 states.
+
 - **What this is.** The implementation contract for **4F.P**, the slice RS-1c
   added **before 4F.8** (TDD 4F §18, as amended by §24). It defines NOVA's
   first production initiative path, end to end:
@@ -327,6 +338,12 @@ Each finding is verified at `9d2d636`. None is fixed here.
 
 **A-4FP-1 … A-4FP-13 block implementation. A-4FP-14 has a default.**
 
+> **RATIFIED 2026-09-29.** A-4FP-1 … A-4FP-13 are RATIFIED in §30.2's wording,
+> and SD-1 … SD-6 in §30.1's. They no longer block. **A-4FP-14 is not blocking
+> and not ratified**; its default (a) stands (§30.3). This section is preserved
+> as prepared: its *"Nothing in this section is decided"*, its BLOCKING labels,
+> and its unchosen options are superseded by §30 (§30.4).
+
 - **"New"** candidates answer questions nobody has ratified. The five RS-1c
   requires are among them.
 - **"Amends"** candidates would change an existing ratification. Each names the
@@ -336,6 +353,8 @@ Each finding is verified at `9d2d636`. None is fixed here.
 **Nothing in this section is decided.**
 
 ### A-4FP-1 — Thought ingestion (RS-2b's mapping). **New, and amends RS-3a's allow-list clause. BLOCKING**
+
+> **RATIFIED 2026-09-29.** The ratified wording is §30.2's A-4FP-1. The text below is preserved as prepared.
 
 **Question.** Which existing subject feeds thought creation, how is an input
 mapped to an Active Thought, and how does ingestion stay idempotent?
@@ -377,6 +396,8 @@ must wait: yes.**
 
 ### A-4FP-2 — The promotion policy (RS-1c). **New. BLOCKING**
 
+> **RATIFIED 2026-09-29.** The ratified wording is §30.2's A-4FP-2. The text below is preserved as prepared.
+
 **Question.** Which thoughts are promoted to `IMMEDIATE`, when, by what, and
 what happens afterwards?
 
@@ -403,6 +424,8 @@ AC-8. **Implementation must wait: yes.**
 > (FP-15). The text above is preserved as prepared.
 
 ### A-4FP-3 — The `ProposedAction` authorship rule (RS-1c, RS-2b). **New. BLOCKING**
+
+> **RATIFIED 2026-09-29.** The ratified wording is §30.2's A-4FP-3. The text below is preserved as prepared.
 
 **Question.** How are a proposal's fields chosen, including the operation and
 its parameters, without deriving, defaulting or guessing?
@@ -456,6 +479,8 @@ case"*). **Implementation must wait: yes.**
 
 ### A-4FP-4 — The `operation` and `parameters` fields on `ProposedAction`. **Amends A-4F6-2a. BLOCKING**
 
+> **RATIFIED 2026-09-29.** The ratified wording is §30.2's A-4FP-4. The text below is preserved as prepared.
+
 | | |
 |---|---|
 | **Existing decision** | **A-4F6-2a** (TDD 4F.6 §4.7): `ProposedAction` has exactly the required fields `category`, `risk`, `action_type`, `execution_target`, `verification_method` and `title`, plus the optional `detail`; all-or-nothing |
@@ -474,6 +499,8 @@ case"*). **Implementation must wait: yes.**
 
 ### A-4FP-5 — What `execution_target` means. **Amends (clarifies) A-4F6-2a. BLOCKING**
 
+> **RATIFIED 2026-09-29.** The ratified wording is §30.2's A-4FP-5. The text below is preserved as prepared.
+
 | | |
 |---|---|
 | **Existing decision** | A-4F6-2a's field table: `execution_target` is *"*What* the action acts on. Never defaulted"* |
@@ -484,6 +511,8 @@ case"*). **Implementation must wait: yes.**
 | **Implementation must wait** | **Yes** |
 
 ### A-4FP-6 — Carrying the operation and parameters into `action.execute`. **Amends D-4F5-2, the 4F.6 trigger contract and 4F.5's dispatch builder. BLOCKING**
+
+> **RATIFIED 2026-09-29.** The ratified wording is §30.2's A-4FP-6. The text below is preserved as prepared.
 
 | | |
 |---|---|
@@ -503,6 +532,8 @@ case"*). **Implementation must wait: yes.**
 > preserved as prepared.
 
 ### A-4FP-7 — The decision outcome follows the real execution result. **Amends TDD 4F.5 §10's audit row and X-11, and TDD 4F.6 §19 row 13. BLOCKING**
+
+> **RATIFIED 2026-09-29.** The ratified wording is §30.2's A-4FP-7. The text below is preserved as prepared.
 
 **D-4F5-3 itself is not changed.** The timeout, its bound and `TIMEOUT` stay as
 ratified. This candidate supplies the *"ordinary execution failure"* outcome
@@ -539,6 +570,8 @@ that D-4F5-3's wording already distinguishes a timeout from.
 
 ### A-4FP-8 — CAS on the promotion transition (RS-7). **New. BLOCKING**
 
+> **RATIFIED 2026-09-29.** The ratified wording is §30.2's A-4FP-8. The text below is preserved as prepared.
+
 **Question.** How is the `ACTIVE → IMMEDIATE` move made race-safe?
 
 | Option | Consequence |
@@ -561,6 +594,8 @@ implementation.**
 > prepared.
 
 ### A-4FP-9 — Duplicate triggers: Layer 2 (A-4F6-3, deferred to 4F.P). **New; resolves a deferral. BLOCKING**
+
+> **RATIFIED 2026-09-29.** The ratified wording is §30.2's A-4FP-9. The text below is preserved as prepared.
 
 **Question.** When are two triggers the same initiative, and what prevents a
 duplicate execution?
@@ -593,6 +628,8 @@ kept exactly.
 
 ### A-4FP-10 — The production caller of `promote_thought`, and 4F.7's P-14. **Amends 4F.7's P-14 control. BLOCKING**
 
+> **RATIFIED 2026-09-29.** The ratified wording is §30.2's A-4FP-10. The text below is preserved as prepared.
+
 | | |
 |---|---|
 | **Existing decision** | **RS-1b** made **4F.7** strictly read-only. It still holds for the read surface. **4F.7's P-14** includes `test_p14_promote_thought_still_has_no_production_caller`, and `test_p14_nothing_on_the_served_path_writes_a_thought_or_promotes` covers `api/` and `main.py` |
@@ -611,6 +648,8 @@ kept exactly.
 > prepared.
 
 ### A-4FP-11 — The stage-3 configuration for 4F.P's real-execution evidence. **Answers 4F.8's A-4F8-5 once. BLOCKING**
+
+> **RATIFIED 2026-09-29.** The ratified wording is §30.2's A-4FP-11. The text below is preserved as prepared.
 
 **Question.** The real stage 3 reads identity confidence that CI cannot produce
 honestly (4F.8's F-4F8-4). What may 4F.P's composed evidence configure?
@@ -634,6 +673,8 @@ under A-4FP-7, which is itself evidence.
 > row is keyed by the same user as `requested_by`.
 
 ### A-4FP-12 — Where the real-execution evidence runs. **Moves 4F.8's proposed D4 forward. BLOCKING**
+
+> **RATIFIED 2026-09-29.** The ratified wording is §30.2's A-4FP-12. The text below is preserved as prepared.
 
 - **Question.** Where is the composed path proven against real engines, with a
   real input, given that control 12 forbids fabricated sensor readings and
@@ -664,6 +705,8 @@ must wait: yes.**
 
 ### A-4FP-13 — SAD 15 §4 item 1 for the 4F.P PR. **New (RS-9's precedent). BLOCKING (process)**
 
+> **RATIFIED 2026-09-29.** The ratified wording is §30.2's A-4FP-13. The text below is preserved as prepared.
+
 - **Question.** The PR touches `nova-contracts`, `cognitive-state-engine`,
   `autonomy-engine`, `infra/docker`, `tools/` and `pr-checks.yml`. Is an RS-9
   exception granted, scoped to exactly those surfaces, with SAD 15 §4 items
@@ -676,6 +719,8 @@ must wait: yes.**
 > preserved as prepared.
 
 ### A-4FP-14 — The read surface and the new fields. **Default: no change. NOT BLOCKING**
+
+> **Not blocking and not ratified (2026-09-29).** Default (a) stands (§30.3). The text below is preserved as prepared.
 
 - **Question.** Does 4F.7's `/v1/cognitive-state/thoughts` expose `operation`
   and `parameters`?
@@ -959,6 +1004,11 @@ The four requested classes:
 The candidates are proposed in TDD 4F.8 on `phase-4f8-tdd` @ `5a95475`. None is
 ratified.
 
+> **Updated 2026-09-29 (§30).** This contract is now ratified, so the title's
+> condition is met. **No A-4F8 candidate is ratified by that.** What now blocks
+> each one is **4F.P's implementation and merge**, as **§30.9** states. The
+> table below is preserved as prepared.
+
 | 4F.8 candidate | Status relative to 4F.P |
 |---|---|
 | **A-4F8-3** (executability; the low-risk action) | **Blocked, and becomes settled** by A-4FP-3 … A-4FP-6 if they are ratified as recommended (§9) |
@@ -1024,6 +1074,11 @@ one PR phase-4 → main, by merge commit, only after GO (master scope §16)
   - F-4 and FP-13.
 - **Beyond Phase 4:** CF-10; L-15, L-17, L-18.
 
+> **Updated 2026-09-29 (§30).** The list above is unchanged by the
+> ratification. **§30.8** restates it with the audit's additions (FP-15, FP-18,
+> FP-24, and A-4FP-14's alternative (b)). The list above is preserved as
+> prepared.
+
 ---
 
 ## 22. Implementation and closure sequence
@@ -1051,6 +1106,14 @@ one PR phase-4 → main, by merge commit, only after GO (master scope §16)
    exception.
 8. **A PR only when asked.**
 9. **Merge on explicit authorization**, then 4F.8 (§20).
+
+> **Updated 2026-09-29 (§30).** The sequence is preserved as written.
+>
+> - **Step 1 is complete**: A-4FP-1 … A-4FP-13 are ratified, and A-4FP-14's
+>   default stands.
+> - **Step 2 is owed and not yet applied.** §30.6 lists every note.
+> - **Steps 3–9 have not started.**
+> - **Nothing here starts without the user's explicit GO.**
 
 ---
 
@@ -1201,6 +1264,14 @@ on either side is changed.
 > wording, including the sub-decision (SD-n) it carries, unless the user
 > chooses otherwise. Nothing is ratified, implemented or closed by the audit.
 
+> **Updated 2026-09-29: RATIFIED (§30).** The two statuses above are preserved
+> as written, and **§30.10** is the current status.
+>
+> - **RATIFIED:** SD-1 … SD-6 and A-4FP-1 … A-4FP-13.
+> - **Not blocking, not ratified:** A-4FP-14, whose default stands.
+> - **No blocking decision remains.** Implementation has not begun.
+> - **CF-9, CF-10 and CF-11 stay OPEN.**
+
 ---
 
 ## 28. Pre-ratification audit — 2026-09-28
@@ -1317,6 +1388,10 @@ fixed in code.**
 | **FP-24** | **TDD 4D §4.3 still reads *"exactly four outcomes"*.** It has been stale since 4F.5 added `TIMEOUT` (pre-existing), and A-4FP-7 would make it six | `04-tdd-4d-autonomy-engine.md` §4.3 | §28.5; the 4F closure sweep (L-9 family) |
 
 ### 28.4 Corrections C-1 … C-15, and sub-decisions SD-1 … SD-6
+
+> **Updated 2026-09-29 (§30.1).** **SD-1 … SD-6 are RATIFIED**, each as its
+> option (a), in the user's wording quoted in §30.1. **Every option (b) below is
+> rejected**, and stays here as audit history. C-1 … C-15 are unchanged.
 
 #### C-1 — A-4FP-1: every `ActiveThought` field needs a source. **Contains SD-1**
 
@@ -1776,6 +1851,12 @@ wording.
 never observed before in that stack**. The Level-1 and Level-2 runs use two
 distinct new paths, because a path initiates at most once.
 
+> **Updated 2026-09-29 (§30.9).** 4F.P is now ratified, so the first group above
+> is no longer blocked *on ratification*. Each is blocked **until 4F.P is
+> implemented and merged**, and 4F.8's re-verification then records its
+> settlement. **No A-4F8 candidate is ratified.** §30.9 is the current table.
+> The text above is preserved as written.
+
 ### 28.11 Readiness
 
 | Question | Answer |
@@ -1783,6 +1864,9 @@ distinct new paths, because a path initiates at most once.
 | Ready for ratification as written? | **No**: C-1 … C-15 |
 | Ready for ratification as corrected? | **Yes.** §29 is the packet. SD-1 … SD-6 are confirmed together with their candidates |
 | An unresolved architectural conflict? | **None** |
+
+> **Updated 2026-09-29.** Ratified as corrected (§30). The table above is
+> preserved as written.
 
 ---
 
@@ -1792,6 +1876,16 @@ distinct new paths, because a path initiates at most once.
 ratification, its rationale, the prior decision it touches, and its
 implementation consequence. Where a sub-decision applies, the recommended
 option is written in and marked, and the alternative is in §28.4.
+
+> **Updated 2026-09-29: RATIFIED.** The user ratified this packet on 2026-09-29.
+>
+> - A-4FP-1 … A-4FP-13 in the wording below, with each `[SD-n (a)]` marker
+>   resolved as §30.1 ratifies it. **§30.2 states the ratified text
+>   explicitly and governs.**
+> - A-4FP-14 is not blocking and not ratified.
+>
+> This section is preserved as the packet that was ratified. Its *"Nothing here
+> is ratified"* and its *"proposed"* wording are superseded (§30.4).
 
 ### Blocking
 
@@ -2044,3 +2138,535 @@ option is written in and marked, and the alternative is in §28.4.
   under `extra="forbid"` (`api/cognitive_state.py` l.72–94), so neither new
   field is exposed, and the panel's schema is untouched.
 - **Alternative (b):** exposing them changes 4F.7's contract.
+
+---
+
+## 30. Ratified decisions — 2026-09-29
+
+**Added at ratification, additively.** §0–§29 are preserved as they stood at
+`58181f5`. Where §30 supersedes earlier wording, that wording stays in place
+under a dated pointer note (§30.4). **Where §30 and an earlier section differ,
+§30 governs.**
+
+### 30.0 Baseline, re-verified before ratification
+
+| Ref | Value |
+|---|---|
+| `origin/phase-4` | **`9d2d63613fabf98c85dcdfa7c5a90fba4233baff`**, unchanged |
+| `origin/main` | **`7e273e62e942ecd5528ca807e65933d6bb675669`**, unchanged |
+| `origin/phase-4p-tdd` | **`58181f5d088f96fee6fc856833efa997bf939741`**, the audited text this ratification applies to |
+| `origin/phase-4f8-tdd` | `5a95475259e0a4ac0aef34ab608946a22d031049`. TDD 4F.8 is **PREPARED, NOT RATIFIED**, and unchanged by §30 |
+| Protocol | sha256 `21185dd1b2a43e87eac0a52aa5e53c8e8bbb01223014dc2a48408bbb0478de6a`, 1131 lines, `origin/main` |
+| Documents read before this change | The protocol; the master scope; TDD 4F §24; TDDs 4F.5, 4F.6 and 4F.7 with their ratifications; TDD 4F.8; this TDD at `58181f5`. Every blob is identical to the one §28 audited |
+
+**The user ratified, on 2026-09-29:**
+
+- **SD-1 … SD-6**, in the wording quoted in §30.1;
+- **A-4FP-1 … A-4FP-13**, in their §29 wording, with each `[SD-n]` marker
+  resolved by the ratified SD. §30.2 states the resulting text explicitly.
+
+**A-4FP-14 is not ratified.** It stays **NOT BLOCKING**, and its default (a)
+stands (§30.3).
+
+### 30.1 Sub-decisions SD-1 … SD-6. **RATIFIED 2026-09-29**
+
+Each is §28.4's option (a). **Each option (b) is rejected**, and stays in §28.4
+as history.
+
+**SD-1 — the thought's `user_id`. RATIFIED.**
+
+> *"Ratify that `ActiveThought.user_id` is sourced from cognitive-state-engine's
+> configured `primary_user_id`. An incoming payload that names a different user
+> is rejected/dropped according to the TDD's defined ingestion failure
+> semantics. Do not copy an arbitrary user id from the perception payload."*
+
+- **The TDD's defined ingestion failure semantics** (§5 step 2) are:
+  - the payload is **logged and dropped**;
+  - **nothing is written**, so **nothing is promoted and nothing is
+    triggered**.
+- `payload.user_id` is **compared**, never copied.
+
+**SD-2 — no numeric parameter limit. RATIFIED.**
+
+> *"Ratify that no separate numeric parameter-size limit is introduced. The
+> closed ProposedAction authoring table is the authoritative bound for operation
+> and parameters. Do not invent a second independent numeric limit."*
+
+- `parameters` is a JSON object that never contains `"operation"`.
+- Its shape is validated again, unchanged, at `action-engine`'s stage 5
+  against the capability's `input_schema`. That is the existing contract, not a
+  second limit.
+
+**SD-3 — absent wire fields are `None`. RATIFIED.**
+
+> *"Ratify that the two new wire execution fields default to `None` when absent.
+> Absence of either field means the decision remains a suggestion. Never
+> default missing execution fields to `{}`. Required ProposedAction fields
+> remain required at the domain level."*
+
+- This applies to `AutonomyDecisionRequestedPayload` and `DecisionRequest`
+  alike.
+- `ProposedAction.operation` and `ProposedAction.parameters` stay **required**
+  (A-4FP-4). The production producer therefore always sends both.
+
+**SD-4 — the outcome for every reply status. RATIFIED.**
+
+> *"Ratify that: `completed` maps to `EXECUTE`; `denied` maps to `PROPOSE`;
+> `failed` maps to `EXECUTION_FAILED`; `rolled_back` maps to `EXECUTION_FAILED`;
+> other non-terminal action-engine result statuses map to `EXECUTION_FAILED`.
+> Keep existing `TIMEOUT`, no-responder and transport-fault semantics unchanged.
+> Do not collapse transport failures into `EXECUTION_FAILED`."*
+
+- **The other non-terminal statuses** are `pending`, `approval_required`,
+  `approved` and `executing` (`ActionStatus`, `events/action.py` l.82–91).
+- **`EXECUTION_FAILED` is recorded only when `action-engine` replied.** A
+  timeout stays `TIMEOUT`, and no responder stays `PROPOSE` (§22.8). Any other
+  dispatch fault stays a degraded reply with no log row (4F.6 Design A).
+
+**SD-5 — the module name. RATIFIED.**
+
+> *"Ratify `ingestion_orchestration.py` as the production module name for the
+> 4F.P ingestion and promotion orchestration."*
+
+- It sits at the package root, beside `promotion_orchestration.py` (A-4F6-7's
+  convention).
+- It drives promotion by calling the existing
+  `promotion_orchestration.promote_thought`. That function stays where 4F.6 put
+  it, changed only as A-4FP-8 specifies.
+
+**SD-6 — the trigger is awaited inline. RATIFIED.**
+
+> *"Ratify inline awaiting of the trigger from the ingestion handler. The
+> handler processes one message at a time. Do not introduce background tasks,
+> queues or retries."*
+
+- The disclosed cost is FP-16's: up to 20 s (F-2) per promoted observation,
+  serially.
+- AC-7 is unaffected, because `world-model-engine` is a separate subscriber.
+
+### 30.2 A-4FP-1 … A-4FP-13 — the ratified wording. **RATIFIED 2026-09-29**
+
+Every candidate is ratified in the wording below. It is §29's wording, with
+each sub-decision resolved as §30.1 ratifies it, and the same scope.
+**Rationale and consequence** are unchanged from §29. **"Amends"** names the
+earlier ratified text each one changes.
+
+#### A-4FP-1 — Thought ingestion. **RATIFIED**
+
+- `cognitive-state-engine` subscribes to the existing internal subject
+  `perception.workspace.observed`. Its subscribe allow-list is exactly
+  `{perception.sensor.health_changed, perception.workspace.observed}`.
+- For each payload that validates, it derives `thought_id =
+  uuid5(_INGESTION_NAMESPACE, payload.object_id)`:
+  - `_INGESTION_NAMESPACE` is the module-private pinned literal
+    `77980e9a-8808-5af9-8e41-2442669868a1`, reproducible as
+    `uuid5(NAMESPACE_DNS, "perception.workspace.observed.ingest.cognitive-state.nova")`;
+  - the input is `object_id` exactly as received.
+- **It inserts the thought only if absent** (`INSERT … ON CONFLICT (thought_id)
+  DO NOTHING RETURNING`), with these field sources:
+
+  | Field | Source |
+  |---|---|
+  | `user_id` | This engine's configured `primary_user_id` (SD-1) |
+  | `description` | T1's template |
+  | `priority` | `1` |
+  | `confidence` | `1.0` |
+  | `current_progress` | `0.0` |
+  | `dependencies`, `related_memories` | `()` |
+  | `related_projects` | `(payload.project_id,)` when present, else `()`, fixed at creation |
+  | `estimated_completion` | `None` |
+  | `attention_layer` | `ACTIVE` |
+  | `created_at`, `updated_at` | Equal, from this engine's clock at ingestion, written from the domain object |
+  | `proposed_action` | The authoring table's entry, or `None` |
+
+- **A payload is logged and dropped, and nothing is written, if either:**
+  - it fails validation;
+  - its `user_id` is not this engine's `primary_user_id` (SD-1).
+- **A repeat `object_id` writes nothing.**
+- **Amends RS-3a**'s *"exactly this existing subject"* (TDD 4F §24.4), and
+  retargets 4F.7's P-11.
+
+#### A-4FP-2 — The promotion policy. **RATIFIED**
+
+- A thought is promoted to `IMMEDIATE` **exactly once**, by the ingestion step
+  whose insert created it, through A-4FP-8's compare-and-set.
+- Nothing else promotes in production, and nothing demotes in 4F.P.
+- A failure between the insert and the transition, or between the transition
+  and delivery of the trigger, **loses that object's initiative**. It is logged,
+  and it is not retried or recovered (FP-15).
+- It fulfils RS-1c's *"the promotion policy"*, and keeps 4F.6 §19 rows 1 and 10.
+
+#### A-4FP-3 — The `ProposedAction` authorship rule. **RATIFIED**
+
+- `ProposedAction`s are authored **only** from a closed table in
+  `cognitive-state-engine`'s domain. The table is keyed by ingestion input kind
+  and ratified entry by entry. **An input kind with no entry yields no proposal,
+  and never triggers.**
+- **Entry T1**, for `perception.workspace.observed`:
+
+  | Field | Value |
+  |---|---|
+  | `category` | `read` |
+  | `risk` | `low` |
+  | `action_type` | `filesystem` |
+  | `execution_target` | `filesystem` |
+  | `operation` | `list` |
+  | `parameters` | `{}` |
+  | `verification_method` | `adapter_success` |
+  | `title` | *"Review the workspace after activity in {label}"* |
+  | `detail` | *"NOVA noticed activity in the watched workspace and proposes listing it."* |
+  | the thought's `description` | *"Activity observed in {label}"* |
+
+- **Rule 1.** An entry's authored `risk` is never below `action-engine`'s
+  `classify_risk(action_type, operation)`, in `nova_contracts` `RiskLevel`'s
+  declared order. It is enforced by a contract test that reads
+  `action-engine/domain/risk.py` as text, without importing it, and **fails if
+  it cannot recognise that file's structure**.
+- **Rule 2.** `parameters` are constants of the entry. No absolute path and no
+  value derived from the observation may appear in them. `label` may appear
+  only in `title` and `description`.
+- **Adding an entry is a new ratification.**
+- It fulfils RS-1c's and RS-2b's *"authorship rule"*.
+
+#### A-4FP-4 — The `operation` and `parameters` fields. **RATIFIED**
+
+- **`ProposedAction` gains `operation`**: required, non-empty, with no
+  surrounding whitespace, and lower case.
+- **It gains `parameters`**: a JSON object, required, with `{}` allowed, which
+  **never contains the key `"operation"`**.
+- Both are part of all-or-nothing, and both are authored under A-4FP-3.
+- **The closed authoring table is the authoritative bound. No numeric limit is
+  introduced** (SD-2).
+- **No migration.** `proposed_action` is JSONB, and no production row exists.
+- **Amends A-4F6-2a** (TDD 4F.6 §4.7): six required fields become eight.
+
+#### A-4FP-5 — What `execution_target` means. **RATIFIED**
+
+- `execution_target` is **the name of the capability `action-engine` resolves at
+  stage 5**, which is the `Action` contract's own meaning (`events/action.py`,
+  `Action`).
+- What the action acts on travels in `parameters`.
+- It is never defaulted.
+- **Amends (clarifies) A-4F6-2a**'s *"what the action acts on"*.
+
+#### A-4FP-6 — Carrying the fields into `action.execute`. **RATIFIED**
+
+- **The trigger payload.** `AutonomyDecisionRequestedPayload` gains
+  `operation: str | None = None` and `parameters: dict | None = None` (SD-3).
+  - When present, `operation` is validated as in A-4FP-4.
+  - When present, `parameters` is a JSON object without the key `"operation"`.
+    A payload with `"operation"` in `parameters` is **rejected**, and `decide()`
+    is not invoked.
+- **`DecisionRequest`.** It gains `operation` and `parameters`, both defaulting
+  to `None`.
+  - Both **join D-4F5-2's execution fields**. **Either one absent at the
+    dispatch branch means a suggestion and no `action.execute`.**
+  - **Neither is ever defaulted to `{}`**, or to any other value.
+- **The dispatch payload.** `_execution_payload` builds `parameters =
+  {"operation": operation, **parameters}`.
+  - It returns `None` (a suggestion) if `parameters` contains `"operation"`.
+  - Nothing else in `ActionExecuteRequestPayload` changes.
+- **The producer** copies both fields verbatim from the `ProposedAction`.
+- **Versioning.** `schema_version` stays `1` (ADR-024, added optional fields).
+  Both engines are deployed together, because the consumer is `extra="forbid"`.
+  Codegen is regenerated, and the registry stays **120**.
+- **Amends D-4F5-2** (TDD 4F.5 §22.2: the execution fields go from three to
+  five), **TDD 4F.6 §19**'s *"Contract changes permitted: exactly two"* and row
+  20, and 4F.5's `_execution_payload`.
+
+#### A-4FP-7 — The outcome follows the real result. **RATIFIED**
+
+- **The decision outcome is chosen from `ActionResultPayload.status`** (SD-4):
+
+  | `action-engine`'s reply | Recorded outcome |
+  |---|---|
+  | `completed` | **`EXECUTE`** |
+  | `denied` | **`PROPOSE`**, recorded through `decide()`'s existing proposal path: a suggestion with `id = subject_id`, written in one transaction with its log row, and the reason *"proposed for explicit user approval; nothing is executed (action-engine denied the action: {error})"* |
+  | `failed` | **`EXECUTION_FAILED`** |
+  | `rolled_back` | **`EXECUTION_FAILED`** |
+  | `pending`, `approval_required`, `approved`, `executing` | **`EXECUTION_FAILED`**, with the reason *"action-engine replied with non-terminal status {status}; completion was not reported"* |
+
+- **`EXECUTION_FAILED` is a new `DecisionOutcome` member**, with the value
+  `"execution_failed"`.
+  - It writes one `decision_log` row and no suggestion.
+  - Its reason names `action-engine`'s status and error.
+  - It needs no migration: `outcome` is `TEXT`, with no CHECK.
+- **Unchanged:**
+  - no reply within 15 s → `TIMEOUT` (D-4F5-3);
+  - no responder → `PROPOSE` (TDD 4F.5 §22.8);
+  - any other dispatch fault → a degraded reply and no log row (4F.6 Design A).
+- **A transport failure is never recorded as `EXECUTION_FAILED`.**
+- **`EXECUTE` is recorded for `completed` and nothing else.**
+- The reply to the producer carries the recorded outcome.
+- **Amends** TDD 4F.5 §10's audit row and X-11, and **TDD 4F.6 §19 row 13**.
+  **D-4F5-3 and §22.8 are unchanged.**
+
+#### A-4FP-8 — CAS on the promotion transition. **RATIFIED**
+
+- A repository method executes **one statement**:
+
+  ```
+  UPDATE cognitive_state.active_thought
+     SET attention_layer = :target, updated_at = :updated_at
+   WHERE thought_id = :thought_id AND attention_layer = :expected
+  RETURNING *
+  ```
+
+- `updated_at` is supplied by the caller.
+- A returned row means this caller moved the thought, and the trigger is built
+  from that row. No row means the caller does nothing.
+- `promote_thought` uses this method, and `domain.attention.next_layer` still
+  chooses the target.
+- `move_layer` keeps its unconditional form for callers that do not trigger.
+- It fulfils **RS-7** (*"CAS protection is required before a production caller
+  exists"*).
+
+#### A-4FP-9 — Duplicate triggers (Layer 2). **RATIFIED**
+
+- **The observed object's identity**, `perception-engine`'s path-hash
+  `object_id`, is the initiative identity: **at most one initiative per observed
+  object, for the lifetime of its thought.**
+- Envelope identity (`event_id`) takes no part. None of these writes anything:
+  - a re-published envelope;
+  - a later observation of the same file;
+  - the same file observed by a second sensor.
+- **A new file path is a new initiative.**
+- No persisted trigger state and no consumer-side mechanism are added. 4F.6's
+  Layer 1 is unchanged.
+- It **resolves A-4F6-3 Layer 2**, which was DEFERRED to 4F.P, and keeps 4F.6
+  §19 row 8 at the consumer. **4F.6 §5.1 and §13.1's at-least-once premise is
+  corrected by FP-6.** Both subjects are core-NATS request/reply.
+
+#### A-4FP-10 — The production caller of `promote_thought`. **RATIFIED**
+
+- **`ingestion_orchestration.py`** (SD-5), at the package root, is invoked by
+  the `perception.workspace.observed` handler in `events/handlers.py`. It is
+  **the only production caller** of `promotion_orchestration.promote_thought`.
+- **The handler.** It awaits the ingestion step, including the trigger,
+  **inline**, and processes one message at a time. It never raises. It starts
+  no background task, and uses no queue and no retry (SD-6).
+- `main.py` only registers the subscription and binds dependencies.
+- **P-14.**
+  - `test_p14_promote_thought_still_has_no_production_caller` is **retargeted**
+    to *"exactly one production caller, `ingestion_orchestration.py`"*, with its
+    wording preserved.
+  - `test_p14_nothing_on_the_served_path_writes_a_thought_or_promotes` is
+    **unchanged for all four modules it covers**.
+- **F-4F7-1** is repaired as A-4F7-6 (a) describes. The check inspects
+  `ast.Constant` strings, **permits exactly the three ratified subject
+  strings**, and is negative-controlled.
+- **Retargets 4F.7's P-14**, and adopts A-4F7-6 (a)'s repair within 4F.P.
+  **A-4F7-6's own entry in TDD 4F.7 is not edited here** (§30.6).
+
+#### A-4FP-11 — The stage-3 test configuration. **RATIFIED**
+
+- 4F.P's composed evidence writes `minimum_confidence_by_risk = {<tier>: 0.0}`
+  through the production `PUT /v1/action/identity-confidence-policy`.
+  - It covers **exactly** the tier `action-engine` assigns to the executed
+    action, which is `negligible` for T1.
+  - It is disclosed **test configuration**, never a production default.
+- **Unchanged:** stage 3's code, its absent-policy default of `1.0`, and the
+  `0.75` ceiling.
+- A negative control without the row shows the denial, which is recorded as
+  `PROPOSE` under A-4FP-7.
+- It keeps **D-4F4-4**.
+- **It determines A-4F8-5's answer. It does not ratify A-4F8-5**, which stays a
+  PROPOSED 4F.8 candidate until 4F.8's re-verification records it (§30.9).
+
+#### A-4FP-12 — Where the real-execution evidence runs. **RATIFIED**
+
+- **The e2e stack** gains `perception-engine`, `perception-engine-worker` and a
+  `nova-companion` service watching a bind-mounted workspace.
+- **One user.** `perception-engine`'s `primary_user_id` is set to **the same
+  value every other engine in the stack uses** (ADR-025).
+- **One workspace.** `capability-engine`'s sandbox root is that same workspace.
+- `world-model-engine` stays in the stack.
+- **The harness.** A `tools/` harness writes real files, configures Level 2,
+  policies, grants and the identity threshold **only through production
+  routes**, and reads every engine's store by independent SQL.
+- **The V-items run in §28.4 C-14's tiers.** The composed stack carries V-1 …
+  V-5, V-6 (a), V-7 (a1), V-9 and V-10, with no stand-in and no injected
+  message. The per-engine `real_infra` tier carries the rest, as labelled RS-8
+  test infrastructure that never counts toward CF-11 or AC-8.
+- **Moves 4F.8's proposed D4 and A-4F8-10 into 4F.P.** Neither is ratified in
+  TDD 4F.8.
+
+#### A-4FP-13 — SAD 15 §4 item 1 for the 4F.P PR. **RATIFIED**
+
+- **The 4F.P PR is granted an exception to SAD 15 §4 item 1** for:
+  - `services/cognitive-state-engine/`;
+  - `services/autonomy-engine/`;
+  - `packages/nova-contracts/`, including its generated TypeScript;
+  - `infra/docker/`.
+- `.github/workflows/pr-checks.yml` and `tools/` are **recorded, not governed**
+  by item 1.
+- SAD 15 §4 items 2–5 stay mandatory. Item 4's review covers the one-value
+  widening of `DecisionResultResponse.outcome`'s OpenAPI enum.
+- The Slice Completion Record documents the exception. **No change-scope linter
+  is created.**
+- It follows **RS-9**'s precedent.
+
+### 30.3 A-4FP-14 — **NOT BLOCKING, not ratified; default (a) stands**
+
+- **The default:** 4F.7's read surface does not expose `operation` or
+  `parameters`, and the panel is untouched.
+- **Alternative (b)** stays deferred (§30.8). Exposing the fields would need its
+  own decision, with 4F.7's contract re-checked.
+
+### 30.4 Earlier wording that §30 supersedes — preserved in place
+
+Each item below keeps its original text. A dated pointer note marks it, and
+this section governs.
+
+- **The header's status line**, *"PREPARED 2026-09-27. NOT RATIFIED. NOT
+  implementation-ready."*, and the header bullets that call A-4FP-1 … A-4FP-13
+  blocking and §29 unratified.
+- **§8.** *"Nothing in §8 is decided"*, each candidate's **BLOCKING** label, and
+  every option each candidate lists except the ratified one.
+- **§19's title** and its *"None is ratified"*.
+- **§22 step 1**, which this ratification completes.
+- **§27's status.**
+- **§28.** §28.2's *"none is decided here"*, §28.4's SD options (b), and
+  §28.11's *"ready for ratification"*.
+- **§29.** *"Nothing here is ratified"*, and every *"proposed"* and `[SD-n (a)]`
+  marker.
+- **Master scope**, outside this document: the §5 slice note and this
+  document's §17 row.
+
+### 30.5 Consistency review after ratification
+
+| Checked against | Result |
+|---|---|
+| **The ratified SDs vs. §28's audit** | Each is §28.4's audited option (a). **No new architecture and no scope change** |
+| **4F.5**: D-4F5-1, D-4F5-3, D-4F5-4, §22.7, §22.8 | **Unchanged.** SD-4 keeps `TIMEOUT`, no-responder and transport-fault semantics exactly |
+| **4F.5**: D-4F5-2 | **Amended by A-4FP-6**, with the same absence rule. SD-3 forbids `{}`, which keeps D-4F5-2 rule 6 intact |
+| **4F.5**: §10 audit row, X-11 | **Amended by A-4FP-7** |
+| **4F.6**: Design A; §19 rows 1–12 and 14–18 | **Unchanged.** SD-6 adds no retry, queue or task, keeping row 10 |
+| **4F.6**: §19 row 13, the contract count, row 20 | **Amended by A-4FP-7 and A-4FP-6** |
+| **4F.6**: A-4F6-2a | **Amended by A-4FP-4, and clarified by A-4FP-5** |
+| **4F.6**: A-4F6-3 Layer 2 | **Resolved by A-4FP-9** |
+| **4F.7**: RS-1b, RS-4a–RS-4d, RS-6a, RS-8, A-4F7-1, A-4F7-2 | **Unchanged.** The read surface stays read-only (A-4FP-14's default), and there is no triggered state |
+| **4F.7**: RS-3a | **Amended by A-4FP-1** |
+| **4F.7**: RS-7 | **Fulfilled by A-4FP-8** |
+| **4F.7**: P-14 | **Retargeted by A-4FP-10** |
+| **TDD 4F.8** | **No A-4F8 candidate is ratified.** A-4F8-3's and A-4F8-5's answers are determined, and A-4F8-10 is absorbed (§30.9) |
+| **The `action-engine` contract** | **Unchanged**: all twelve stages, `ActionStatus`, `ActionResultPayload`, `ActionExecuteRequestPayload`, stage 3 and the approval loop |
+| **Boundaries** | Registry **120**, `PUBLIC_TOPICS` **18**. No gateway prefix or route, no new autonomy route, no new subject, no migration |
+
+### 30.6 Obligations this ratification creates — **not applied in this change**
+
+This change applies the ratification **to this TDD and the master scope's
+index only**, as instructed. These obligations are **owed**, each
+documentation-only, additive and dated:
+
+1. **§22 step 2**: additive notes in the documents whose ratified text is
+   amended. They are owed **before §22 step 3** (cutting the implementation
+   branch).
+
+   | Document | Section | Note |
+   |---|---|---|
+   | TDD 4F | §24.4 RS-3a | The subscribe allow-list is two subjects (A-4FP-1) |
+   | TDD 4F | §24.8 RS-7 | The CAS is ratified as A-4FP-8 |
+   | TDD 4F.5 | §6 data-flow line; §10 audit row; X-11 | A-4FP-7 |
+   | TDD 4F.5 | §22.2 D-4F5-2 | A-4FP-6 |
+   | TDD 4F.6 | §4.7 | A-4FP-4, A-4FP-5 |
+   | TDD 4F.6 | §5.1, §13.1 | FP-6 / A-4FP-9 |
+   | TDD 4F.6 | §10's *"all five outcomes"* | A-4FP-7 |
+   | TDD 4F.6 | §16, the DEFERRED Layer 2 row | Resolved by A-4FP-9 |
+   | TDD 4F.6 | §19: the contract count and row 20 | A-4FP-6 |
+   | TDD 4F.6 | §19 row 13 | A-4FP-7 |
+   | TDD 4F.7 | P-11 | A-4FP-1 |
+   | TDD 4F.7 | P-14 | A-4FP-10 |
+   | TDD 4F.7 | A-4F7-6 | Adopted by A-4FP-10 |
+
+2. **§22 step 4**: TDD 4F.8's re-verification, **after 4F.P is merged**. It
+   records the settlements in §30.9 additively, on the branch that carries TDD
+   4F.8.
+3. **Ledger**: TDD 4D §4.3's *"exactly four outcomes"* (FP-24) goes to the 4F
+   closure sweep.
+4. **The user's explicit GO** is required before the implementation branch is
+   cut (§22).
+
+### 30.7 CF-9, CF-10 and CF-11 — **all OPEN**
+
+Nothing in §30 closes, or contributes closure evidence to, any of them.
+
+| CF | Status | What 4F.P contributes |
+|---|---|---|
+| **CF-9** | **OPEN** | 4F.P's composed run is the first real stage-3 pass. Conditions 2 and 5 settle at 4F closure |
+| **CF-10** | **OPEN** | **Nothing.** Trust stays `UNAVAILABLE`, non-blocking and never a pass |
+| **CF-11** | **OPEN** | 4F.P will evidence the production mechanism. **Claim 3 is 4F.8's**, and **claim 4 is 4F closure's** |
+
+### 30.8 Still deferred after this ratification
+
+**To 4F.8:**
+
+- AC-7 in full: latency (A-4F8-6), revocation (RS-3b, A-4F8-1), and
+  known-project correlation (L-13, A-4F8-2);
+- AC-8's acceptance run, Level 1 against Level 2, in a browser;
+- CF-11 claim 3.
+
+**To 4F closure:**
+
+- L-1 … L-22;
+- CF-9's §5.3 check;
+- CF-11 claim 4;
+- 4F.6's F-1, F-2 (the 20 s reply wait), F-3, F-5 and F-7;
+- the doc-10 row (L-9);
+- TDD 4D §4.3 (FP-24);
+- the unassigned 4F deliverables (A-4F8-9).
+
+**OPEN or DEFERRED beyond 4F.P:**
+
+- TTL and stale-trigger semantics (A-4F6-4);
+- persistent lost-trigger auditability, including FP-7's and FP-15's windows;
+- `observability.py` packaging and the `correlation_id` logging convention;
+- automatic demotion, and Part 6 INTERRUPTIONS;
+- Focus-signal computation (K-5);
+- further ingestion sources and authoring entries, each a new ratification;
+- model-based authoring;
+- executing approved Level-1 suggestions (FP-8);
+- A-4FP-14's alternative (b);
+- `/thoughts` pagination (K-6);
+- 4F.6 F-4;
+- FP-13;
+- FP-18, the identity client's untranslated no-responders error, which is in
+  the L-18 family and has `action-engine` as a non-goal.
+
+**Beyond Phase 4:** CF-10; L-15, L-17 and L-18.
+
+### 30.9 4F.8 decisions blocked until 4F.P is implemented and merged
+
+**4F.P's ratification unblocks no 4F.8 implementation.** 4F.8 must not start
+before 4F.P is **implemented and merged** (RS-1c; §20). Its TDD is re-verified
+against merged 4F.P before any A-4F8 candidate is ratified (§20; §22 step 4).
+**No A-4F8 candidate is ratified by §30.**
+
+| 4F.8 candidate | State after 4F.P's ratification |
+|---|---|
+| **A-4F8-3** (executability; the low-risk case) | **Answer determined** by A-4FP-3 … A-4FP-7: T1 is AC-8's low-risk case. **Blocked until 4F.P is merged**, then recorded as settled at re-verification |
+| **A-4F8-4** (production trigger only) | **The decision is independent. Its execution is blocked** until 4F.P's production caller (A-4FP-10) is merged |
+| **A-4F8-5** (the stage-3 configuration) | **Answer determined** by A-4FP-11. **Blocked until 4F.P is merged**, because 4F.8 reuses 4F.P's configuration and stack |
+| **A-4F8-7** (the AC-8 evidence surface) | **Blocked until 4F.P is implemented.** Its evidence reads A-4FP-7's outcomes as built |
+| **A-4F8-8** (4F.8's SAD 15 exception) | **Blocked until 4F.P is merged.** Its scope is what A-4FP-12 leaves to 4F.8 |
+| **A-4F8-10** (deployment) | **Largely absorbed** by A-4FP-12. Re-verified against the stack 4F.P builds |
+| **A-4F8-1, A-4F8-2, A-4F8-6, A-4F8-9** | **Not blocked by 4F.P.** Their content is independent, and each is ratifiable when the user decides. A-4F8-1 carries RS-3b's revocation owner |
+
+**Carried to 4F.8's re-verification, from A-4FP-9 (FP-14):** every acceptance
+run must use **file paths never observed before in that stack**. The Level-1 and
+Level-2 runs use two distinct new paths.
+
+### 30.10 Status after §30
+
+**RATIFIED 2026-09-29:** SD-1 … SD-6 and A-4FP-1 … A-4FP-13, in §30.1 and §30.2.
+
+- **Not blocking and not ratified:** A-4FP-14, whose default (a) stands.
+- **No blocking decision remains.**
+- **Implementation has not begun.**
+  - **Before the implementation branch is cut:** §30.6 item 1's notes, and the
+    user's explicit GO.
+  - No 4F.P or 4F.8 implementation branch exists. No PR is open.
+  - No production source, test, migration, Dockerfile, workflow, package or
+    contract has been changed.
+- **CF-9, CF-10 and CF-11 stay OPEN.**
+- **4F.8 stays PREPARED and NOT RATIFIED**, and blocked as §30.9 states.
