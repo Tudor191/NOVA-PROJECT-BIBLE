@@ -14,6 +14,15 @@
 >   §30.6's additive notes, and the user's explicit GO.
 > - **CF-9, CF-10 and CF-11 stay OPEN.** 4F.8 stays blocked as §30.9 states.
 
+> **Updated 2026-09-29, after `fc20827`.** The note above is preserved as
+> written.
+>
+> - **Its *"§30.6's additive notes"* are no longer outstanding.** They were
+>   applied in commit `fc20827` (§30.6).
+> - **The user's explicit GO is the one remaining precondition** before the
+>   implementation branch is cut.
+> - **Implementation has not begun.** Nothing else in the note above changes.
+
 - **What this is.** The implementation contract for **4F.P**, the slice RS-1c
   added **before 4F.8** (TDD 4F §18, as amended by §24). It defines NOVA's
   first production initiative path, end to end:
@@ -1113,6 +1122,14 @@ one PR phase-4 → main, by merge commit, only after GO (master scope §16)
 >   default stands.
 > - **Step 2 is owed and not yet applied.** §30.6 lists every note.
 > - **Steps 3–9 have not started.**
+> - **Nothing here starts without the user's explicit GO.**
+
+> **Updated 2026-09-29, after `fc20827`.** The note above is preserved as
+> written, and its step-2 line is superseded.
+>
+> - **Step 2 is complete.** §30.6 item 1's 13 notes were applied in commit
+>   `fc20827`, as 16 dated notes (see the note under §30.6's heading).
+> - **Steps 3–9 have not started.** No implementation branch exists.
 > - **Nothing here starts without the user's explicit GO.**
 
 ---
@@ -2555,6 +2572,34 @@ this section governs.
 
 ### 30.6 Obligations this ratification creates — **not applied in this change**
 
+> **Updated 2026-09-29: item 1 is APPLIED.** The heading and the text below
+> are preserved as written. They were accurate for the ratification commit
+> `7140d30`, which applied the ratification to this TDD and the master scope
+> only.
+>
+> - **All 13 notes in item 1's table were applied** in commit **`fc20827`**
+>   (`fc2082712da7be36ac228a0545e28ce88401fad1`), a documentation-only commit
+>   on `phase-4p-tdd`.
+>   - Rows 3 and 6 name several locations each, so the 13 rows produced **16
+>     dated notes**, each marked *"Amended 2026-09-29 (TDD 4F.P ratification,
+>     …)"*:
+>     - TDD 4F: 2;
+>     - TDD 4F.5: 4;
+>     - TDD 4F.6: 7;
+>     - TDD 4F.7: 3.
+>   - Each note preserves the ratified wording above it and names the 4F.P
+>     decision it records.
+>   - This includes the note on TDD 4F.7's A-4F7-6 entry. §30.2's A-4FP-10
+>     says that entry is *"not edited here"*, which remains true of the
+>     ratification commit.
+> - **Items 2, 3 and 4 are unchanged and still outstanding:**
+>   - 4F.8's re-verification, after 4F.P is merged;
+>   - the FP-24 ledger row;
+>   - the user's explicit GO before the implementation branch is cut.
+> - **The ratified decisions are unchanged.** They are exactly those recorded
+>   in §30.1 and §30.2. A-4FP-14 stays not blocking and not ratified.
+> - **No implementation has started.**
+
 This change applies the ratification **to this TDD and the master scope's
 index only**, as instructed. These obligations are **owed**, each
 documentation-only, additive and dated:
@@ -2670,3 +2715,20 @@ Level-2 runs use two distinct new paths.
     contract has been changed.
 - **CF-9, CF-10 and CF-11 stay OPEN.**
 - **4F.8 stays PREPARED and NOT RATIFIED**, and blocked as §30.9 states.
+
+> **Updated 2026-09-29, after `fc20827`.** The status above is preserved as
+> written, and one line of it is superseded.
+>
+> - **Superseded:** *"Before the implementation branch is cut: §30.6 item 1's
+>   notes, and the user's explicit GO"*. **Those notes are applied**, in commit
+>   `fc20827` (§30.6).
+> - **Before the implementation branch is cut, only the user's explicit GO
+>   remains.** When it is created, it will be cut from `origin/phase-4` at its
+>   then-current head (§22 step 3). Today that head is `9d2d636`. **No
+>   implementation branch exists.**
+> - **Everything else above stands:**
+>   - the ratifications in §30.1 and §30.2;
+>   - A-4FP-14 not blocking and not ratified;
+>   - implementation not begun, with no implementation branch and no PR;
+>   - CF-9, CF-10 and CF-11 OPEN;
+>   - 4F.8 PREPARED, NOT RATIFIED, and blocked as §30.9 states.
