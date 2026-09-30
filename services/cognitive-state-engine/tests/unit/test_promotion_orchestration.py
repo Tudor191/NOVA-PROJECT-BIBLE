@@ -26,6 +26,7 @@ from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 import pytest
+from nova_cognitive_state_engine.domain.authoring import T1
 from nova_cognitive_state_engine.domain.models import (
     ATTENTION_LAYER_ORDER,
     ActiveThought,
@@ -51,11 +52,18 @@ PROPOSAL = {
     "parameters": {"older_than_days": 30},
 }
 
-NOT_YET_ON_THE_WIRE = {"operation", "parameters"}
-"""**Phase 4F.P, disclosed.** A-4FP-6 adds both to the trigger payload; that is
-a later 4F.P slice than this one, so until it lands they are authored and
-stored but not sent. Pinned, so the verbatim test below must change when they
-join the wire rather than silently skipping them."""
+# *(Phase 4F.P, P4 -- A-4FP-6, 2026-09-30. Until P4 this module pinned
+# `NOT_YET_ON_THE_WIRE = {"operation", "parameters"}`, documented as: "**Phase
+# 4F.P, disclosed.** A-4FP-6 adds both to the trigger payload; that is a later
+# 4F.P slice than this one, so until it lands they are authored and stored but
+# not sent. Pinned, so the verbatim test below must change when they join the
+# wire rather than silently skipping them." P4 put both on the wire, so the
+# exclusion is retired and the verbatim test below now covers every authored
+# field. Preserved per protocol §0.3.4.)*
+
+T1_PROPOSAL = T1.author(label="notes").model_dump(mode="json")
+"""TDD 4F.P A-4FP-3's closed table's one entry, T1, authored by the production
+`AuthoringEntry` rather than retyped here."""
 
 
 class FakeRepository:
@@ -159,16 +167,45 @@ async def test_every_authored_field_is_copied_verbatim() -> None:
 
     payload, correlation_id = trigger.requests[0]
     sent = payload.model_dump(mode="json")
-    # Phase 4F.P: every authored field on the wire today, and the exclusion pinned.
-    assert set(PROPOSAL) - set(sent) == NOT_YET_ON_THE_WIRE
+    # Phase 4F.P, P4: every authored field is on the wire, `operation` and
+    # `parameters` included. (Until P4 those two were excluded here and the
+    # exclusion was pinned; see the note above `T1_PROPOSAL`.)
+    assert set(PROPOSAL) <= set(sent)
     for field, value in PROPOSAL.items():
-        if field in NOT_YET_ON_THE_WIRE:
-            continue
         assert sent[field] == value, field
     assert payload.thought_id == thought.thought_id
     assert payload.priority == thought.priority
     assert payload.requesting_engine == "cognitive-state-engine"
     assert payload.correlation_id == correlation_id
+
+
+async def test_t1s_authored_operation_and_empty_parameters_travel_as_authored() -> None:
+    """**Phase 4F.P, P4 (A-4FP-6).** T1's `operation` is `"list"` and its
+    `parameters` is an explicit `{}`, which is a value: it is sent as `{}`,
+    never dropped, and never turned into `None` -- and the payload the consumer
+    validates carries the same two values."""
+    assert (T1_PROPOSAL["operation"], T1_PROPOSAL["parameters"]) == ("list", {})
+    thought = _thought(AttentionLayer.ACTIVE, proposal=T1_PROPOSAL)
+    trigger = RecordingTrigger()
+    await promote_thought(thought.thought_id, repository=FakeRepository(thought), trigger=trigger)
+
+    assert len(trigger.requests) == 1
+    wire = trigger.requests[0][0].model_dump(mode="json")
+    assert wire["operation"] == "list"
+    assert wire["parameters"] == {}
+    received = validate_payload("autonomy.decision.requested", wire)
+    assert isinstance(received, AutonomyDecisionRequestedPayload)
+    assert (received.operation, received.parameters) == ("list", {})
+
+
+def test_trigger_payload_copies_the_persisted_pair_and_invents_neither() -> None:
+    """The pair comes from the proposal it is handed and nowhere else: a
+    different authored pair produces a different payload, field for field."""
+    thought = _thought(AttentionLayer.IMMEDIATE)
+    assert thought.proposed_action is not None
+    payload = trigger_payload(thought, thought.proposed_action, correlation_id=uuid4())
+    assert payload.operation == thought.proposed_action.operation == "prune"
+    assert payload.parameters == thought.proposed_action.parameters == {"older_than_days": 30}
 
 
 async def test_the_request_carries_no_subject_id_and_no_user_id() -> None:

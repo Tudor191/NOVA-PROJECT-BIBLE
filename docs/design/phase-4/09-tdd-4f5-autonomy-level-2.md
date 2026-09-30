@@ -263,6 +263,18 @@ literally true rather than rhetorically true.
 > - [TDD 4F.P](13-tdd-4fp-production-promotion.md) §1 defines P1 … P9, and
 >   its §30.10 note of this date gives the current status in full.
 
+> **Status on `phase-4fp`, 2026-09-30.** The note above is preserved as
+> written. Its *"P4, P7 and P8 have not started"* is historical:
+>
+> - **P4 is implemented** (A-4FP-6 with SD-3), in the commit that adds this
+>   note: the authored `operation` and `parameters` now travel from the
+>   persisted `ProposedAction` through `autonomy.decision.requested` and
+>   `DecisionRequest` into `action.execute`'s `parameters`.
+> - **P7 and P8 have not started.** 4F.P is **not complete**, and no PR has
+>   been opened.
+> - [TDD 4F.P](13-tdd-4fp-production-promotion.md)'s §30.10 note of this date
+>   gives the current status in full.
+
 ---
 
 ## 7. API contracts
@@ -390,6 +402,18 @@ NOVA act without being asked. Every control below exists for that reason.
 > - [TDD 4F.P](13-tdd-4fp-production-promotion.md) §1 defines P1 … P9, and
 >   its §30.10 note of this date gives the current status in full.
 
+> **Status on `phase-4fp`, 2026-09-30.** The note above is preserved as
+> written. Its *"P4, P7 and P8 have not started"* is historical:
+>
+> - **P4 is implemented** (A-4FP-6 with SD-3), in the commit that adds this
+>   note: the authored `operation` and `parameters` now travel from the
+>   persisted `ProposedAction` through `autonomy.decision.requested` and
+>   `DecisionRequest` into `action.execute`'s `parameters`.
+> - **P7 and P8 have not started.** 4F.P is **not complete**, and no PR has
+>   been opened.
+> - [TDD 4F.P](13-tdd-4fp-production-promotion.md)'s §30.10 note of this date
+>   gives the current status in full.
+
 ### 10.1 A precision the Bible's wording requires
 
 Bible Part 14 names Level 2 *"Low risk actions execute automatically."* `RiskLevel`
@@ -465,6 +489,18 @@ from the pre-ratification text. Preserved per protocol §0.3.4.)*
 >   unchanged on this branch, and still records `EXECUTE` for any reply.
 > - [TDD 4F.P](13-tdd-4fp-production-promotion.md) §1 defines P1 … P9, and
 >   its §30.10 note of this date gives the current status in full.
+
+> **Status on `phase-4fp`, 2026-09-30.** The note above is preserved as
+> written. Its *"P4, P7 and P8 have not started"* is historical:
+>
+> - **P4 is implemented** (A-4FP-6 with SD-3), in the commit that adds this
+>   note: the authored `operation` and `parameters` now travel from the
+>   persisted `ProposedAction` through `autonomy.decision.requested` and
+>   `DecisionRequest` into `action.execute`'s `parameters`.
+> - **P7 and P8 have not started.** 4F.P is **not complete**, and no PR has
+>   been opened.
+> - [TDD 4F.P](13-tdd-4fp-production-promotion.md)'s §30.10 note of this date
+>   gives the current status in full.
 
 ### 11.1 Negative and security tests — defined before implementation
 
@@ -1014,6 +1050,26 @@ incomplete request as an error rather than as a suggestion.
 >   `_execution_payload` still sends `parameters={}`.
 > - [TDD 4F.P](13-tdd-4fp-production-promotion.md) §1 defines P1 … P9, and
 >   its §30.10 note of this date gives the current status in full.
+
+> **Status on `phase-4fp`, 2026-09-30.** The note above is preserved as
+> written. Its *"P4, P7 and P8 have not started"* is historical:
+>
+> - **P4 is implemented** (A-4FP-6 with SD-3), in the commit that adds this
+>   note: the authored `operation` and `parameters` now travel from the
+>   persisted `ProposedAction` through `autonomy.decision.requested` and
+>   `DecisionRequest` into `action.execute`'s `parameters`.
+> - **A-4FP-6 is now built.** `DecisionRequest` has `operation` and
+>   `parameters`, both defaulting to `None`, and either one `None` at the
+>   dispatch branch is a suggestion: D-4F5-2's rules now cover five execution
+>   fields. `_execution_payload` sends `{"operation": operation,
+>   **parameters}` -- for T1, `{"operation": "list"}` -- and returns `None`
+>   for a `parameters` that names `"operation"` (C-8). The single dispatch
+>   point, the 15-second bound, no retry and the five `DecisionOutcome`
+>   members are unchanged.
+> - **P7 and P8 have not started.** 4F.P is **not complete**, and no PR has
+>   been opened.
+> - [TDD 4F.P](13-tdd-4fp-production-promotion.md)'s §30.10 note of this date
+>   gives the current status in full.
 
 ### 22.3 D-4F5-3 — a bounded **15-second** `action.execute` timeout. **RATIFIED.**
 

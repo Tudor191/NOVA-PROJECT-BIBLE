@@ -742,6 +742,18 @@ transitions. The 2D-B text is dated and not edited (TDD 4F §24.4, consequence
 > - [TDD 4F.P](13-tdd-4fp-production-promotion.md) §1 defines P1 … P9, and
 >   its §30.10 note of this date gives the current status in full.
 
+> **Status on `phase-4fp`, 2026-09-30.** The note above is preserved as
+> written. Its *"P4, P7 and P8 have not started"* is historical:
+>
+> - **P4 is implemented** (A-4FP-6 with SD-3), in the commit that adds this
+>   note: the authored `operation` and `parameters` now travel from the
+>   persisted `ProposedAction` through `autonomy.decision.requested` and
+>   `DecisionRequest` into `action.execute`'s `parameters`.
+> - **P7 and P8 have not started.** 4F.P is **not complete**, and no PR has
+>   been opened.
+> - [TDD 4F.P](13-tdd-4fp-production-promotion.md)'s §30.10 note of this date
+>   gives the current status in full.
+
 > **Amended 2026-09-29 (TDD 4F.P ratification, A-4FP-10 with SD-5 and SD-6),
 > additively.** P-14 is preserved as written above.
 >
@@ -777,6 +789,18 @@ transitions. The 2D-B text is dated and not edited (TDD 4F §24.4, consequence
 >   `operation` and `parameters` are still not exposed.
 > - [TDD 4F.P](13-tdd-4fp-production-promotion.md) §1 defines P1 … P9, and
 >   its §30.10 note of this date gives the current status in full.
+
+> **Status on `phase-4fp`, 2026-09-30.** The note above is preserved as
+> written. Its *"P4, P7 and P8 have not started"* is historical:
+>
+> - **P4 is implemented** (A-4FP-6 with SD-3), in the commit that adds this
+>   note: the authored `operation` and `parameters` now travel from the
+>   persisted `ProposedAction` through `autonomy.decision.requested` and
+>   `DecisionRequest` into `action.execute`'s `parameters`.
+> - **P7 and P8 have not started.** 4F.P is **not complete**, and no PR has
+>   been opened.
+> - [TDD 4F.P](13-tdd-4fp-production-promotion.md)'s §30.10 note of this date
+>   gives the current status in full.
 
 **Negative controls.** Protocol §9.2 requires that each property's tests fail
 when the property is removed. Every mutation below must fail at least one named
@@ -1090,6 +1114,18 @@ reported here rather than silently fixed (protocol §13.1).
 >   stays PROPOSED.
 > - [TDD 4F.P](13-tdd-4fp-production-promotion.md) §1 defines P1 … P9, and
 >   its §30.10 note of this date gives the current status in full.
+
+> **Status on `phase-4fp`, 2026-09-30.** The note above is preserved as
+> written. Its *"P4, P7 and P8 have not started"* is historical:
+>
+> - **P4 is implemented** (A-4FP-6 with SD-3), in the commit that adds this
+>   note: the authored `operation` and `parameters` now travel from the
+>   persisted `ProposedAction` through `autonomy.decision.requested` and
+>   `DecisionRequest` into `action.execute`'s `parameters`.
+> - **P7 and P8 have not started.** 4F.P is **not complete**, and no PR has
+>   been opened.
+> - [TDD 4F.P](13-tdd-4fp-production-promotion.md)'s §30.10 note of this date
+>   gives the current status in full.
 
 ---
 

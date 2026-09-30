@@ -103,7 +103,14 @@ def trigger_payload(
 ) -> AutonomyDecisionRequestedPayload:
     """The wire payload, copied **verbatim** from the thought's authored
     proposal. Nothing is derived, defaulted or guessed; `detail` is the only
-    optional field and it is optional on `ProposedAction` too."""
+    optional field and it is optional on `ProposedAction` too.
+
+    *(Phase 4F.P, P4 -- TDD 4F.P §30.2, A-4FP-6 with SD-3, 2026-09-30. The
+    sentence above is preserved as written. `operation` and `parameters` now
+    travel too, copied verbatim from the persisted proposal: they are optional
+    on the wire, where absence means a suggestion, but `ProposedAction`
+    requires both (A-4FP-4), so this producer always sends both. An authored
+    `{}` is sent as `{}`.)*"""
     return AutonomyDecisionRequestedPayload(
         thought_id=thought.thought_id,
         category=action.category,
@@ -116,6 +123,8 @@ def trigger_payload(
         priority=thought.priority,
         requesting_engine=SOURCE_ENGINE,
         correlation_id=correlation_id,
+        operation=action.operation,
+        parameters=action.parameters,
     )
 
 

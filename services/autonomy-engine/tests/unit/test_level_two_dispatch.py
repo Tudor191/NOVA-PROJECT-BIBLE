@@ -47,9 +47,17 @@ EXECUTION_FIELDS = {
     "action_type": "filesystem",
     "execution_target": "filesystem",
     "verification_method": "none",
+    "operation": "list",
+    "parameters": {},
 }
 """The three fields D-4F5-2 requires at the dispatch branch. Named once so a
-test that omits one omits it visibly."""
+test that omits one omits it visibly.
+
+*(Phase 4F.P, P4 -- A-4FP-6 with SD-3, 2026-09-30. The sentence above is
+preserved as written; the fields required at the dispatch branch are now five.
+`operation` and `parameters` carry T1's authored pair (TDD 4F.P A-4FP-3):
+`"list"` and `{}`. Without them every test here that expects a dispatch would
+now, correctly, get a suggestion.)*"""
 
 
 class RecordingDispatcher:
@@ -285,14 +293,20 @@ async def test_a_grant_whose_ceiling_excludes_the_risk_does_not_dispatch() -> No
 
 
 @pytest.mark.parametrize(
-    "missing", ["action_type", "execution_target", "verification_method"]
+    "missing",
+    ["action_type", "execution_target", "verification_method", "operation", "parameters"],
 )
 async def test_invariant_6_a_missing_execution_field_yields_a_suggestion(
     missing: str,
 ) -> None:
     """**X-14.** Each field removed in turn, with a matching `AUTO_EXECUTE`
     policy and every gate passing. The decision degrades to a suggestion and
-    **nothing is guessed, defaulted or synthesized**."""
+    **nothing is guessed, defaulted or synthesized**.
+
+    *(Phase 4F.P, P4, 2026-09-30: swept over five fields, not three --
+    `operation` and `parameters` joined D-4F5-2's execution fields under
+    A-4FP-6 with SD-3. The body is unchanged. Preserved per protocol
+    §0.3.4.)*"""
     dispatcher = RecordingDispatcher()
     result = await _decide(_request(**{missing: None}), dispatcher=dispatcher)
 
@@ -346,6 +360,9 @@ async def test_x15_each_precondition_is_independently_load_bearing() -> None:
         "permission": {"grants": []},
         "execution fields": {"request": _request(action_type=None)},
         "level": {"level": AutonomyLevel.SUGGESTIVE},
+        # Phase 4F.P, P4 (A-4FP-6): precondition 5 now includes the pair.
+        "operation": {"request": _request(operation=None)},
+        "parameters": {"request": _request(parameters=None)},
     }
     for name, override in removals.items():
         dispatcher = RecordingDispatcher()
@@ -643,3 +660,104 @@ async def test_level_two_without_a_wired_dispatcher_raises_rather_than_executing
             grants=[_open_grant()],
             trust_source=StubTrustSource(),
         )
+
+
+# --- Phase 4F.P, P4: the authored execution fields reach `action.execute` -------
+#
+# TDD 4F.P A-4FP-6 with SD-3 and C-8. `decide()` is real and the dispatch point
+# is the existing one; only the port is the recorder, because what it records
+# -- the one outgoing payload -- is the fact under test. The real transport is
+# exercised in `tests/integration/test_decision_trigger_real_infra.py`.
+
+MERGE_FIXTURE = {"operation": "prune", "parameters": {"older_than_days": 30}}
+"""**A merge-semantics fixture, not an authoring entry.** The ratified closed
+table (A-4FP-3) holds only T1, whose `parameters` is `{}`, so it has no
+non-empty shape to test with; this pair is the synthetic one the
+`cognitive-state-engine` tests already use. It proves the keys are flattened
+beside `operation` and none is dropped -- which T1's empty object cannot."""
+
+
+async def test_p4_t1_dispatches_its_authored_operation_as_the_whole_parameters() -> None:
+    """T1: `operation="list"`, `parameters={}` → `{"operation": "list"}`,
+    exactly once, and nothing else in the payload changes."""
+    dispatcher = RecordingDispatcher()
+    result = await _decide(_request(), dispatcher=dispatcher)
+
+    assert result.outcome is DecisionOutcome.EXECUTE
+    assert len(dispatcher.payloads) == 1
+    payload = dispatcher.payloads[0]
+    assert payload.parameters == {"operation": "list"}
+    assert payload.action_type == "filesystem"
+    assert payload.execution_target == "filesystem"
+    assert payload.verification_method == "none"
+    assert payload.priority == "normal"
+    assert payload.source == "autonomy-engine"
+
+
+async def test_p4_authored_parameters_are_flattened_beside_the_operation() -> None:
+    dispatcher = RecordingDispatcher()
+    await _decide(_request(**MERGE_FIXTURE), dispatcher=dispatcher)
+
+    assert len(dispatcher.payloads) == 1
+    assert dispatcher.payloads[0].parameters == {"operation": "prune", "older_than_days": 30}
+
+
+async def test_p4_the_operation_is_passed_through_unchanged() -> None:
+    """`autonomy-engine` does not normalise the operation: its form is the
+    contract's to check (C-5), and whatever arrived is what is dispatched."""
+    dispatcher = RecordingDispatcher()
+    await _decide(_request(operation="read"), dispatcher=dispatcher)
+
+    assert dispatcher.payloads[0].parameters["operation"] == "read"
+
+
+async def test_p4_c8_parameters_naming_the_operation_yield_a_suggestion() -> None:
+    """**C-8's third layer.** A `DecisionRequest` built without the contract
+    (every 4D caller builds one directly) could still carry an `"operation"`
+    key. `_execution_payload` refuses it: a suggestion, and no dispatch --
+    never an override of the classified operation."""
+    dispatcher = RecordingDispatcher()
+    result = await _decide(
+        _request(operation="list", parameters={"operation": "delete"}), dispatcher=dispatcher
+    )
+
+    assert result.outcome is DecisionOutcome.PROPOSE
+    assert dispatcher.payloads == []
+    assert result.suggestion is not None
+
+
+@pytest.mark.parametrize(
+    "absent", [{"operation": None}, {"parameters": None}, {"operation": None, "parameters": None}]
+)
+async def test_p4_an_absent_execution_field_is_never_completed(absent: dict) -> None:
+    """SD-3: absence is `None` and stays `None` -- it is not read as `""` or
+    `{}`, so a half-authored pair is a suggestion and nothing is dispatched."""
+    request = _request(**absent)
+    for field in absent:
+        assert getattr(request, field) is None
+
+    dispatcher = RecordingDispatcher()
+    result = await _decide(request, dispatcher=dispatcher)
+
+    assert result.outcome is DecisionOutcome.PROPOSE
+    assert dispatcher.payloads == []
+    for field in absent:
+        assert getattr(request, field) is None
+
+
+async def test_p4_an_explicit_empty_object_is_present_not_absent() -> None:
+    """The mirror of the test above: `{}` is a value, so it dispatches."""
+    dispatcher = RecordingDispatcher()
+    result = await _decide(_request(parameters={}), dispatcher=dispatcher)
+
+    assert result.outcome is DecisionOutcome.EXECUTE
+    assert len(dispatcher.payloads) == 1
+
+
+async def test_p4_dispatch_does_not_mutate_the_requests_parameters() -> None:
+    authored: dict = {"older_than_days": 30}
+    request = _request(operation="prune", parameters=authored)
+    await _decide(request, dispatcher=RecordingDispatcher())
+
+    assert request.parameters == {"older_than_days": 30}
+    assert "operation" not in request.parameters

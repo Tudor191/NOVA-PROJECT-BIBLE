@@ -34,6 +34,13 @@ other test uses, so no test can pass on another's row.
 to a real request on the real broker. It is labelled RS-8 test infrastructure
 and counts toward no V-item's composed-stack evidence (TDD 4F.P §28.4 C-14).
 
+*(Phase 4F.P, P4 -- A-4FP-6, 2026-09-30:* the request now also carries the
+persisted proposal's `operation` and `parameters`. The last test below reads
+the row by independent SQL and compares its authored pair to the raw envelope
+the real broker delivered. *The stand-in responder above is still only the
+receiving end of the producer's half; `autonomy-engine`'s half of P4 is proven
+in that engine's own real-infra tier.)*
+
 `@pytest.mark.real_infra`: requires Docker (or equivalent real services).
 """
 
@@ -569,3 +576,40 @@ async def test_an_observation_over_the_real_bus_becomes_one_thought_and_one_real
     assert [payload.thought_id for payload in requested] == [thought_id, marker_id]  # type: ignore[union-attr]
     assert all(envelope.source_engine == "cognitive-state-engine" for envelope in autonomy)
     assert requested[0].title == "Review the workspace after activity in notes.md"  # type: ignore[union-attr]
+
+
+async def test_a_persisted_t1_proposal_crosses_the_real_bus_with_its_authored_execution_fields(
+    producer: BoundEventBus,
+    autonomy: list[EventEnvelope],
+    database: AsyncEngine,
+    postgres_container: PostgresContainer,
+    nats_container,  # type: ignore[no-untyped-def]
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """**Phase 4F.P, P4 (A-4FP-6), required test A.** The production app
+    persists T1's proposal, and the one request it sends carries that row's
+    `operation` and `parameters` unchanged: `"list"` and an explicit `{}` --
+    neither dropped, defaulted nor turned into `None`."""
+    path = _fresh_path()
+    thought_id = thought_id_for(_object_id(path))
+
+    async with _running_engine(postgres_container, nats_container, monkeypatch):
+        await producer.publish(_envelope(_observation(path)))
+        await wait_until(lambda: _layer_is(database, thought_id, "immediate"), timeout_s=15.0)
+        await wait_until(lambda: len(autonomy) >= 1, timeout_s=15.0)
+
+    row = await _row(database, thought_id)
+    assert row is not None
+    persisted = row["proposed_action"]
+    assert (persisted["operation"], persisted["parameters"]) == ("list", {})
+
+    assert len(autonomy) == 1
+    wire = autonomy[0].payload
+    assert wire["operation"] == persisted["operation"]
+    assert wire["parameters"] == persisted["parameters"]
+    assert isinstance(wire["parameters"], dict)
+    for field in ("category", "risk", "action_type", "execution_target", "verification_method"):
+        assert wire[field] == persisted[field], field
+    received = validate_payload(REQUESTED, wire)
+    assert isinstance(received, AutonomyDecisionRequestedPayload)
+    assert (received.operation, received.parameters) == ("list", {})

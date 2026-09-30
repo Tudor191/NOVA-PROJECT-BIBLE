@@ -35,6 +35,17 @@
 >   have not started.** 4F.P is **not complete**, and no PR has been opened.
 > - §30.10's note of this date gives the current status in full.
 
+> **Status on `phase-4fp`, 2026-09-30.** The note above is preserved as
+> written. Its *"P4, P7 and P8 have not started"* is historical:
+>
+> - **P4 is implemented** (A-4FP-6 with SD-3), in the commit that adds this
+>   note: the authored `operation` and `parameters` now travel from the
+>   persisted `ProposedAction` through `autonomy.decision.requested` and
+>   `DecisionRequest` into `action.execute`'s `parameters`.
+> - **P7 and P8 have not started.** 4F.P is **not complete**, and no PR has
+>   been opened.
+> - §30.10's note of this date gives the current status in full.
+
 - **What this is.** The implementation contract for **4F.P**, the slice RS-1c
   added **before 4F.8** (TDD 4F §18, as amended by §24). It defines NOVA's
   first production initiative path, end to end:
@@ -77,6 +88,17 @@
   > implement P1, P3, P5 and P6. P4, P7 and P8 have not started, 4F.P is not
   > complete, and no PR has been opened. No 4F.8 implementation branch exists
   > (§30.10).
+
+  > **Status on `phase-4fp`, 2026-09-30.** The note above is preserved as
+  > written. Its *"P4, P7 and P8 have not started"* is historical:
+  >
+  > - **P4 is implemented** (A-4FP-6 with SD-3), in the commit that adds this
+  >   note: the authored `operation` and `parameters` now travel from the
+  >   persisted `ProposedAction` through `autonomy.decision.requested` and
+  >   `DecisionRequest` into `action.execute`'s `parameters`.
+  > - **P7 and P8 have not started.** 4F.P is **not complete**, and no PR has
+  >   been opened.
+  > - §30.10's note of this date gives the current status in full.
 
 - **CF-9, CF-10 and CF-11 stay OPEN.** 4F.P closes none of them (§18).
 - **Pre-ratification audit, 2026-09-28 (§28, §29).** Every candidate was
@@ -1167,6 +1189,20 @@ one PR phase-4 → main, by merge commit, only after GO (master scope §16)
 >   Record exists, no PR has been opened, and nothing is merged. 4F.P is not
 >   complete.
 
+> **Status on `phase-4fp`, 2026-09-30.** The note above is preserved as
+> written. Its *"in `cognitive-state-engine` only"* and *"P4, P7 and P8, which
+> include the contract, `autonomy-engine` and composed-stack layers, have not
+> started"* are historical:
+>
+> - **Step 5 continues.** P4 is implemented, in the commit that adds this
+>   note, across `nova-contracts`, `cognitive-state-engine` and
+>   `autonomy-engine` (A-4FP-6 with SD-3).
+> - **P7 and P8 have not started**: the outcome mapping and the composed-stack
+>   evidence.
+> - **Step 4 and steps 6–9 still remain for 4F.P as a whole.** No Slice
+>   Completion Record exists, no PR has been opened, and nothing is merged.
+>   4F.P is not complete.
+
 ---
 
 ## 23. SLOC budget
@@ -1335,6 +1371,17 @@ on either side is changed.
 >   have not started.** 4F.P is **not complete**, and no PR has been opened.
 > - **4F.8 is still not started**, and TDD 4F.8 is still NOT RATIFIED.
 > - §30.10's note of this date is the current status.
+
+> **Status on `phase-4fp`, 2026-09-30.** The note above is preserved as
+> written. Its *"P4, P7 and P8 have not started"* is historical:
+>
+> - **P4 is implemented** (A-4FP-6 with SD-3), in the commit that adds this
+>   note: the authored `operation` and `parameters` now travel from the
+>   persisted `ProposedAction` through `autonomy.decision.requested` and
+>   `DecisionRequest` into `action.execute`'s `parameters`.
+> - **P7 and P8 have not started.** 4F.P is **not complete**, and no PR has
+>   been opened.
+> - §30.10's note of this date gives the current status in full.
 
 ---
 
@@ -1753,6 +1800,17 @@ RETURNING *
 > ran, on `phase-4p-tdd`. `phase-4fp` now exists, based on Phase 4 at
 > `9d2d636`, with P1, P3, P5 and P6 implemented and P4, P7 and P8 not
 > started (§30.10).
+
+> **Status on `phase-4fp`, 2026-09-30.** The note above is preserved as
+> written. Its *"P4, P7 and P8 not started"* is historical:
+>
+> - **P4 is implemented** (A-4FP-6 with SD-3), in the commit that adds this
+>   note: the authored `operation` and `parameters` now travel from the
+>   persisted `ProposedAction` through `autonomy.decision.requested` and
+>   `DecisionRequest` into `action.execute`'s `parameters`.
+> - **P7 and P8 have not started.** 4F.P is **not complete**, and no PR has
+>   been opened.
+> - §30.10's note of this date gives the current status in full.
 
 ### 28.5 A-4FP-7 — consistency with 4F.5 and 4F.6, and everything it changes
 
@@ -2664,6 +2722,17 @@ this section governs.
 >   P6 are implemented (commit `c0c47f9`). P4, P7 and P8 have not started.
 >   4F.P is not complete, and no PR has been opened.
 
+> **Status on `phase-4fp`, 2026-09-30.** The note above is preserved as
+> written. Its *"P4, P7 and P8 have not started"* is historical:
+>
+> - **P4 is implemented** (A-4FP-6 with SD-3), in the commit that adds this
+>   note: the authored `operation` and `parameters` now travel from the
+>   persisted `ProposedAction` through `autonomy.decision.requested` and
+>   `DecisionRequest` into `action.execute`'s `parameters`.
+> - **P7 and P8 have not started.** 4F.P is **not complete**, and no PR has
+>   been opened.
+> - §30.10's note of this date gives the current status in full.
+
 This change applies the ratification **to this TDD and the master scope's
 index only**, as instructed. These obligations are **owed**, each
 documentation-only, additive and dated:
@@ -2828,6 +2897,61 @@ Level-2 runs use two distinct new paths.
 >
 >   Until P4 and P7 land, the trigger payload carries neither new field, and
 >   `autonomy-engine` records `EXECUTE` for any reply, as §3 describes.
+> - **4F.P is not complete.** P9's Slice Completion Record does not exist, no
+>   PR has been opened, and nothing is merged into `phase-4`.
+> - **Unchanged:**
+>   - the ratifications in §30.1 and §30.2;
+>   - A-4FP-14 not blocking and not ratified;
+>   - CF-9, CF-10 and CF-11 OPEN;
+>   - 4F.8 PREPARED, NOT RATIFIED, and blocked as §30.9 states.
+
+> **Status on the implementation branch `phase-4fp`, 2026-09-30, after P4.**
+> Everything above is preserved as written. The previous note's *"Not started:
+> P4 (A-4FP-6) …"* and *"Until P4 and P7 land, the trigger payload carries
+> neither new field"* are historical.
+>
+> - **P4 is implemented** (A-4FP-6 with SD-3, C-5, C-7 and C-8), in the commit
+>   that adds this note, on top of `8bf7d37`:
+>   - **Contract.** `AutonomyDecisionRequestedPayload` has `operation: str |
+>     None = None` and `parameters: dict | None = None`. When present,
+>     `operation` has A-4FP-4's form (C-5), and `parameters` may not contain
+>     `"operation"`: such a payload is rejected and `decide()` is not invoked
+>     (C-8's second layer). `schema_version` stays `1`, the registry stays at
+>     120 subjects, and the TypeScript contract is regenerated.
+>   - **Producer.** `trigger_payload` copies both fields verbatim from the
+>     persisted `ProposedAction`. T1's `{}` is sent as `{}`.
+>   - **Consumer.** `DecisionRequest` has both fields, defaulting to `None`,
+>     and `decision_request` copies them without coercion. Either one `None`
+>     at the dispatch branch is a suggestion and no `action.execute` (D-4F5-2,
+>     now over five fields).
+>   - **Dispatch.** At the existing single dispatch point,
+>     `_execution_payload` sends `parameters = {"operation": operation,
+>     **parameters}`; for T1, `{"operation": "list"}`. It returns `None` for a
+>     `parameters` that names `"operation"` (C-8's third layer). Nothing else
+>     in the payload changes.
+> - **Unchanged by P4:** the single `action.execute` producer; the 15-second
+>   bound and no retry; the gate order and the trust, permission, policy and
+>   autonomy-level semantics; the five `DecisionOutcome` members; every Event
+>   Bus subject and `PUBLIC_TOPICS`; `action-engine` and `capability-engine`.
+> - **Evidence, per engine, meeting at the shared contract** (4F.6's
+>   precedent). `cognitive-state-engine`'s real-infra tier sends a persisted
+>   T1 proposal over a real broker and compares the envelope with the row read
+>   by SQL. `autonomy-engine`'s real-infra tier serves a real trigger through
+>   the production `create_app`, `decide()` and `ActionDispatchClient`, and
+>   reads the one `action.execute` envelope on the broker. That tier's
+>   `action.execute` responder is RS-8 test infrastructure standing in for the
+>   executor, **so no real execution is claimed**: the composed-stack proof
+>   (V-1 … V-9, A-4FP-12) is P8's.
+> - **C-7's two retargets.** `test_detail_is_the_only_optional_authored_field`
+>   (`nova-contracts`) is retargeted, with its wording preserved.
+>   `test_detail_is_the_only_optional_field` (`cognitive-state-engine`) is
+>   **unchanged**: it tests `ProposedAction`, where A-4FP-4 requires both new
+>   fields, so `detail` is still that model's only optional field. It is a P1
+>   test, and this slice does not modify P1. This is recorded as a finding,
+>   not resolved here.
+> - **Until P7 lands**, `autonomy-engine` still records `EXECUTE` for any
+>   `action.execute` reply, as §3 describes. There is no `EXECUTION_FAILED`.
+> - **Not started:** **P7** (A-4FP-7) and **P8** (A-4FP-11 … A-4FP-13).
 > - **4F.P is not complete.** P9's Slice Completion Record does not exist, no
 >   PR has been opened, and nothing is merged into `phase-4`.
 > - **Unchanged:**

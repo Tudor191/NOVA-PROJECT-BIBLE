@@ -444,6 +444,22 @@ ALTER TABLE cognitive_state.active_thought
 > - [TDD 4F.P](13-tdd-4fp-production-promotion.md) §1 defines P1 … P9, and
 >   its §30.10 note of this date gives the current status in full.
 
+> **Status on `phase-4fp`, 2026-09-30.** The note above is preserved as
+> written. Its *"P4, P7 and P8 have not started"* is historical:
+>
+> - **P4 is implemented** (A-4FP-6 with SD-3), in the commit that adds this
+>   note: the authored `operation` and `parameters` now travel from the
+>   persisted `ProposedAction` through `autonomy.decision.requested` and
+>   `DecisionRequest` into `action.execute`'s `parameters`.
+> - **The two fields now travel on the trigger payload** (A-4FP-6 with SD-3).
+>   They are optional there and `None` when absent, and the producer copies
+>   them verbatim from the persisted `ProposedAction`, so T1 sends `"list"`
+>   and `{}`.
+> - **P7 and P8 have not started.** 4F.P is **not complete**, and no PR has
+>   been opened.
+> - [TDD 4F.P](13-tdd-4fp-production-promotion.md)'s §30.10 note of this date
+>   gives the current status in full.
+
 
 ---
 
@@ -498,6 +514,18 @@ decision.
 >   A-4FP-8 (P1, P5). Layer 1 is unchanged.
 > - [TDD 4F.P](13-tdd-4fp-production-promotion.md) §1 defines P1 … P9, and
 >   its §30.10 note of this date gives the current status in full.
+
+> **Status on `phase-4fp`, 2026-09-30.** The note above is preserved as
+> written. Its *"P4, P7 and P8 have not started"* is historical:
+>
+> - **P4 is implemented** (A-4FP-6 with SD-3), in the commit that adds this
+>   note: the authored `operation` and `parameters` now travel from the
+>   persisted `ProposedAction` through `autonomy.decision.requested` and
+>   `DecisionRequest` into `action.execute`'s `parameters`.
+> - **P7 and P8 have not started.** 4F.P is **not complete**, and no PR has
+>   been opened.
+> - [TDD 4F.P](13-tdd-4fp-production-promotion.md)'s §30.10 note of this date
+>   gives the current status in full.
 
 ### 5.2 Layer 1 — transport duplicate identity
 
@@ -889,6 +917,18 @@ occurs when the trigger was not successfully delivered to `autonomy-engine`.**
 > - [TDD 4F.P](13-tdd-4fp-production-promotion.md) §1 defines P1 … P9, and
 >   its §30.10 note of this date gives the current status in full.
 
+> **Status on `phase-4fp`, 2026-09-30.** The note above is preserved as
+> written. Its *"P4, P7 and P8 have not started"* is historical:
+>
+> - **P4 is implemented** (A-4FP-6 with SD-3), in the commit that adds this
+>   note: the authored `operation` and `parameters` now travel from the
+>   persisted `ProposedAction` through `autonomy.decision.requested` and
+>   `DecisionRequest` into `action.execute`'s `parameters`.
+> - **P7 and P8 have not started.** 4F.P is **not complete**, and no PR has
+>   been opened.
+> - [TDD 4F.P](13-tdd-4fp-production-promotion.md)'s §30.10 note of this date
+>   gives the current status in full.
+
 ---
 
 ## 11. Boundaries — what may change
@@ -946,6 +986,18 @@ semantics · the §22.7 Trust contract · CI workflow policy · **`main`**.
 >   its test are unchanged.
 > - [TDD 4F.P](13-tdd-4fp-production-promotion.md) §1 defines P1 … P9, and
 >   its §30.10 note of this date gives the current status in full.
+
+> **Status on `phase-4fp`, 2026-09-30.** The note above is preserved as
+> written. Its *"P4, P7 and P8 have not started"* is historical:
+>
+> - **P4 is implemented** (A-4FP-6 with SD-3), in the commit that adds this
+>   note: the authored `operation` and `parameters` now travel from the
+>   persisted `ProposedAction` through `autonomy.decision.requested` and
+>   `DecisionRequest` into `action.execute`'s `parameters`.
+> - **P7 and P8 have not started.** 4F.P is **not complete**, and no PR has
+>   been opened.
+> - [TDD 4F.P](13-tdd-4fp-production-promotion.md)'s §30.10 note of this date
+>   gives the current status in full.
 
 ### 13.2 Stale-trigger semantics
 
@@ -1212,6 +1264,18 @@ Moves into RATIFIED are marked **[ratified]**.
 > - [TDD 4F.P](13-tdd-4fp-production-promotion.md) §1 defines P1 … P9, and
 >   its §30.10 note of this date gives the current status in full.
 
+> **Status on `phase-4fp`, 2026-09-30.** The note above is preserved as
+> written. Its *"P4, P7 and P8 have not started"* is historical:
+>
+> - **P4 is implemented** (A-4FP-6 with SD-3), in the commit that adds this
+>   note: the authored `operation` and `parameters` now travel from the
+>   persisted `ProposedAction` through `autonomy.decision.requested` and
+>   `DecisionRequest` into `action.execute`'s `parameters`.
+> - **P7 and P8 have not started.** 4F.P is **not complete**, and no PR has
+>   been opened.
+> - [TDD 4F.P](13-tdd-4fp-production-promotion.md)'s §30.10 note of this date
+>   gives the current status in full.
+
 ---
 
 ## 17. IMPLEMENTATION BLOCKERS — recalculated after ratification
@@ -1341,6 +1405,24 @@ column on `cognitive_state.active_thought`. **No `autonomy` schema change.**
 > - [TDD 4F.P](13-tdd-4fp-production-promotion.md) §1 defines P1 … P9, and
 >   its §30.10 note of this date gives the current status in full.
 
+> **Status on `phase-4fp`, 2026-09-30.** The note above is preserved as
+> written. Its *"P4, P7 and P8 have not started"* is historical:
+>
+> - **P4 is implemented** (A-4FP-6 with SD-3), in the commit that adds this
+>   note: the authored `operation` and `parameters` now travel from the
+>   persisted `ProposedAction` through `autonomy.decision.requested` and
+>   `DecisionRequest` into `action.execute`'s `parameters`.
+> - **A-4FP-6 is now built.** The `autonomy.decision.requested` payload has
+>   two optional fields, `operation` and `parameters`: `None` when absent, and
+>   validated when present (C-5; C-8's second layer rejects a `parameters`
+>   that names `"operation"`, and `decide()` is not invoked). `schema_version`
+>   stays `1`, and the registry stays at **120** subjects. `DecisionRequest`
+>   and `_execution_payload` carry and merge the two fields.
+> - **P7 and P8 have not started.** 4F.P is **not complete**, and no PR has
+>   been opened.
+> - [TDD 4F.P](13-tdd-4fp-production-promotion.md)'s §30.10 note of this date
+>   gives the current status in full.
+
 > **Amended 2026-09-29 (TDD 4F.P ratification, A-4FP-7), additively.** Row 13,
 > *"No new `DecisionOutcome` — The five existing members are unchanged"*,
 > bounded 4F.6's implementation and is preserved as written.
@@ -1367,3 +1449,17 @@ column on `cognitive_state.active_thought`. **No `autonomy` schema change.**
 >   `EXECUTION_FAILED` member on this branch.
 > - [TDD 4F.P](13-tdd-4fp-production-promotion.md) §1 defines P1 … P9, and
 >   its §30.10 note of this date gives the current status in full.
+
+> **Status on `phase-4fp`, 2026-09-30.** The note above is preserved as
+> written. Its *"P4, P7 and P8 have not started"* is historical:
+>
+> - **P4 is implemented** (A-4FP-6 with SD-3), in the commit that adds this
+>   note: the authored `operation` and `parameters` now travel from the
+>   persisted `ProposedAction` through `autonomy.decision.requested` and
+>   `DecisionRequest` into `action.execute`'s `parameters`.
+> - Its *"A-4FP-7 is P7, which has not started"* still holds. There is no
+>   `EXECUTION_FAILED` member on this branch.
+> - **P7 and P8 have not started.** 4F.P is **not complete**, and no PR has
+>   been opened.
+> - [TDD 4F.P](13-tdd-4fp-production-promotion.md)'s §30.10 note of this date
+>   gives the current status in full.

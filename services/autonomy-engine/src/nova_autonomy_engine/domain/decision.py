@@ -126,6 +126,21 @@ class DecisionRequest(BaseModel):
     execution_target: str | None = None
     verification_method: str | None = None
 
+    # --- 4F.P execution fields (A-4FP-6 with SD-3; TDD 4F.P §30.2) -----------
+    #
+    # *(Phase 4F.P, P4, 2026-09-30. The block above is preserved as written;
+    # "the three execution fields" it describes are now five.)* `action.execute`
+    # cannot run without `parameters["operation"]`, and nothing above could
+    # supply the operation or the adapter's inputs. Both are authored on the
+    # thought's `ProposedAction` and copied here from the trigger payload,
+    # which validates their form (C-5) and refuses an `"operation"` key in
+    # `parameters` (C-8). The same rules apply: **optional here, required at
+    # the dispatch branch, never defaulted** -- either one `None` means a
+    # suggestion (D-4F5-2 rules 1-3 and 6). An explicit `{}` is a present,
+    # empty object, not an absence.
+    operation: str | None = None
+    parameters: dict | None = None
+
 
 class DecisionResult(BaseModel):
     """A decision and everything needed to explain it -- Part 14's Explanation
@@ -194,11 +209,24 @@ def _execution_payload(
     log row and the dispatched action share one identifier and
     `action-engine`'s caller-supplied-id idempotency guard keys on something
     this engine can point at.
+
+    *(Phase 4F.P, P4 -- A-4FP-6 with SD-3, TDD 4F.P §30.2, 2026-09-30. The text
+    above is preserved as written; the three execution fields are now five.
+    `operation` and `parameters` join the refusal: either one `None` is a
+    suggestion. The payload's `parameters` -- until P4 always `{}` -- is now
+    `{"operation": operation, **parameters}`, the flat shape `action-engine`
+    reads and hands to the adapter (C-8). **A `parameters` that names
+    `"operation"` is refused here too** (C-8's third layer): it could override
+    the operation risk is classified from, and this is the last point before
+    dispatch. Nothing else in the payload changes.)*
     """
     if (
         request.action_type is None
         or request.execution_target is None
         or request.verification_method is None
+        or request.operation is None
+        or request.parameters is None
+        or "operation" in request.parameters
     ):
         return None
     return ActionExecuteRequestPayload(
@@ -208,7 +236,7 @@ def _execution_payload(
         source="autonomy-engine",
         requested_by=request.user_id,
         execution_target=request.execution_target,
-        parameters={},
+        parameters={"operation": request.operation, **request.parameters},
         verification_method=request.verification_method,
         requesting_engine="autonomy-engine",
         correlation_id=subject_id,

@@ -1347,6 +1347,18 @@ RS-3a.
 > - [TDD 4F.P](13-tdd-4fp-production-promotion.md) §1 defines P1 … P9, and
 >   its §30.10 note of this date gives the current status in full.
 
+> **Status on `phase-4fp`, 2026-09-30.** The note above is preserved as
+> written. Its *"P4, P7 and P8 have not started"* is historical:
+>
+> - **P4 is implemented** (A-4FP-6 with SD-3), in the commit that adds this
+>   note: the authored `operation` and `parameters` now travel from the
+>   persisted `ProposedAction` through `autonomy.decision.requested` and
+>   `DecisionRequest` into `action.execute`'s `parameters`.
+> - **P7 and P8 have not started.** 4F.P is **not complete**, and no PR has
+>   been opened.
+> - [TDD 4F.P](13-tdd-4fp-production-promotion.md)'s §30.10 note of this date
+>   gives the current status in full.
+
 **RS-3b — RATIFIED as OPEN.**
 
 - **OS-level permission revocation detection stays OPEN.** 4F.7 does not
@@ -1484,6 +1496,18 @@ Additive notes carry this into TDD 4F.6 §2 and the 4F.6 completion record
 >   *"None of the following is added"* list still holds.
 > - [TDD 4F.P](13-tdd-4fp-production-promotion.md) §1 defines P1 … P9, and
 >   its §30.10 note of this date gives the current status in full.
+
+> **Status on `phase-4fp`, 2026-09-30.** The note above is preserved as
+> written. Its *"P4, P7 and P8 have not started"* is historical:
+>
+> - **P4 is implemented** (A-4FP-6 with SD-3), in the commit that adds this
+>   note: the authored `operation` and `parameters` now travel from the
+>   persisted `ProposedAction` through `autonomy.decision.requested` and
+>   `DecisionRequest` into `action.execute`'s `parameters`.
+> - **P7 and P8 have not started.** 4F.P is **not complete**, and no PR has
+>   been opened.
+> - [TDD 4F.P](13-tdd-4fp-production-promotion.md)'s §30.10 note of this date
+>   gives the current status in full.
 
 ### 24.9 Stand-in producers
 

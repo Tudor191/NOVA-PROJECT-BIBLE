@@ -151,9 +151,74 @@ def test_an_unknown_category_is_rejected_rather_than_coerced() -> None:
         AutonomyDecisionRequestedPayload.model_validate(_fields(category="administer"))
 
 
-def test_detail_is_the_only_optional_authored_field() -> None:
+def test_detail_operation_and_parameters_are_the_only_optional_authored_fields() -> None:
+    """**Retargeted by Phase 4F.P, not retired** -- TDD 4F.P §28.4 C-7 (SD-3):
+    A-4FP-6 adds `operation` and `parameters` to the wire as optional fields
+    whose absence is `None`, never a value.
+
+    *(This test was `test_detail_is_the_only_optional_authored_field`, with the
+    body `assert payload.detail == ""`. Preserved per protocol §0.3.4.)*"""
     payload = AutonomyDecisionRequestedPayload.model_validate(_fields())
     assert payload.detail == ""
+    assert payload.operation is None
+    assert payload.parameters is None
+
+
+# --- Phase 4F.P: the authored execution fields (A-4FP-6, SD-3, C-5, C-8) --------
+
+
+def test_the_authored_operation_and_parameters_travel_verbatim() -> None:
+    """T1's authored pair (TDD 4F.P A-4FP-3) survives validation and the JSON
+    round trip unchanged -- an explicit `{}` stays `{}`, it is not dropped."""
+    payload = validate_payload(SUBJECT, _fields(operation="list", parameters={}))
+    assert payload.operation == "list"
+    assert payload.parameters == {}
+    wire = payload.model_dump(mode="json")
+    assert wire["operation"] == "list"
+    assert wire["parameters"] == {}
+    assert AutonomyDecisionRequestedPayload.model_validate(wire) == payload
+
+
+def test_absent_execution_fields_stay_absent_and_are_never_defaulted() -> None:
+    """**SD-3 / D-4F5-2 rule 6.** Absence is `None` -- not `""`, not `{}`."""
+    payload = AutonomyDecisionRequestedPayload.model_validate(_fields())
+    wire = payload.model_dump(mode="json")
+    assert wire["operation"] is None
+    assert wire["parameters"] is None
+    assert AutonomyDecisionRequestedPayload.model_validate(wire).parameters is None
+
+
+def test_only_one_of_the_pair_may_be_carried_and_the_other_stays_absent() -> None:
+    """The contract does not complete a half-authored pair; `autonomy-engine`'s
+    dispatch branch treats either one `None` as a suggestion (SD-3)."""
+    only_operation = AutonomyDecisionRequestedPayload.model_validate(_fields(operation="list"))
+    assert only_operation.parameters is None
+    only_parameters = AutonomyDecisionRequestedPayload.model_validate(_fields(parameters={}))
+    assert only_parameters.operation is None
+
+
+@pytest.mark.parametrize("operation", ["", " list", "list ", "List", "LIST"])
+def test_an_operation_not_in_the_authored_form_is_rejected(operation: str) -> None:
+    """**C-5**: validated on the wire when present, so classification and the
+    adapter see one string."""
+    with pytest.raises(ValidationError):
+        AutonomyDecisionRequestedPayload.model_validate(_fields(operation=operation))
+
+
+def test_parameters_naming_the_operation_are_rejected_at_the_contract() -> None:
+    """**C-8's second layer.** `{"operation": op, **parameters}` would let this
+    key override the classified operation, so the payload is refused."""
+    with pytest.raises(ValidationError):
+        AutonomyDecisionRequestedPayload.model_validate(
+            _fields(operation="list", parameters={"operation": "delete"})
+        )
+
+
+def test_parameters_must_be_a_json_object() -> None:
+    with pytest.raises(ValidationError):
+        AutonomyDecisionRequestedPayload.model_validate(
+            _fields(operation="list", parameters=["path"])
+        )
 
 
 # --- PermissionCategory -------------------------------------------------------

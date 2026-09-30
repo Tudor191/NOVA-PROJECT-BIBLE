@@ -115,7 +115,11 @@ def decision_request(
     `user_id` is **this engine's** `primary_user_id`, passed in by the caller --
     the payload has no such field (§19 row 7). `capability_class` stays `None`:
     the trigger does not carry one, and a policy that matches on it therefore
-    does not match, which is the fail-closed direction."""
+    does not match, which is the fail-closed direction.
+
+    *(Phase 4F.P, P4 -- A-4FP-6 with SD-3, 2026-09-30:* `operation` and
+    `parameters` are copied as they arrived. *An absent one stays `None`, never
+    `""` or `{}`, so it reaches the dispatch branch as the suggestion it is.)*"""
     return DecisionRequest(
         user_id=user_id,
         category=payload.category,
@@ -126,6 +130,8 @@ def decision_request(
         action_type=payload.action_type,
         execution_target=payload.execution_target,
         verification_method=payload.verification_method,
+        operation=payload.operation,
+        parameters=payload.parameters,
     )
 
 

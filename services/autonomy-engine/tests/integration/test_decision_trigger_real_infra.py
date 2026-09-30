@@ -28,6 +28,16 @@ what reaches that guard: the `action_id` a redelivery carries.
 **Rows are read back with independent SQL on their own connection**, never
 through the repository that wrote them.
 
+*(Phase 4F.P, P4 -- A-4FP-6 with SD-3, 2026-09-30.)* The last section proves
+`autonomy-engine`'s half of P4 on the same production wiring: the authored
+`operation` and `parameters` arrive on a real trigger, cross the real
+`decide()`, and leave on the **existing** single dispatch point -- the
+production `ActionDispatchClient` -- as `action.execute`'s `parameters`. The
+stand-in above now also records each `action.execute` envelope it receives;
+**it stands in for the executor only** (RS-8 test infrastructure), not for any
+part of this engine. It is not `action-engine`, so nothing here claims a real
+execution: the composed trigger-to-execution proof is P8's (TDD 4F.P V-9).
+
 `@pytest.mark.real_infra`: requires Docker.
 """
 
@@ -156,16 +166,28 @@ async def producer(nats_uri: str) -> AsyncIterator[BoundEventBus]:
     await backend.close()
 
 
+class ActionExecuteRecord(list[UUID]):
+    """The `action_id`s handed to the stand-in, in order -- still compared as
+    a plain list -- plus, since Phase 4F.P P4, every `action.execute`
+    **envelope** it received, so a test can read the exact outgoing
+    `parameters` and who published them."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.envelopes: list[EventEnvelope] = []
+
+
 @pytest.fixture
 async def action_engine(nats_uri: str) -> AsyncIterator[list[UUID]]:
     """A real `action.execute` responder standing in for `action-engine`. It
     records every `action_id` it is handed -- the value `action-engine`'s
     terminal-replay guard keys on."""
-    received: list[UUID] = []
+    received = ActionExecuteRecord()
     backend = NatsEventBus(servers=nats_uri)
     await backend.connect()
 
     async def _handle(envelope):  # type: ignore[no-untyped-def]
+        received.envelopes.append(envelope)
         action_id = UUID(str(envelope.payload["action_id"]))
         received.append(action_id)
         return ActionResultPayload(action_id=action_id, status="completed")
@@ -189,6 +211,10 @@ def _payload(**overrides: object) -> AutonomyDecisionRequestedPayload:
         "priority": 3,
         "requesting_engine": "cognitive-state-engine",
         "correlation_id": uuid4(),
+        # Phase 4F.P, P4 (A-4FP-6, 2026-09-30): T1's authored pair. Until P4
+        # this payload carried the three 4F.5 execution fields only.
+        "operation": "list",
+        "parameters": {},
     }
     fields.update(overrides)
     return AutonomyDecisionRequestedPayload(**fields)
@@ -567,3 +593,125 @@ async def test_an_undelivered_trigger_decides_nothing_and_executes_nothing(
     assert await _log(database) == []
     assert await _suggestions(database) == []
     assert action_engine == []
+
+
+# --- Phase 4F.P, P4: the authored execution fields, end to end in this engine ----
+
+
+def _dispatched(action_engine: list[UUID]) -> list[EventEnvelope]:
+    assert isinstance(action_engine, ActionExecuteRecord)
+    return action_engine.envelopes
+
+
+async def test_p4_t1_leaves_on_the_existing_dispatch_point_as_operation_list(
+    consumer: None,
+    producer: BoundEventBus,
+    repository: PostgresAutonomyRepository,
+    database: AsyncEngine,
+    action_engine: list[UUID],
+) -> None:
+    """**Required tests B and C.** A real trigger carrying T1's authored pair
+    (`"list"`, `{}`) is served by the production handler; the real `decide()`
+    dispatches through the production `ActionDispatchClient` on this engine's
+    real allow-listed bus; and the **one** `action.execute` the broker carries
+    has `parameters == {"operation": "list"}` -- nothing added, nothing
+    dropped -- published by `autonomy-engine` under the derived identity."""
+    await _configure(repository, AutonomyLevel.ASSISTED, auto_execute=True)
+
+    event_id, reply = await _trigger(producer, _payload(operation="list", parameters={}))
+    subject_id = uuid5(NAMESPACE, str(event_id))
+
+    assert reply.outcome == DecisionOutcome.EXECUTE.value
+    dispatched = _dispatched(action_engine)
+    assert len(dispatched) == 1
+    envelope = dispatched[0]
+    assert envelope.subject == "action.execute"
+    assert envelope.source_engine == "autonomy-engine"
+    assert envelope.payload["parameters"] == {"operation": "list"}
+    assert envelope.payload["action_id"] == str(subject_id)
+    assert envelope.payload["action_type"] == "filesystem"
+    assert envelope.payload["execution_target"] == "filesystem"
+    assert envelope.payload["verification_method"] == "none"
+    assert envelope.payload["requesting_engine"] == "autonomy-engine"
+    assert [(row["action_id"], row["outcome"]) for row in await _log(database)] == [
+        (subject_id, DecisionOutcome.EXECUTE.value)
+    ]
+
+
+async def test_p4_authored_parameters_are_flattened_beside_the_operation_on_the_wire(
+    consumer: None,
+    producer: BoundEventBus,
+    repository: PostgresAutonomyRepository,
+    action_engine: list[UUID],
+) -> None:
+    """**A merge-semantics fixture, not an authoring entry** (required test D
+    has no ratified shape to use: the closed table holds only T1, whose
+    `parameters` is `{}`). This synthetic pair is the one the
+    `cognitive-state-engine` tests already use; it shows a non-empty object
+    crosses both engines' boundaries flat and whole, which T1 cannot show."""
+    await _configure(repository, AutonomyLevel.ASSISTED, auto_execute=True)
+
+    _, reply = await _trigger(
+        producer, _payload(operation="prune", parameters={"older_than_days": 30})
+    )
+
+    assert reply.outcome == DecisionOutcome.EXECUTE.value
+    dispatched = _dispatched(action_engine)
+    assert [e.payload["parameters"] for e in dispatched] == [
+        {"operation": "prune", "older_than_days": 30}
+    ]
+
+
+@pytest.mark.parametrize(
+    "absent",
+    [("operation",), ("parameters",), ("operation", "parameters")],
+    ids=["no-operation", "no-parameters", "neither"],
+)
+async def test_p4_a_trigger_without_the_pair_stays_a_suggestion_on_the_real_path(
+    absent: tuple[str, ...],
+    consumer: None,
+    nats_uri: str,
+    repository: PostgresAutonomyRepository,
+    database: AsyncEngine,
+    action_engine: list[UUID],
+) -> None:
+    """**Required test E.** Everything that would dispatch is configured, but
+    the pair is **absent from the wire** (sent raw, so nothing on the way can
+    fill it in). The production handler proposes, records a suggestion, and
+    `action.execute` is never published -- no empty operation or `{}` is
+    manufactured anywhere."""
+    await _configure(repository, AutonomyLevel.ASSISTED, auto_execute=True)
+    payload = {k: v for k, v in _payload().model_dump(mode="json").items() if k not in absent}
+    envelope = _envelope(payload)
+
+    reply = await _raw(nats_uri, envelope)
+
+    assert reply.rejected is False
+    assert reply.degraded is False
+    assert reply.outcome == DecisionOutcome.PROPOSE.value
+    assert action_engine == []
+    assert _dispatched(action_engine) == []
+    subject_id = uuid5(NAMESPACE, str(envelope.event_id))
+    assert [row["id"] for row in await _suggestions(database)] == [subject_id]
+    assert [row["outcome"] for row in await _log(database)] == [DecisionOutcome.PROPOSE.value]
+
+
+async def test_p4_parameters_naming_the_operation_are_rejected_on_the_real_bus(
+    consumer: None,
+    nats_uri: str,
+    repository: PostgresAutonomyRepository,
+    database: AsyncEngine,
+    action_engine: list[UUID],
+) -> None:
+    """**C-8's second layer, over the real broker.** Sent raw, because the
+    contract will not build it: a rejected reply, no decision, no log row and
+    no `action.execute`."""
+    await _configure(repository, AutonomyLevel.ASSISTED, auto_execute=True)
+    payload = _payload().model_dump(mode="json") | {"parameters": {"operation": "delete"}}
+
+    reply = await _raw(nats_uri, _envelope(payload))
+
+    assert reply.rejected is True
+    assert reply.outcome is None
+    assert await _log(database) == []
+    assert _dispatched(action_engine) == []
