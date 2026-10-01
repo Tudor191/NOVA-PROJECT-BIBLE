@@ -275,6 +275,25 @@ literally true rather than rhetorically true.
 > - [TDD 4F.P](13-tdd-4fp-production-promotion.md)'s §30.10 note of this date
 >   gives the current status in full.
 
+> **Status on `phase-4fp`, 2026-10-01.** The note above is preserved as
+> written. Its *"P7 and P8 have not started"* is historical:
+>
+> - **P7 is implemented** (A-4FP-7 with SD-4), in the commit that adds this
+>   note: `autonomy-engine` records the outcome `action-engine`'s reply maps
+>   to, and records `EXECUTE` only for `completed`.
+> - **A-4FP-7 is now built.** `DecisionOutcome` has a sixth member,
+>   `EXECUTION_FAILED` (`"execution_failed"`), and one table in
+>   `autonomy-engine`'s `domain/decision.py` maps every `ActionStatus`:
+>   `completed` → `EXECUTE`; `denied` → `PROPOSE`, with a suggestion;
+>   `failed`, `rolled_back` and the four non-terminal statuses →
+>   `EXECUTION_FAILED`. `TIMEOUT`, no-responder `PROPOSE` and a transport
+>   fault's degraded reply with no row are unchanged.
+> - **P1, P3, P4, P5, P6 and P7 are implemented. P8 has not started.** 4F.P is
+>   **not complete**, 4F.8 has not started, and no PR has been opened. **CF-9,
+>   CF-10 and CF-11 stay OPEN.**
+> - [TDD 4F.P](13-tdd-4fp-production-promotion.md)'s §30.10 note of this date
+>   gives the current status in full.
+
 ---
 
 ## 7. API contracts
@@ -414,6 +433,25 @@ NOVA act without being asked. Every control below exists for that reason.
 > - [TDD 4F.P](13-tdd-4fp-production-promotion.md)'s §30.10 note of this date
 >   gives the current status in full.
 
+> **Status on `phase-4fp`, 2026-10-01.** The note above is preserved as
+> written. Its *"P7 and P8 have not started"* is historical:
+>
+> - **P7 is implemented** (A-4FP-7 with SD-4), in the commit that adds this
+>   note: `autonomy-engine` records the outcome `action-engine`'s reply maps
+>   to, and records `EXECUTE` only for `completed`.
+> - **A-4FP-7 is now built.** `DecisionOutcome` has a sixth member,
+>   `EXECUTION_FAILED` (`"execution_failed"`), and one table in
+>   `autonomy-engine`'s `domain/decision.py` maps every `ActionStatus`:
+>   `completed` → `EXECUTE`; `denied` → `PROPOSE`, with a suggestion;
+>   `failed`, `rolled_back` and the four non-terminal statuses →
+>   `EXECUTION_FAILED`. `TIMEOUT`, no-responder `PROPOSE` and a transport
+>   fault's degraded reply with no row are unchanged.
+> - **P1, P3, P4, P5, P6 and P7 are implemented. P8 has not started.** 4F.P is
+>   **not complete**, 4F.8 has not started, and no PR has been opened. **CF-9,
+>   CF-10 and CF-11 stay OPEN.**
+> - [TDD 4F.P](13-tdd-4fp-production-promotion.md)'s §30.10 note of this date
+>   gives the current status in full.
+
 ### 10.1 A precision the Bible's wording requires
 
 Bible Part 14 names Level 2 *"Low risk actions execute automatically."* `RiskLevel`
@@ -499,6 +537,25 @@ from the pre-ratification text. Preserved per protocol §0.3.4.)*
 >   `DecisionRequest` into `action.execute`'s `parameters`.
 > - **P7 and P8 have not started.** 4F.P is **not complete**, and no PR has
 >   been opened.
+> - [TDD 4F.P](13-tdd-4fp-production-promotion.md)'s §30.10 note of this date
+>   gives the current status in full.
+
+> **Status on `phase-4fp`, 2026-10-01.** The note above is preserved as
+> written. Its *"P7 and P8 have not started"* is historical:
+>
+> - **P7 is implemented** (A-4FP-7 with SD-4), in the commit that adds this
+>   note: `autonomy-engine` records the outcome `action-engine`'s reply maps
+>   to, and records `EXECUTE` only for `completed`.
+> - **A-4FP-7 is now built.** `DecisionOutcome` has a sixth member,
+>   `EXECUTION_FAILED` (`"execution_failed"`), and one table in
+>   `autonomy-engine`'s `domain/decision.py` maps every `ActionStatus`:
+>   `completed` → `EXECUTE`; `denied` → `PROPOSE`, with a suggestion;
+>   `failed`, `rolled_back` and the four non-terminal statuses →
+>   `EXECUTION_FAILED`. `TIMEOUT`, no-responder `PROPOSE` and a transport
+>   fault's degraded reply with no row are unchanged.
+> - **P1, P3, P4, P5, P6 and P7 are implemented. P8 has not started.** 4F.P is
+>   **not complete**, 4F.8 has not started, and no PR has been opened. **CF-9,
+>   CF-10 and CF-11 stay OPEN.**
 > - [TDD 4F.P](13-tdd-4fp-production-promotion.md)'s §30.10 note of this date
 >   gives the current status in full.
 
@@ -1068,6 +1125,21 @@ incomplete request as an error rather than as a suggestion.
 >   members are unchanged.
 > - **P7 and P8 have not started.** 4F.P is **not complete**, and no PR has
 >   been opened.
+> - [TDD 4F.P](13-tdd-4fp-production-promotion.md)'s §30.10 note of this date
+>   gives the current status in full.
+
+> **Status on `phase-4fp`, 2026-10-01.** The note above is preserved as
+> written. Its *"P7 and P8 have not started"* is historical:
+>
+> - **P7 is implemented** (A-4FP-7 with SD-4), in the commit that adds this
+>   note: `autonomy-engine` records the outcome `action-engine`'s reply maps
+>   to, and records `EXECUTE` only for `completed`.
+> - Its *"the five `DecisionOutcome` members are unchanged"* described P4. P7
+>   has since added a sixth, `EXECUTION_FAILED` (A-4FP-7); no member was
+>   removed or renamed.
+> - **P1, P3, P4, P5, P6 and P7 are implemented. P8 has not started.** 4F.P is
+>   **not complete**, 4F.8 has not started, and no PR has been opened. **CF-9,
+>   CF-10 and CF-11 stay OPEN.**
 > - [TDD 4F.P](13-tdd-4fp-production-promotion.md)'s §30.10 note of this date
 >   gives the current status in full.
 

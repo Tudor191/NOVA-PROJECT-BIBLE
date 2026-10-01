@@ -46,6 +46,17 @@
 >   been opened.
 > - §30.10's note of this date gives the current status in full.
 
+> **Status on `phase-4fp`, 2026-10-01.** The note above is preserved as
+> written. Its *"P7 and P8 have not started"* is historical:
+>
+> - **P7 is implemented** (A-4FP-7 with SD-4), in the commit that adds this
+>   note: `autonomy-engine` records the outcome `action-engine`'s reply maps
+>   to, and records `EXECUTE` only for `completed`.
+> - **P1, P3, P4, P5, P6 and P7 are implemented. P8 has not started.** 4F.P is
+>   **not complete**, 4F.8 has not started, and no PR has been opened. **CF-9,
+>   CF-10 and CF-11 stay OPEN.**
+> - §30.10's note of this date gives the current status in full.
+
 - **What this is.** The implementation contract for **4F.P**, the slice RS-1c
   added **before 4F.8** (TDD 4F §18, as amended by §24). It defines NOVA's
   first production initiative path, end to end:
@@ -98,6 +109,17 @@
   >   `DecisionRequest` into `action.execute`'s `parameters`.
   > - **P7 and P8 have not started.** 4F.P is **not complete**, and no PR has
   >   been opened.
+  > - §30.10's note of this date gives the current status in full.
+
+  > **Status on `phase-4fp`, 2026-10-01.** The note above is preserved as
+  > written. Its *"P7 and P8 have not started"* is historical:
+  >
+  > - **P7 is implemented** (A-4FP-7 with SD-4), in the commit that adds this
+  >   note: `autonomy-engine` records the outcome `action-engine`'s reply maps
+  >   to, and records `EXECUTE` only for `completed`.
+  > - **P1, P3, P4, P5, P6 and P7 are implemented. P8 has not started.** 4F.P
+  >   is **not complete**, 4F.8 has not started, and no PR has been opened.
+  >   **CF-9, CF-10 and CF-11 stay OPEN.**
   > - §30.10's note of this date gives the current status in full.
 
 - **CF-9, CF-10 and CF-11 stay OPEN.** 4F.P closes none of them (§18).
@@ -1203,6 +1225,16 @@ one PR phase-4 → main, by merge commit, only after GO (master scope §16)
 >   Completion Record exists, no PR has been opened, and nothing is merged.
 >   4F.P is not complete.
 
+> **Status on `phase-4fp`, 2026-10-01.** The note above is preserved as
+> written. Its *"P7 and P8 have not started"* is historical:
+>
+> - **Step 5 continues.** P7, the outcome mapping, is implemented in
+>   `autonomy-engine`, in the commit that adds this note (A-4FP-7 with SD-4).
+> - **P8 has not started**: the composed-stack evidence (A-4FP-11 … A-4FP-13).
+> - **Step 4 and steps 6–9 still remain for 4F.P as a whole.** No Slice
+>   Completion Record exists, no PR has been opened, and nothing is merged.
+>   4F.P is not complete, and 4F.8 has not started.
+
 ---
 
 ## 23. SLOC budget
@@ -1381,6 +1413,17 @@ on either side is changed.
 >   `DecisionRequest` into `action.execute`'s `parameters`.
 > - **P7 and P8 have not started.** 4F.P is **not complete**, and no PR has
 >   been opened.
+> - §30.10's note of this date gives the current status in full.
+
+> **Status on `phase-4fp`, 2026-10-01.** The note above is preserved as
+> written. Its *"P7 and P8 have not started"* is historical:
+>
+> - **P7 is implemented** (A-4FP-7 with SD-4), in the commit that adds this
+>   note: `autonomy-engine` records the outcome `action-engine`'s reply maps
+>   to, and records `EXECUTE` only for `completed`.
+> - **P1, P3, P4, P5, P6 and P7 are implemented. P8 has not started.** 4F.P is
+>   **not complete**, 4F.8 has not started, and no PR has been opened. **CF-9,
+>   CF-10 and CF-11 stay OPEN.**
 > - §30.10's note of this date gives the current status in full.
 
 ---
@@ -1810,6 +1853,17 @@ RETURNING *
 >   `DecisionRequest` into `action.execute`'s `parameters`.
 > - **P7 and P8 have not started.** 4F.P is **not complete**, and no PR has
 >   been opened.
+> - §30.10's note of this date gives the current status in full.
+
+> **Status on `phase-4fp`, 2026-10-01.** The note above is preserved as
+> written. Its *"P7 and P8 have not started"* is historical:
+>
+> - **P7 is implemented** (A-4FP-7 with SD-4), in the commit that adds this
+>   note: `autonomy-engine` records the outcome `action-engine`'s reply maps
+>   to, and records `EXECUTE` only for `completed`.
+> - **P1, P3, P4, P5, P6 and P7 are implemented. P8 has not started.** 4F.P is
+>   **not complete**, 4F.8 has not started, and no PR has been opened. **CF-9,
+>   CF-10 and CF-11 stay OPEN.**
 > - §30.10's note of this date gives the current status in full.
 
 ### 28.5 A-4FP-7 — consistency with 4F.5 and 4F.6, and everything it changes
@@ -2733,6 +2787,17 @@ this section governs.
 >   been opened.
 > - §30.10's note of this date gives the current status in full.
 
+> **Status on `phase-4fp`, 2026-10-01.** The note above is preserved as
+> written. Its *"P7 and P8 have not started"* is historical:
+>
+> - **P7 is implemented** (A-4FP-7 with SD-4), in the commit that adds this
+>   note: `autonomy-engine` records the outcome `action-engine`'s reply maps
+>   to, and records `EXECUTE` only for `completed`.
+> - **P1, P3, P4, P5, P6 and P7 are implemented. P8 has not started.** 4F.P is
+>   **not complete**, 4F.8 has not started, and no PR has been opened. **CF-9,
+>   CF-10 and CF-11 stay OPEN.**
+> - §30.10's note of this date gives the current status in full.
+
 This change applies the ratification **to this TDD and the master scope's
 index only**, as instructed. These obligations are **owed**, each
 documentation-only, additive and dated:
@@ -2954,6 +3019,68 @@ Level-2 runs use two distinct new paths.
 > - **Not started:** **P7** (A-4FP-7) and **P8** (A-4FP-11 … A-4FP-13).
 > - **4F.P is not complete.** P9's Slice Completion Record does not exist, no
 >   PR has been opened, and nothing is merged into `phase-4`.
+> - **Unchanged:**
+>   - the ratifications in §30.1 and §30.2;
+>   - A-4FP-14 not blocking and not ratified;
+>   - CF-9, CF-10 and CF-11 OPEN;
+>   - 4F.8 PREPARED, NOT RATIFIED, and blocked as §30.9 states.
+
+> **Status on the implementation branch `phase-4fp`, 2026-10-01, after P7.**
+> Everything above is preserved as written. The previous note's *"Until P7
+> lands, `autonomy-engine` still records `EXECUTE` for any `action.execute`
+> reply, as §3 describes. There is no `EXECUTION_FAILED`"* and *"Not started:
+> P7 (A-4FP-7)"* are historical. Its *"the five `DecisionOutcome` members"*,
+> under *"Unchanged by P4"*, described P4 only.
+>
+> - **P7 is implemented** (A-4FP-7 with SD-4 and C-9), in the commit that adds
+>   this note, on top of `56cdee8`:
+>   - **One new member.** `DecisionOutcome.EXECUTION_FAILED`, with the value
+>     `"execution_failed"`. The vocabulary is now six, in order:
+>     `observe_only`, `propose`, `deny`, `execute`, `timeout`,
+>     `execution_failed`. No member was removed or renamed. It persists in
+>     `outcome TEXT`, so there is no migration.
+>   - **One mapping boundary.** `ACTION_STATUS_OUTCOMES` in
+>     `autonomy-engine`'s `domain/decision.py`, keyed by every `ActionStatus`
+>     value and pinned to that type by a test: `completed` → `EXECUTE`;
+>     `denied` → `PROPOSE`; `failed`, `rolled_back`, `pending`,
+>     `approval_required`, `approved` and `executing` → `EXECUTION_FAILED`.
+>   - **`denied`** rejoins `decide()`'s existing proposal path (C-9 item 1): a
+>     suggestion whose `id` is `subject_id`, which is the denied `action_id`,
+>     written in one transaction with its log row, with A-4FP-7's reason. When
+>     the reply carries no error -- an approval-loop denial carries none --
+>     the reason says *"no error was reported"*.
+>   - **`EXECUTION_FAILED`** writes one `decision_log` row and no suggestion.
+>     Its reason names `action-engine`'s status and error; for a non-terminal
+>     status it is SD-4's text.
+>   - **`EXECUTE` is recorded only after `action-engine` replies
+>     `completed`.** Nothing is in the decision log while the request is
+>     outstanding.
+>   - **Unchanged:** the single dispatch point and its one request; the
+>     15-second bound and `TIMEOUT`; no responder → `PROPOSE`; an unknown
+>     fault → a degraded reply and no row (Design A); no retry; the existing
+>     `DecisionLogEntry` path; every subject and `PUBLIC_TOPICS`;
+>     `action-engine` and `capability-engine`. A reply status outside
+>     `ActionStatus` is treated as an unknown fault.
+>   - **API.** The OpenAPI enum of `DecisionResultResponse.outcome` widens by
+>     `execution_failed` only, and the one route that uses it still produces
+>     only `propose` or `deny`. `AutonomyDecisionReplyPayload.outcome` stays a
+>     `str`, so `nova-contracts` and its TypeScript codegen are unchanged.
+> - **Evidence, per engine** (C-14). `autonomy-engine`'s real-infra tier runs
+>   every mapping through the production `create_app`, `serve()`, `decide()`
+>   and `ActionDispatchClient` over real NATS and real Postgres, read by
+>   independent SQL. Its `action.execute` responder replies with the real
+>   `ActionResultPayload` contract and is **RS-8 test infrastructure standing
+>   in for `action-engine`**, so **no real execution is claimed**. V-5 and V-6
+>   against the real `action-engine` are the composed stack's: P8.
+> - **V-8 (c), as realised.** On this stack the NATS client reports a
+>   connection closed under an in-flight request as a **timeout**, not a
+>   fault, so that case records `TIMEOUT`. The transport-fault test therefore
+>   closes the bus **before** the dispatch is made: the real SDK raises at
+>   once, nothing reaches the broker, and no row is written.
+> - **Status:** P1, P3, P4, P5, P6 and P7 are implemented. **P8 has not
+>   started.** **4F.P is not complete**: P9's Slice Completion Record does not
+>   exist, no PR has been opened, and nothing is merged into `phase-4`. **4F.8
+>   has not started.**
 > - **Unchanged:**
 >   - the ratifications in §30.1 and §30.2;
 >   - A-4FP-14 not blocking and not ratified;

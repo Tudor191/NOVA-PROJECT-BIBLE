@@ -754,6 +754,18 @@ transitions. The 2D-B text is dated and not edited (TDD 4F §24.4, consequence
 > - [TDD 4F.P](13-tdd-4fp-production-promotion.md)'s §30.10 note of this date
 >   gives the current status in full.
 
+> **Status on `phase-4fp`, 2026-10-01.** The note above is preserved as
+> written. Its *"P7 and P8 have not started"* is historical:
+>
+> - **P7 is implemented** (A-4FP-7 with SD-4), in the commit that adds this
+>   note: `autonomy-engine` records the outcome `action-engine`'s reply maps
+>   to, and records `EXECUTE` only for `completed`.
+> - **P1, P3, P4, P5, P6 and P7 are implemented. P8 has not started.** 4F.P is
+>   **not complete**, 4F.8 has not started, and no PR has been opened. **CF-9,
+>   CF-10 and CF-11 stay OPEN.**
+> - [TDD 4F.P](13-tdd-4fp-production-promotion.md)'s §30.10 note of this date
+>   gives the current status in full.
+
 > **Amended 2026-09-29 (TDD 4F.P ratification, A-4FP-10 with SD-5 and SD-6),
 > additively.** P-14 is preserved as written above.
 >
@@ -799,6 +811,18 @@ transitions. The 2D-B text is dated and not edited (TDD 4F §24.4, consequence
 >   `DecisionRequest` into `action.execute`'s `parameters`.
 > - **P7 and P8 have not started.** 4F.P is **not complete**, and no PR has
 >   been opened.
+> - [TDD 4F.P](13-tdd-4fp-production-promotion.md)'s §30.10 note of this date
+>   gives the current status in full.
+
+> **Status on `phase-4fp`, 2026-10-01.** The note above is preserved as
+> written. Its *"P7 and P8 have not started"* is historical:
+>
+> - **P7 is implemented** (A-4FP-7 with SD-4), in the commit that adds this
+>   note: `autonomy-engine` records the outcome `action-engine`'s reply maps
+>   to, and records `EXECUTE` only for `completed`.
+> - **P1, P3, P4, P5, P6 and P7 are implemented. P8 has not started.** 4F.P is
+>   **not complete**, 4F.8 has not started, and no PR has been opened. **CF-9,
+>   CF-10 and CF-11 stay OPEN.**
 > - [TDD 4F.P](13-tdd-4fp-production-promotion.md)'s §30.10 note of this date
 >   gives the current status in full.
 
@@ -1124,6 +1148,18 @@ reported here rather than silently fixed (protocol §13.1).
 >   `DecisionRequest` into `action.execute`'s `parameters`.
 > - **P7 and P8 have not started.** 4F.P is **not complete**, and no PR has
 >   been opened.
+> - [TDD 4F.P](13-tdd-4fp-production-promotion.md)'s §30.10 note of this date
+>   gives the current status in full.
+
+> **Status on `phase-4fp`, 2026-10-01.** The note above is preserved as
+> written. Its *"P7 and P8 have not started"* is historical:
+>
+> - **P7 is implemented** (A-4FP-7 with SD-4), in the commit that adds this
+>   note: `autonomy-engine` records the outcome `action-engine`'s reply maps
+>   to, and records `EXECUTE` only for `completed`.
+> - **P1, P3, P4, P5, P6 and P7 are implemented. P8 has not started.** 4F.P is
+>   **not complete**, 4F.8 has not started, and no PR has been opened. **CF-9,
+>   CF-10 and CF-11 stay OPEN.**
 > - [TDD 4F.P](13-tdd-4fp-production-promotion.md)'s §30.10 note of this date
 >   gives the current status in full.
 

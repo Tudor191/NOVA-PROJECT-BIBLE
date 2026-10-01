@@ -540,3 +540,49 @@ def test_a_decision_other_than_approve_or_reject_is_refused(client: TestClient) 
         f"/v1/autonomy/suggestions/{uuid4()}/decide", json={"decision": "execute"}
     )
     assert response.status_code == 422
+
+
+# --- Phase 4F.P, P7: the one API consequence of A-4FP-7 ----------------------------
+
+
+def test_p7_the_published_outcome_enum_widens_by_execution_failed_only(
+    client: TestClient,
+) -> None:
+    """**TDD 4F.P §28.5, "API contract".** `DecisionResultResponse.outcome` is
+    a `DecisionOutcome`, so its OpenAPI enum gains exactly one value, at the
+    end; no route is added. The decide route below still produces only
+    `propose`/`deny` (AC-5), so the widening is additive (SAD 15 §4 item 4)."""
+    document = client.get("/openapi.json").json()
+    assert document["components"]["schemas"]["DecisionOutcome"]["enum"] == [
+        "observe_only",
+        "propose",
+        "deny",
+        "execute",
+        "timeout",
+        "execution_failed",
+    ]
+
+
+@pytest.mark.parametrize("decision", ["approve", "reject"])
+async def test_p7_the_decide_route_never_produces_execution_failed(
+    decision: str,
+    client: TestClient,
+    repository: FakeAutonomyRepository,
+    settings: Settings,
+) -> None:
+    suggestion = await _seed_suggestion(repository, settings)
+    await repository.upsert_permission_grants(
+        settings.primary_user_id,
+        [
+            PermissionGrant(
+                user_id=settings.primary_user_id,
+                category=PermissionCategory.MODIFY,
+                max_risk=RiskLevel.CRITICAL,
+            )
+        ],
+    )
+    response = client.post(
+        f"/v1/autonomy/suggestions/{suggestion.id}/decide", json={"decision": decision}
+    )
+    assert response.status_code == 200
+    assert response.json()["outcome"] in ("propose", "deny")

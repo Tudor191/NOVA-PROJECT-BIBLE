@@ -38,6 +38,19 @@ stand-in above now also records each `action.execute` envelope it receives;
 part of this engine. It is not `action-engine`, so nothing here claims a real
 execution: the composed trigger-to-execution proof is P8's (TDD 4F.P V-9).
 
+*(Phase 4F.P, P7 -- A-4FP-7 with SD-4, 2026-10-01.)* The P7 section proves
+that the **recorded** outcome is the one `action-engine`'s reply maps to, on
+the same production wiring. Its `action.execute` responder replies with the
+real `ActionResultPayload` contract and a chosen status -- `completed`,
+`denied`, `failed`, `rolled_back`, a non-terminal status, or silence. **It is
+RS-8 test infrastructure standing in for `action-engine`** (TDD 4F.P §28.4
+C-14: the per-engine tier answers `failed`/`denied`/silent with a bound
+responder). The real `action-engine` producing those statuses is the composed
+stack's, which is P8; nothing here claims a real execution. One test drives
+the production orchestrator `handle_decision_request` directly, because its
+fault is a closed bus, and the production app's one bus also carries the
+reply.
+
 `@pytest.mark.real_infra`: requires Docker.
 """
 
@@ -45,14 +58,19 @@ from __future__ import annotations
 
 import asyncio
 import os
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
 from uuid import UUID, uuid4, uuid5
 
 import nats
 import pytest
+from nova_autonomy_engine.clients.action_dispatch import ActionDispatchClient
+from nova_autonomy_engine.clients.conversational_trust import (
+    UnavailableConversationalTrustSource,
+)
 from nova_autonomy_engine.config import Settings
+from nova_autonomy_engine.decision_orchestration import handle_decision_request
 from nova_autonomy_engine.domain.models import (
     AutonomyLevel,
     DecisionOutcome,
@@ -63,6 +81,8 @@ from nova_autonomy_engine.domain.models import (
     PolicyMatch,
     RiskLevel,
 )
+from nova_autonomy_engine.events.published import PUBLISHABLE_SUBJECTS
+from nova_autonomy_engine.events.subscribed import SUBSCRIBABLE_SUBJECTS
 from nova_autonomy_engine.main import create_app
 from nova_autonomy_engine.repository.postgres_autonomy_repository import (
     PostgresAutonomyRepository,
@@ -135,11 +155,18 @@ def nats_uri(nats_container, monkeypatch: pytest.MonkeyPatch) -> str:  # type: i
 
 
 @asynccontextmanager
-async def _serving(repository: PostgresAutonomyRepository) -> AsyncIterator[None]:
+async def _serving(
+    repository: PostgresAutonomyRepository, settings: Settings | None = None
+) -> AsyncIterator[None]:
     """The production app, lifespan and all. Trust source and dispatcher are
     **not** injected: the production `UnavailableConversationalTrustSource`
-    and `ActionDispatchClient` are what run."""
-    app = create_app(Settings(primary_user_id=USER), repository=repository)
+    and `ActionDispatchClient` are what run.
+
+    *(Phase 4F.P, P7: `settings` is optional so one test can shorten the
+    production `action_execute_timeout_seconds` -- the established way to
+    bound a real wait (`test_level_two_real_postgres.py`); every other caller
+    gets `Settings(primary_user_id=USER)` exactly as before.)*"""
+    app = create_app(settings or Settings(primary_user_id=USER), repository=repository)
     async with app.router.lifespan_context(app):
         await asyncio.sleep(0.1)  # let the SUB reach the server before the first request
         yield
@@ -715,3 +742,317 @@ async def test_p4_parameters_naming_the_operation_are_rejected_on_the_real_bus(
     assert reply.outcome is None
     assert await _log(database) == []
     assert _dispatched(action_engine) == []
+
+
+# --- Phase 4F.P, P7: the recorded outcome follows the real reply ------------------
+#
+# Production `create_app` → `serve()` → `decide()` → `ActionDispatchClient` →
+# real NATS → the stand-in below, replying with the real `ActionResultPayload`
+# → the outcome → real `autonomy.decision_log`, read by independent SQL.
+
+ActionEngineStub = Callable[..., Awaitable[ActionExecuteRecord]]
+
+
+@pytest.fixture
+async def serve_action_engine(nats_uri: str) -> AsyncIterator[ActionEngineStub]:
+    """Starts **one** `action.execute` responder (RS-8 test infrastructure,
+    standing in for `action-engine`) that replies with a chosen status and
+    error -- or, `silent=True`, never replies. `before_reply` runs while the
+    request is outstanding, before any reply exists. Not combined with the
+    `action_engine` fixture: `serve()` has no queue group, so two would both
+    answer."""
+    backends: list[NatsEventBus] = []
+
+    async def _start(
+        status: str,
+        error: str | None = None,
+        *,
+        silent: bool = False,
+        before_reply: Callable[[EventEnvelope], Awaitable[None]] | None = None,
+    ) -> ActionExecuteRecord:
+        record = ActionExecuteRecord()
+        backend = NatsEventBus(servers=nats_uri)
+        await backend.connect()
+
+        async def _handle(envelope):  # type: ignore[no-untyped-def]
+            record.envelopes.append(envelope)
+            action_id = UUID(str(envelope.payload["action_id"]))
+            record.append(action_id)
+            if before_reply is not None:
+                await before_reply(envelope)
+            if silent:
+                await asyncio.sleep(30)
+                raise AssertionError("unreachable: the client must have given up first")
+            return ActionResultPayload(action_id=action_id, status=status, error=error)
+
+        await backend.serve("action.execute", _handle, source_engine="action-engine-stub")
+        backends.append(backend)
+        await asyncio.sleep(0.1)
+        return record
+
+    yield _start
+    for backend in backends:
+        await backend.close()
+
+
+async def _rows_for(database: AsyncEngine, action_id: UUID) -> int:
+    async with database.connect() as connection:
+        result = await connection.execute(
+            text("SELECT count(*) FROM autonomy.decision_log WHERE action_id = :id"),
+            {"id": action_id},
+        )
+        return int(result.scalar_one())
+
+
+async def test_p7_completed_is_recorded_as_execute_only_after_the_reply(
+    consumer: None,
+    producer: BoundEventBus,
+    repository: PostgresAutonomyRepository,
+    database: AsyncEngine,
+    serve_action_engine: ActionEngineStub,
+) -> None:
+    """**Test A.** While `action.execute` is outstanding, the real decision log
+    holds **no** row for the action -- so `EXECUTE` cannot have been recorded
+    for the dispatch. After `completed`, exactly one `execute` row."""
+    rows_while_outstanding: list[int] = []
+
+    async def _count(envelope: EventEnvelope) -> None:
+        rows_while_outstanding.append(
+            await _rows_for(database, UUID(str(envelope.payload["action_id"])))
+        )
+
+    record = await serve_action_engine("completed", before_reply=_count)
+    await _configure(repository, AutonomyLevel.ASSISTED, auto_execute=True)
+
+    event_id, reply = await _trigger(producer)
+    subject_id = uuid5(NAMESPACE, str(event_id))
+
+    assert rows_while_outstanding == [0]
+    assert reply.degraded is False
+    assert reply.outcome == DecisionOutcome.EXECUTE.value
+    assert record == [subject_id]
+    log = await _log(database)
+    assert [(r["action_id"], r["outcome"]) for r in log] == [
+        (subject_id, DecisionOutcome.EXECUTE.value)
+    ]
+    assert "action-engine reported completed" in log[0]["reason"]
+    assert await _suggestions(database) == []
+
+
+async def test_p7_denied_is_recorded_as_a_proposal_with_its_suggestion(
+    consumer: None,
+    producer: BoundEventBus,
+    repository: PostgresAutonomyRepository,
+    database: AsyncEngine,
+    serve_action_engine: ActionEngineStub,
+) -> None:
+    """**Test B (V-6 (a)'s per-engine half).** `denied`: `propose`, a
+    suggestion row whose id is the denied `action_id`, A-4FP-7's reason, and
+    one `action.execute` -- no retry. The error is `action-engine`'s own
+    stage-3 text (`pipeline.py`), restated here, not imported."""
+    record = await serve_action_engine("denied", "identity_confidence_denied")
+    await _configure(repository, AutonomyLevel.ASSISTED, auto_execute=True)
+
+    event_id, reply = await _trigger(producer)
+    subject_id = uuid5(NAMESPACE, str(event_id))
+
+    assert reply.degraded is False
+    assert reply.outcome == DecisionOutcome.PROPOSE.value
+    assert record == [subject_id]
+    assert [row["id"] for row in await _suggestions(database)] == [subject_id]
+    log = await _log(database)
+    assert [(r["action_id"], r["suggestion_id"], r["outcome"]) for r in log] == [
+        (subject_id, subject_id, DecisionOutcome.PROPOSE.value)
+    ]
+    assert log[0]["reason"] == (
+        "proposed for explicit user approval; nothing is executed "
+        "(action-engine denied the action: identity_confidence_denied)"
+    )
+
+
+@pytest.mark.parametrize(
+    ("status", "error", "says"),
+    [
+        ("failed", "parameters['operation'] is required", "reported failed"),
+        ("rolled_back", "restored after a failed write", "rolled back"),
+    ],
+    ids=["failed", "rolled_back"],
+)
+async def test_p7_failed_and_rolled_back_are_recorded_as_execution_failed(
+    status: str,
+    error: str,
+    says: str,
+    consumer: None,
+    producer: BoundEventBus,
+    repository: PostgresAutonomyRepository,
+    database: AsyncEngine,
+    serve_action_engine: ActionEngineStub,
+) -> None:
+    """**Tests C and D (V-6 (b)'s per-engine half).** `execution_failed`: one
+    row, no suggestion, the reason naming the status and the error, and one
+    `action.execute`."""
+    record = await serve_action_engine(status, error)
+    await _configure(repository, AutonomyLevel.ASSISTED, auto_execute=True)
+
+    event_id, reply = await _trigger(producer)
+    subject_id = uuid5(NAMESPACE, str(event_id))
+
+    assert reply.degraded is False
+    assert reply.outcome == DecisionOutcome.EXECUTION_FAILED.value
+    assert record == [subject_id]
+    log = await _log(database)
+    assert [(r["action_id"], r["suggestion_id"], r["outcome"]) for r in log] == [
+        (subject_id, None, "execution_failed")
+    ]
+    assert says in log[0]["reason"]
+    assert error in log[0]["reason"]
+    assert await _suggestions(database) == []
+
+
+@pytest.mark.parametrize("status", ["pending", "approval_required", "approved", "executing"])
+async def test_p7_a_non_terminal_reply_is_recorded_as_execution_failed(
+    status: str,
+    consumer: None,
+    producer: BoundEventBus,
+    repository: PostgresAutonomyRepository,
+    database: AsyncEngine,
+    serve_action_engine: ActionEngineStub,
+) -> None:
+    """**Test H (SD-4 (a)).** A valid non-terminal `ActionStatus` reaching the
+    mapping: `execution_failed`, with SD-4's reason, never `execute`."""
+    record = await serve_action_engine(status)
+    await _configure(repository, AutonomyLevel.ASSISTED, auto_execute=True)
+
+    event_id, reply = await _trigger(producer)
+    subject_id = uuid5(NAMESPACE, str(event_id))
+
+    assert reply.degraded is False
+    assert reply.outcome == "execution_failed"
+    assert record == [subject_id]
+    log = await _log(database)
+    assert [(r["action_id"], r["outcome"]) for r in log] == [(subject_id, "execution_failed")]
+    assert log[0]["reason"] == (
+        f"action-engine replied with non-terminal status {status}; completion was not reported"
+    )
+
+
+async def test_p7_no_reply_within_the_bound_is_recorded_as_timeout(
+    nats_uri: str,
+    producer: BoundEventBus,
+    repository: PostgresAutonomyRepository,
+    database: AsyncEngine,
+    serve_action_engine: ActionEngineStub,
+) -> None:
+    """**Test E (V-8 (b)).** A responder that never replies. The production
+    app's own `action_execute_timeout_seconds` is shortened to 1.0 -- the
+    established bound for a real wait; the 15.0 default is pinned in
+    `tests/unit/test_action_dispatch_client.py`. One `action.execute`, no
+    retry, one `timeout` row, no suggestion."""
+    record = await serve_action_engine("completed", silent=True)
+    await _configure(repository, AutonomyLevel.ASSISTED, auto_execute=True)
+
+    async with _serving(
+        repository, Settings(primary_user_id=USER, action_execute_timeout_seconds=1.0)
+    ):
+        event_id, reply = await _trigger(producer)
+    subject_id = uuid5(NAMESPACE, str(event_id))
+
+    assert reply.degraded is False
+    assert reply.outcome == DecisionOutcome.TIMEOUT.value
+    assert record == [subject_id]
+    log = await _log(database)
+    assert [(r["action_id"], r["outcome"]) for r in log] == [
+        (subject_id, DecisionOutcome.TIMEOUT.value)
+    ]
+    assert "no reply" in log[0]["reason"]
+    assert await _suggestions(database) == []
+
+
+async def test_p7_no_responder_is_recorded_as_a_proposal_never_a_timeout(
+    consumer: None,
+    producer: BoundEventBus,
+    repository: PostgresAutonomyRepository,
+    database: AsyncEngine,
+) -> None:
+    """**Test F (V-8 (a)).** No `action.execute` subscriber on the real broker
+    (the established `NoRespondersError` mechanism): `propose` with a
+    suggestion -- not `execute`, not `timeout` -- and exactly one row."""
+    await _configure(repository, AutonomyLevel.ASSISTED, auto_execute=True)
+
+    event_id, reply = await _trigger(producer)
+    subject_id = uuid5(NAMESPACE, str(event_id))
+
+    assert reply.degraded is False
+    assert reply.outcome == DecisionOutcome.PROPOSE.value
+    assert reply.outcome not in (DecisionOutcome.EXECUTE.value, DecisionOutcome.TIMEOUT.value)
+    log = await _log(database)
+    assert [(r["action_id"], r["outcome"]) for r in log] == [
+        (subject_id, DecisionOutcome.PROPOSE.value)
+    ]
+    assert "no subscriber" in log[0]["reason"]
+    assert [row["id"] for row in await _suggestions(database)] == [subject_id]
+
+
+async def test_p7_a_transport_fault_before_any_reply_records_nothing(
+    nats_uri: str,
+    repository: PostgresAutonomyRepository,
+    database: AsyncEngine,
+    serve_action_engine: ActionEngineStub,
+) -> None:
+    """**Test G (V-8 (c)), controlled fault injection.** This engine's real
+    allow-listed bus is closed when the dispatch is made, so the real SDK
+    raises before anything reaches the broker -- neither a timeout nor no
+    responder. The production orchestrator, with the real Postgres repository,
+    the production trust adapter and the real `ActionDispatchClient`, returns
+    a degraded reply: **no outcome, no row, no `execute`**, nothing retried,
+    and `action-engine` never asked.
+
+    *(Driven through `handle_decision_request` rather than `serve()`: the
+    production app's one bus also carries the reply, so closing it there would
+    lose the reply as well as the dispatch.)*"""
+    record = await serve_action_engine("completed")
+    await _configure(repository, AutonomyLevel.ASSISTED, auto_execute=True)
+    backend = NatsEventBus(servers=nats_uri)
+    await backend.connect()
+    bus = BoundEventBus(
+        backend,
+        engine_name="autonomy-engine",
+        publishable_subjects=PUBLISHABLE_SUBJECTS,
+        subscribable_subjects=SUBSCRIBABLE_SUBJECTS,
+    )
+    await backend.close()
+    envelope = _envelope(_payload().model_dump(mode="json"))
+
+    reply = await handle_decision_request(
+        envelope,
+        repository=repository,
+        trust_source=UnavailableConversationalTrustSource(),
+        dispatcher=ActionDispatchClient(bus, timeout_seconds=15.0),
+        user_id=USER,
+    )
+
+    assert reply.degraded is True
+    assert reply.outcome is None
+    assert reply.subject_id == uuid5(NAMESPACE, str(envelope.event_id))
+    assert await _log(database) == []
+    assert await _suggestions(database) == []
+    assert record == []
+
+
+async def test_p7_t1_still_leaves_as_operation_list_whatever_the_reply(
+    consumer: None,
+    producer: BoundEventBus,
+    repository: PostgresAutonomyRepository,
+    serve_action_engine: ActionEngineStub,
+) -> None:
+    """**Test J (P4 regression).** The reply decides the outcome, never the
+    request: a `failed` reply still followed exactly one `{"operation":
+    "list"}` dispatch."""
+    record = await serve_action_engine("failed", "x")
+    await _configure(repository, AutonomyLevel.ASSISTED, auto_execute=True)
+
+    _, reply = await _trigger(producer)
+
+    assert reply.degraded is False
+    assert reply.outcome == "execution_failed"
+    assert [e.payload["parameters"] for e in record.envelopes] == [{"operation": "list"}]

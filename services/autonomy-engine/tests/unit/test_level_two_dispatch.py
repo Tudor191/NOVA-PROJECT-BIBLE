@@ -17,10 +17,16 @@ recording dispatcher here exists to count calls, which is a fact about
 
 from __future__ import annotations
 
+from typing import get_args
 from uuid import UUID, uuid4
 
 import pytest
-from nova_autonomy_engine.domain.decision import DecisionRequest, decide
+from nova_autonomy_engine.domain.decision import (
+    ACTION_STATUS_OUTCOMES,
+    DecisionRequest,
+    decide,
+    outcome_for_action_status,
+)
 from nova_autonomy_engine.domain.models import (
     AutonomyLevel,
     DecisionOutcome,
@@ -37,6 +43,7 @@ from nova_autonomy_engine.domain.ports import (
     ActionDispatchUnavailable,
 )
 from nova_contracts import ActionExecuteRequestPayload
+from nova_contracts.events.action import ActionStatus
 from nova_contracts.events.planning import RiskLevel
 
 from tests.fakes.trust_source import StubTrustSource
@@ -64,10 +71,20 @@ class RecordingDispatcher:
     """Counts dispatches and remembers payloads. **Counting is the assertion**:
     "exactly one" and "zero" are the two facts nearly every test here needs."""
 
-    def __init__(self, *, raises: Exception | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        raises: Exception | None = None,
+        status: str = "completed",
+        error: str | None = None,
+    ) -> None:
         self.payloads: list[ActionExecuteRequestPayload] = []
         self.correlation_ids: list[UUID | None] = []
         self._raises = raises
+        # Phase 4F.P, P7: the reply `action-engine` gives. `completed` stays the
+        # default, so every test above is unchanged (TDD 4F.P §28.5).
+        self._status = status
+        self._error = error
 
     async def dispatch(
         self,
@@ -79,7 +96,9 @@ class RecordingDispatcher:
         self.correlation_ids.append(correlation_id)
         if self._raises is not None:
             raise self._raises
-        return ActionDispatchResult(action_id=payload.action_id, status="completed")
+        return ActionDispatchResult(
+            action_id=payload.action_id, status=self._status, error=self._error
+        )
 
 
 def _request(
@@ -761,3 +780,156 @@ async def test_p4_dispatch_does_not_mutate_the_requests_parameters() -> None:
 
     assert request.parameters == {"older_than_days": 30}
     assert "operation" not in request.parameters
+
+
+# --- Phase 4F.P, P7: the outcome follows `action-engine`'s real reply ------------
+#
+# TDD 4F.P A-4FP-7 with SD-4 (§30.1, §30.2). `decide()` is real; the recorder
+# returns the status `action-engine` would. Every case dispatches exactly once.
+
+NON_TERMINAL = ["pending", "approval_required", "approved", "executing"]
+
+
+def test_p7_the_mapping_covers_every_action_status_and_nothing_else() -> None:
+    """The one mapping boundary is total over `ActionStatus` -- the type of
+    `ActionResultPayload.status` -- so no reply can arrive unmapped."""
+    assert set(ACTION_STATUS_OUTCOMES) == set(get_args(ActionStatus))
+    assert len(ACTION_STATUS_OUTCOMES) == 8
+
+
+def test_p7_completed_is_the_only_status_that_maps_to_execute() -> None:
+    assert [s for s, o in ACTION_STATUS_OUTCOMES.items() if o is DecisionOutcome.EXECUTE] == [
+        "completed"
+    ]
+
+
+def test_p7_the_ratified_table_exactly() -> None:
+    """A-4FP-7's table, value for value, with SD-4's four non-terminal rows."""
+    assert dict(ACTION_STATUS_OUTCOMES) == {
+        "completed": DecisionOutcome.EXECUTE,
+        "denied": DecisionOutcome.PROPOSE,
+        "failed": DecisionOutcome.EXECUTION_FAILED,
+        "rolled_back": DecisionOutcome.EXECUTION_FAILED,
+        "pending": DecisionOutcome.EXECUTION_FAILED,
+        "approval_required": DecisionOutcome.EXECUTION_FAILED,
+        "approved": DecisionOutcome.EXECUTION_FAILED,
+        "executing": DecisionOutcome.EXECUTION_FAILED,
+    }
+
+
+def test_p7_a_status_outside_action_status_has_no_outcome() -> None:
+    with pytest.raises(ValueError, match="not an ActionStatus value"):
+        outcome_for_action_status("succeeded")
+
+
+async def test_p7_a_completed_reply_records_execute() -> None:
+    """**Test A (domain).** `EXECUTE`, and only after the reply said so."""
+    dispatcher = RecordingDispatcher(status="completed")
+    result = await _decide(_request(), dispatcher=dispatcher)
+
+    assert result.outcome is DecisionOutcome.EXECUTE
+    assert result.log_entry.outcome is DecisionOutcome.EXECUTE
+    assert result.suggestion is None
+    assert len(dispatcher.payloads) == 1
+    assert result.log_entry.reason is not None
+    assert "action-engine reported completed" in result.log_entry.reason
+
+
+@pytest.mark.parametrize(
+    ("error", "named"),
+    [("identity_confidence_denied", "identity_confidence_denied"), (None, "no error was reported")],
+)
+async def test_p7_a_denied_reply_records_a_proposal_through_the_proposal_path(
+    error: str | None, named: str
+) -> None:
+    """**Test B (domain).** `denied` is provably not executed: `PROPOSE`, a
+    suggestion whose `id` is the decision's `subject_id` -- which is also the
+    denied action's `action_id` -- and A-4FP-7's reason text. Not retried."""
+    dispatcher = RecordingDispatcher(status="denied", error=error)
+    result = await _decide(_request(), dispatcher=dispatcher)
+
+    assert result.outcome is DecisionOutcome.PROPOSE
+    assert result.log_entry.outcome is DecisionOutcome.PROPOSE
+    assert result.suggestion is not None
+    assert result.suggestion.id == result.log_entry.subject_id == dispatcher.payloads[0].action_id
+    assert result.log_entry.reason == (
+        "proposed for explicit user approval; nothing is executed "
+        f"(action-engine denied the action: {named})"
+    )
+    assert len(dispatcher.payloads) == 1
+
+
+async def test_p7_a_failed_reply_records_execution_failed() -> None:
+    """**Test C (domain).** Received, not completed: `EXECUTION_FAILED`, one
+    log row, no suggestion, and the reason names the status and the error."""
+    dispatcher = RecordingDispatcher(status="failed", error="capability 'filesystem' not found")
+    result = await _decide(_request(), dispatcher=dispatcher)
+
+    assert result.outcome is DecisionOutcome.EXECUTION_FAILED
+    assert result.log_entry.outcome is DecisionOutcome.EXECUTION_FAILED
+    assert result.suggestion is None
+    assert result.log_entry.reason is not None
+    assert "action-engine reported failed" in result.log_entry.reason
+    assert "capability 'filesystem' not found" in result.log_entry.reason
+    assert len(dispatcher.payloads) == 1
+
+
+async def test_p7_a_rolled_back_reply_records_execution_failed_naming_the_rollback() -> None:
+    """**Test D (domain).**"""
+    dispatcher = RecordingDispatcher(status="rolled_back", error="write failed; restored")
+    result = await _decide(_request(), dispatcher=dispatcher)
+
+    assert result.outcome is DecisionOutcome.EXECUTION_FAILED
+    assert result.suggestion is None
+    assert result.log_entry.reason is not None
+    assert "rolled back" in result.log_entry.reason
+    assert "write failed; restored" in result.log_entry.reason
+    assert len(dispatcher.payloads) == 1
+
+
+@pytest.mark.parametrize("status", NON_TERMINAL)
+async def test_p7_a_non_terminal_reply_records_execution_failed(status: str) -> None:
+    """**Test H (domain), SD-4 (a).** A reply came, so the row is kept; it is
+    never `EXECUTE`, and the reason is SD-4's text exactly."""
+    dispatcher = RecordingDispatcher(status=status)
+    result = await _decide(_request(), dispatcher=dispatcher)
+
+    assert result.outcome is DecisionOutcome.EXECUTION_FAILED
+    assert result.suggestion is None
+    assert result.log_entry.reason == (
+        f"action-engine replied with non-terminal status {status}; completion was not reported"
+    )
+    assert len(dispatcher.payloads) == 1
+
+
+@pytest.mark.parametrize("status", sorted(get_args(ActionStatus)))
+async def test_p7_every_status_dispatches_once_and_records_its_mapped_outcome(
+    status: str,
+) -> None:
+    """**Test I (domain).** One request, one recorded outcome -- the mapped
+    one -- for every status `action-engine` can report."""
+    dispatcher = RecordingDispatcher(status=status)
+    result = await _decide(_request(), dispatcher=dispatcher)
+
+    assert len(dispatcher.payloads) == 1
+    assert result.outcome is ACTION_STATUS_OUTCOMES[status]
+    assert result.log_entry.outcome is ACTION_STATUS_OUTCOMES[status]
+    assert result.log_entry.subject_id == dispatcher.payloads[0].action_id
+
+
+async def test_p7_a_reply_outside_the_contract_records_nothing_and_raises() -> None:
+    """Not a meaningful `action-engine` reply: `decide()` raises, as for any
+    unknown fault, so the orchestrator records no row (4F.6 Design A)."""
+    dispatcher = RecordingDispatcher(status="succeeded")
+    with pytest.raises(ValueError, match="not an ActionStatus value"):
+        await _decide(_request(), dispatcher=dispatcher)
+    assert len(dispatcher.payloads) == 1
+
+
+async def test_p7_the_t1_payload_is_unchanged_by_the_reply_mapping() -> None:
+    """**Test J (P4 regression).** Whatever the reply, the one payload sent
+    carries `{"operation": "list"}`."""
+    for status in ("completed", "denied", "failed"):
+        dispatcher = RecordingDispatcher(status=status)
+        await _decide(_request(), dispatcher=dispatcher)
+        assert [p.parameters for p in dispatcher.payloads] == [{"operation": "list"}]
