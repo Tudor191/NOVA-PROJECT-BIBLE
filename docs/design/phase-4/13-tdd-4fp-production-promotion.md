@@ -57,6 +57,20 @@
 >   CF-10 and CF-11 stay OPEN.**
 > - §30.10's note of this date gives the current status in full.
 
+> **Status on `phase-4fp`, 2026-10-04.** The note above is preserved as
+> written. Its *"P8 has not started"* is historical:
+>
+> - **P8 is implemented** (A-4FP-11, A-4FP-12; §28.4 C-12 and C-14), in the
+>   commit that adds this note. The e2e stack runs the real path -- a real
+>   file write, the companion, `perception-engine`, `cognitive-state-engine`,
+>   `autonomy-engine`, `action-engine` and `capability-engine` -- to a
+>   recorded outcome, with no stand-in in the chain.
+> - **P1, P3, P4, P5, P6, P7 and P8 are implemented.** 4F.P is **not
+>   complete**: P9's Slice Completion Record does not exist, the e2e job has
+>   not yet run the P8 proof in CI, and no PR has been opened. **4F.8 has not
+>   started.** **CF-9, CF-10 and CF-11 stay OPEN.**
+> - §30.10's note of this date gives the current status in full.
+
 - **What this is.** The implementation contract for **4F.P**, the slice RS-1c
   added **before 4F.8** (TDD 4F §18, as amended by §24). It defines NOVA's
   first production initiative path, end to end:
@@ -120,6 +134,21 @@
   > - **P1, P3, P4, P5, P6 and P7 are implemented. P8 has not started.** 4F.P
   >   is **not complete**, 4F.8 has not started, and no PR has been opened.
   >   **CF-9, CF-10 and CF-11 stay OPEN.**
+  > - §30.10's note of this date gives the current status in full.
+
+  > **Status on `phase-4fp`, 2026-10-04.** The note above is preserved as
+  > written. Its *"P8 has not started"* is historical:
+  >
+  > - **P8 is implemented** (A-4FP-11, A-4FP-12; §28.4 C-12 and C-14), in the
+  >   commit that adds this note. The e2e stack runs the real path -- a real
+  >   file write, the companion, `perception-engine`,
+  >   `cognitive-state-engine`, `autonomy-engine`, `action-engine` and
+  >   `capability-engine` -- to a recorded outcome, with no stand-in in the
+  >   chain.
+  > - **P1, P3, P4, P5, P6, P7 and P8 are implemented.** 4F.P is **not
+  >   complete**: P9's Slice Completion Record does not exist, the e2e job has
+  >   not yet run the P8 proof in CI, and no PR has been opened. **4F.8 has
+  >   not started.** **CF-9, CF-10 and CF-11 stay OPEN.**
   > - §30.10's note of this date gives the current status in full.
 
 - **CF-9, CF-10 and CF-11 stay OPEN.** 4F.P closes none of them (§18).
@@ -1235,6 +1264,20 @@ one PR phase-4 → main, by merge commit, only after GO (master scope §16)
 >   Completion Record exists, no PR has been opened, and nothing is merged.
 >   4F.P is not complete, and 4F.8 has not started.
 
+> **Status on `phase-4fp`, 2026-10-04.** The note above is preserved as
+> written. Its *"P8 has not started"* is historical:
+>
+> - **Step 5 is complete.** P8, the composed stack and its real-execution
+>   evidence, is implemented in the commit that adds this note (A-4FP-11,
+>   A-4FP-12).
+> - **Step 6 has run slice by slice, locally**: each slice's negative
+>   controls, flakiness runs and protocol gates. The e2e job's CI run of the
+>   P8 proof is still outstanding, because CI runs only for a pull request or
+>   a push to `main`.
+> - **Steps 4 and 7-9 remain.** No Slice Completion Record exists, no PR has
+>   been opened, and nothing is merged. 4F.P is not complete, and 4F.8 has not
+>   started.
+
 ---
 
 ## 23. SLOC budget
@@ -1424,6 +1467,20 @@ on either side is changed.
 > - **P1, P3, P4, P5, P6 and P7 are implemented. P8 has not started.** 4F.P is
 >   **not complete**, 4F.8 has not started, and no PR has been opened. **CF-9,
 >   CF-10 and CF-11 stay OPEN.**
+> - §30.10's note of this date gives the current status in full.
+
+> **Status on `phase-4fp`, 2026-10-04.** The note above is preserved as
+> written. Its *"P8 has not started"* is historical:
+>
+> - **P8 is implemented** (A-4FP-11, A-4FP-12; §28.4 C-12 and C-14), in the
+>   commit that adds this note. The e2e stack runs the real path -- a real
+>   file write, the companion, `perception-engine`, `cognitive-state-engine`,
+>   `autonomy-engine`, `action-engine` and `capability-engine` -- to a
+>   recorded outcome, with no stand-in in the chain.
+> - **P1, P3, P4, P5, P6, P7 and P8 are implemented.** 4F.P is **not
+>   complete**: P9's Slice Completion Record does not exist, the e2e job has
+>   not yet run the P8 proof in CI, and no PR has been opened. **4F.8 has not
+>   started.** **CF-9, CF-10 and CF-11 stay OPEN.**
 > - §30.10's note of this date gives the current status in full.
 
 ---
@@ -1864,6 +1921,20 @@ RETURNING *
 > - **P1, P3, P4, P5, P6 and P7 are implemented. P8 has not started.** 4F.P is
 >   **not complete**, 4F.8 has not started, and no PR has been opened. **CF-9,
 >   CF-10 and CF-11 stay OPEN.**
+> - §30.10's note of this date gives the current status in full.
+
+> **Status on `phase-4fp`, 2026-10-04.** The note above is preserved as
+> written. Its *"P8 has not started"* is historical:
+>
+> - **P8 is implemented** (A-4FP-11, A-4FP-12; §28.4 C-12 and C-14), in the
+>   commit that adds this note. The e2e stack runs the real path -- a real
+>   file write, the companion, `perception-engine`, `cognitive-state-engine`,
+>   `autonomy-engine`, `action-engine` and `capability-engine` -- to a
+>   recorded outcome, with no stand-in in the chain.
+> - **P1, P3, P4, P5, P6, P7 and P8 are implemented.** 4F.P is **not
+>   complete**: P9's Slice Completion Record does not exist, the e2e job has
+>   not yet run the P8 proof in CI, and no PR has been opened. **4F.8 has not
+>   started.** **CF-9, CF-10 and CF-11 stay OPEN.**
 > - §30.10's note of this date gives the current status in full.
 
 ### 28.5 A-4FP-7 — consistency with 4F.5 and 4F.6, and everything it changes
@@ -2798,6 +2869,20 @@ this section governs.
 >   CF-10 and CF-11 stay OPEN.**
 > - §30.10's note of this date gives the current status in full.
 
+> **Status on `phase-4fp`, 2026-10-04.** The note above is preserved as
+> written. Its *"P8 has not started"* is historical:
+>
+> - **P8 is implemented** (A-4FP-11, A-4FP-12; §28.4 C-12 and C-14), in the
+>   commit that adds this note. The e2e stack runs the real path -- a real
+>   file write, the companion, `perception-engine`, `cognitive-state-engine`,
+>   `autonomy-engine`, `action-engine` and `capability-engine` -- to a
+>   recorded outcome, with no stand-in in the chain.
+> - **P1, P3, P4, P5, P6, P7 and P8 are implemented.** 4F.P is **not
+>   complete**: P9's Slice Completion Record does not exist, the e2e job has
+>   not yet run the P8 proof in CI, and no PR has been opened. **4F.8 has not
+>   started.** **CF-9, CF-10 and CF-11 stay OPEN.**
+> - §30.10's note of this date gives the current status in full.
+
 This change applies the ratification **to this TDD and the master scope's
 index only**, as instructed. These obligations are **owed**, each
 documentation-only, additive and dated:
@@ -3081,6 +3166,112 @@ Level-2 runs use two distinct new paths.
 >   started.** **4F.P is not complete**: P9's Slice Completion Record does not
 >   exist, no PR has been opened, and nothing is merged into `phase-4`. **4F.8
 >   has not started.**
+> - **Unchanged:**
+>   - the ratifications in §30.1 and §30.2;
+>   - A-4FP-14 not blocking and not ratified;
+>   - CF-9, CF-10 and CF-11 OPEN;
+>   - 4F.8 PREPARED, NOT RATIFIED, and blocked as §30.9 states.
+
+> **Status on the implementation branch `phase-4fp`, 2026-10-04, after P8.**
+> Everything above is preserved as written. The previous note's *"P8 has not
+> started"* and *"V-5 and V-6 against the real `action-engine` are the
+> composed stack's: P8"* are now historical: that evidence exists, as
+> described below.
+>
+> - **P8 is implemented** (A-4FP-11, A-4FP-12; §28.4 C-12 and C-14), in the
+>   commit that adds this note, on top of `a0b9b4f`. **No engine's source
+>   changes.**
+>   - **The stack** (`infra/docker/docker-compose.local.yml`). A
+>     `nova-companion` service, built from
+>     `companion/nova-companion/Dockerfile`, watches `/workspace` read-only.
+>     `capability-engine` binds the **same** host directory at `/workspace`,
+>     its sandbox root; until now the image had no `/workspace` at all.
+>     `perception-engine`'s `PRIMARY_USER_ID` is `…0001`, the default of
+>     `cognitive-state-engine`, `autonomy-engine` and `action-engine` (C-12);
+>     unset, it publishes nothing. The host directory is `NOVA_WORKSPACE_DIR`,
+>     defaulting to `./workspace`, which is gitignored.
+>   - **The e2e job** (`pr-checks.yml`). It provisions the workspace before
+>     the first `up`, then, **after the golden path**, starts
+>     `perception-engine`, `perception-engine-worker` and `nova-companion` and
+>     runs the driver. *Disclosed sequencing:* the Cognitive State panel's
+>     spec asserts an unseeded stack in which "no `perception-engine` runs in
+>     this job, so no sensor has reported", and `perception-engine` reports
+>     its sensors as it starts. Starting it after the golden path keeps every
+>     spec's premise and still puts the three services in this job's stack, as
+>     A-4FP-12 requires.
+>   - **The driver** (`tools/e2e_real_execution.py`). It writes real files
+>     with fresh names into the workspace. It configures Level 2, one
+>     `AUTO_EXECUTE` policy for `read`, a `read` grant up to `low` and
+>     A-4FP-11's `{"negligible": 0.0}` through production routes only. It
+>     observes the bus without publishing, including each RPC's reply on
+>     `_INBOX.>`, and reads every engine's store by `SELECT`-only SQL.
+>   - **The guards** (`tools/tests/test_e2e_real_execution.py`, 26 tests): the
+>     stack's shape, the job's step order, V-9's discipline read from the
+>     driver's AST, and every value the driver restates, checked against the
+>     engine source that owns it.
+> - **What the driver proves**, for each executed run (§15, in C-14's composed
+>   tier):
+>   - V-1 and V-2: `action-engine` received and stored `{"operation":
+>     "list"}`, the authored pair, and the one `action.execute` carried it.
+>   - V-3 and V-4: all twelve stages ran, and `action.action` is `completed`
+>     with the listing of the real sandbox root, which names the run's own
+>     file.
+>   - **Real capability execution.** `action-engine` sent exactly one
+>     `capability.invoke.request` for the `filesystem` capability, operation
+>     `list`. `capability-engine` replied `success` -- its reply's
+>     `causation_id` is that request's `event_id` -- and that listing is
+>     `action-engine`'s stored result. `capability-engine`'s own
+>     `capability_invocation_total` rose by exactly one.
+>   - V-5: the decision row is the outcome A-4FP-7 maps from `action-engine`'s
+>     own persisted status -- `completed`, so `execute` -- and it was written
+>     in a later transaction than `action-engine`'s terminal writes (`xmin`
+>     order, one Postgres).
+>   - Exactly one trigger, one `action.execute`, one reply to each RPC, one
+>     action row and one decision row: no retry and no duplicate. The
+>     thought's identity is A-4FP-9's for the observed object, and one user
+>     runs through every store.
+>   - V-6 (a): with A-4FP-11's row removed, the real `action-engine` denies at
+>     stage 3 and P7 records `propose` with a suggestion; nothing is invoked.
+>     The row is restored.
+>   - V-7 (a1): a second real modification of the same file is a new
+>     observation of the same object, and still one thought, one trigger and
+>     one action.
+>   - V-10, for this commit: `action-engine` and `capability-engine` are
+>     byte-identical to `9d2d636`, so stage 3 is too; no source file of any
+>     engine or package changes; the registry holds 120 subjects,
+>     `PUBLIC_TOPICS` 18, and `api-gateway` nine upstreams. V-9 is the guards'
+>     AST check of the driver.
+> - **Where it has run.** **Locally, and not yet in CI.** This environment has
+>   no Docker daemon, so the e2e job's containers could not start here. The
+>   proof ran against a local equivalent: the same engines, from this commit,
+>   as processes with compose's environment, on Postgres 16, nats-server and
+>   redis-server, with the real companion binary built from this tree. The
+>   differences: the workspace is a host path rather than the `/workspace`
+>   mount; `world-model-engine` uses the in-memory graph store, while its
+>   context RPC -- the one stage 3 calls -- is Redis-backed either way; and
+>   there is no otel-collector. Twenty-six consecutive runs passed -- twelve
+>   with the driver's first 61 checks and fourteen with its final 67, two of
+>   them from an empty database. Six composed-stack negative controls each
+>   made it fail: P4 broken at either end, P7's mapping broken, P6's identity
+>   broken, and a stand-in answering `action.execute` beside, or instead of,
+>   the real `action-engine`. **The e2e job's CI run is outstanding**:
+>   `pr-checks.yml` runs only for a pull request or a push to `main`, and no
+>   PR exists.
+> - **Correlation, disclosed.** `capability-engine` keeps no per-invocation
+>   record, and `action-engine` does not pass its `action_id` into
+>   `capability.invoke`. The driver therefore ties the invocation to the
+>   action by the bus (request and reply between the `action.execute` request
+>   and its reply), by content (the listing names the run's own file and
+>   equals the stored result) and by `capability-engine`'s own counter. No
+>   audit record was added.
+> - **Stand-ins.** None on the P8 path. The P7 real-infra tier's labelled
+>   `action.execute` responder is unchanged and counts toward nothing here.
+>   The negative controls replace or break components on purpose, and every
+>   one made the driver fail.
+> - **Status:** P1, P3, P4, P5, P6, P7 and P8 are implemented. **4F.P is not
+>   complete**: P9's Slice Completion Record does not exist, the e2e job has
+>   not run the P8 proof in CI, no PR has been opened, and nothing is merged
+>   into `phase-4`. **4F.8 has not started.** AC-8 is not claimed.
 > - **Unchanged:**
 >   - the ratifications in §30.1 and §30.2;
 >   - A-4FP-14 not blocking and not ratified;

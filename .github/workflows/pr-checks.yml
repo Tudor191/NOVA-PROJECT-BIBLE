@@ -191,6 +191,19 @@ jobs:
         run: |
           echo "NOVA_SESSION_TOKEN=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
 
+      # Phase 4F.P, P8 (TDD 4F.P A-4FP-12, §28.4 C-12). One workspace for the
+      # whole stack: compose binds it at `/workspace` into `capability-engine`,
+      # as its sandbox root, and into `nova-companion`, as its watch root. It
+      # must exist before the first `up`, because that starts
+      # `capability-engine`; compose falls back to `./workspace` beside the
+      # compose file when the variable is unset (local use).
+      - name: Provision the shared workspace (4F.P P8)
+        run: |
+          workspace="${RUNNER_TEMP}/nova-workspace"
+          mkdir -p "$workspace"
+          echo "NOVA_WORKSPACE_DIR=$workspace" >> "$GITHUB_ENV"
+          echo "shared workspace: $workspace"
+
       - name: Start the stack
         env:
           NOVA_SESSION_TOKEN: ${{ env.NOVA_SESSION_TOKEN }}
@@ -658,6 +671,49 @@ jobs:
             $compose logs --tail=40 communication-engine-worker
             exit 1
           fi
+
+      # Phase 4F.P, P8 -- real end-to-end execution (TDD 4F.P A-4FP-12; §15's
+      # V-1 ... V-5, V-6 (a), V-7 (a1), in §28.4 C-14's composed tier).
+      #
+      # The e2e stack gains `perception-engine`, its outbox worker and
+      # `nova-companion` here, **after** the golden path rather than in the
+      # first `up`. The Cognitive State panel's spec asserts the honest empty
+      # states of an unseeded stack -- "no `perception-engine` runs in this
+      # job, so no sensor has reported" -- and `perception-engine` reports its
+      # sensors as it starts. Starting it later keeps that premise true for
+      # every spec, and puts the three services in this job's stack as A-4FP-12
+      # requires. `cognitive-state-engine`, `autonomy-engine`, `action-engine`,
+      # `capability-engine` and `world-model-engine` are already running.
+      #
+      # `!cancelled()`, so the proof runs, and reports, whatever the golden
+      # path did; its own failure fails the job.
+      - name: Start the P8 services (perception-engine, its worker, nova-companion)
+        if: ${{ !cancelled() }}
+        run: |
+          docker compose -f infra/docker/docker-compose.local.yml up -d --build perception-engine perception-engine-worker nova-companion
+
+      # Writes real files into the shared workspace, configures Level 2, one
+      # AUTO_EXECUTE policy, one grant and A-4FP-11's disclosed identity
+      # threshold through production routes only, observes the bus without
+      # publishing, and reads every engine's store by independent SQL. No
+      # stand-in anywhere in the chain; see the driver's own docstring.
+      - name: Prove real end-to-end execution (4F.P P8)
+        if: ${{ !cancelled() }}
+        env:
+          NATS_URL: nats://localhost:4222
+          NOVA_E2E_POSTGRES_DSN: postgresql://nova:nova_dev_password@localhost:5432/nova
+          NOVA_E2E_DEADLINE_SECONDS: "180"
+        run: |
+          set -o pipefail
+          uv run python tools/e2e_real_execution.py 2>&1 | tee /tmp/p8-real-execution.log
+
+      - name: Collect the P8 path's logs on failure
+        if: failure()
+        run: |
+          docker compose -f infra/docker/docker-compose.local.yml logs --tail=60 \
+            nova-companion perception-engine perception-engine-worker \
+            cognitive-state-engine autonomy-engine action-engine capability-engine \
+            || true
 
       - name: Collect stack logs on failure
         if: failure()

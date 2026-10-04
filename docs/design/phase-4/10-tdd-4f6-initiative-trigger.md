@@ -472,6 +472,21 @@ ALTER TABLE cognitive_state.active_thought
 > - [TDD 4F.P](13-tdd-4fp-production-promotion.md)'s §30.10 note of this date
 >   gives the current status in full.
 
+> **Status on `phase-4fp`, 2026-10-04.** The note above is preserved as
+> written. Its *"P8 has not started"* is historical:
+>
+> - **P8 is implemented** (A-4FP-11, A-4FP-12; §28.4 C-12 and C-14), in the
+>   commit that adds this note. The e2e stack runs the real path -- a real
+>   file write, the companion, `perception-engine`, `cognitive-state-engine`,
+>   `autonomy-engine`, `action-engine` and `capability-engine` -- to a
+>   recorded outcome, with no stand-in in the chain.
+> - **P1, P3, P4, P5, P6, P7 and P8 are implemented.** 4F.P is **not
+>   complete**: P9's Slice Completion Record does not exist, the e2e job has
+>   not yet run the P8 proof in CI, and no PR has been opened. **4F.8 has not
+>   started.** **CF-9, CF-10 and CF-11 stay OPEN.**
+> - [TDD 4F.P](13-tdd-4fp-production-promotion.md)'s §30.10 note of this date
+>   gives the current status in full.
+
 
 ---
 
@@ -548,6 +563,21 @@ decision.
 > - **P1, P3, P4, P5, P6 and P7 are implemented. P8 has not started.** 4F.P is
 >   **not complete**, 4F.8 has not started, and no PR has been opened. **CF-9,
 >   CF-10 and CF-11 stay OPEN.**
+> - [TDD 4F.P](13-tdd-4fp-production-promotion.md)'s §30.10 note of this date
+>   gives the current status in full.
+
+> **Status on `phase-4fp`, 2026-10-04.** The note above is preserved as
+> written. Its *"P8 has not started"* is historical:
+>
+> - **P8 is implemented** (A-4FP-11, A-4FP-12; §28.4 C-12 and C-14), in the
+>   commit that adds this note. The e2e stack runs the real path -- a real
+>   file write, the companion, `perception-engine`, `cognitive-state-engine`,
+>   `autonomy-engine`, `action-engine` and `capability-engine` -- to a
+>   recorded outcome, with no stand-in in the chain.
+> - **P1, P3, P4, P5, P6, P7 and P8 are implemented.** 4F.P is **not
+>   complete**: P9's Slice Completion Record does not exist, the e2e job has
+>   not yet run the P8 proof in CI, and no PR has been opened. **4F.8 has not
+>   started.** **CF-9, CF-10 and CF-11 stay OPEN.**
 > - [TDD 4F.P](13-tdd-4fp-production-promotion.md)'s §30.10 note of this date
 >   gives the current status in full.
 
@@ -972,6 +1002,21 @@ occurs when the trigger was not successfully delivered to `autonomy-engine`.**
 > - [TDD 4F.P](13-tdd-4fp-production-promotion.md)'s §30.10 note of this date
 >   gives the current status in full.
 
+> **Status on `phase-4fp`, 2026-10-04.** The note above is preserved as
+> written. Its *"P8 has not started"* is historical:
+>
+> - **P8 is implemented** (A-4FP-11, A-4FP-12; §28.4 C-12 and C-14), in the
+>   commit that adds this note. The e2e stack runs the real path -- a real
+>   file write, the companion, `perception-engine`, `cognitive-state-engine`,
+>   `autonomy-engine`, `action-engine` and `capability-engine` -- to a
+>   recorded outcome, with no stand-in in the chain.
+> - **P1, P3, P4, P5, P6, P7 and P8 are implemented.** 4F.P is **not
+>   complete**: P9's Slice Completion Record does not exist, the e2e job has
+>   not yet run the P8 proof in CI, and no PR has been opened. **4F.8 has not
+>   started.** **CF-9, CF-10 and CF-11 stay OPEN.**
+> - [TDD 4F.P](13-tdd-4fp-production-promotion.md)'s §30.10 note of this date
+>   gives the current status in full.
+
 ---
 
 ## 11. Boundaries — what may change
@@ -1051,6 +1096,21 @@ semantics · the §22.7 Trust contract · CI workflow policy · **`main`**.
 > - **P1, P3, P4, P5, P6 and P7 are implemented. P8 has not started.** 4F.P is
 >   **not complete**, 4F.8 has not started, and no PR has been opened. **CF-9,
 >   CF-10 and CF-11 stay OPEN.**
+> - [TDD 4F.P](13-tdd-4fp-production-promotion.md)'s §30.10 note of this date
+>   gives the current status in full.
+
+> **Status on `phase-4fp`, 2026-10-04.** The note above is preserved as
+> written. Its *"P8 has not started"* is historical:
+>
+> - **P8 is implemented** (A-4FP-11, A-4FP-12; §28.4 C-12 and C-14), in the
+>   commit that adds this note. The e2e stack runs the real path -- a real
+>   file write, the companion, `perception-engine`, `cognitive-state-engine`,
+>   `autonomy-engine`, `action-engine` and `capability-engine` -- to a
+>   recorded outcome, with no stand-in in the chain.
+> - **P1, P3, P4, P5, P6, P7 and P8 are implemented.** 4F.P is **not
+>   complete**: P9's Slice Completion Record does not exist, the e2e job has
+>   not yet run the P8 proof in CI, and no PR has been opened. **4F.8 has not
+>   started.** **CF-9, CF-10 and CF-11 stay OPEN.**
 > - [TDD 4F.P](13-tdd-4fp-production-promotion.md)'s §30.10 note of this date
 >   gives the current status in full.
 
@@ -1343,6 +1403,21 @@ Moves into RATIFIED are marked **[ratified]**.
 > - [TDD 4F.P](13-tdd-4fp-production-promotion.md)'s §30.10 note of this date
 >   gives the current status in full.
 
+> **Status on `phase-4fp`, 2026-10-04.** The note above is preserved as
+> written. Its *"P8 has not started"* is historical:
+>
+> - **P8 is implemented** (A-4FP-11, A-4FP-12; §28.4 C-12 and C-14), in the
+>   commit that adds this note. The e2e stack runs the real path -- a real
+>   file write, the companion, `perception-engine`, `cognitive-state-engine`,
+>   `autonomy-engine`, `action-engine` and `capability-engine` -- to a
+>   recorded outcome, with no stand-in in the chain.
+> - **P1, P3, P4, P5, P6, P7 and P8 are implemented.** 4F.P is **not
+>   complete**: P9's Slice Completion Record does not exist, the e2e job has
+>   not yet run the P8 proof in CI, and no PR has been opened. **4F.8 has not
+>   started.** **CF-9, CF-10 and CF-11 stay OPEN.**
+> - [TDD 4F.P](13-tdd-4fp-production-promotion.md)'s §30.10 note of this date
+>   gives the current status in full.
+
 ---
 
 ## 17. IMPLEMENTATION BLOCKERS — recalculated after ratification
@@ -1502,6 +1577,21 @@ column on `cognitive_state.active_thought`. **No `autonomy` schema change.**
 > - [TDD 4F.P](13-tdd-4fp-production-promotion.md)'s §30.10 note of this date
 >   gives the current status in full.
 
+> **Status on `phase-4fp`, 2026-10-04.** The note above is preserved as
+> written. Its *"P8 has not started"* is historical:
+>
+> - **P8 is implemented** (A-4FP-11, A-4FP-12; §28.4 C-12 and C-14), in the
+>   commit that adds this note. The e2e stack runs the real path -- a real
+>   file write, the companion, `perception-engine`, `cognitive-state-engine`,
+>   `autonomy-engine`, `action-engine` and `capability-engine` -- to a
+>   recorded outcome, with no stand-in in the chain.
+> - **P1, P3, P4, P5, P6, P7 and P8 are implemented.** 4F.P is **not
+>   complete**: P9's Slice Completion Record does not exist, the e2e job has
+>   not yet run the P8 proof in CI, and no PR has been opened. **4F.8 has not
+>   started.** **CF-9, CF-10 and CF-11 stay OPEN.**
+> - [TDD 4F.P](13-tdd-4fp-production-promotion.md)'s §30.10 note of this date
+>   gives the current status in full.
+
 > **Amended 2026-09-29 (TDD 4F.P ratification, A-4FP-7), additively.** Row 13,
 > *"No new `DecisionOutcome` — The five existing members are unchanged"*,
 > bounded 4F.6's implementation and is preserved as written.
@@ -1564,5 +1654,20 @@ column on `cognitive_state.active_thought`. **No `autonomy` schema change.**
 > - **P1, P3, P4, P5, P6 and P7 are implemented. P8 has not started.** 4F.P is
 >   **not complete**, 4F.8 has not started, and no PR has been opened. **CF-9,
 >   CF-10 and CF-11 stay OPEN.**
+> - [TDD 4F.P](13-tdd-4fp-production-promotion.md)'s §30.10 note of this date
+>   gives the current status in full.
+
+> **Status on `phase-4fp`, 2026-10-04.** The note above is preserved as
+> written. Its *"P8 has not started"* is historical:
+>
+> - **P8 is implemented** (A-4FP-11, A-4FP-12; §28.4 C-12 and C-14), in the
+>   commit that adds this note. The e2e stack runs the real path -- a real
+>   file write, the companion, `perception-engine`, `cognitive-state-engine`,
+>   `autonomy-engine`, `action-engine` and `capability-engine` -- to a
+>   recorded outcome, with no stand-in in the chain.
+> - **P1, P3, P4, P5, P6, P7 and P8 are implemented.** 4F.P is **not
+>   complete**: P9's Slice Completion Record does not exist, the e2e job has
+>   not yet run the P8 proof in CI, and no PR has been opened. **4F.8 has not
+>   started.** **CF-9, CF-10 and CF-11 stay OPEN.**
 > - [TDD 4F.P](13-tdd-4fp-production-promotion.md)'s §30.10 note of this date
 >   gives the current status in full.
