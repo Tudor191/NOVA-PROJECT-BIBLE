@@ -1278,6 +1278,19 @@ one PR phase-4 → main, by merge commit, only after GO (master scope §16)
 >   been opened, and nothing is merged. 4F.P is not complete, and 4F.8 has not
 >   started.
 
+> **Status on `phase-4fp`, 2026-10-05.** The note above is preserved as
+> written. Its *"No Slice Completion Record exists"* is historical:
+>
+> - **Step 7 is done locally.** The Slice Completion Record is written,
+>   with its ledger and the A-4FP-13 exception:
+>   [`phase-4fp-production-promotion-completion-record.md`](../../roadmap/architecture-reviews/phase-4fp-production-promotion-completion-record.md).
+> - **Step 6 was re-run in full for it**: NP-1 … NP-14, the flakiness runs and
+>   the protocol gates.
+> - **The record's CI section waits for CI.** It cites CI's conclusions at the
+>   exact SHA once they exist (§15.1), and none exists yet.
+> - **Steps 4, 8 and 9 remain.** No PR has been opened, and nothing is
+>   merged. 4F.P is not complete, and 4F.8 has not started.
+
 ---
 
 ## 23. SLOC budget
@@ -3272,6 +3285,43 @@ Level-2 runs use two distinct new paths.
 >   complete**: P9's Slice Completion Record does not exist, the e2e job has
 >   not run the P8 proof in CI, no PR has been opened, and nothing is merged
 >   into `phase-4`. **4F.8 has not started.** AC-8 is not claimed.
+> - **Unchanged:**
+>   - the ratifications in §30.1 and §30.2;
+>   - A-4FP-14 not blocking and not ratified;
+>   - CF-9, CF-10 and CF-11 OPEN;
+>   - 4F.8 PREPARED, NOT RATIFIED, and blocked as §30.9 states.
+
+> **Status on the implementation branch `phase-4fp`, 2026-10-05, P9.**
+> Everything above is preserved as written.
+>
+> - **P9's Slice Completion Record exists**:
+>   [`phase-4fp-production-promotion-completion-record.md`](../../roadmap/architecture-reviews/phase-4fp-production-promotion-completion-record.md).
+>   - It carries its ledger rows, L-23 … L-27.
+>   - It carries A-4FP-13's exception, in its §7.3.
+>   - The previous note's *"P9's Slice Completion Record does not exist"* is
+>     historical.
+> - **P2 is implemented.** It landed in `c0c47f9`, with P1, P3, P5 and P6
+>   (A-4FP-2, A-4FP-10). The notes above list *"P1, P3 … P8"* and omit P2's
+>   number. **P1 … P8 are implemented** (record F-4FP-3).
+> - **Correction, additively (protocol §0.3.4).** The previous note's
+>   *"twelve with the driver's first 61 checks and fourteen with its final
+>   67"* is wrong by one.
+>   - The 26 logged runs were one at 59 checks (the first), eleven at 61 and
+>     fourteen at 67.
+>   - The total and the two cold runs stand.
+>   - Commit `d1ae981`'s message carries the same error, and the record's §7.1
+>     corrects it.
+> - **Re-verified in this session at `d1ae981`:**
+>   - one cold and three warm runs of the P8 proof, 67/67 checks each;
+>   - NP-1 … NP-14, all caught;
+>   - the 4F.P real-infra tiers, 10/10.
+> - **4F.P is still not complete.**
+>   - **No CI run exists for `phase-4fp`.** The e2e job, which carries the P8
+>     proof, runs only for a pull request (record §7.2).
+>   - **Two findings are for the user's decision:** F-4FP-1, V-6 (b)'s
+>     realisation; and F-4FP-2, the six-member outcome vocabulary.
+>   - No PR has been opened, and nothing is merged into `phase-4`.
+>   - **4F.8 has not started.** AC-8 is not claimed.
 > - **Unchanged:**
 >   - the ratifications in §30.1 and §30.2;
 >   - A-4FP-14 not blocking and not ratified;

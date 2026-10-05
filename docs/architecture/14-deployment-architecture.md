@@ -73,6 +73,27 @@ the [Roadmap](../roadmap/ENGINEERING_ROADMAP.md).
 > needs no worker (it has no outbox) and no Redis. See
 > [TDD 4F.7](../design/phase-4/11-tdd-4f7-cognitive-state-panel.md) §5 D7.
 
+> **`nova-companion` became a compose service in Phase 4F.P — noted
+> 2026-10-05.**
+>
+> - **The service.** The local stack gains a `nova-companion` service. It is
+>   built from the existing `companion/nova-companion/Dockerfile`, which is
+>   unchanged and already in the `build-and-scan.yml` matrix, and it watches
+>   `/workspace` read-only.
+> - **One workspace.** `capability-engine` binds the same host directory at
+>   `/workspace`, its filesystem sandbox root. The host directory is
+>   `NOVA_WORKSPACE_DIR`, which defaults to `./workspace` and is gitignored.
+> - **One user.** `perception-engine` is given
+>   `PERCEPTION_ENGINE_PRIMARY_USER_ID`, the user every other engine uses
+>   (ADR-025).
+> - **The e2e job.** `pr-checks.yml`'s e2e job starts `perception-engine`, its
+>   worker and `nova-companion` after the golden path, then runs the
+>   real-execution proof, `tools/e2e_real_execution.py`.
+>
+> No Dockerfile changes. See
+> [TDD 4F.P](../design/phase-4/13-tdd-4fp-production-promotion.md) A-4FP-12
+> and `infra/docker/README.md`.
+
 ## 3. Enterprise/cloud topology
 
 ```mermaid

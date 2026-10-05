@@ -38,6 +38,16 @@ See `events/published.py` / `events/subscribed.py` for the enforced
 allow-lists, and `tests/contract/test_event_subject_wildcard.py` for the
 mechanical wildcard-match/non-match verification.
 
+*(Phase 4F.P, 2026-10-05.)*
+
+- **A second consumer.** `perception.workspace.observed` is now also consumed
+  by `cognitive-state-engine`, which turns each observation into at most one
+  Active Thought (TDD 4F.P A-4FP-1).
+- **This engine is unchanged**, and the subject stays internal.
+- **The e2e stack** sets `PERCEPTION_ENGINE_PRIMARY_USER_ID` to the stack's
+  one user (A-4FP-12). Unset, this engine publishes no workspace observation
+  (`workspace_orchestration.py`'s explicit degrade).
+
 ### `perception.sensor.health_changed` -- published since Phase 4F.7 (2026-09-26)
 
 The subject was registered and allow-listed from Phase 2D-B, with a builder
