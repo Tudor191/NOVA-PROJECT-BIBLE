@@ -98,6 +98,40 @@ production until **4F.P**. CF-9, CF-10 and CF-11 stay OPEN. The engine is now a
 compose service (`infra/docker/docker-compose.local.yml`), migrated by
 `run-migrations.sh`.
 
+### Status update — 4F.P (2026-10-05)
+
+4F.P (TDD 4F.P, `docs/design/phase-4/13-tdd-4fp-production-promotion.md` §30)
+makes this engine **create and promote Active Thoughts in production**:
+
+- **Thought ingestion.** A second subscription, to the existing internal
+  subject `perception.workspace.observed` (A-4FP-1).
+  - An observation from this instance's `primary_user_id` becomes **at most
+    one** Active Thought, keyed by the observed object
+    (`thought_id = uuid5(…, object_id)`, A-4FP-9).
+  - The thought is inserted only if absent.
+  - An observation for any other user is logged and dropped (SD-1).
+- **`ProposedAction` authorship** from a closed table, `domain/authoring.py`,
+  with one ratified entry, T1: `filesystem` `list`, `parameters={}`
+  (A-4FP-3). `ProposedAction` now requires `operation` and `parameters`
+  (A-4FP-4).
+- **The promotion policy and its production driver.**
+  - `ingestion_orchestration.py` is **the only production caller of
+    `promote_thought`** (A-4FP-10).
+  - It promotes a thought to `IMMEDIATE` **once**, and only when its own
+    insert created the thought (A-4FP-2).
+  - The promotion is a compare-and-set (A-4FP-8).
+  - The trigger carries the authored `operation` and `parameters` (A-4FP-6).
+
+**Superseded, and kept as written above:** 4F.6's *"nothing in this engine's
+running topology calls `promote_thought` yet"* and 4F.7's *"no Active Thought
+is created by NOVA in production until 4F.P"*.
+
+**Unchanged:**
+
+- 4F.P adds no route, no migration and no subject.
+- The read surface does not expose the two new fields (A-4FP-14's default).
+- CF-9, CF-10 and CF-11 stay OPEN.
+
 ## Owned events
 
 | Direction | Subject | Payload |
@@ -109,6 +143,18 @@ compose service (`infra/docker/docker-compose.local.yml`), migrated by
 above. It adds no subject to the registry and no entry to `PUBLIC_TOPICS`; the
 handler validates the payload, accepts only the six lifecycle values
 case-sensitively, and rejects anything else without storing it.)*
+
+*(4F.P, 2026-10-05: the table above is kept as 4F.7 left it.)*
+
+- **A second Subscribe entry.** `perception.workspace.observed`, the
+  **existing internal** subject that `perception-engine` publishes, with
+  payload `PerceptionWorkspaceObservedPayload` (A-4FP-1). Its handler awaits
+  the ingestion step inline, one message at a time, and never raises (SD-6).
+- **The subscribe allow-list** is exactly `{perception.sensor.health_changed,
+  perception.workspace.observed}`.
+- **The Request row's payload** now also carries the authored `operation` and
+  `parameters` (A-4FP-6).
+- **No subject is added**, and `PUBLIC_TOPICS` is unchanged.
 
 *(Until 4F.6 this section read **"None, in either direction."**, with the rows
 "Publish — *(none — ratified decision D-4F-6)*" and "Subscribe — *(none in

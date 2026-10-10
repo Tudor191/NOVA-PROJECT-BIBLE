@@ -92,9 +92,19 @@ def _payload(**overrides: object) -> dict:
         "priority": 3,
         "requesting_engine": "cognitive-state-engine",
         "correlation_id": str(uuid4()),
+        # Phase 4F.P, P4 (A-4FP-6, 2026-09-30): T1's authored pair. Until P4
+        # this payload carried the three 4F.5 execution fields only; without
+        # these two, a Level-2 trigger now -- correctly -- stays a suggestion.
+        "operation": "list",
+        "parameters": {},
     }
     fields.update(overrides)
     return fields
+
+
+def _without(*names: str) -> dict:
+    """A payload with the named fields **absent** -- not `None`, not `{}`."""
+    return {k: v for k, v in _payload().items() if k not in names}
 
 
 def _envelope(payload: dict | None = None, *, event_id: UUID | None = None) -> EventEnvelope:
@@ -299,6 +309,8 @@ def test_decision_request_maps_every_field_and_invents_none() -> None:
         "none",
     )
     assert request.capability_class is None
+    # Phase 4F.P, P4 (A-4FP-6): the pair is mapped too, and `{}` stays `{}`.
+    assert (request.operation, request.parameters) == ("list", {})
 
 
 def test_decision_request_has_no_subject_id_field() -> None:
@@ -481,16 +493,25 @@ async def test_a_failure_to_record_is_degraded_and_names_the_outcome() -> None:
     assert reply.subject_id is not None
 
 
-async def test_the_outcome_vocabulary_is_unchanged() -> None:
-    """**§19 row 13.** No new `DecisionOutcome` -- Design A reports through the
-    reply, not through the log."""
-    assert {o.value for o in DecisionOutcome} == {
+async def test_the_outcome_vocabulary_is_the_five_plus_execution_failed() -> None:
+    """**Retargeted by Phase 4F.P, not retired** -- TDD 4F.P A-4FP-7 amends TDD
+    4F.6 §19 row 13 with exactly one new member, `execution_failed`, and §28.5
+    names this test's retarget to six members. Design A is unchanged: a
+    failure *before* a decision still reports through the reply, never through
+    the log. Every earlier member is kept, in order.
+
+    *(This test was `test_the_outcome_vocabulary_is_unchanged`, with the
+    docstring: "**§19 row 13.** No new `DecisionOutcome` -- Design A reports
+    through the reply, not through the log." Its set was the five values
+    below without `"execution_failed"`. Preserved per protocol §0.3.4.)*"""
+    assert [o.value for o in DecisionOutcome] == [
         "observe_only",
         "propose",
         "deny",
         "execute",
         "timeout",
-    }
+        "execution_failed",
+    ]
 
 
 # --- decide()'s new keyword leaves every existing caller unchanged -------------
@@ -530,3 +551,283 @@ async def test_decide_uses_a_supplied_subject_id_everywhere_it_names_one() -> No
     assert result.log_entry.subject_id == subject_id
     assert result.suggestion is not None
     assert result.suggestion.id == subject_id
+
+
+# --- Phase 4F.P, P4: the authored execution fields cross the consumer ----------
+#
+# TDD 4F.P A-4FP-6 with SD-3 and C-8. Every test enters through
+# `handle_decision_request` with an envelope, as `serve()` delivers one; the
+# real `decide()` runs, and `decide_calls` shows the `DecisionRequest` it got.
+
+
+async def test_p4_the_consumer_hands_decide_the_authored_pair_unchanged(
+    decide_calls: list[DecisionRequest],
+) -> None:
+    """**Required test B (unit tier).** No coercion: `"list"` stays `"list"`
+    and the explicit `{}` stays `{}` -- not `None`, not dropped."""
+    repository = FakeAutonomyRepository()
+    await _configure(repository, level=AutonomyLevel.SUGGESTIVE)
+    await _handle(_envelope(_payload(operation="list", parameters={})), repository)
+
+    assert len(decide_calls) == 1
+    assert decide_calls[0].operation == "list"
+    assert decide_calls[0].parameters == {}
+    assert isinstance(decide_calls[0].parameters, dict)
+
+
+async def test_p4_a_level_two_trigger_dispatches_the_authored_operation_once() -> None:
+    """**T1 through the consumer:** the one `action.execute` payload carries
+    `parameters == {"operation": "list"}` under the derived `action_id`."""
+    repository, dispatcher = FakeAutonomyRepository(), RecordingDispatcher()
+    await _configure(repository, level=AutonomyLevel.ASSISTED, auto_execute=True)
+    envelope = _envelope()
+    reply = await _handle(envelope, repository, dispatcher=dispatcher)
+
+    assert reply.outcome == DecisionOutcome.EXECUTE.value
+    assert len(dispatcher.payloads) == 1
+    assert dispatcher.payloads[0].parameters == {"operation": "list"}
+    assert dispatcher.payloads[0].action_id == derive_subject_id(envelope.event_id)
+
+
+@pytest.mark.parametrize(
+    "absent",
+    [("operation",), ("parameters",), ("operation", "parameters")],
+    ids=["no-operation", "no-parameters", "neither"],
+)
+async def test_p4_absent_execution_fields_stay_absent_and_nothing_executes(
+    absent: tuple[str, ...], decide_calls: list[DecisionRequest]
+) -> None:
+    """**Required test E.** Level 2, an `AUTO_EXECUTE` policy and a grant --
+    everything that would dispatch -- but the pair is absent from the wire. It
+    reaches `decide()` as `None` (never `""` or `{}`), the decision is a
+    suggestion, and no `action.execute` is sent."""
+    repository, dispatcher = FakeAutonomyRepository(), RecordingDispatcher()
+    await _configure(repository, level=AutonomyLevel.ASSISTED, auto_execute=True)
+    reply = await _handle(_envelope(_without(*absent)), repository, dispatcher=dispatcher)
+
+    assert reply.rejected is False
+    assert reply.degraded is False
+    assert reply.outcome == DecisionOutcome.PROPOSE.value
+    assert dispatcher.payloads == []
+    assert len(decide_calls) == 1
+    for name in absent:
+        assert getattr(decide_calls[0], name) is None
+    assert [e.outcome for e in repository.decision_log] == [DecisionOutcome.PROPOSE]
+    assert len(repository.suggestions) == 1
+
+
+async def test_p4_a_suggestion_only_trigger_without_any_execution_field_still_proposes(
+    decide_calls: list[DecisionRequest],
+) -> None:
+    """Suggestion-only requests remain supported at Level 1: the pair's
+    absence changes nothing about the decision a Level-1 instance makes."""
+    repository, dispatcher = FakeAutonomyRepository(), RecordingDispatcher()
+    await _configure(repository, level=AutonomyLevel.SUGGESTIVE)
+    reply = await _handle(
+        _envelope(_without("operation", "parameters")), repository, dispatcher=dispatcher
+    )
+
+    assert reply.outcome == DecisionOutcome.PROPOSE.value
+    assert dispatcher.payloads == []
+    assert (decide_calls[0].operation, decide_calls[0].parameters) == (None, None)
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        _payload(parameters={"operation": "delete"}),
+        _payload(operation="LIST"),
+        _payload(operation=" list"),
+        _payload(operation=""),
+        _payload(parameters=["path"]),
+    ],
+    ids=[
+        "parameters-name-the-operation",
+        "operation-not-lower-case",
+        "operation-with-whitespace",
+        "empty-operation",
+        "parameters-not-an-object",
+    ],
+)
+async def test_p4_a_malformed_execution_pair_is_rejected_and_decide_is_not_invoked(
+    payload: dict, decide_calls: list[DecisionRequest]
+) -> None:
+    """**C-8's second layer, and C-5 on the wire.** A rejected reply; `decide()`
+    is not invoked, nothing is logged and nothing is dispatched (4F.6 §9)."""
+    repository, dispatcher = FakeAutonomyRepository(), RecordingDispatcher()
+    await _configure(repository, level=AutonomyLevel.ASSISTED, auto_execute=True)
+    reply = await _handle(_envelope(payload), repository, dispatcher=dispatcher)
+
+    assert reply.rejected is True
+    assert decide_calls == []
+    assert repository.decision_log == []
+    assert dispatcher.payloads == []
+
+
+# --- Phase 4F.P, P7: the recorded outcome follows `action-engine`'s reply --------
+#
+# TDD 4F.P A-4FP-7 with SD-4. Through `handle_decision_request`, as `serve()`
+# delivers it: the real `decide()` dispatches once, the reply decides the
+# outcome, and `_record` persists it -- the existing log path, unchanged.
+
+
+class ReplyingDispatcher:
+    """Replies with a given `action-engine` status, and records -- **at the
+    moment of dispatch, before replying** -- what the decision log held then."""
+
+    def __init__(
+        self, repository: FakeAutonomyRepository, *, status: str, error: str | None = None
+    ) -> None:
+        self.payloads: list[ActionExecuteRequestPayload] = []
+        self.log_at_dispatch: list[list] = []
+        self._repository = repository
+        self._status = status
+        self._error = error
+
+    async def dispatch(
+        self, payload: ActionExecuteRequestPayload, *, correlation_id: UUID | None = None
+    ) -> ActionDispatchResult:
+        self.payloads.append(payload)
+        self.log_at_dispatch.append(list(self._repository.decision_log))
+        return ActionDispatchResult(
+            action_id=payload.action_id, status=self._status, error=self._error
+        )
+
+
+async def _replying(status: str, error: str | None = None):  # type: ignore[no-untyped-def]
+    repository = FakeAutonomyRepository()
+    await _configure(repository, level=AutonomyLevel.ASSISTED, auto_execute=True)
+    dispatcher = ReplyingDispatcher(repository, status=status, error=error)
+    envelope = _envelope()
+    reply = await handle_decision_request(
+        envelope,
+        repository=repository,
+        trust_source=SpyTrustSource(),
+        dispatcher=dispatcher,
+        user_id=PRIMARY,
+    )
+    return reply, repository, dispatcher, derive_subject_id(envelope.event_id)
+
+
+async def test_p7_completed_records_execute_only_after_the_reply() -> None:
+    """**Test A.** Nothing -- `EXECUTE` least of all -- is in the log while
+    the request is outstanding; one `EXECUTE` row exists after `completed`."""
+    reply, repository, dispatcher, subject_id = await _replying("completed")
+
+    assert dispatcher.log_at_dispatch == [[]]
+    assert reply.outcome == DecisionOutcome.EXECUTE.value
+    assert [(e.subject_id, e.outcome) for e in repository.decision_log] == [
+        (subject_id, DecisionOutcome.EXECUTE)
+    ]
+    assert repository.suggestions == {}
+
+
+async def test_p7_denied_records_a_proposal_and_its_suggestion_in_one_write() -> None:
+    """**Test B.** `PROPOSE` through the existing pairing: the suggestion and
+    its log row, both under `subject_id`, which is the denied `action_id`."""
+    reply, repository, dispatcher, subject_id = await _replying(
+        "denied", "identity_confidence_denied"
+    )
+
+    assert reply.outcome == DecisionOutcome.PROPOSE.value
+    assert reply.degraded is False
+    assert list(repository.suggestions) == [subject_id]
+    assert [p.action_id for p in dispatcher.payloads] == [subject_id]
+    assert [e.outcome for e in repository.decision_log] == [DecisionOutcome.PROPOSE]
+    assert repository.decision_log[0].reason == (
+        "proposed for explicit user approval; nothing is executed "
+        "(action-engine denied the action: identity_confidence_denied)"
+    )
+
+
+@pytest.mark.parametrize(
+    ("status", "error"),
+    [
+        ("failed", "parameters['operation'] is required"),
+        ("rolled_back", "restored the original file"),
+        ("pending", None),
+        ("approval_required", None),
+        ("approved", None),
+        ("executing", None),
+    ],
+)
+async def test_p7_a_reply_that_is_not_completed_records_execution_failed(
+    status: str, error: str | None
+) -> None:
+    """**Tests C, D and H.** `EXECUTION_FAILED`: one log row, no suggestion,
+    and the reply to the producer carries the recorded outcome."""
+    reply, repository, dispatcher, subject_id = await _replying(status, error)
+
+    assert reply.outcome == DecisionOutcome.EXECUTION_FAILED.value == "execution_failed"
+    assert reply.degraded is False
+    assert [(e.subject_id, e.outcome) for e in repository.decision_log] == [
+        (subject_id, DecisionOutcome.EXECUTION_FAILED)
+    ]
+    assert repository.suggestions == {}
+    assert len(dispatcher.payloads) == 1
+
+
+@pytest.mark.parametrize(
+    "status",
+    ["completed", "denied", "failed", "rolled_back", "pending", "approval_required", "approved",
+     "executing"],
+)
+async def test_p7_one_request_yields_exactly_one_recorded_outcome(status: str) -> None:
+    """**Test I.** One `action.execute`, one terminal row -- no duplicate, no
+    second dispatch -- whatever `action-engine` replied."""
+    reply, repository, dispatcher, subject_id = await _replying(status)
+
+    assert len(dispatcher.payloads) == 1
+    assert len(repository.decision_log) == 1
+    assert repository.decision_log[0].subject_id == subject_id
+    assert reply.outcome == repository.decision_log[0].outcome.value  # type: ignore[union-attr]
+
+
+async def test_p7_no_responder_stays_a_proposal_not_a_timeout() -> None:
+    """**Test F.** Unchanged by P7: provably not executed, so `PROPOSE` and a
+    suggestion -- never `EXECUTE`, never `TIMEOUT` -- and one dispatch."""
+    from nova_autonomy_engine.domain.ports import ActionDispatchUnavailable
+
+    repository = FakeAutonomyRepository()
+    dispatcher = RecordingDispatcher(raises=ActionDispatchUnavailable("no subscriber"))
+    await _configure(repository, level=AutonomyLevel.ASSISTED, auto_execute=True)
+    reply = await _handle(_envelope(), repository, dispatcher=dispatcher)
+
+    assert reply.outcome == DecisionOutcome.PROPOSE.value
+    assert reply.outcome not in (DecisionOutcome.EXECUTE.value, DecisionOutcome.TIMEOUT.value)
+    assert len(dispatcher.payloads) == 1
+    assert [e.outcome for e in repository.decision_log] == [DecisionOutcome.PROPOSE]
+
+
+async def test_p7_a_transport_fault_records_nothing_and_is_not_retried(
+    decide_calls: list[DecisionRequest],
+) -> None:
+    """**Test G.** A fault before any `action-engine` reply: a degraded reply,
+    no outcome, **no log row**, one dispatch, and never `EXECUTION_FAILED`."""
+    repository = FakeAutonomyRepository()
+    dispatcher = RecordingDispatcher(raises=RuntimeError("bus closed"))
+    await _configure(repository, level=AutonomyLevel.ASSISTED, auto_execute=True)
+    reply = await _handle(_envelope(), repository, dispatcher=dispatcher)
+
+    assert reply.degraded is True
+    assert reply.outcome is None
+    assert repository.decision_log == []
+    assert len(dispatcher.payloads) == 1
+    assert len(decide_calls) == 1
+
+
+async def test_p7_a_reply_outside_the_contract_records_nothing() -> None:
+    """A status that is not an `ActionStatus` is not a meaningful reply: the
+    same as an unknown fault -- degraded, and no row."""
+    reply, repository, dispatcher, _ = await _replying("succeeded")
+
+    assert reply.degraded is True
+    assert reply.outcome is None
+    assert repository.decision_log == []
+    assert len(dispatcher.payloads) == 1
+
+
+async def test_p7_t1_still_dispatches_operation_list() -> None:
+    """**Test J (P4 regression).**"""
+    _, _, dispatcher, _ = await _replying("failed", "x")
+    assert [p.parameters for p in dispatcher.payloads] == [{"operation": "list"}]

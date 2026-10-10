@@ -33,6 +33,8 @@ PROPOSAL = ProposedAction(
     verification_method="exit_code",
     title="prune stale build artifacts",
     detail="older than thirty days",
+    operation="prune",
+    parameters={"older_than_days": 30},
 )
 
 
@@ -158,8 +160,12 @@ def test_each_attention_layer_serializes_as_its_part_6_value(
 def test_a_proposed_action_serializes_verbatim_as_a_proposal(
     client: TestClient, store: InMemoryStore
 ) -> None:
+    """*(Phase 4F.P: the proposal now also carries `operation` and
+    `parameters`, and the served value below is unchanged -- A-4FP-14's
+    default (a), the read surface does not expose them, TDD 4F.P §30.3.)*"""
     store.thoughts.append(_thought(proposed_action=PROPOSAL))
     served = client.get("/v1/cognitive-state/thoughts").json()["thoughts"][0]["proposed_action"]
+    assert "operation" not in served and "parameters" not in served
     assert served == {
         "category": "create",
         "risk": "low",

@@ -17,9 +17,10 @@ method that could acquire one.
 
 from __future__ import annotations
 
+from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
@@ -163,6 +164,61 @@ class PostgresCognitiveStateRepository:
             await session.flush()
             await session.refresh(row)
             return _to_domain(row)
+
+    # -- Phase 4F.P (TDD 4F.P §30.2): insert-if-absent and the CAS -----------
+
+    async def insert_thought_if_absent(self, thought: ActiveThought) -> ActiveThought | None:
+        """**A-4FP-1**: `INSERT … ON CONFLICT (thought_id) DO NOTHING RETURNING`.
+
+        One statement, so two concurrent ingestions of one object cannot both
+        observe *absent* and both insert: the primary key decides, and exactly
+        one of them gets a row back. **An existing row is never touched** --
+        unlike `upsert_thought`, which would reset a promoted thought's layer to
+        the observation's `ACTIVE` and let it be promoted again (TDD 4F.P NP-8).
+        Timestamps are written from the domain object, as on every path here."""
+        statement = (
+            pg_insert(ActiveThoughtORM)
+            .values(**_values(thought))
+            .on_conflict_do_nothing(index_elements=[ActiveThoughtORM.thought_id])
+            .returning(ActiveThoughtORM)
+        )
+        async with self._session_factory() as session, session.begin():
+            row = (await session.execute(statement)).scalar_one_or_none()
+            return _to_domain(row) if row is not None else None
+
+    async def compare_and_set_layer(
+        self,
+        thought_id: UUID,
+        *,
+        expected: AttentionLayer,
+        target: AttentionLayer,
+        updated_at: datetime,
+    ) -> ActiveThought | None:
+        """**A-4FP-8**, exactly:
+
+            UPDATE cognitive_state.active_thought
+               SET attention_layer = :target, updated_at = :updated_at
+             WHERE thought_id = :thought_id AND attention_layer = :expected
+            RETURNING *
+
+        Not a read followed by a write, so two concurrent promotions of one
+        thought cannot both see `expected` and both move it: Postgres re-checks
+        the `WHERE` after the first commits, and the second updates no row.
+        `decide_suggestion`'s and `apply_sensor_report`'s conditional
+        statements are the precedent."""
+        statement = (
+            update(ActiveThoughtORM)
+            .where(
+                ActiveThoughtORM.thought_id == thought_id,
+                ActiveThoughtORM.attention_layer == expected.value,
+            )
+            .values(attention_layer=target.value, updated_at=updated_at)
+            .returning(ActiveThoughtORM)
+            .execution_options(synchronize_session=False)
+        )
+        async with self._session_factory() as session, session.begin():
+            row = (await session.execute(statement)).scalar_one_or_none()
+            return _to_domain(row) if row is not None else None
 
     # -- Phase 4F.7, A-4F7-1: current-state sensor storage -------------------
 

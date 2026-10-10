@@ -12,6 +12,12 @@ source -- TDD 4F.7 §16 (P-1, P-9, P-13, P-14) and §7.4.
 * **P-14** -- 4F.7 is read-only: nothing on the served path can create a thought,
   move one, or promote one (RS-1b). F-6 -- *no production caller of
   `promote_thought`* -- stays true.
+
+*(Phase 4F.P -- TDD 4F.P §30.2, A-4FP-1 and A-4FP-10: P-13's subscribe
+allow-list is now exactly two subjects, and P-14's caller test is retargeted to
+exactly one production caller, `ingestion_orchestration.py`. "F-6 ... stays
+true" above is superseded by A-4FP-10 and preserved as written. P-14's
+served-path test is unchanged for all four modules it covers.)*
 """
 
 from __future__ import annotations
@@ -168,11 +174,21 @@ def test_p13_public_topics_are_unchanged_at_eighteen() -> None:
     # ... and the one internal subject this engine requests never becomes public.
     assert "autonomy.decision.requested" not in topics
     assert not any(topic.startswith("cognitive_state") for topic in topics)
+    # Phase 4F.P (A-4FP-1): the internal subject this engine now ingests from
+    # stays internal.
+    assert "perception.workspace.observed" not in topics
 
 
 def test_p13_this_engines_allow_lists_are_exactly_the_ratified_two() -> None:
+    """*(Phase 4F.P, A-4FP-1: the subscribe allow-list gains
+    `perception.workspace.observed`. Until 4F.P the second assertion read
+    `frozenset({"perception.sensor.health_changed"}) == SUBSCRIBABLE_SUBJECTS`.
+    Preserved per protocol §0.3.4.)*"""
     assert frozenset({"autonomy.decision.requested"}) == PUBLISHABLE_SUBJECTS
-    assert frozenset({"perception.sensor.health_changed"}) == SUBSCRIBABLE_SUBJECTS
+    assert (
+        frozenset({"perception.sensor.health_changed", "perception.workspace.observed"})
+        == SUBSCRIBABLE_SUBJECTS
+    )
 
 
 # --- P-14 --------------------------------------------------------------------------
@@ -218,14 +234,44 @@ def test_p14_nothing_on_the_served_path_writes_a_thought_or_promotes(module: str
         assert forbidden not in used, f"{module} reaches {forbidden}; 4F.7 is read-only (RS-1b)"
 
 
-def test_p14_promote_thought_still_has_no_production_caller() -> None:
-    """F-6 stays true: the only occurrence is the definition itself."""
+def test_p14_promote_thought_has_exactly_one_production_caller() -> None:
+    """**Retargeted by Phase 4F.P, not retired** -- TDD 4F.P §30.2
+    **A-4FP-10**: exactly one production caller, `ingestion_orchestration.py`,
+    invoked by the `perception.workspace.observed` handler. Every other module
+    still has none, and the served path's own test above is unchanged.
+
+    *(Until 4F.P this test was
+    `test_p14_promote_thought_still_has_no_production_caller`, with the
+    docstring "F-6 stays true: the only occurrence is the definition itself."
+    and the assertion `callers == []`. Preserved per protocol §0.3.4.)*"""
     callers = [
         path.relative_to(SRC).as_posix()
         for path in SRC.rglob("*.py")
         if "promote_thought(" in _code_only(path) and path.name != "promotion_orchestration.py"
     ]
-    assert callers == []
+    assert callers == ["ingestion_orchestration.py"]
+
+
+def test_p14_the_one_caller_calls_promote_thought_exactly_once() -> None:
+    """A-4FP-2: one promotion per ingestion step, at one call site -- no
+    second call, and no loop around it."""
+    tree = ast.parse((SRC / "ingestion_orchestration.py").read_text(encoding="utf-8"))
+    calls = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "promote_thought"
+    ]
+    assert len(calls) == 1
+    loops = [node for node in ast.walk(tree) if isinstance(node, ast.For | ast.While)]
+    assert loops == [], "ingestion must not loop -- no retry (A-4FP-2)"
+
+
+def test_p14_the_handler_reaches_promotion_only_through_the_orchestration_module() -> None:
+    """A-4FP-10: `events/handlers.py` names `ingest_workspace_observation` and
+    none of P-14's forbidden names (asserted by the served-path test)."""
+    assert "ingest_workspace_observation" in _names_used(SRC / "events" / "handlers.py")
 
 
 def test_the_api_declares_only_get_routes_in_source() -> None:

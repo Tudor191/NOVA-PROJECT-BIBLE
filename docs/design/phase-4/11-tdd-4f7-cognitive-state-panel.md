@@ -711,6 +711,151 @@ transitions. The 2D-B text is dated and not edited (TDD 4F §24.4, consequence
 | **P-20** | **Deployment wiring** | `tools/tests/test_compose_migrations.py` and `tools/tests/test_e2e_stack_completeness.py` pass unchanged against the new compose service, `ENGINES` entry and e2e list. `docker compose … config --quiet` is valid |
 | **P-21** | **The real API path in a browser** | Playwright against the real stack: the panel loads through the gateway; its content equals the three `GET` bodies fetched through the gateway in the same test; each empty state renders exactly (A-4F7-5 (a)) |
 
+> **Amended 2026-09-29 (TDD 4F.P ratification, A-4FP-1), additively.** P-11 is
+> preserved as written above.
+>
+> - **What changes.** Its *"`SUBSCRIBABLE_SUBJECTS ==
+>   {"perception.sensor.health_changed"}`"* becomes, under the ratified
+>   **A-4FP-1** ([TDD 4F.P](13-tdd-4fp-production-promotion.md) §30.2),
+>   **exactly** `{"perception.sensor.health_changed",
+>   "perception.workspace.observed"}`. The second is the existing **internal**
+>   subject 4F.P ingests Active Thoughts from.
+> - **How the test changes.** P-11's test is **retargeted, not retired**, with
+>   its original wording preserved. Exact equality stays, so a third subject
+>   fails as loudly as before.
+> - **What does not change:** no subject is added; `PUBLIC_TOPICS` stays at 18;
+>   and no `autonomy.*` subject becomes subscribable.
+> - **Not yet built.** 4F.P has not started.
+
+> **Status on `phase-4fp`, 2026-09-29.** The note above is preserved as
+> written. Its *"Not yet built. 4F.P has not started"*
+> was accurate when it was written, on the documentation branch
+> `phase-4p-tdd`. On the implementation branch it is historical:
+>
+> - The 4F.P implementation branch **`phase-4fp`** exists. It is based on Phase 4
+>   at `9d2d636`.
+> - **P1, P3, P5 and P6 are implemented** (commit `c0c47f9`). **P4, P7 and P8
+>   have not started.** 4F.P is **not complete**, and no PR has been opened.
+> - **A-4FP-1 is built on this branch** (P1), and P-11's test is
+>   retargeted to exactly the two subjects, with its original wording
+>   preserved.
+> - [TDD 4F.P](13-tdd-4fp-production-promotion.md) §1 defines P1 … P9, and
+>   its §30.10 note of this date gives the current status in full.
+
+> **Status on `phase-4fp`, 2026-09-30.** The note above is preserved as
+> written. Its *"P4, P7 and P8 have not started"* is historical:
+>
+> - **P4 is implemented** (A-4FP-6 with SD-3), in the commit that adds this
+>   note: the authored `operation` and `parameters` now travel from the
+>   persisted `ProposedAction` through `autonomy.decision.requested` and
+>   `DecisionRequest` into `action.execute`'s `parameters`.
+> - **P7 and P8 have not started.** 4F.P is **not complete**, and no PR has
+>   been opened.
+> - [TDD 4F.P](13-tdd-4fp-production-promotion.md)'s §30.10 note of this date
+>   gives the current status in full.
+
+> **Status on `phase-4fp`, 2026-10-01.** The note above is preserved as
+> written. Its *"P7 and P8 have not started"* is historical:
+>
+> - **P7 is implemented** (A-4FP-7 with SD-4), in the commit that adds this
+>   note: `autonomy-engine` records the outcome `action-engine`'s reply maps
+>   to, and records `EXECUTE` only for `completed`.
+> - **P1, P3, P4, P5, P6 and P7 are implemented. P8 has not started.** 4F.P is
+>   **not complete**, 4F.8 has not started, and no PR has been opened. **CF-9,
+>   CF-10 and CF-11 stay OPEN.**
+> - [TDD 4F.P](13-tdd-4fp-production-promotion.md)'s §30.10 note of this date
+>   gives the current status in full.
+
+> **Status on `phase-4fp`, 2026-10-04.** The note above is preserved as
+> written. Its *"P8 has not started"* is historical:
+>
+> - **P8 is implemented** (A-4FP-11, A-4FP-12; §28.4 C-12 and C-14), in the
+>   commit that adds this note. The e2e stack runs the real path -- a real
+>   file write, the companion, `perception-engine`, `cognitive-state-engine`,
+>   `autonomy-engine`, `action-engine` and `capability-engine` -- to a
+>   recorded outcome, with no stand-in in the chain.
+> - **P1, P3, P4, P5, P6, P7 and P8 are implemented.** 4F.P is **not
+>   complete**: P9's Slice Completion Record does not exist, the e2e job has
+>   not yet run the P8 proof in CI, and no PR has been opened. **4F.8 has not
+>   started.** **CF-9, CF-10 and CF-11 stay OPEN.**
+> - [TDD 4F.P](13-tdd-4fp-production-promotion.md)'s §30.10 note of this date
+>   gives the current status in full.
+
+> **Amended 2026-09-29 (TDD 4F.P ratification, A-4FP-10 with SD-5 and SD-6),
+> additively.** P-14 is preserved as written above.
+>
+> - **P-14's structural control is two tests. Under the ratified A-4FP-10**
+>   ([TDD 4F.P](13-tdd-4fp-production-promotion.md) §30.2):
+>   - **`test_p14_promote_thought_still_has_no_production_caller` is
+>     retargeted**, with its wording preserved, to *"exactly one production
+>     caller, `ingestion_orchestration.py`"*. That module is invoked by the
+>     `perception.workspace.observed` handler, which awaits it inline and
+>     processes one message at a time.
+>   - **`test_p14_nothing_on_the_served_path_writes_a_thought_or_promotes` is
+>     unchanged for all four modules it covers**: `api/cognitive_state.py`,
+>     `api/health.py`, `main.py` and `events/handlers.py`.
+> - **The read surface stays read-only (RS-1b).** P-14's OpenAPI half, with no
+>   write route and no autonomy route, is unchanged. **A-4FP-14 is not
+>   ratified**, and its default (a) stands: `operation` and `parameters` are
+>   not exposed.
+> - **Not yet built.** 4F.P has not started.
+
+> **Status on `phase-4fp`, 2026-09-29.** The note above is preserved as
+> written. Its *"Not yet built. 4F.P has not started"*
+> was accurate when it was written, on the documentation branch
+> `phase-4p-tdd`. On the implementation branch it is historical:
+>
+> - The 4F.P implementation branch **`phase-4fp`** exists. It is based on Phase 4
+>   at `9d2d636`.
+> - **P1, P3, P5 and P6 are implemented** (commit `c0c47f9`). **P4, P7 and P8
+>   have not started.** 4F.P is **not complete**, and no PR has been opened.
+> - **A-4FP-10 is built on this branch**, in the same commit.
+>   `ingestion_orchestration.py` is the one production caller of
+>   `promote_thought`, the no-production-caller test is retargeted to it,
+>   and the served-path test is unchanged for all four modules.
+>   `operation` and `parameters` are still not exposed.
+> - [TDD 4F.P](13-tdd-4fp-production-promotion.md) §1 defines P1 … P9, and
+>   its §30.10 note of this date gives the current status in full.
+
+> **Status on `phase-4fp`, 2026-09-30.** The note above is preserved as
+> written. Its *"P4, P7 and P8 have not started"* is historical:
+>
+> - **P4 is implemented** (A-4FP-6 with SD-3), in the commit that adds this
+>   note: the authored `operation` and `parameters` now travel from the
+>   persisted `ProposedAction` through `autonomy.decision.requested` and
+>   `DecisionRequest` into `action.execute`'s `parameters`.
+> - **P7 and P8 have not started.** 4F.P is **not complete**, and no PR has
+>   been opened.
+> - [TDD 4F.P](13-tdd-4fp-production-promotion.md)'s §30.10 note of this date
+>   gives the current status in full.
+
+> **Status on `phase-4fp`, 2026-10-01.** The note above is preserved as
+> written. Its *"P7 and P8 have not started"* is historical:
+>
+> - **P7 is implemented** (A-4FP-7 with SD-4), in the commit that adds this
+>   note: `autonomy-engine` records the outcome `action-engine`'s reply maps
+>   to, and records `EXECUTE` only for `completed`.
+> - **P1, P3, P4, P5, P6 and P7 are implemented. P8 has not started.** 4F.P is
+>   **not complete**, 4F.8 has not started, and no PR has been opened. **CF-9,
+>   CF-10 and CF-11 stay OPEN.**
+> - [TDD 4F.P](13-tdd-4fp-production-promotion.md)'s §30.10 note of this date
+>   gives the current status in full.
+
+> **Status on `phase-4fp`, 2026-10-04.** The note above is preserved as
+> written. Its *"P8 has not started"* is historical:
+>
+> - **P8 is implemented** (A-4FP-11, A-4FP-12; §28.4 C-12 and C-14), in the
+>   commit that adds this note. The e2e stack runs the real path -- a real
+>   file write, the companion, `perception-engine`, `cognitive-state-engine`,
+>   `autonomy-engine`, `action-engine` and `capability-engine` -- to a
+>   recorded outcome, with no stand-in in the chain.
+> - **P1, P3, P4, P5, P6, P7 and P8 are implemented.** 4F.P is **not
+>   complete**: P9's Slice Completion Record does not exist, the e2e job has
+>   not yet run the P8 proof in CI, and no PR has been opened. **4F.8 has not
+>   started.** **CF-9, CF-10 and CF-11 stay OPEN.**
+> - [TDD 4F.P](13-tdd-4fp-production-promotion.md)'s §30.10 note of this date
+>   gives the current status in full.
+
 **Negative controls.** Protocol §9.2 requires that each property's tests fail
 when the property is removed. Every mutation below must fail at least one named
 test:
@@ -986,6 +1131,82 @@ with single quotes**, so a double-quoted pattern can never match:
 **Recommendation: (a).** It is a test-only change inside RS-9's
 `cognitive-state-engine` surface. **This is a pre-existing defect from 4F.1**,
 reported here rather than silently fixed (protocol §13.1).
+
+> **Amended 2026-09-29 (TDD 4F.P ratification, A-4FP-10), additively.** A-4F7-6
+> is preserved as written above.
+>
+> - **Its status in this TDD stays PROPOSED.** A-4F7-6 is not ratified as a
+>   4F.7 decision.
+> - **Option (a)'s repair is adopted inside 4F.P** by the ratified
+>   **A-4FP-10** ([TDD 4F.P](13-tdd-4fp-production-promotion.md) §30.2),
+>   because 4F.P changes exactly the subject strings this control guards
+>   (F-4F7-1).
+> - **What the repaired check does.** It inspects `ast.Constant` strings, and
+>   **permits exactly the three ratified subject strings**:
+>   - `autonomy.decision.requested`, published;
+>   - `perception.sensor.health_changed`, subscribed;
+>   - `perception.workspace.observed`, subscribed (A-4FP-1).
+>
+>   It is negative-controlled, and its original wording is preserved in a note.
+>   Option (a)'s *"Permit **exactly** the two ratified subject strings"* above
+>   becomes three for that reason alone.
+> - **Not yet built.** 4F.P has not started.
+
+> **Status on `phase-4fp`, 2026-09-29.** The note above is preserved as
+> written. Its *"Not yet built. 4F.P has not started"*
+> was accurate when it was written, on the documentation branch
+> `phase-4p-tdd`. On the implementation branch it is historical:
+>
+> - The 4F.P implementation branch **`phase-4fp`** exists. It is based on Phase 4
+>   at `9d2d636`.
+> - **P1, P3, P5 and P6 are implemented** (commit `c0c47f9`). **P4, P7 and P8
+>   have not started.** 4F.P is **not complete**, and no PR has been opened.
+> - **The repair is built on this branch**, in
+>   `tests/contract/test_boundaries.py`. It reads schema references in
+>   `ast.Constant` strings, with docstrings excluded, permits exactly the
+>   three subject strings, and is negative-controlled. A-4F7-6 itself
+>   stays PROPOSED.
+> - [TDD 4F.P](13-tdd-4fp-production-promotion.md) §1 defines P1 … P9, and
+>   its §30.10 note of this date gives the current status in full.
+
+> **Status on `phase-4fp`, 2026-09-30.** The note above is preserved as
+> written. Its *"P4, P7 and P8 have not started"* is historical:
+>
+> - **P4 is implemented** (A-4FP-6 with SD-3), in the commit that adds this
+>   note: the authored `operation` and `parameters` now travel from the
+>   persisted `ProposedAction` through `autonomy.decision.requested` and
+>   `DecisionRequest` into `action.execute`'s `parameters`.
+> - **P7 and P8 have not started.** 4F.P is **not complete**, and no PR has
+>   been opened.
+> - [TDD 4F.P](13-tdd-4fp-production-promotion.md)'s §30.10 note of this date
+>   gives the current status in full.
+
+> **Status on `phase-4fp`, 2026-10-01.** The note above is preserved as
+> written. Its *"P7 and P8 have not started"* is historical:
+>
+> - **P7 is implemented** (A-4FP-7 with SD-4), in the commit that adds this
+>   note: `autonomy-engine` records the outcome `action-engine`'s reply maps
+>   to, and records `EXECUTE` only for `completed`.
+> - **P1, P3, P4, P5, P6 and P7 are implemented. P8 has not started.** 4F.P is
+>   **not complete**, 4F.8 has not started, and no PR has been opened. **CF-9,
+>   CF-10 and CF-11 stay OPEN.**
+> - [TDD 4F.P](13-tdd-4fp-production-promotion.md)'s §30.10 note of this date
+>   gives the current status in full.
+
+> **Status on `phase-4fp`, 2026-10-04.** The note above is preserved as
+> written. Its *"P8 has not started"* is historical:
+>
+> - **P8 is implemented** (A-4FP-11, A-4FP-12; §28.4 C-12 and C-14), in the
+>   commit that adds this note. The e2e stack runs the real path -- a real
+>   file write, the companion, `perception-engine`, `cognitive-state-engine`,
+>   `autonomy-engine`, `action-engine` and `capability-engine` -- to a
+>   recorded outcome, with no stand-in in the chain.
+> - **P1, P3, P4, P5, P6, P7 and P8 are implemented.** 4F.P is **not
+>   complete**: P9's Slice Completion Record does not exist, the e2e job has
+>   not yet run the P8 proof in CI, and no PR has been opened. **4F.8 has not
+>   started.** **CF-9, CF-10 and CF-11 stay OPEN.**
+> - [TDD 4F.P](13-tdd-4fp-production-promotion.md)'s §30.10 note of this date
+>   gives the current status in full.
 
 ---
 
