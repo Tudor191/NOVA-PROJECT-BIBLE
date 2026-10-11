@@ -2806,3 +2806,93 @@ each.
   exception (§30.2).
 - **AC-7 is not met, and not claimed.** It is met only by D5's measured samples.
 - **AC-8 is not met, and not claimed.** A-4F8-9, CF-9, CF-10 and CF-11 stay OPEN.
+
+---
+
+## 32. Implementation record — D1 and D2 — 2026-10-11
+
+**Added 2026-10-11, additively**, on `phase-4f8`. It records A-4F8-1 (a), (a1)
+and (a2) as built. §29.1 governs what they mean.
+
+### 32.1 D1 — `nova-companion` (commit `6ba6f27`)
+
+- **Detection** (`companion/sensors/src/lib.rs`):
+  - `check_access(root)` checks read permission (`read_dir`) and search
+    permission (resolving `root/.`).
+  - `access_lost` reduces it to `PermissionDenied` only. A vanished root or
+    another I/O failure is not reported as a revocation.
+  - `next_event()` replaces `next_batch()`. It re-checks the root on the root's
+    own `IN_ATTRIB` and before every observation is emitted. A denial surfaces
+    as `SensorEvent::AccessLost`, which replaces F-4F8-15's silent drop.
+- **Reporting** (`nova-companion/src/main.rs`, `intake.rs`):
+  - `permission_revoked` is logged once.
+  - The loss is reported on `POST /v1/perception/permission-revocations`, with
+    body `{"detected_at": …}` and no path or identity.
+  - It is checked again before each submission.
+  - An unacknowledged report is resent on the next event.
+  - After a loss nothing is submitted, for the life of the process (a2).
+- **The workspace-observation contract is unchanged.**
+
+### 32.2 D2 — `perception-engine`
+
+- **`SensorErrorReport.kind`** is an additive field, `"error"` or
+  `"permission_revoked"`, with `"error"` as the default. The model is internal:
+  it is not persisted, and it is not a contract.
+- **`FilesystemSensor.report_error`** moves `running → failed` only for
+  `permission_revoked`, and `permission_status().granted` becomes `False`. Any
+  other error is recorded and changes nothing, as before.
+- **The one internal route**, `api/permission_revocations.py`:
+  - `POST /v1/perception/permission-revocations?source=filesystem`, with an
+    `extra="forbid"` body `{detected_at}`;
+  - only the `filesystem` source is accepted, and any other is 404;
+  - it calls `sensor_lifecycle.report_sensor_error`, which publishes `failed`
+    on `perception.sensor.health_changed` through the outbox;
+  - a repeat returns `transitioned: false` and publishes nothing.
+- **Unchanged:** the subjects, `PUBLIC_TOPICS`, every gateway prefix,
+  `api/consent.py` and the workspace route.
+- **N-8 is structural.** `tests/unit/test_revocation_is_the_only_failed_path.py`
+  checks two things:
+  - the sensor's only `fail` transition is inside `report_error`, under
+    `kind == "permission_revoked"`;
+  - only the route builds that kind.
+
+### 32.3 Evidence (local; not CI)
+
+**Environment.** No Docker daemon; local PostgreSQL 16, Redis and nats-server.
+The tests that change permissions **ran as uid 1100** via `setpriv`, because root
+bypasses permission checks. **As root, they fail loudly** with that explanation;
+this was observed.
+
+| Tier | Tests | Result |
+|---|---|---|
+| Cargo, `sensors/tests/revocation.rs` | 4: the root's own `IN_ATTRIB` reported; a change after the revocation reported, never observed or dropped; a `chmod` that keeps access not reported; read and search both checked | **4 passed**. Events keep arriving after the `chmod`: F-4F8-7 is established on kernel 6.18.44 |
+| Cargo, `nova-companion/tests/revocation.rs` | 4: the report's wire shape; 404 and 503 as distinct outcomes; the real binary reports once and submits nothing after; an unacknowledged report is resent on the next event | **4 passed** |
+| Cargo, the existing suites | Unit 9, `intake_client` 10, `real_filesystem` 8, `watch_error_redaction` 6 | **33 passed** |
+| `perception-engine` unit and API | `test_filesystem_sensor.py` (+4), `test_sensor_lifecycle.py` (+1), `test_revocation_is_the_only_failed_path.py` (2), `test_api_permission_revocations.py` (8) | All pass. The full suite: **226 passed**, 26 deselected, domain coverage 99% |
+| `perception-engine` `real_infra` | `test_permission_revocation_real_infra.py`: the real companion binary, a real `chmod`, real uvicorn, real PostgreSQL and the real dispatcher to real NATS. It checks `failed`, exactly one committed `failed` row delivered over NATS, a write the OS accepted producing no row, and the engine's own gate dropping a direct post | **1 passed.** All 26 `real_infra` tests pass as uid 1100 |
+
+**Negative controls**, each a temporary source change, reverted afterwards:
+
+| Mutation | Failed |
+|---|---|
+| The sensor's access check removed | 3 Cargo tests, in both revocation files |
+| The binary never reports | The 2 real-process Cargo tests |
+| A revocation does not fail the sensor | Unit tests, and the real-infra test |
+| The route does not transition (N-5) | The route tests, and the real-infra test |
+| No `running` gate (N-6) | `test_a_sensor_that_is_not_running_publishes_nothing`, `test_every_later_observation_is_dropped`, and the real-infra test's direct post |
+
+**Flakiness:**
+- the two Cargo revocation binaries and `real_filesystem`: **10 of 10** each;
+- the D2 real-infra test: **10 of 10**.
+
+**One correction, additively.** Commit `6ba6f27`'s message says *"the 24
+existing ones pass"*. The existing companion tests number **33**, as above, and
+all 33 pass. The message cannot be amended, so this records it.
+
+### 32.4 What this does not show
+
+- **Container or CI behaviour.** Docker is unavailable here. CI's `cargo test`
+  runs as the runner's own user, and `real-infra-checks` is non-blocking.
+- **E-5, E-6 and E-18 in the acceptance stack**, under §29.2's override. That
+  is D4/D5's sequence.
+- **AC-7 and AC-8 are not met, and not claimed.**

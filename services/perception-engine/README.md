@@ -120,6 +120,7 @@ queried through World Model's `GET /v1/world/context`, not duplicated here).
 - `POST /v1/perception/consent` -- grant consent for a source.
 - `DELETE /v1/perception/consent/{source}` -- revoke consent (stops the matching sensor synchronously).
 - `POST /v1/perception/workspace-observations` -- **Phase 4F.2.** Structured intake for workspace observations: JSON `{path, observed_at}`, with `source` and an optional `correlation_id` as query parameters. A **sibling** of the capture-window route above, not a replacement -- that one takes a raw `application/octet-stream` window and runs biometric detection over it, which structured metadata cannot enter. **`user_id` is resolved server-side** from `Settings.primary_user_id` (ADR-025); the request model has no `user_id` and no `object_id` field, so a caller can forge neither. Internal only: `/v1/perception` is **not** among `api-gateway`'s proxied prefixes, so no browser can reach it.
+- `POST /v1/perception/permission-revocations` -- **Phase 4F.8** (A-4F8-1 (a1)). The one route through which `nova-companion` reports that it lost its OS permission on the watched directory: JSON `{detected_at}` only, with `source` and an optional `correlation_id` as query parameters. Only the `filesystem` source is accepted. The filesystem sensor moves `running -> failed`, and `failed` is published on `perception.sensor.health_changed`. A repeat changes nothing (`transitioned: false`). Internal only, like the workspace route.
 - `GET /v1/perception/sensors` -- sensor health status.
 - `POST /v1/perception/sensors/{id}/calibrate` -- calibration.
 - `GET /v1/perception/diagnostics` -- current sensor state/health/capabilities dump.
@@ -149,6 +150,21 @@ that 4F.3 adds no consent mechanism, and Doc 22 Principle 8's per-source consent
 requirement for the filesystem source remains an open policy question carried as
 ledger row **L-14**. What bounds it meanwhile is that the companion watches only
 an explicitly configured directory.
+
+**Phase 4F.8: the `failed` path** (A-4F8-1 (a), RS-3b; TDD 4F.8 §29.1).
+
+- **The trigger.** The companion detects losing its OS permission, and reports
+  it on the revocation route above. That report, and only that report, moves
+  this sensor `running -> failed`, through `sensor_lifecycle.report_sensor_error`
+  as camera and voice already do.
+  - Any other error is still recorded and changes nothing. A failure is never
+    inferred (N-8), and `tests/unit/test_revocation_is_the_only_failed_path.py`
+    checks that structurally.
+- **What follows:**
+  - `permission_status().granted` reads `False`;
+  - `failed` is published;
+  - the workspace route's `running` gate drops every later observation.
+- **No automatic recovery** (a2). Both processes must restart.
 
 ## Known limitations (Phase 2D-B scope)
 

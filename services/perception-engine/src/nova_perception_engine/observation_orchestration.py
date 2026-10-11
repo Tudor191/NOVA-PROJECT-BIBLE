@@ -159,6 +159,8 @@ async def handle_observation_window(
         # Phase 4F.7 (RS-3a): a camera or voice sensor that moves to `failed`
         # here reports it, correlated to this observation. The filesystem
         # sensor has no `failed` path (RS-3b), so it reports nothing.
+        # (Phase 4F.8: it fails only on a permission revocation, which this
+        # generic error is not, so that is still true here.)
         await sensor_lifecycle.report_sensor_error(
             sensor,
             SensorErrorReport(

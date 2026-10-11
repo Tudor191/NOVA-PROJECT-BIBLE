@@ -20,6 +20,9 @@ enqueues one `perception.sensor.health_changed` whose `status` is the state
   the call site, not inside a sensor class, and no transition is added --
   `pause` / `resume` have no production caller and gain none, and the
   filesystem sensor still has no path to `failed` (RS-3b, OPEN).
+  *(Phase 4F.8: RS-3b is settled by A-4F8-1 (a). The filesystem sensor now
+  fails on a permission revocation, reported through `report_sensor_error`
+  below from `api/permission_revocations.py`, a fifth call site.)*
 - **Through the existing transactional outbox** (TDD 4F §1.1(a), D-4F-1): no
   direct publish and no push dispatch. The existing worker dispatches it on
   its cron, so the envelope's `occurred_at` is dispatch time.
@@ -79,7 +82,11 @@ async def report_sensor_error(
 
     The camera and voice sensors move to `failed`; the filesystem sensor
     records the error and stays where it is, so nothing is reported for it --
-    it has no `failed` path (RS-3b), and 4F.7 adds none."""
+    it has no `failed` path (RS-3b), and 4F.7 adds none.
+
+    *(Phase 4F.8.)* The filesystem sensor now moves to `failed` on an error of
+    `kind="permission_revoked"`, and only on that, so this reports `failed` for
+    it exactly then (A-4F8-1 (a)). Every other error still changes nothing."""
     before = sensor.state()
     sensor.report_error(error)
     await _report_if_changed(sensor, before, repository=repository, correlation_id=correlation_id)

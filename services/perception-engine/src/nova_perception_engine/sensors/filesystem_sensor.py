@@ -23,6 +23,15 @@ different elsewhere.
 biometric window pipeline, which a structured workspace observation never
 enters. The `Sensor` Protocol does not require them -- it requires the lifecycle
 and description methods below, all of which are real.
+
+**Phase 4F.8: the `failed` path** (A-4F8-1 (a), TDD 4F.8 §29.1; RS-3b). The
+companion detects that it lost its OS permission on the watched directory, and
+reports it on `api/permission_revocations.py`. That report reaches
+`report_error` with `kind="permission_revoked"`, and only that report moves this
+sensor `running -> failed`. Any other error is still recorded and changes
+nothing, because a failure inferred from anything else would be a guess (N-8).
+There is no automatic recovery (A-4F8-1 (a2)): `failed -> initialize` exists in
+the state machine, and nothing calls it.
 """
 
 from __future__ import annotations
@@ -59,6 +68,7 @@ class FilesystemSensor:
     def __init__(self) -> None:
         self._state: SensorState = "uninitialized"
         self._errors: list[SensorErrorReport] = []
+        self._permission_revoked = False
 
     # -- lifecycle ---------------------------------------------------------
     #
@@ -145,8 +155,12 @@ class FilesystemSensor:
         requirement for the filesystem source remains an open policy question,
         carried as ledger row **L-14**. What bounds the risk meanwhile is that
         the companion watches only an explicitly configured directory.
+
+        *(Phase 4F.8.)* This engine still cannot observe the OS permission, but
+        the companion now reports losing it (A-4F8-1 (a)). From that report on,
+        `granted` is `False`, for the life of this process (A-4F8-1 (a2)).
         """
-        return PermissionStatus(granted=True, source=SOURCE)
+        return PermissionStatus(granted=not self._permission_revoked, source=SOURCE)
 
     def capabilities(self) -> frozenset[str]:
         return frozenset({"workspace_observation"})
@@ -158,8 +172,11 @@ class FilesystemSensor:
         # have blown up the first time a sensor error was reported.
         logger.warning(
             "filesystem_sensor_error",
-            extra={"sensor_id": self.sensor_id, "detail": error.message},
+            extra={"sensor_id": self.sensor_id, "detail": error.message, "kind": error.kind},
         )
+        if error.kind == "permission_revoked":
+            self._permission_revoked = True
+            self._transition("fail")
 
     @property
     def errors(self) -> list[SensorErrorReport]:

@@ -36,6 +36,9 @@ from nova_perception_engine import sensor_lifecycle
 from nova_perception_engine.api.consent import router as consent_router
 from nova_perception_engine.api.identities import router as identities_router
 from nova_perception_engine.api.observations import router as observations_router
+from nova_perception_engine.api.permission_revocations import (
+    router as permission_revocations_router,
+)
 from nova_perception_engine.api.sensors import router as sensors_router
 from nova_perception_engine.clients.ai_model_orchestration_client import (
     AIModelOrchestrationClient,
@@ -193,6 +196,9 @@ def create_app(
     fastapi_app.include_router(consent_router)
     fastapi_app.include_router(sensors_router)
     fastapi_app.include_router(observations_router)
+    # Phase 4F.8 (A-4F8-1 (a1)): the one internal route the companion reports a
+    # lost OS permission on. Internal only, like the workspace intake above.
+    fastapi_app.include_router(permission_revocations_router)
     fastapi_app.mount("/internal/metrics", prometheus_asgi_app())
     return fastapi_app
 
