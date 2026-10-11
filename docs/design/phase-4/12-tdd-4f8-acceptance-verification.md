@@ -3522,3 +3522,140 @@ fresh stacks, at `3bca553`.
 **Across §35.4, §36.1, §36.3 and this run: 310 local samples, 0.059–1.083 s,
 none over 5.0 s.** None of it is CI evidence. **AC-7 and AC-8 are not met, and
 not claimed.**
+
+---
+
+## 38. CI verification, run 1, and F-4F8-20 — 2026-10-11
+
+**Added 2026-10-11, additively.** The user authorized a draft PR so that CI
+could run. This section records that first run, the one failure it found, and
+the fix the user then authorized.
+
+### 38.1 The baseline run
+
+**Draft PR [#41](https://github.com/Tudor191/NOVA-PROJECT-BIBLE/pull/41)**,
+`phase-4f8` → `phase-4`.
+- Head **`3e44a1938457429502821d02fd111eefadd12723`**; base `1ccce7a`.
+- All three workflows ran at that exact head, on attempt 1.
+
+| Workflow | Run | Jobs | Conclusion |
+|---|---|---|---|
+| `PR Checks` | `38183904818` | `checks` success; `e2e` **failure** | **failure** |
+| `Real-Infrastructure Checks` | `38183904782` | **15/15** success. `perception-engine`: **28 passed**, 242 deselected | success |
+| `Build & Scan` | `38183904822` | **23/23** success: `dependency-audit` and 22 image builds with Trivy | success |
+
+**39 of 40 jobs succeeded.** The `e2e` job's steps:
+
+| Step | Result |
+|---|---|
+| The golden path (Playwright) | **20 passed** |
+| *Declare the AC-7 known project* | success |
+| *Start the P8 services*, with the override | success |
+| P8 (4F.P) | **67/67** |
+| AC-8 (D6) | **55/55** |
+| **P-AC8-1** | **failed** (§38.2) |
+| AC-7 latency (D5) | **70/70** |
+| P-AC7-1, with the genuine revocation | **passed** (11.5 s) |
+| AC-7 revocation (E-5, E-6, E-18) | **10/10** |
+
+**AC-7's ten CI samples**, at run id `511abb139854`, from each file's
+creation mtime to the first World Model `200`:
+
+| # | File | Pause before (s) | Elapsed (s) |
+|---|---|---|---|
+| 1 | `ac7-511abb139854-1.txt` | 1.152 | 0.827 |
+| 2 | `ac7-511abb139854-2.txt` | 1.075 | 0.938 |
+| 3 | `ac7-511abb139854-3.txt` | 0.273 | 0.723 |
+| 4 | `ac7-511abb139854-4.txt` | 1.531 | 0.494 |
+| 5 | `ac7-511abb139854-5.txt` | 1.529 | 0.452 |
+| 6 | `ac7-511abb139854-6.txt` | 1.737 | 0.280 |
+| 7 | `ac7-511abb139854-7.txt` | 0.368 | 0.612 |
+| 8 | `ac7-511abb139854-8.txt` | 0.065 | 0.942 |
+| 9 | `ac7-511abb139854-9.txt` | 0.380 | 0.618 |
+| 10 | `ac7-511abb139854-10.txt` | 1.233 | 0.727 |
+
+- **The maximum was 0.942 s.** All ten were ≤ 5.0 s, none was discarded,
+  and E-3 passed.
+- **N-3 passed 10 of 10.** In every sample the companion reported the write's
+  stamp.
+- **The creation's stamp preceded the harness's `before` by 0.21–1.81 ms.**
+  That is far inside §36.5's 10 ms allowance. This kernel's coarse clock
+  appears to step about every 1 ms. The residual risk did not occur.
+
+**The revocation in CI's containers:**
+- the workspace's mode was `0705`;
+- E-5: the companion's container log had `permission_revoked` and
+  `revocation_reported`, once each; `failed` in `perception-engine`; one
+  `failed` report; `cognitive_state` held `failed`;
+- **E-18:** the companion ran as uid `1100` and got *"ls: cannot open
+  directory '/workspace': Permission denied"*. `capability-engine`'s `ls`
+  returned 0;
+- E-6: a write the OS accepted produced no outbox row and no World Model
+  object (`404`) for 25 s, and the companion submitted nothing.
+
+**AC-8 in CI:**
+- E-8, E-10, E-11, E-12, E-13 and E-17 all passed.
+- **E-9:** every one of P8's executed-run checks passed for the Level-2 run:
+  - exactly one `action.execute`, carrying `{"operation": "list"}`;
+  - the real `action-engine` replied `completed`, with exactly one action row;
+  - the real `capability-engine` ran the filesystem `list` once, and its
+    counter rose by one;
+  - `EXECUTE` was written after `action-engine`'s terminal writes.
+
+### 38.2 F-4F8-20: the Autonomy panel could not read an `AUTO_EXECUTE` policy
+
+**What failed.** P-AC8-1 passed its gateway assertions and the level check.
+- The gateway served the Level-1 subject `b4be5a26…` as `proposed`.
+- It did not serve the Level-2 subject.
+- The panel showed Level 2.
+
+It then found **no** suggestion row naming `ac8-511abb139854-level1.txt`.
+
+**Why.** `apps/web-client/src/entities/autonomy.ts` read policies and gate
+reports with `POLICY_EFFECTS = ["deny", "require_approval"]`, the authoring
+enum.
+- Once AC-8's `AUTO_EXECUTE` policy exists, every gate report carries its
+  `auto_execute` policy check.
+- So the whole suggestion list failed its zod parse.
+- `AutonomyPanel` renders `suggestions.data?.data.items ?? []`, so it showed
+  the empty inbox: *"Nothing is awaiting your decision"*. The gateway was
+  serving the proposal at the same time.
+- The policy list failed the same way.
+
+**This contradicts TDD 4F.5 §17.1.1 (L-17)**, which says *"Nothing is
+mis-rendered"*. A dated correction is added there.
+
+**Reproduced locally first**, through the panel's own unit-test fixtures, with
+a positive control: the same suggestion without the `auto_execute` check
+rendered.
+
+**The user's decision (2026-10-11): the narrow read-path fix.** It extends
+A-4F8-8's governed surfaces to `apps/web-client/src/entities/autonomy.ts`, for
+this fix only.
+- **`SERVED_POLICY_EFFECTS`** is `POLICY_EFFECTS` plus `auto_execute`. It is
+  used only by `policySchema` and `policyCheckSchema`.
+- **Authoring is unchanged.** The editor still offers `POLICY_EFFECTS` alone,
+  so the panel cannot create an `AUTO_EXECUTE` policy. **L-17 stays OPEN** for
+  authoring.
+- **Disclosed:** an `AUTO_EXECUTE` policy now appears in the list with the same
+  enable, disable and delete controls every policy already had.
+- No route, contract, engine or prefix changed.
+
+**The tests** are in `apps/web-client/tests/unit/autonomy-panel.test.tsx`. Each
+mutation was temporary and reverted, and each failed its named test:
+
+| Test | Mutation |
+|---|---|
+| *"a suggestion whose gates carry an auto_execute check still renders"* | Gate checks read with the authoring enum |
+| *"an auto_execute policy is listed with its effect, never as an empty set"* | Policies read with the authoring enum |
+| *"is read only: the editor still cannot author auto_execute (L-17 stays open)"*, and the existing *"offers deny and require_approval only"* | The editor offering every served effect |
+
+**Local results:** web-client 248 passed (245 before), with eslint and `tsc`
+clean. `tools/tests`: 385.
+
+### 38.3 What this does not show
+
+- **CI at the fix's commit.** It runs on the push that carries this section.
+- **N-16.** It waits for a green baseline (the user's sequencing).
+- **AC-7 and AC-8 are not yet met.** P-AC8-1, AC-8's browser-visible clause,
+  has not passed in CI.

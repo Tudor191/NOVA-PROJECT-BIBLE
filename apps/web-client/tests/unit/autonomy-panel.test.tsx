@@ -8,6 +8,7 @@ import { GatewayError } from "../../src/entities/envelope";
 import {
   PERMISSION_CATEGORIES,
   POLICY_EFFECTS,
+  SERVED_POLICY_EFFECTS,
   isAutonomyUnavailable,
   isDecisionConflict,
   isRefused,
@@ -571,5 +572,62 @@ describe("error predicates", () => {
     expect(isDecisionConflict(new Error("network down"))).toBe(false);
     expect(isRefused(new Error("network down"))).toBe(false);
     expect(isAutonomyUnavailable(new Error("network down"))).toBe(false);
+  });
+});
+
+// --- what the server serves, read back (Phase 4F.8, F-4F8-20) ----------------
+
+describe("an AUTO_EXECUTE policy the server serves (F-4F8-20)", () => {
+  /** 4F.5's affirmative effect, as `autonomy-engine` reports it in a gate
+   *  report once AC-8's policy exists. */
+  const autoExecuteCheck = {
+    policy_id: POLICY,
+    name: "auto-execute low-risk reads",
+    effect: "auto_execute",
+    matched: true,
+  };
+
+  it("a suggestion whose gates carry an auto_execute check still renders", async () => {
+    stubFetch({
+      ...baseRoutes(),
+      "/v1/autonomy/suggestions": {
+        body: envelope({
+          items: [suggestion({ gates: gates({ policy_checks: [autoExecuteCheck] }) })],
+          next_cursor: null,
+        }),
+      },
+    });
+    render(<AutonomyPanel />, { wrapper: wrapper(client()) });
+
+    const rows = await screen.findAllByTestId("suggestion");
+    expect(rows).toHaveLength(1);
+    expect(rows[0].textContent).toContain("archive three stale branches");
+    expect(screen.queryByTestId("suggestions-empty")).toBeNull();
+  });
+
+  it("an auto_execute policy is listed with its effect, never as an empty set", async () => {
+    stubFetch({
+      ...baseRoutes(),
+      "/v1/autonomy/policies": {
+        body: envelope([policy({ name: "auto-execute low-risk reads", effect: "auto_execute" })]),
+      },
+    });
+    render(<AutonomyPanel />, { wrapper: wrapper(client()) });
+
+    const rows = await screen.findAllByTestId("policy");
+    expect(rows).toHaveLength(1);
+    expect(screen.getByTestId("policy-effect-value").textContent).toBe("auto_execute");
+    expect(screen.queryByTestId("policies-empty")).toBeNull();
+  });
+
+  it("is read only: the editor still cannot author auto_execute (L-17 stays open)", async () => {
+    stubFetch(baseRoutes());
+    render(<AutonomyPanel />, { wrapper: wrapper(client()) });
+
+    const select = (await screen.findByTestId("policy-effect")) as HTMLSelectElement;
+    const offered = [...select.options].map((option) => option.value);
+    expect(offered).toEqual([...POLICY_EFFECTS]);
+    expect(offered).not.toContain("auto_execute");
+    expect([...SERVED_POLICY_EFFECTS]).toEqual(["deny", "require_approval", "auto_execute"]);
   });
 });

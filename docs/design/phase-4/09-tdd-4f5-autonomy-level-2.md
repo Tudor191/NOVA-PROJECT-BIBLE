@@ -781,6 +781,21 @@ at all** — no slice row names one"* as an explicit non-goal, and §5's boundar
 table forbids new browser exposure. Widening the panel here would be the
 unilateral scope expansion the non-goal exists to prevent.
 
+> **Corrected 2026-10-11 (TDD 4F.8 §38.2, F-4F8-20), additively.** The text
+> above is preserved as written.
+>
+> - **Its *"Nothing is mis-rendered"* was false whenever an `AUTO_EXECUTE`
+>   policy existed.** `autonomy.ts` also *read* policies and gate reports with
+>   the stale enum.
+>   - So one such policy made the panel's policy list fail to parse.
+>   - Every suggestion carrying its policy check made the inbox fail to parse.
+>   - Both then rendered as empty.
+>   - 4F.8's P-AC8-1 found it in CI, on PR #41.
+> - **The read path is fixed in 4F.8**, by the user's decision of 2026-10-11:
+>   `SERVED_POLICY_EFFECTS`, used only to read.
+> - **L-17 stays OPEN, as written, for authoring.** The panel still cannot
+>   create an `AUTO_EXECUTE` policy.
+
 #### 17.1.2 L-18 — the SDK's untranslated transport error
 
 | | |
