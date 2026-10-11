@@ -255,14 +255,39 @@ def test_n3_no_fake_clock_and_observed_at_is_checked_against_the_os() -> None:
     for fake in ("freezegun", "time_machine", "unittest.mock", "monkeypatch"):
         assert fake not in text, fake
     checker = ast.unparse(_function("_check_samples"))
-    assert "sample.os_time" in checker and "observed_at" in checker
+    # Either of the file's own OS times, and only those (F-4F8-18).
+    assert "abs(reported - sample.os_created)" in checker
+    assert "abs(reported - sample.os_written)" in checker
+    assert "observed_at" in checker
     assert "st_mtime_ns" in ast.unparse(_function("measure_sample"))
+
+
+def test_f4f8_18_the_interval_starts_at_the_files_creation() -> None:
+    """*(F-4F8-18.)* The creation's mtime is read before the write and the
+    write's after it, and `elapsed` starts at the creation, the earlier one. The
+    path is created exclusively, so the OS refuses one that already exists."""
+    sample = _function("measure_sample")
+    source = ast.unparse(sample)
+    assert "os.O_EXCL" in source
+    order = [
+        node
+        for node in ast.walk(sample)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr in {"fstat", "write"}
+    ]
+    order.sort(key=lambda node: (node.lineno, node.col_offset))
+    assert [n.func.attr for n in order] == ["fstat", "write", "fstat"]
+    (elapsed,) = [
+        n for n in ast.walk(_tree()) if isinstance(n, ast.FunctionDef) and n.name == "elapsed"
+    ]
+    assert "self.first_seen - self.os_created" in ast.unparse(elapsed)
 
 
 def test_e4_between_a_write_and_its_observation_the_harness_only_reads() -> None:
     calls = _calls(_function("measure_sample"))
     assert not {"post", "put", "delete", "patch", "publish", "request"} & set(calls), calls
-    assert "get" in calls and "write_text" in calls
+    assert "get" in calls and "write" in calls
 
 
 def test_the_ratified_figures() -> None:

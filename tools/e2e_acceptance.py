@@ -128,7 +128,8 @@ MTIME_GRANULARITY_SECONDS = 0.010
 fine clock the harness reads by up to a scheduler tick. So the OS time may
 precede the harness's `before` by a few milliseconds. This is the allowance
 for that, and nothing more. It never shortens a sample: the interval starts at
-the OS time, the earlier of the two."""
+the OS time, the earlier of the two. *(F-4F8-18: that is the file's creation
+time.)*"""
 
 _HASH_PREFIX = "ws"
 """`perception-engine`'s `object_id_for_path` prefix, restated, not imported,
@@ -568,12 +569,14 @@ class Sample:
     object_id: str
     pause_before_s: float
     harness_before: float
-    os_time: float
+    os_created: float
+    os_written: float
     first_seen: float | None
 
     @property
     def elapsed(self) -> float | None:
-        return None if self.first_seen is None else self.first_seen - self.os_time
+        """From the file's creation, the earlier of its two OS times (F-4F8-18)."""
+        return None if self.first_seen is None else self.first_seen - self.os_created
 
 
 async def measure_sample(
@@ -586,9 +589,18 @@ async def measure_sample(
 ) -> Sample:
     """One AC-7 sample: a write, then reads only, until the object exists.
 
-    **No request into the chain is made here** (E-4): a file write, an `os.stat`,
-    and `GET`s of `world-model-engine`'s object read. It is called once per
-    sample, and its result is reported whatever it is (N-2)."""
+    **No request into the chain is made here** (E-4): a file write, two
+    `os.fstat`s, and `GET`s of `world-model-engine`'s object read. It is called
+    once per sample, and its result is reported whatever it is (N-2).
+
+    *(F-4F8-18, TDD 4F.8 §36.)* Creating the file and writing it are two
+    syscalls, and each may stamp its own mtime. Observed here, the two differ
+    when the clock moves between them, or when the file's times are queried
+    between them. Such a query may be the companion's own stat on the create
+    event, or this function's `fstat`. The companion may therefore report
+    either. Both are recorded, and the interval starts at the creation, the
+    earlier of the two. That never shortens a sample. `O_EXCL` also makes the
+    OS refuse a path that already exists (FP-14)."""
     name = f"ac7-{run_id}-{index}.txt"
     object_id = object_id_for_path(f"{container_folder}/{name}")
     # A pause drawn from the OS's entropy, so a write's phase relative to any
@@ -597,8 +609,13 @@ async def measure_sample(
     await asyncio.sleep(pause)
 
     harness_before = time.time()
-    (folder / name).write_text(f"4F.8 AC-7 sample {run_id} {index}\n")
-    os_time = (folder / name).stat().st_mtime_ns / 1e9
+    fd = os.open(folder / name, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o666)
+    try:
+        os_created = os.fstat(fd).st_mtime_ns / 1e9
+        os.write(fd, f"4F.8 AC-7 sample {run_id} {index}\n".encode())
+        os_written = os.fstat(fd).st_mtime_ns / 1e9
+    finally:
+        os.close(fd)
 
     first_seen: float | None = None
     deadline = time.monotonic() + SAMPLE_DEADLINE_SECONDS
@@ -608,7 +625,7 @@ async def measure_sample(
             first_seen = time.time()
             break
         await asyncio.sleep(POLL_SECONDS)
-    return Sample(index, name, object_id, pause, harness_before, os_time, first_seen)
+    return Sample(index, name, object_id, pause, harness_before, os_created, os_written, first_seen)
 
 
 async def ac7_latency(acfg: AcceptanceConfig) -> int:
@@ -782,13 +799,14 @@ async def _check_samples(
             [_plain(r) for r in rows],
         )
         report.check(
-            f"[{tag}] N-3. observed_at is the file's own OS time, and not before the write",
+            f"[{tag}] N-3. observed_at is one of the file's own OS times, and not before the write",
             reported is not None
-            and abs(reported - sample.os_time) < 1e-5
-            and sample.os_time >= sample.harness_before - MTIME_GRANULARITY_SECONDS,
+            and min(abs(reported - sample.os_created), abs(reported - sample.os_written)) < 1e-5
+            and sample.os_created >= sample.harness_before - MTIME_GRANULARITY_SECONDS,
             {
                 "observed_at": observed_at,
-                "os_time": sample.os_time,
+                "os_created": sample.os_created,
+                "os_written": sample.os_written,
                 "harness_before": sample.harness_before,
             },
         )
@@ -840,7 +858,8 @@ async def _check_samples(
                 "file": sample.file,
                 "object_id": sample.object_id,
                 "pause_before_s": round(sample.pause_before_s, 3),
-                "os_time": datetime.fromtimestamp(sample.os_time, UTC).isoformat(),
+                "os_created": datetime.fromtimestamp(sample.os_created, UTC).isoformat(),
+                "os_written": datetime.fromtimestamp(sample.os_written, UTC).isoformat(),
                 "elapsed_s": None if sample.elapsed is None else round(sample.elapsed, 3),
                 "subject_id": str(subject_id),
             }

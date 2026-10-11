@@ -151,6 +151,24 @@ reachable only inside the private network/service mesh (or, in local-first mode,
 communicate directly with the user" (Part 4): there is no network path from the public
 internet to an engine's internal RPC surface.
 
+> **Added 2026-10-11 (Phase 4F.8, on `phase-4f8`; TDD 4F.8 §29.1, A-4F8-1
+> (a)), additively.** `perception-engine` has `/v1/perception/*` routes for
+> `nova-companion`, which captures outside the engine. They are **not** fronted
+> by `api-gateway`, which has no `/v1/perception` prefix (D-4F-4), so no browser
+> can reach them. The companion calls them on the internal network.
+>
+> | Method | Path | Added | Purpose |
+> |---|---|---|---|
+> | `POST` | `/v1/perception/workspace-observations` | 4F.2 | A filesystem observation, which `perception-engine` normalizes |
+> | `POST` | `/v1/perception/permission-revocations?source=filesystem` | **4F.8 (D2)** | The companion lost its OS permission on its watch root. The filesystem sensor moves `running → failed` through the existing error path. Answers `202` with `{sensor_id, state, transitioned}`, where a repeat is `transitioned: false`. An unratified source answers `404` |
+>
+> - **The revocation route is the only path to the filesystem sensor's
+>   `failed`.** Nothing infers it from silence.
+> - **No subject, `PUBLIC_TOPICS` entry or gateway prefix was added.** `failed`
+>   reaches the Cognitive State panel on 4F.7's existing
+>   `perception.sensor.health_changed` path.
+> - The rest of this section is unchanged.
+
 ## 4. Request/response envelope
 
 Every API response uses a consistent envelope so the frontend's data layer

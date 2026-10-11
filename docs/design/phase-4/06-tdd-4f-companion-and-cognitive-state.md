@@ -788,6 +788,17 @@ world object. §16 control 11 asserts it.
 | Risk above LOW at Level 2 | Approval required regardless of level (§16 control 5) |
 | Outbox dispatch delayed | AC-7 has a 5 s budget against a 10 s cron worst case — **§20.1 is the residual risk**, stated not hidden |
 
+> **Amended 2026-10-11 (TDD 4F.8 §30–§31), additively.** The row *"Outbox
+> dispatch delayed"* is preserved as written.
+>
+> - On `phase-4f8`, `perception-engine`'s outbox dispatches **every second**,
+>   serially (`max_jobs = 1`), in its one supported worker replica.
+> - So its worst case, before `world-model-engine` receives anything, is
+>   about one second plus any backlog, not ten.
+> - Every other engine's cron is unchanged.
+> - **The residual risk is now measured, not assumed.** AC-7 is met only by
+>   A-4F8-6's samples in the CI acceptance run, each ≤ 5.0 s.
+
 ---
 
 ## 16. Test strategy, CI, and the AC-7 acceptance path
@@ -842,6 +853,20 @@ the observable World Model result, across the unchanged outbox and the unchanged
 dispatcher. **If the real measured latency exceeds 5 seconds the test fails and
 reports the figure** — the violation is exposed, not normalized, and AC-7 is not
 weakened to accommodate it.
+
+> **Amended 2026-10-11 (TDD 4F.8 §30–§31), additively.** The paragraph above
+> is preserved as written.
+>
+> - *"The unchanged dispatcher"* is historical for `perception-engine`. Its
+>   dispatch now runs every second: D-4F-1 was reopened for that interval
+>   only.
+> - **The rules stand unchanged:**
+>   - no aligning the measurement window to **any** dispatch schedule,
+>     including the new one-second one;
+>   - no bounded retry;
+>   - nothing fabricated;
+>   - a figure over 5 s fails the test and is reported.
+> - The harness's guards for these rules are in TDD 4F.8 §35.1 (N-1 to N-4).
 
 ### 16.3 Tiers
 
@@ -975,6 +1000,20 @@ slices within it, not new milestones** — the Phase 4 set remains 4A–4F.
 >   - TDD 4F.8 was prepared with this owner as its candidate A-4F8-1, and is
 >     ratified together with it. It was not ratified before its owner.
 > - See [TDD 4F.8](12-tdd-4f8-acceptance-verification.md) §29.
+
+> **Amended 2026-10-11 (D-4F-1 reopened; TDD 4F.8 §30), additively.** The
+> table and the notes above are preserved exactly as written.
+>
+> - **The 4F.8 row's *"no cron alignment"* still holds.**
+> - **The row now also carries the one implementation change the reopening
+>   authorizes:** `perception-engine` dispatches every second, serially, in
+>   one replica (TDD 4F.8 §31).
+> - That change is built on `phase-4f8`, together with:
+>   - A-4F8-1's revocation detection (D1, D2);
+>   - D3's known-project bindings;
+>   - the acceptance-only override.
+> - **4F is still one milestone, and 4F.8 is still its final implementation
+>   slice.** No slice is added.
 
 ---
 

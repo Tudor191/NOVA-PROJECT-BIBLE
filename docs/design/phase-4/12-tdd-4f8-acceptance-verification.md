@@ -3230,3 +3230,199 @@ failed its named test:
   no gateways.
 - **AC-7 and AC-8 are not met, and not claimed**, until that run's evidence
   exists.
+
+---
+
+## 36. Implementation record — flakiness, F-4F8-18, and the documentation notes — 2026-10-11
+
+**Added 2026-10-11, additively**, on `phase-4f8`. It records:
+- the flakiness run §29.4.6 requires;
+- the finding that run produced, and its fix;
+- the dated notes this slice owes other documents.
+
+### 36.1 The flakiness run, before the fix
+
+**The method.** Ten cycles, each on a **fresh** local stack. A fresh stack means
+a new database, a new workspace, a new run id and a new known project. Each
+cycle runs CI's order:
+1. P8;
+2. `ac8`;
+3. `ac7-latency`;
+4. the revocation;
+5. `ac7-revocation`.
+
+**The revocation stands in for P-AC7-1.** It is the same `chmod g-rx`, made by
+the workspace's owner (uid 1001). The local stack has no browser. Nothing was
+retried.
+
+**The local stack** is §35.4's: real engines as processes, real PostgreSQL 16,
+nats-server and redis-server, and the companion as uid 1100.
+
+| Phase | Result, in each of the 10 cycles |
+|---|---|
+| P8 | **67 of 67**, 10 of 10 cycles |
+| `ac8` | **54 of 54**, 10 of 10 cycles |
+| `ac7-latency` | **70 of 70 in 9 cycles. 69 of 70 in cycle 6**: sample 9's N-3 failed (§36.2) |
+| `ac7-revocation` | **7 of 10**, 10 of 10 cycles. The same three Docker-only checks failed each time (§35.4) |
+
+**The companion's own log**, in each cycle, had exactly one
+`permission_revoked` and one `revocation_reported` line.
+
+**AC-7's latency, all 100 samples:**
+- the range was **0.059–1.064 s**;
+- the median was 0.592 s and the mean 0.584 s;
+- the 95th percentile was 1.015 s;
+- **none exceeded 5.0 s.**
+
+Every figure is kept in the run's logs, in this session's scratchpad. They are
+not committed.
+
+### 36.2 F-4F8-18: the harness started its interval at the wrong mtime
+
+**What failed.** In cycle 6, sample 9's N-3 check failed. The companion
+reported `observed_at = …43.696272`. The harness had read `…43.700272` from the
+file after writing it. That is exactly 4.000 ms later, which is this kernel's
+coarse-clock step.
+
+**Why.**
+1. **Writing a new file is two syscalls**: `open(O_CREAT)`, then `write()`.
+   `Path.write_text` does both. Each may stamp the file's mtime, so one file can
+   carry two different OS times.
+2. **The companion handles inotify's create event, and reads the mtime then**
+   (`companion/sensors/src/lib.rs`, `is_observable` and `metadata.modified()`).
+   So it may legitimately report **either** of the two.
+3. **The harness read only the second.** So its interval could start late,
+   shortening a sample, and N-3's equality could fail.
+
+**When the two stamps differ, as observed on this kernel (6.18.44):**
+- **A query of the file's times between the two calls makes them differ.** A
+  probe ran 200 creates with no query between create and write: the write's
+  stamp equalled the creation's every time. With an `fstat` between them, it
+  differed in 114 of 200.
+- In cycle 6, the companion's own stat on the create event was that query.
+  The 4.000 ms gap is consistent with the coarse clock also stepping.
+- This is consistent with Linux's multigrain timestamps (6.13 and later). The
+  mechanism is recorded as observed, not as established.
+
+**No engine or companion defect.** The companion reported the file's own OS
+time, as TDD 4F §20.1 requires.
+
+**Reproduced, three of three.** A probe created a file, read its mtime, waited
+50 ms, wrote it, and read its mtime again. Each time the companion reported
+the **creation** mtime, and never the write's.
+
+**The fix, in `tools/e2e_acceptance.py`'s `measure_sample`:**
+- it creates the file with `os.open(O_WRONLY | O_CREAT | O_EXCL)`;
+- it reads the creation mtime with `os.fstat`, writes, and reads the write's
+  mtime;
+- **the interval starts at the creation**, the earlier of the two, so it never
+  shortens a sample;
+- N-3 accepts `observed_at` equal to either of the file's own two OS times,
+  and nothing else;
+- `O_EXCL` makes the OS refuse a path that already exists, strengthening
+  FP-14.
+
+**Unchanged:** AC-7's 5.0 s budget, the sample count, the 50 ms poll, the
+30 s deadline, and the 10 ms allowance for "not before the write".
+
+**The guards.** One test is new:
+`test_f4f8_18_the_interval_starts_at_the_files_creation`. The N-3 guard now
+pins both comparisons. Each negative control below was a temporary mutation,
+reverted afterwards, and each failed its named test:
+- `elapsed` measured from the write;
+- `O_EXCL` removed;
+- the creation's mtime read after the write;
+- N-3 compared against the write's mtime only;
+- N-3 compared against the creation's mtime only.
+
+**A runtime control.** A temporary 50 ms sleep was put between the creation
+and the write, so every sample hit cycle 6's case, and `ac7-latency` was run.
+It was removed afterwards, and the file was compared byte for byte.
+- **N-3 passed 10 of 10**, with the two mtimes about 50 ms apart each time.
+- Its §29.4.3 checks failed. That stack had not run P8 and `ac8` first, so
+  the real autonomy-engine **denied** at Level 0 for want of a grant: *"no
+  permission grant for category=read"*. See §36.4.
+
+### 36.3 The flakiness run, after the fix
+
+The same method as §36.1: ten new fresh stacks, with the fixed harness. Every
+cycle's report carries `os_created`, the fixed harness's field.
+
+| Phase | Result, in each of the 10 cycles |
+|---|---|
+| P8 | **67 of 67**, 10 of 10 cycles |
+| `ac8` | **54 of 54**, 10 of 10 cycles |
+| `ac7-latency` | **70 of 70**, 10 of 10 cycles. N-3 passed **100 of 100** |
+| `ac7-revocation` | **7 of 10**, 10 of 10 cycles. The same three Docker-only checks failed each time |
+
+The companion's own log, in each cycle, had exactly one `permission_revoked`
+and one `revocation_reported` line.
+
+**The two mtimes, in all 100 samples.**
+- **The creation's stamp and the write's stamp differed every time**, by
+  1.13–4.99 ms. The creation's stamps are aligned to the coarse clock's 4 ms
+  steps. The write's stamps are not: the harness's own `fstat` had queried the
+  file in between (§36.2).
+- **The companion reported the write's stamp in 100 of 100 samples.**
+- **So every interval starts 1.13–4.99 ms earlier** than it would from the
+  write's stamp. That is the conservative direction.
+
+**AC-7's latency, all 100 samples:**
+- the range was **0.062–1.083 s**;
+- the median was 0.554 s and the mean 0.530 s;
+- the 95th percentile was 0.992 s;
+- **none exceeded 5.0 s.**
+
+The ten per-cycle maxima were 0.888, 1.018, 0.945, 1.065, 0.958, 1.061, 0.992,
+0.835, 1.083 and 0.892 s.
+
+**Neither run is CI evidence, and neither makes AC-7 met.** A-4F8-6's
+measurement is the CI acceptance run's (§35.5).
+
+### 36.4 One precondition, stated
+
+**`ac7-latency` presupposes the configuration P8 and `ac8` leave in place**:
+the grant, the `auto_execute` policy and the identity threshold. That is
+§29.4.1's order, and CI's.
+
+**That configuration is what makes §29.4.3 meaningful.** Level 0 records
+`observe_only` *even though* a matching `auto_execute` policy exists. Run
+alone, the phase fails §29.4.3, as the runtime control in §36.2 shows. It
+fails loudly, with `deny` and its reason, and never passes vacuously.
+
+### 36.5 One residual risk, stated
+
+**`MTIME_GRANULARITY_SECONDS` (10 ms)** bounds how far the creation's mtime may
+precede the harness's own `before`.
+- The creation's stamp comes from the coarse clock, which trails the
+  harness's clock. Over the 100 samples in §36.3, it preceded `before` by
+  **0.93–4.88 ms**. In cycle 6 before the fix, the gap was 4.27 ms. This
+  kernel's coarse clock moves in 4 ms steps.
+- A CI kernel with a coarser clock could exceed 10 ms. N-3 would then fail
+  with the figures printed.
+- **It is not widened on speculation.** If CI shows it, that is reported as
+  found.
+- **It never affects a latency figure.** Every interval starts at the OS time.
+
+### 36.6 The documentation notes this slice owed
+
+Each note is dated and additive. The original text is preserved.
+
+| Document | Note |
+|---|---|
+| TDD 4F §15 | The *"Outbox dispatch delayed"* row: about one second plus any backlog, on `phase-4f8` |
+| TDD 4F §16.2 | *"The unchanged dispatcher"* is historical for `perception-engine`. The honesty rules are unchanged |
+| TDD 4F §18 | The 4F.8 row carries the dispatch exception. Still one milestone, and still its final slice |
+| Master scope, AC-7's revision note | The *"fixed 10-second cron"* is historical for `perception-engine` only |
+| Master scope, slice status | What `phase-4f8` built. CI has not run. AC-7 and AC-8 are not met |
+| TDD 4F.7 §3 | The dispatch row, and where §7, §8, §9 and §15 cite 10 s |
+| TDD 4F.7 §15 | K-2 is addressed by A-4F8-1 (a), with CI evidence owed. K-3's bound is now about one second |
+| `docs/architecture/11-api-architecture.md` §3 | The engine-level `/v1/perception/*` routes the companion calls, including D2's `permission-revocations`. Not fronted by `api-gateway` |
+
+### 36.7 What this does not show
+
+- **CI and containers**: the acceptance run, E-5's log check through
+  `docker compose logs`, E-18, N-16, the runner's gid, and both Playwright
+  specs.
+- **AC-7 and AC-8 are not met, and not claimed.** A-4F8-9, CF-9, CF-10 and
+  CF-11 stay OPEN.

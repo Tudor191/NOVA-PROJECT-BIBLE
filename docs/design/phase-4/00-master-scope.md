@@ -103,6 +103,22 @@ Digital Twin, and NOVA's own internal attention.
 > [`06-tdd-4f-companion-and-cognitive-state.md`](06-tdd-4f-companion-and-cognitive-state.md)
 > §4.1 and §19.
 
+> **Amended 2026-10-11 (TDD 4F.8 §30–§31), additively.** The note above is
+> preserved as written.
+>
+> - **The user reopened D-4F-1 for one item:** `perception-engine`'s outbox
+>   dispatch interval.
+> - **It is implemented on `phase-4f8`** as a one-second cron with a serial
+>   dispatcher (`max_jobs = 1`), in the single supported worker replica.
+> - So the note's *"fixed 10-second cron"* and *"unchanged … dispatcher"* are
+>   historical, for `perception-engine` only.
+> - **Unchanged:**
+>   - the five-second budget;
+>   - the transactional outbox;
+>   - every other engine's cron;
+>   - every honesty rule above. The E2E still may not align to the
+>     dispatcher, now the one-second one.
+
 **AC-1 through AC-4 do not depend on any new engine.** They depend only on
 surfacing what Phase 3 already built.
 
@@ -752,6 +768,22 @@ by design (D-1).**
 > - **No milestone is added, and the scope is not widened.**
 > - **A-4F8-9 still blocks 4F's GO. CF-9, CF-10 and CF-11 stay OPEN.** AC-7
 >   and AC-8 are not met, and not claimed.
+
+> **Slice status, 2026-10-11, implementation on `phase-4f8`, additively.**
+> The note above is preserved as written. Its *"it is not implemented"* is
+> historical.
+>
+> - **Built on `phase-4f8`:**
+>   - the dispatch change;
+>   - D1, D2 and D3;
+>   - the acceptance-only override;
+>   - the acceptance harness (D5–D8).
+> - **The evidence so far is local, against real infrastructure** (TDD 4F.8
+>   §31–§36).
+> - `phase-4f8` is not merged into `phase-4`, and no PR is open.
+> - **The CI acceptance run has not happened.** So **AC-7 and AC-8 are not
+>   met, and not claimed.**
+> - **A-4F8-9 still blocks 4F's GO. CF-9, CF-10 and CF-11 stay OPEN.**
 
 ---
 
