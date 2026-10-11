@@ -51,6 +51,16 @@ Eight findings, each now closed by a ratified decision. **Three were blocking.**
 | **1.7** | No precedent for a non-Python process feeding an engine | **D-4F-5 — the transport already exists** (§8). `POST /v1/perception/observations` was built in 2D-C for exactly this caller |
 | **1.8** | `companion/` sits outside every measured SLOC scope | **Scope extended to include `companion/`** (§17) |
 
+> **Amended 2026-10-11 (TDD 4F.8 §30), additively.** Row 1.1 is preserved as
+> written. **The user reopened D-4F-1 for one item only:** `perception-engine`'s
+> outbox dispatch interval may be shortened, with a serial dispatcher
+> (`max_jobs = 1`), so that AC-7's unchanged 5-second budget can be met.
+>
+> - **Unchanged:** AC-7's 5-second budget, the transactional outbox, every
+>   other engine's cron, and the exclusions of push-dispatch and of a
+>   direct-publish bypass.
+> - **AC-7 is not met** until A-4F8-6's measured samples show it.
+
 ### 1.1 The two corrections this pass made to its own earlier draft
 
 **(a) "Direct publish gives up atomicity" was too broad.** The outbox serves two
@@ -951,6 +961,21 @@ slices within it, not new milestones** — the Phase 4 set remains 4A–4F.
 > **Not assigned to any slice by this amendment.** The owner of OS-level
 > revocation detection (RS-3b) must be ratified before the 4F.8 TDD.
 
+> **Amended 2026-10-11 (TDD 4F.8 ratification, A-4F8-7 and A-4F8-1),
+> additively.** The table and the notes above are preserved exactly as written.
+>
+> - **The 4F.8 row's *"Both criteria in a browser"* is clarified (A-4F8-7
+>   (a)).** Each criterion's browser-visible clause is demonstrated in a real
+>   browser. The rest is demonstrated by real-infrastructure evidence, read
+>   independently of the code under test. No route, subject or prefix is added
+>   to make a fact browser-visible.
+> - **RS-3b's owner is ratified (A-4F8-1 (a)).** `nova-companion` detects OS
+>   permission revocation, and `perception-engine` owns the `failed`
+>   transition, through one internal route. There is no automatic recovery.
+>   - TDD 4F.8 was prepared with this owner as its candidate A-4F8-1, and is
+>     ratified together with it. It was not ratified before its owner.
+> - See [TDD 4F.8](12-tdd-4f8-acceptance-verification.md) §29.
+
 ---
 
 ## 19. Ratified decisions — 2026-09-15
@@ -965,6 +990,21 @@ slices within it, not new milestones** — the Phase 4 set remains 4A–4F.
 | **D-4F-6** | **No cognitive-state Event Bus subject.** REST read surface only | **RATIFIED** |
 | **D-4F-7** | Minimal Rust CI: one `build-and-scan` matrix entry, one `pr-checks` step. No global CI policy change | **RATIFIED** |
 | **D-4F-8** | Filesystem sensing is the CI acceptance modality. **IDE/window-focus is explicitly outside the CI acceptance path** | **RATIFIED** |
+
+> **D-4F-1 reopened 2026-10-11 (TDD 4F.8 §30), additively, for one item
+> only.** The row above is preserved as written.
+>
+> - **The exception:** `perception-engine`'s outbox dispatch interval may be
+>   shortened, with a serial dispatcher. The initial approach is a one-second
+>   cron with `max_jobs = 1`. TDD 4F.8 §30.2 verified it safe under the
+>   supported single-replica deployment.
+> - **Its sole purpose** is to let the real chain meet AC-7's existing
+>   5-second budget.
+> - **Everything else in D-4F-1 stands:** the 5-second budget, the
+>   transactional outbox, every other engine's cron, no push-triggered
+>   dispatch, and no direct-publish bypass. Retry semantics and event
+>   contracts are unchanged.
+> - D-4F-2 … D-4F-8 are unchanged.
 
 ---
 
@@ -1022,6 +1062,34 @@ mean is ~5 s, so **a run beginning just after a tick is expected to exceed the
 budget.** 4F.8 will therefore either demonstrate that the real chain meets 5 s, or
 produce the evidence that it cannot. **Both outcomes are acceptable outputs of
 4F.8; only a test that conceals the answer is not.**
+
+> **Added 2026-10-11 (TDD 4F.8 ratification, A-4F8-6), additively.** This
+> section is preserved exactly as written, and **D-4F-1 is unchanged**.
+>
+> - **The measurement is ratified.** At least 10 independent samples, each on
+>   a never-before-observed path, every one reported. The criterion is met only
+>   if every sample is ≤ 5.0 s.
+> - **TDD 4F.8 §29.3 traces the chain at `1ccce7a`.** The 10-second cron is its
+>   only dispatch path, so it is on the critical path.
+> - **Local runtime evidence:** 66 real observations, delayed 2.8–10.0 s and
+>   tick-aligned. So the measurement is expected to fail.
+> - **The smallest compliant change** that would make AC-7 attainable is a
+>   perception-only one-second cron with a serial dispatcher. It is recorded
+>   there, and **it requires the user to reopen D-4F-1**. Nothing is changed
+>   here.
+
+> **Amended 2026-10-11 (TDD 4F.8 §30), additively.** The user reopened
+> D-4F-1 for `perception-engine`'s dispatch interval only.
+>
+> - **For `perception-engine` only**, the chain's *"existing 10-second cron
+>   dispatcher (unchanged)"* becomes a one-second cron with a serial
+>   dispatcher, once implemented. The last forbidden item no longer applies
+>   to that one change, which the user authorized explicitly.
+> - **Every other rule here stands:** the 5-second budget, real wall-clock
+>   measurement, no aligning to the cron, no retry or re-run, no fake clock,
+>   and no injected message, mocked transport or fabricated event.
+> - **AC-7 is met only by measured samples**, never by the new interval's
+>   estimate.
 
 ### 20.2 The perception subject contract — ratified, and pinned by 4F.2
 
@@ -1395,6 +1463,17 @@ RS-3a.
   It only provides the read surface and visualizes whatever normalized sensor
   state is actually supplied.
 - **The owner of revocation detection must be ratified before the 4F.8 TDD.**
+
+> **Owner ratified 2026-10-11 (TDD 4F.8 A-4F8-1 (a)), additively.** RS-3b is
+> preserved as written.
+>
+> - `nova-companion` detects OS-level permission revocation on its watch root,
+>   and reports it over one internal `perception-engine` route.
+> - `perception-engine` moves the filesystem sensor to `failed` through
+>   `report_error`, and publishes it on `perception.sensor.health_changed`.
+> - There is no automatic recovery.
+> - **Detection itself is still unimplemented.** It is 4F.8's D1 (TDD 4F.8
+>   §29).
 
 ### 24.5 The read surface
 
