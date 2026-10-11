@@ -2709,3 +2709,100 @@ evidence, not CI.**
   - CF-9, CF-10 and CF-11, and every carried open finding and ledger row, stay
     OPEN;
   - **AC-7 and AC-8 are not met, and not claimed.**
+
+---
+
+## 31. Implementation record — the D-4F-1 dispatch change — 2026-10-11
+
+**Added 2026-10-11, additively** (protocol §0.3.4), on the implementation branch
+`phase-4f8`. §30 is preserved as written. Its *"It is not implemented"* (§30.4)
+is historical from this commit on.
+
+### 31.1 What changed
+
+- **`services/perception-engine/src/nova_perception_engine/workers/__init__.py`.**
+  `WorkerSettings` sets `max_jobs = 1`, and its one cron job runs on
+  `second=set(range(60))` instead of `{0, 10, 20, 30, 40, 50}`. Nothing else in
+  the module changed. The comments state why, and the single-replica limit.
+- **`infra/docker/docker-compose.local.yml`.** A comment on
+  `perception-engine-worker`, stating the single-replica constraint. No
+  service, command or setting changed.
+- **`services/perception-engine/README.md`.** A new *"Outbox dispatch"*
+  section.
+- **No other engine, worker, contract, migration, subject or workflow
+  changed.** The dispatch coroutine, `nova_service_kit.dispatch_ready_events`,
+  the 100-row batch, publish-then-mark and `event_id = row id` are unchanged.
+
+### 31.2 The tests, against §30.3
+
+| §30.3 item | Test |
+|---|---|
+| 1. Structural | `tools/tests/test_perception_dispatch_cadence.py`, 16 tests: every second; `max_jobs == 1`; exactly one compose service runs the worker, in any `docker-compose*.yml`; no `scale` or `replicas` above 1; no workflow uses `--scale`; the API image runs no worker; every other engine's cron schedule equals its `1ccce7a` value, with no tuning field |
+| 1. Through arq | `services/perception-engine/tests/unit/test_worker_settings.py`, 3 tests: arq's own `CronJob.calculate_next` fires every second across a minute boundary, and `get_kwargs(WorkerSettings)` gives `max_jobs == 1` |
+| 2. No overlap, no duplicate | `services/perception-engine/tests/integration/test_outbox_dispatch_cadence_real_infra.py`: a drain test and a stall test, `real_infra` |
+| 3. Negative control | The same file's control test, plus the manual source reverts below |
+| 4. AC-7 measured | **Not yet.** D5 (§29.5) |
+| 5. Documentation | §31.1 |
+
+### 31.3 One correction to §30.3 item 2, and why
+
+§30.3 item 2 says the real test *"seeds enough real outbox rows that one dispatch
+run **naturally** outlasts the 1-second interval. Nothing is mocked or
+slowed."* **The first half cannot be done.**
+
+- **`arq_run_outbox_dispatch` reads at most 100 rows a run**
+  (`DEFAULT_BATCH_SIZE`). More rows only make more runs.
+- **A full 100-row run took 0.247–0.286 s** in five trials. The trials used the
+  real repository and a real `NatsEventBus`, against local PostgreSQL 16 and
+  nats-server.
+
+**What the test does instead.** A concurrent transaction holds `SHARE` on
+`perception.outbox_event`. That is the lock a non-concurrent `CREATE INDEX`
+takes: reads proceed, and every `UPDATE` waits.
+
+1. The first run selects its batch and publishes its first row.
+2. Its `mark_dispatched` then waits on that lock until the test releases it.
+3. **The dispatcher is not mocked, patched or delayed.** The long run comes from
+   a real database condition, which a production migration can produce.
+
+**The second half of the sentence holds:** nothing is mocked. This is a
+test-construction correction, and changes no behaviour.
+
+### 31.4 Evidence (local; not CI)
+
+**Environment.** No Docker daemon (`docker info` fails). PostgreSQL 16, Redis
+and nats-server ran as local processes. A scratchpad-only pytest plugin pointed
+`nova-testkit`'s container fixtures at them. **This is local evidence, not CI
+evidence.**
+
+**The real runs**, measured from arq's own job hooks and a real NATS
+subscription:
+
+| Test | Runs | Overlapping pairs | Delivered | Duplicated `event_id`s |
+|---|---|---|---|---|
+| Drain, 350 rows, `max_jobs = 1` | 7, with ticks exactly 1.000 s apart | **0** | 350 of 350 | **0** |
+| Stall, 150 rows, `max_jobs = 1` | 8. The first lasted 3.227 s; the three ticks that came due during it started at +3.508, +4.008 and +4.511 s, after it ended | **0** | 150 of 150 | **0** |
+| Control: the same stall, `max_jobs = 10` (arq's default) | 8, the first four alive at once | **10** | 466 deliveries for 150 rows | **100**, up to 5 copies |
+
+**Negative controls**, each a temporary source change, reverted afterwards:
+
+| Removed | Result |
+|---|---|
+| `max_jobs = 1` | The stall test **failed**: ticks started while the stalled run was alive. The structural and unit tests **failed** |
+| The one-second cadence, back to 10 s | The structural cadence test and the arq unit test **failed** |
+| `memory-engine`'s outbox moved to every second | `test_other_engines_schedules_are_unchanged[memory-engine]` **failed** |
+| `deploy: replicas: 2` on `perception-engine-worker` | `test_no_compose_file_replicates_the_perception_worker` **failed** |
+| A second compose service running the worker | `test_compose_defines_exactly_one_perception_worker` **failed** |
+
+**Flakiness.** The real-infra file ran **10 times: 10 × 3 passed**, 24.4–26.0 s
+each.
+
+### 31.5 Status
+
+- **The dispatch change is implemented and tested locally.** CI evidence is
+  pending: `pr-checks` and `real-infra-checks`, whose matrix includes
+  `perception-engine`.
+- **Multi-replica dispatch is not safe, and not claimed.** It stays outside the
+  exception (§30.2).
+- **AC-7 is not met, and not claimed.** It is met only by D5's measured samples.
+- **AC-8 is not met, and not claimed.** A-4F8-9, CF-9, CF-10 and CF-11 stay OPEN.

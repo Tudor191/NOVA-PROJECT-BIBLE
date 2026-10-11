@@ -82,9 +82,21 @@ class WorkerSettings:
     # first (`nova_service_kit.worker`).
     queue_name = worker_queue_name(_SERVICE_NAME)
     functions: list[Any] = []
+    # Serial dispatch, required by the one-second poll below. arq enqueues
+    # every tick under its own job id whether or not the previous run has
+    # finished, and starts a job whenever fewer than `max_jobs` are running.
+    # `list_dispatch_ready` claims no row, so two runs alive at once can both
+    # publish a row neither has marked yet. One job at a time makes a slow run
+    # delay the next tick rather than overlap it. This holds within ONE worker
+    # process only: compose runs exactly one `perception-engine-worker`, and
+    # `tools/tests/test_perception_dispatch_cadence.py` keeps it that way.
+    max_jobs = 1
     cron_jobs = [
-        # Short, fixed poll -- outbox latency should be seconds, not minutes.
-        service_cron(_SERVICE_NAME, arq_run_outbox_dispatch, second={0, 10, 20, 30, 40, 50}),
+        # Every second -- D-4F-1, reopened 2026-10-11 for this engine's
+        # dispatch interval only (TDD 4F.8 §30), so a perception observation
+        # reaches the bus well inside AC-7's 5-second budget. Every other
+        # engine keeps its 10-second poll.
+        service_cron(_SERVICE_NAME, arq_run_outbox_dispatch, second=set(range(60))),
     ]
     on_startup = startup
     on_shutdown = shutdown

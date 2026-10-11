@@ -658,6 +658,12 @@ services:
   # scope; closing it here is Priority 1's own explicit "done" definition
   # (closure doc Sec3.5), since this pass is what makes the gap observable
   # in practice for the first time.
+  #
+  # Phase 4F.8 (TDD 4F.8 §30; D-4F-1 reopened for this engine's dispatch
+  # interval only): this worker dispatches every second, one run at a time
+  # (`max_jobs = 1`). That is safe for ONE replica only -- the outbox claims no
+  # row, so two replicas can publish one row twice. Never scale this service;
+  # tools/tests/test_perception_dispatch_cadence.py enforces it.
   perception-engine-worker:
     build:
       context: ../..

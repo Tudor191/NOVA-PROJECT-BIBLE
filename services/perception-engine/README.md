@@ -80,6 +80,32 @@ sensor's state (`sensor_lifecycle.py`):
   not deliver to a subscriber that is not connected at dispatch time
   (TDD 4F.7 §15 K-1).
 
+## Outbox dispatch -- every second, from one worker
+
+*(Phase 4F.8, 2026-10-11; TDD 4F.8 §30, §31.)*
+
+`perception-engine-worker` runs `arq nova_perception_engine.workers.WorkerSettings`.
+Its only job drains `perception.outbox_event` to the bus.
+
+- **Every second.** D-4F-1 was reopened for this engine's dispatch interval
+  only, so that a workspace observation reaches the bus well inside AC-7's
+  5-second budget. Every other engine keeps its 10-second poll.
+- **One run at a time (`max_jobs = 1`).** arq enqueues each tick whether or not
+  the previous run has finished, and `list_dispatch_ready` claims no row. So a
+  slow run delays the next tick instead of overlapping it.
+- **Exactly one worker replica.** `max_jobs` bounds one process. Two replicas
+  can publish one row twice. Making that safe would need row claiming in
+  `nova_service_kit`'s shared outbox, which is not built.
+  - Compose defines one `perception-engine-worker`.
+  - `tools/tests/test_perception_dispatch_cadence.py` fails if anything adds a
+    second one or scales it.
+- **Delivery is still at-least-once.** A crash between a publish and its mark
+  republishes that row under the same `event_id`, as before.
+
+`tests/integration/test_outbox_dispatch_cadence_real_infra.py` proves the
+no-overlap, no-duplicate claim. It uses a real worker with real Redis,
+PostgreSQL and NATS, and its last test is the control without `max_jobs = 1`.
+
 ## Owned APIs
 
 All under `/v1/perception`, per the project-wide `/v1/<domain>/...` REST
