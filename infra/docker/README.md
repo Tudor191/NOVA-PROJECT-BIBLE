@@ -78,6 +78,24 @@ library, like everything under `packages/`, and ships no image. Their published
 ports are for local `/internal/health` inspection only — none is fronted by
 `api-gateway`, whose route table 4C.1 does not touch.
 
+## The acceptance-only override (Phase 4F.8)
+
+`docker-compose.acceptance.yml` is **not part of the local stack** and is never
+used to deploy NOVA. It sets exactly one key: `nova-companion.user`, as
+`1100:${NOVA_ACCEPTANCE_COMPANION_GID}`. It refuses to start without that
+variable.
+
+- **Why.** In the base stack, the companion and `capability-engine` both run as
+  uid 1000 against the one shared workspace. So a permission change on the
+  watched directory would revoke both. Under the override the companion reaches
+  the workspace through its group bits, and `capability-engine` through the
+  other bits. AC-7's revocation, `chmod g-rx`, then withdraws only the sensor's
+  permission (TDD 4F.8 §28.7 (B), §29.2).
+- **Where.** Only `pr-checks.yml`'s *"Start the P8 services"* step applies it,
+  with the runner's own gid.
+- **The guard.** `tools/tests/test_acceptance_override.py` keeps it to one key,
+  a non-root uid other than 1000, an unchanged companion image, and one step.
+
 ## Schema bootstrap
 
 `migrations` is a one-shot service that brings all sixteen Postgres-backed

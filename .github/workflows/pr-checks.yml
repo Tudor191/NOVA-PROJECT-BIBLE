@@ -687,10 +687,22 @@ jobs:
       #
       # `!cancelled()`, so the proof runs, and reports, whatever the golden
       # path did; its own failure fails the job.
+      #
+      # Phase 4F.8 (TDD 4F.8 §28.7 (B), §29.2): with the acceptance-only
+      # override, the companion runs as uid 1100 with this runner's gid. It
+      # reaches the runner-created workspace through the group bits, and
+      # `capability-engine` (uid 1000) through the other bits. So AC-7's
+      # revocation, `chmod g-rx`, withdraws the sensor's permission and not
+      # `capability-engine`'s. This is the only step that applies the override
+      # (`tools/tests/test_acceptance_override.py`).
       - name: Start the P8 services (perception-engine, its worker, nova-companion)
         if: ${{ !cancelled() }}
         run: |
-          docker compose -f infra/docker/docker-compose.local.yml up -d --build perception-engine perception-engine-worker nova-companion
+          NOVA_ACCEPTANCE_COMPANION_GID="$(id -g)"
+          export NOVA_ACCEPTANCE_COMPANION_GID
+          echo "NOVA_ACCEPTANCE_COMPANION_GID=${NOVA_ACCEPTANCE_COMPANION_GID}" >> "$GITHUB_ENV"
+          docker compose -f infra/docker/docker-compose.local.yml -f infra/docker/docker-compose.acceptance.yml \
+            up -d --build perception-engine perception-engine-worker nova-companion
 
       # Writes real files into the shared workspace, configures Level 2, one
       # AUTO_EXECUTE policy, one grant and A-4FP-11's disclosed identity

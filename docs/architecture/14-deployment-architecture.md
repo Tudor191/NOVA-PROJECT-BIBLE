@@ -94,6 +94,15 @@ the [Roadmap](../roadmap/ENGINEERING_ROADMAP.md).
 > [TDD 4F.P](../design/phase-4/13-tdd-4fp-production-promotion.md) A-4FP-12
 > and `infra/docker/README.md`.
 
+> **Added 2026-10-11 (Phase 4F.8, ratified §28.7 option (B)), additively.** The
+> local-first topology above is **unchanged**. `infra/docker/docker-compose.acceptance.yml`
+> is an **acceptance-only** compose override, applied by one CI step and never
+> by a deployment. It runs `nova-companion` as uid 1100 with the CI runner's
+> gid, so AC-7's permission revocation can withdraw the sensor's access to the
+> shared workspace without withdrawing `capability-engine`'s
+> ([TDD 4F.8](../design/phase-4/12-tdd-4f8-acceptance-verification.md) §29.2,
+> §34). The companion image's own runtime user, `nova` (uid 1000), is unchanged.
+
 ## 3. Enterprise/cloud topology
 
 ```mermaid

@@ -2959,3 +2959,71 @@ and (a2) as built, and settles ledger row **L-13** once merged.
 - **E-2 in the acceptance stack.** The project must become known there through
   `memory-engine`'s production `POST /v1/memories`, and that is D5's harness.
 - **AC-7 and AC-8 are not met, and not claimed.**
+
+---
+
+## 34. Implementation record — the acceptance-only override (§28.7 (B), §29.2) — 2026-10-11
+
+**Added 2026-10-11, additively**, on `phase-4f8`. It records §29.2's plan as
+built.
+
+### 34.1 What changed
+
+- **`infra/docker/docker-compose.acceptance.yml`** sets exactly one key:
+  `services.nova-companion.user: "1100:${NOVA_ACCEPTANCE_COMPANION_GID:?…}"`.
+  - It refuses to interpolate without the gid.
+  - `docker compose config` of the base file plus the override differs from the
+    base alone **by that one line only**.
+- **`pr-checks.yml`.** *"Start the P8 services"* sets
+  `NOVA_ACCEPTANCE_COMPANION_GID="$(id -g)"`, exports it to `$GITHUB_ENV`, and
+  passes both files. **No other step uses the override.** `logs` and `exec` act
+  on the running containers, whose user is already set.
+- **Unchanged:**
+  - the companion `Dockerfile` (`useradd --uid 1000 nova`, `USER nova`);
+  - `docker-compose.local.yml`, which gives the companion no `user:`;
+  - `capability-engine`;
+  - the workspace provisioning (`mkdir -p`, mode 0755, owned by the runner);
+  - doc 14 §2's local-first model.
+- **The structural guard (D8):** `tools/tests/test_acceptance_override.py`, 6
+  tests, pinning §29.2's four properties:
+  1. one key on one service;
+  2. a non-root uid, other than `capability-engine`'s 1000;
+  3. the companion image's user unchanged, and no `user:` in the base compose;
+  4. exactly one workflow step applies the override, deriving the gid from the
+     runner, and no compose file or script elsewhere names it.
+
+### 34.2 Evidence (local; not containers and not CI)
+
+**The guard's negative controls**, each reverted afterwards. Each of these
+failed its named test:
+- a second key;
+- uid 1000;
+- uid 0;
+- `user:` in the base compose;
+- a second step applying the override.
+
+**Runtime.** This used the **real D1 companion** (the debug binary from this
+branch) under `setpriv`, and the **real `perception-engine`** under uvicorn, with
+real PostgreSQL and the in-memory bus. It also used `capability-engine`'s
+**real** `FilesystemAdapter.invoke("list")` as uid 1000. The workspace was owned
+by 1001:1001, mode 0755, and revoked with `chmod g-rx` to 0705.
+
+| | B2: the companion as 1100:1001 (the plan) | N-16's analogue: the override dropped, the companion as 1000:1000 |
+|---|---|---|
+| The engine's filesystem sensor after the revocation | **`failed`** | `running` |
+| The companion's own `ls` of the workspace (E-18) | **denied** | allowed |
+| `capability-engine`'s `list` after the revocation (E-18) | **`after.txt`, `before.txt`** | `after.txt`, `before.txt` |
+| The companion's logs | `permission_revoked`, `revocation_reported` | none |
+| A file written after the revocation, submitted? | **no** | yes |
+
+So under the override the revocation is **specific to the sensor**. Without it,
+E-18's companion half fails: the companion is not revoked at all, as N-16
+predicts.
+
+### 34.3 What this does not show
+
+- **Container and CI behaviour.** It does not show the runner's actual gid,
+  Docker's handling of a uid absent from the image's `/etc/passwd`, or
+  `docker compose exec` in CI (§29.5 items 3 and 4). These are E-5, E-6, E-18
+  and N-16 in the acceptance run.
+- **AC-7 and AC-8 are not met, and not claimed.**
