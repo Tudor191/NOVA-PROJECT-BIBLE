@@ -120,7 +120,14 @@ class DecisionOutcome(StrEnum):
     The vocabulary was extended rather than invented, as intended.)*
 
     Reaching `EXECUTE` still requires every precondition in TDD 4F.5 §22.4
-    independently; the level alone never produces it."""
+    independently; the level alone never produces it.
+
+    *(Phase 4F.P, P7 -- A-4FP-7 with SD-4, TDD 4F.P §30.2, 2026-10-01. The
+    summary line above is preserved as written; there are now six members.
+    `EXECUTION_FAILED` is the one A-4FP-7 adds, and it amends TDD 4F.6 §19 row
+    13's "no new `DecisionOutcome`". `EXECUTE` now also requires
+    `action-engine` to report `completed`: it is never recorded because a
+    request was sent.)*"""
 
     OBSERVE_ONLY = "observe_only"
     PROPOSE = "propose"
@@ -139,6 +146,22 @@ class DecisionOutcome(StrEnum):
     executed it and simply replied late; the decision log records only what
     this engine observed. Nothing is retried and nothing is dispatched a second
     time -- one decision issues at most one RPC, ever."""
+    EXECUTION_FAILED = "execution_failed"
+    """**4F.P, P7 (A-4FP-7 with SD-4).** `action.execute` was dispatched,
+    `action-engine` **replied**, and it did not report `completed`: it reported
+    `failed` or `rolled_back`, or a non-terminal status (`pending`,
+    `approval_required`, `approved`, `executing`).
+
+    **The "ordinary execution failure" D-4F5-3 distinguishes `TIMEOUT` from**,
+    which had no member until now. `PROPOSE` would falsely claim nothing ran,
+    `EXECUTE` that it succeeded, and `TIMEOUT` that no reply came. Whether any
+    side effect happened is recorded in `action-engine`'s own history and is
+    never inferred here.
+
+    **Recorded only when `action-engine` replied.** No reply in time stays
+    `TIMEOUT`, no responder stays `PROPOSE`, and any other dispatch fault
+    stays a degraded reply with no log row (4F.6 Design A). One `decision_log`
+    row, no suggestion, and no migration: `outcome` is `TEXT` with no CHECK."""
 
 
 class SuggestionStatus(StrEnum):

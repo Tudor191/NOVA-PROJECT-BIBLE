@@ -41,6 +41,15 @@ reply says how far the attempt got, because those are different facts:
 * `outcome` set -- `decide()` **returned**, and recording it failed. If the
   outcome is `execute`, the action was dispatched.
 
+*(Phase 4F.P, P7 -- A-4FP-7 with SD-4, 2026-10-01. The paragraph and bullets
+above are preserved as written; two of their claims are now narrower. "No new
+`DecisionOutcome`" was 4F.6's; A-4FP-7 adds `execution_failed`, recorded when
+`action-engine` replied and did not complete the action. And `execute` now
+means more than dispatched: `action-engine` reported `completed`. Design A
+itself is unchanged: a fault before a meaningful reply -- including a reply
+outside `ActionResultPayload`'s contract -- is still `outcome is None`, with no
+row.)*
+
 **Not deduplication beyond Layer 1** (§19 row 8). Two envelopes with different
 `event_id`s are two decisions. A redelivered envelope derives the same
 `subject_id`: a re-dispatch reaches `action-engine`'s existing terminal-replay
@@ -115,7 +124,11 @@ def decision_request(
     `user_id` is **this engine's** `primary_user_id`, passed in by the caller --
     the payload has no such field (§19 row 7). `capability_class` stays `None`:
     the trigger does not carry one, and a policy that matches on it therefore
-    does not match, which is the fail-closed direction."""
+    does not match, which is the fail-closed direction.
+
+    *(Phase 4F.P, P4 -- A-4FP-6 with SD-3, 2026-09-30:* `operation` and
+    `parameters` are copied as they arrived. *An absent one stays `None`, never
+    `""` or `{}`, so it reaches the dispatch branch as the suggestion it is.)*"""
     return DecisionRequest(
         user_id=user_id,
         category=payload.category,
@@ -126,6 +139,8 @@ def decision_request(
         action_type=payload.action_type,
         execution_target=payload.execution_target,
         verification_method=payload.verification_method,
+        operation=payload.operation,
+        parameters=payload.parameters,
     )
 
 

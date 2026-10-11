@@ -52,6 +52,8 @@ PROPOSAL = {
     "verification_method": "checksum",
     "title": "rotate the scratch directory",
     "detail": "keep the last seven",
+    "operation": "move",
+    "parameters": {"path": "scratch", "keep": 7},
 }
 
 _COLUMNS_0001 = [

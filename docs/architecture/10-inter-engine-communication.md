@@ -124,6 +124,33 @@ Every row cites the Bible passage it implements.
 > keep the two identical. See
 > [TDD 4F.7](../design/phase-4/11-tdd-4f7-cognitive-state-panel.md) §8–§10.
 
+> **Added 2026-10-05 (Phase 4F.P), additively.** The 4F.6 note above describes
+> the initiative path from a promotion onward. 4F.P builds what feeds that path
+> and what follows it, so the path is now built end to end
+> ([TDD 4F.P](../design/phase-4/13-tdd-4fp-production-promotion.md) §5,
+> §30.2):
+>
+> 1. **A file write in the watched workspace → `nova-companion` →
+>    `perception-engine` → outbox → `perception.workspace.observed` →
+>    `cognitive-state-engine`.**
+>    - It creates **one Active Thought per observed object**, inserted only if
+>      absent.
+>    - It authors a `ProposedAction` from a closed table.
+>    - The step that created the thought promotes it to `IMMEDIATE`, **once**,
+>      by compare-and-set.
+> 2. **→ `autonomy.decision.requested`**, now carrying the authored `operation`
+>    and `parameters`, **→ `autonomy-engine`.**
+> 3. At Level 2, **→ `action.execute`**, whose `parameters` are
+>    `{"operation": …, …}`, **→ `action-engine`.**
+>    - It runs its twelve stages.
+>    - It calls `capability.invoke.request` **→ `capability-engine`.**
+> 4. **→ the reply → `autonomy-engine`**, which records the outcome that reply
+>    maps to. It records `execute` only for `completed`.
+>
+> **ADR-004 holds.** No engine imports another or calls another's REST.
+> `action-engine` and `capability-engine` are unchanged. The composed evidence
+> for this path is TDD 4F.P's P8.
+
 ## 3. Synchronous vs. asynchronous calls
 
 Not every cross-engine interaction should be a fire-and-forget event — some steps in

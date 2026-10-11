@@ -17,7 +17,9 @@ from nova_cognitive_state_engine.config import Settings
 from nova_cognitive_state_engine.domain.ports import DecisionTriggerPort
 from nova_cognitive_state_engine.events.handlers import (
     SENSOR_HEALTH_SUBJECT,
+    WORKSPACE_OBSERVED_SUBJECT,
     make_sensor_health_handler,
+    make_workspace_observation_handler,
 )
 from nova_cognitive_state_engine.events.published import PUBLISHABLE_SUBJECTS
 from nova_cognitive_state_engine.events.subscribed import SUBSCRIBABLE_SUBJECTS
@@ -92,10 +94,31 @@ def create_app(
             bus, timeout_seconds=settings.decision_trigger_timeout_seconds
         )
 
+        # (Phase 4F.P -- TDD 4F.P §30.2, A-4FP-10. Both comments above are
+        # preserved as written; "nothing in this engine's running topology calls
+        # `promote_thought`" no longer holds. The workspace-observation handler
+        # registered below is its one production caller, through
+        # `ingestion_orchestration.py`. This module still only binds: it calls
+        # nothing that writes a thought or promotes one. CF-11 stays OPEN.)
+
         # Phase 4F.7 (RS-3a): the one subscription. Registered before readiness,
         # so a ready engine is a listening one. Core NATS: a report dispatched
         # before this line runs is not delivered here (TDD 4F.7 §15 K-1).
         await bus.subscribe(SENSOR_HEALTH_SUBJECT, make_sensor_health_handler(repo))
+
+        # Phase 4F.P (A-4FP-1, A-4FP-10): the second subscription -- "the one
+        # subscription" above is preserved as written. Thought ingestion from
+        # the existing internal `perception.workspace.observed`, with the same
+        # repository, the trigger port bound above and this instance's one
+        # user (SD-1). Core NATS and registered before readiness, like the
+        # first: an observation published before this line runs is not
+        # delivered here.
+        await bus.subscribe(
+            WORKSPACE_OBSERVED_SUBJECT,
+            make_workspace_observation_handler(
+                repo, app.state.trigger, user_id=settings.primary_user_id
+            ),
+        )
 
         app.state.ready = True
         yield

@@ -43,6 +43,27 @@ the Bible's requirements well.
 > read only by `cognitive-state-engine`; `perception-engine` remains the owner
 > of the sensor lifecycle itself. No existing table is altered.
 
+> **Added 2026-10-05 (Phase 4F.P), additively.** 4F.P adds **no migration and
+> no table** ([TDD 4F.P](../design/phase-4/13-tdd-4fp-production-promotion.md)
+> §14, §30.2). Three changes reach stored data:
+>
+> - `cognitive_state.active_thought.proposed_action` (JSONB) gains two keys,
+>   **`operation`** and **`parameters`**. Both are required in a stored
+>   proposal (A-4FP-4). No production row existed before them.
+> - `cognitive-state-engine` writes `active_thought` through two new
+>   statements: an **insert-if-absent** keyed on `thought_id`
+>   (`INSERT … ON CONFLICT (thought_id) DO NOTHING RETURNING`, A-4FP-1), and a
+>   **compare-and-set** on `attention_layer`
+>   (`UPDATE … WHERE thought_id = … AND attention_layer = … RETURNING`,
+>   A-4FP-8).
+> - `autonomy.decision_log.outcome` (`TEXT`, no CHECK) gains one value,
+>   **`execution_failed`**. It is recorded when `action-engine` replies with
+>   any status other than `completed` or `denied`. **`execute` is now recorded
+>   only for `completed`** (A-4FP-7).
+>
+> The `autonomy.decision_log` DDL sketch later in this document is left as
+> written.
+
 **Rule:** exactly one engine owns each table/collection/graph label. No engine queries
 another engine's schema directly, even within the same physical Postgres instance —
 cross-engine data access is always through the owning engine's API/events. Each engine

@@ -71,7 +71,17 @@ PROPOSAL = {
     "verification_method": "exit_code",
     "title": "prune stale build artifacts",
     "detail": "older than thirty days",
+    "operation": "prune",
+    "parameters": {"older_than_days": 30},
 }
+
+# *(Phase 4F.P, P4 -- A-4FP-6, 2026-09-30. Until P4 this module pinned
+# `NOT_YET_ON_THE_WIRE = {"operation", "parameters"}`, documented as: "**Phase
+# 4F.P, disclosed.** A-4FP-6 adds both to the trigger payload in a later 4F.P
+# slice than this one; pinned so the verbatim check must change when they join
+# the wire." P4 put both on the wire over this real broker, so the exclusion is
+# retired and the verbatim check below covers every authored field. Preserved
+# per protocol §0.3.4.)*
 
 Handler = Callable[[EventEnvelope], Awaitable[BaseModel]]
 
@@ -199,8 +209,12 @@ async def test_promotion_to_immediate_sends_one_real_request_carrying_the_propos
 
     payload = validate_payload(SUBJECT, envelope.payload)
     assert isinstance(payload, AutonomyDecisionRequestedPayload)
+    # Phase 4F.P, P4: every authored field arrives verbatim, `operation` and
+    # `parameters` included (until P4 those two were excluded here).
+    assert set(PROPOSAL) <= set(envelope.payload)
     for field, value in PROPOSAL.items():
         assert envelope.payload[field] == value, field
+    assert (payload.operation, payload.parameters) == ("prune", {"older_than_days": 30})
     assert payload.thought_id == thought.thought_id
     assert payload.priority == thought.priority
     assert envelope.correlation_id == payload.correlation_id

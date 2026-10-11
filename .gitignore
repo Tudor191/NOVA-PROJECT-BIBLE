@@ -33,3 +33,8 @@ target/
 
 # Docker volumes mounted locally (if any)
 infra/docker/.data/
+
+# Phase 4F.P, P8 (A-4FP-12): the default host directory compose bind-mounts as
+# the shared workspace (`NOVA_WORKSPACE_DIR`, default `./workspace` next to the
+# compose file). Its contents are whatever the operator or the e2e harness wrote.
+infra/docker/workspace/

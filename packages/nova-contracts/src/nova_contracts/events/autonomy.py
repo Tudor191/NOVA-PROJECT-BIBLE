@@ -45,7 +45,7 @@ from __future__ import annotations
 from enum import StrEnum
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from nova_contracts.events.action import ActionType
 from nova_contracts.events.planning import RiskLevel
@@ -107,6 +107,20 @@ class AutonomyDecisionRequestedPayload(BaseModel):
     Ignoring the field silently would leave a producer believing it had steered
     something; `autonomy-engine`'s own `api/schemas.py` `_Strict` base already
     takes this position for its HTTP bodies.
+
+    **Phase 4F.P (A-4FP-6 with SD-3; TDD 4F.P §30.2): two additive, optional
+    execution fields, `operation` and `parameters`.** They carry the authored
+    `ProposedAction`'s adapter operation and inputs to `action.execute`, which
+    cannot run without `parameters["operation"]`. **Absent is `None`, never a
+    value**, and either one absent means the decision stays a suggestion. When
+    present, `operation` has A-4FP-4's exact form, and `parameters` is a JSON
+    object that **never contains `"operation"`**: a payload that tries is
+    rejected here, so `decide()` is not invoked (C-8's second layer).
+    `schema_version` stays `1` (ADR-024, added optional fields), and both
+    engines ship together because this model is `extra="forbid"`. *(Until 4F.P
+    this docstring's "the three execution fields" was complete. It still
+    describes those three; the execution fields are now five. Preserved per
+    protocol §0.3.4.)*
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -126,6 +140,44 @@ class AutonomyDecisionRequestedPayload(BaseModel):
     requesting_engine: str
     correlation_id: UUID
     schema_version: int = 1
+
+    operation: str | None = None
+    """**4F.P, A-4FP-6.** The authored adapter operation, copied verbatim from
+    the thought's `ProposedAction`. `None` means absent -- never `""` -- and an
+    absent operation means a suggestion, not a guess."""
+
+    parameters: dict | None = None
+    """**4F.P, A-4FP-6.** The authored adapter inputs, copied verbatim. `None`
+    means absent and is **never defaulted to `{}`** (SD-3); an explicit `{}` is
+    a present, empty object. It may never contain `"operation"`."""
+
+    @field_validator("operation")
+    @classmethod
+    def _operation_has_the_authored_form(cls, operation: str | None) -> str | None:
+        """A-4FP-4's form, checked on the wire when present (TDD 4F.P §28.4
+        C-5): `action-engine` classifies risk from the stripped, lower-cased
+        operation but hands the adapter the raw string, so the two must already
+        be one string."""
+        if operation is None:
+            return None
+        if not operation or operation != operation.strip() or operation != operation.lower():
+            raise ValueError(
+                f"operation {operation!r} must be non-empty, without surrounding "
+                "whitespace, and lower case (A-4FP-4, A-4FP-6)"
+            )
+        return operation
+
+    @field_validator("parameters")
+    @classmethod
+    def _parameters_never_name_the_operation(cls, parameters: dict | None) -> dict | None:
+        """C-8's second layer: `{"operation": op, **parameters}` would let a key
+        here override the operation risk was classified from."""
+        if parameters is not None and "operation" in parameters:
+            raise ValueError(
+                'parameters may not contain the key "operation"; the operation is its '
+                "own field (A-4FP-6)"
+            )
+        return parameters
 
 
 class AutonomyDecisionReplyPayload(BaseModel):

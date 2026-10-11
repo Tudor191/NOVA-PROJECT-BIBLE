@@ -156,6 +156,29 @@ nova.heartbeat|nova.mode.changed|nova.module.status_changed
 >   `cognitive-state-engine` is not subscribed is not received, and nothing
 >   replays it (TDD 4F.7 §15 K-1).
 
+> **Added 2026-10-05 (Phase 4F.P), additively.** 4F.P adds **no subject**. The
+> registry stays at **120** and `PUBLIC_TOPICS` at **18**
+> ([TDD 4F.P](../design/phase-4/13-tdd-4fp-production-promotion.md) §14,
+> §30.2).
+>
+> - **`perception.workspace.observed`** gains a second engine consumer,
+>   **`cognitive-state-engine`**, through one core-NATS `subscribe()`
+>   (A-4FP-1). The subject is still internal: it is not in `PUBLIC_TOPICS`,
+>   and no browser can reach it. As with the 4F.7 subscription above, an
+>   observation dispatched while `cognitive-state-engine` is not subscribed is
+>   not received. `world-model-engine` still receives the subject through its
+>   wildcard.
+> - **`autonomy.decision.requested`** gains two optional payload fields,
+>   **`operation`** and **`parameters`** (`AutonomyDecisionRequestedPayload`;
+>   A-4FP-6 with SD-3).
+>   - An absent field is `None`, never `{}`.
+>   - A `parameters` that names `"operation"` is rejected.
+>   - `schema_version` stays `1` (ADR-024), and the TypeScript contract is
+>     regenerated.
+> - **`action.execute`'s** payload contract is unchanged. `autonomy-engine` now
+>   fills its existing `parameters` with `{"operation": operation,
+>   **parameters}`.
+
 Every published event carries a common envelope (defined once in `nova-contracts`):
 
 ```python

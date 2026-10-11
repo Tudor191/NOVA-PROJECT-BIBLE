@@ -629,6 +629,12 @@ services:
       NOVA_ENGINE_NAME: perception-engine
       PERCEPTION_ENGINE_POSTGRES_DSN: postgresql+asyncpg://${POSTGRES_USER:-nova}:${POSTGRES_PASSWORD:-nova_dev_password}@postgres:5432/${POSTGRES_DB:-nova}
       PERCEPTION_ENGINE_REDIS_URL: redis://redis:6379/0
+      # Phase 4F.P, P8 (TDD 4F.P A-4FP-12, §28.4 C-12; ADR-025): the one
+      # primary user every other engine in this stack resolves -- the default
+      # `primary_user_id` of cognitive-state-, autonomy- and action-engine.
+      # Unset, this engine publishes no workspace observation at all (its own
+      # explicit degrade), so nothing downstream could ever trigger.
+      PERCEPTION_ENGINE_PRIMARY_USER_ID: 00000000-0000-0000-0000-000000000001
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
     ports:
       - "8009:8000"
@@ -679,6 +685,26 @@ services:
       migrations:
         condition: service_completed_successfully
       redis:
+        condition: service_healthy
+
+  # Phase 4F.P, P8 (TDD 4F.P A-4FP-12): the Rust OS-level perception daemon
+  # (slice 4F.3), watching the one bind-mounted workspace -- the same directory
+  # `capability-engine` uses as its sandbox root -- and submitting each real
+  # filesystem change to `perception-engine`'s existing workspace intake route.
+  # Read-only: it observes, and it has no actuator. No port and no Event Bus
+  # connection (its README), so it has no healthcheck to declare.
+  nova-companion:
+    build:
+      context: ../..
+      dockerfile: companion/nova-companion/Dockerfile
+    restart: unless-stopped
+    environment:
+      NOVA_COMPANION_WATCH_ROOT: /workspace
+      NOVA_COMPANION_PERCEPTION_BASE_URL: http://perception-engine:8000
+    volumes:
+      - ${NOVA_WORKSPACE_DIR:-./workspace}:/workspace:ro
+    depends_on:
+      perception-engine:
         condition: service_healthy
 
   digital-twin-engine:
@@ -748,6 +774,12 @@ services:
       CAPABILITY_ENGINE_POSTGRES_DSN: postgresql+asyncpg://${POSTGRES_USER:-nova}:${POSTGRES_PASSWORD:-nova_dev_password}@postgres:5432/${POSTGRES_DB:-nova}
       CAPABILITY_ENGINE_SANDBOX_FILESYSTEM_ROOT: /workspace
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+    # Phase 4F.P, P8 (TDD 4F.P A-4FP-12, §28.4 C-12): the sandbox root is the
+    # same bind-mounted workspace `nova-companion` watches, so the `filesystem`
+    # capability acts on the directory the observation came from. The image
+    # creates no `/workspace`, so without this mount the root does not exist.
+    volumes:
+      - ${NOVA_WORKSPACE_DIR:-./workspace}:/workspace
     ports:
       - "8011:8000"
     depends_on:
