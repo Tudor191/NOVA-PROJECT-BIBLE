@@ -3495,3 +3495,30 @@ reverted, and each failed its named test:
 
 - **CI.** These are local runs.
 - **AC-7 and AC-8 are not met, and not claimed.**
+
+### 37.4 Ten cycles at `3bca553`
+
+**Added 2026-10-11, additively**, after the commit that §37.1–§37.3 describe.
+Because F-4F8-19 changed the harness, §36.1's method was run again: ten new
+fresh stacks, at `3bca553`.
+
+| Phase | Result, in each of the 10 cycles |
+|---|---|
+| P8 | **67 of 67**, 10 of 10 cycles |
+| `ac8` | **55 of 55**, 10 of 10 cycles. The 55th check is F-4F8-19's E-10 count |
+| `ac7-latency` | **70 of 70**, 10 of 10 cycles. N-3 passed **100 of 100** |
+| `ac7-revocation` | **7 of 10**, 10 of 10 cycles. The same three Docker-only checks failed each time |
+
+- The companion's own log, in each cycle, had exactly one
+  `permission_revoked` and one `revocation_reported` line.
+- **AC-7's latency, all 100 samples:**
+  - the range was **0.063–1.039 s**;
+  - the median was 0.564 s and the mean 0.558 s;
+  - the 95th percentile was 0.963 s;
+  - **none exceeded 5.0 s.**
+- The creation's stamp preceded the harness's `before` by 0.11–4.74 ms, within
+  §36.5's 10 ms allowance.
+
+**Across §35.4, §36.1, §36.3 and this run: 310 local samples, 0.059–1.083 s,
+none over 5.0 s.** None of it is CI evidence. **AC-7 and AC-8 are not met, and
+not claimed.**

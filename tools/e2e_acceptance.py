@@ -140,7 +140,7 @@ _RANDOM = random.SystemRandom()
 
 
 def object_id_for_path(path: str) -> str:
-    """`perception-engine`'s handle for a workspace path (TDD 4F §9), restated.
+    """`perception-engine`'s handle for a workspace path (TDD 4F §20.2), restated.
 
     The companion reports the path as it sees it, inside its container, so the
     argument is the `/workspace/...` path, not the runner's."""
