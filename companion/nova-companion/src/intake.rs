@@ -16,6 +16,16 @@
 //! the ratification requires is that the raw path never reach the *persisted*
 //! payload, the outbox row, the published event, or downstream world-model data
 //! — all of which are on the engine's side of this call.
+//!
+//! **A second route, for one report (4F.8, A-4F8-1 (a1)).** When this process
+//! loses its OS permission on the watched root, it says so on
+//! `POST /v1/perception/permission-revocations?source=<source>`, with body
+//! `{"detected_at": "<RFC3339>"}`. That route is on the same internal surface,
+//! is not fronted by `api-gateway`, and was ratified for exactly this report.
+//! The workspace-observation contract above is unchanged by it. The report
+//! carries **no path** and no user identity: the engine already knows which
+//! source it registered, and `perception-engine` owns what the report does to
+//! its sensor's lifecycle.
 
 use std::path::Path;
 use std::time::{Duration, SystemTime};
@@ -24,6 +34,9 @@ use time::OffsetDateTime;
 use time::format_description::well_known::Rfc3339;
 
 pub const ROUTE: &str = "/v1/perception/workspace-observations";
+
+/// The one route a revocation report goes to (A-4F8-1 (a1)).
+pub const REVOCATION_ROUTE: &str = "/v1/perception/permission-revocations";
 
 /// What the engine said about one submission.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -40,6 +53,19 @@ pub enum Submission {
     /// rather than a generic failure.
     SourceNotRegistered,
     /// Any other status. Carried with the code so the caller can log it.
+    Rejected { status: u16 },
+}
+
+/// What the engine said about a revocation report.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RevocationReceipt {
+    /// `202` — the engine has the report. `state` is its sensor's state
+    /// afterwards, and `transitioned` says whether this report moved it there.
+    /// A repeat of an earlier report is acknowledged with `transitioned: false`.
+    Acknowledged { state: String, transitioned: bool },
+    /// `404` — no sensor registered for this `source`.
+    SourceNotRegistered,
+    /// Any other status.
     Rejected { status: u16 },
 }
 
@@ -92,8 +118,21 @@ pub fn request_body(
     }))
 }
 
+/// The exact body the revocation route validates: when the loss was
+/// detected, and nothing else.
+pub fn revocation_body(detected_at: SystemTime) -> Result<serde_json::Value, IntakeError> {
+    let detected_at = OffsetDateTime::from(detected_at)
+        .format(&Rfc3339)
+        .map_err(|_| IntakeError::UnrepresentableTimestamp)?;
+    Ok(serde_json::json!({ "detected_at": detected_at }))
+}
+
 pub fn endpoint(base_url: &str) -> String {
     format!("{}{ROUTE}", base_url.trim_end_matches('/'))
+}
+
+pub fn revocation_endpoint(base_url: &str) -> String {
+    format!("{}{REVOCATION_ROUTE}", base_url.trim_end_matches('/'))
 }
 
 pub struct IntakeClient {
@@ -139,6 +178,40 @@ impl IntakeClient {
             }
             Err(ureq::Error::StatusCode(404)) => Ok(Submission::SourceNotRegistered),
             Err(ureq::Error::StatusCode(status)) => Ok(Submission::Rejected { status }),
+            Err(error) => Err(IntakeError::Unreachable(error.to_string())),
+        }
+    }
+
+    /// Tell the engine this process lost its OS permission on the watched root.
+    pub fn report_revocation(
+        &self,
+        detected_at: SystemTime,
+    ) -> Result<RevocationReceipt, IntakeError> {
+        let body = revocation_body(detected_at)?;
+        let response = self
+            .agent
+            .post(&revocation_endpoint(&self.base_url))
+            .query("source", &self.source)
+            .send_json(&body);
+
+        match response {
+            Ok(mut ok) => {
+                let parsed: serde_json::Value =
+                    ok.body_mut().read_json().unwrap_or(serde_json::Value::Null);
+                Ok(RevocationReceipt::Acknowledged {
+                    state: parsed
+                        .get("state")
+                        .and_then(serde_json::Value::as_str)
+                        .unwrap_or_default()
+                        .to_string(),
+                    transitioned: parsed
+                        .get("transitioned")
+                        .and_then(serde_json::Value::as_bool)
+                        .unwrap_or(false),
+                })
+            }
+            Err(ureq::Error::StatusCode(404)) => Ok(RevocationReceipt::SourceNotRegistered),
+            Err(ureq::Error::StatusCode(status)) => Ok(RevocationReceipt::Rejected { status }),
             Err(error) => Err(IntakeError::Unreachable(error.to_string())),
         }
     }

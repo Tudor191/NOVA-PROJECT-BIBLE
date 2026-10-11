@@ -13,7 +13,7 @@ use std::fs;
 use std::path::Path;
 use std::time::{Duration, SystemTime};
 
-use nova_companion_sensors::{FilesystemSensor, WatchError};
+use nova_companion_sensors::{FilesystemSensor, SensorEvent, WatchError};
 
 /// Generous enough for a loaded CI runner, short enough that a genuine failure
 /// fails rather than hangs. It bounds a wait, it does not pace one.
@@ -27,8 +27,9 @@ const DEADLINE: Duration = Duration::from_secs(10);
 fn wait_for(sensor: &FilesystemSensor, name: &str) -> Option<(std::path::PathBuf, SystemTime)> {
     let deadline = std::time::Instant::now() + DEADLINE;
     while std::time::Instant::now() < deadline {
-        let batch = sensor.next_batch()?;
-        let Ok(observations) = batch else { continue };
+        let Ok(SensorEvent::Observations(observations)) = sensor.next_event()? else {
+            continue;
+        };
         for observation in observations {
             if observation.path.file_name().and_then(|n| n.to_str()) == Some(name) {
                 return Some((observation.path, observation.observed_at));
