@@ -60,6 +60,7 @@ import random
 import subprocess
 import sys
 import time
+import traceback
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
@@ -398,6 +399,8 @@ async def ac8(acfg: AcceptanceConfig) -> int:
             )
         except TimeoutError as exc:
             report.check(f"the chain completed within the deadline: {exc}", False, str(exc))
+        except Exception as exc:
+            _unexpected(exc, report)
         finally:
             await observer.drain()
             await database.close()
@@ -485,13 +488,27 @@ async def _check_level1(
 async def _check_same_path(
     run_1: Run, run_2: Run, stores: AcceptanceStores, report: Report
 ) -> None:
-    """E-10 and E-11: the same category, through the same gates, at low risk twice."""
-    (row_1,) = await stores.decision_rows(run_1.subject_id)
-    (row_2,) = await stores.decision_rows(run_2.subject_id)
+    """E-10 and E-11: the same category, through the same gates, at low risk twice.
+
+    *(F-4F8-19.)* A missing row is a failed check, never an unpacking error:
+    a Level-2 run that executes nothing must still report every check."""
+    rows_1 = await stores.decision_rows(run_1.subject_id)
+    rows_2 = await stores.decision_rows(run_2.subject_id)
+    actions = await stores.actions(run_2.subject_id)
+    report.check(
+        "E-10. each run recorded exactly one decision, and the Level-2 run exactly one action",
+        len(rows_1) == 1 and len(rows_2) == 1 and len(actions) == 1,
+        {"level1_decisions": len(rows_1), "level2_decisions": len(rows_2), "actions": len(actions)},
+    )
+    row_1 = rows_1[0] if rows_1 else {}
+    row_2 = rows_2[0] if rows_2 else {}
+    action = actions[0] if actions else {}
     report.check(
         "E-10. the two decisions passed the same gates: identical policy_checks, risk and "
         "confidence; only the outcome and the level differ",
-        row_1["policy_checks"] == row_2["policy_checks"]
+        bool(row_1)
+        and bool(row_2)
+        and row_1["policy_checks"] == row_2["policy_checks"]
         and row_1["risk"] == row_2["risk"]
         and row_1["confidence"] == row_2["confidence"]
         and (row_1["outcome"], row_1["autonomy_level"]) == ("propose", 1)
@@ -509,11 +526,10 @@ async def _check_same_path(
         ),
         triggers,
     )
-    (action,) = await stores.actions(run_2.subject_id)
     report.check(
         "E-11. low risk twice: authored low, and action-engine classified it negligible",
-        run_2.trigger.payload.get("risk") == "low" and action["risk"] == "negligible",
-        {"authored": run_2.trigger.payload.get("risk"), "action_engine": action["risk"]},
+        run_2.trigger.payload.get("risk") == "low" and action.get("risk") == "negligible",
+        {"authored": run_2.trigger.payload.get("risk"), "action_engine": action.get("risk")},
     )
     report.check(
         "[level2] P-AC8-1's premise: the Level-2 run produced no suggestion",
@@ -744,9 +760,8 @@ async def ac7_latency(acfg: AcceptanceConfig) -> int:
                 )
                 print(f"AC-7 sample {index}: {shown}  ({sample.file})", flush=True)
 
-            evidence["samples"] = await _check_samples(
-                samples, project_id, stores, tap, cfg, report
-            )
+            # E-3 first, from the figures alone, so the verdict and every figure
+            # are recorded even if a later attribution check cannot complete.
             elapsed = [s.elapsed for s in samples]
             measured = [e for e in elapsed if e is not None]
             met = (
@@ -767,8 +782,13 @@ async def ac7_latency(acfg: AcceptanceConfig) -> int:
                 met,
                 evidence["latency"],
             )
+            evidence["samples"] = await _check_samples(
+                samples, project_id, stores, tap, cfg, report
+            )
         except TimeoutError as exc:
             report.check(f"the chain completed within the deadline: {exc}", False, str(exc))
+        except Exception as exc:
+            _unexpected(exc, report)
         finally:
             await observer.drain()
             await database.close()
@@ -1016,9 +1036,22 @@ async def ac7_revocation(acfg: AcceptanceConfig) -> int:
             }
         except TimeoutError as exc:
             report.check(f"the chain completed within the deadline: {exc}", False, str(exc))
+        except Exception as exc:
+            _unexpected(exc, report)
         finally:
             await database.close()
     return _finish("AC-7 revocation", evidence, report)
+
+
+def _unexpected(exc: Exception, report: Report) -> None:
+    """*(F-4F8-19.)* Any other error fails the phase as a check, with its
+    traceback, so the evidence gathered so far is still printed. Nothing is
+    retried, and the phase's exit status is still non-zero."""
+    report.check(
+        f"the phase ran to completion without an unexpected error: {type(exc).__name__}",
+        False,
+        traceback.format_exc(),
+    )
 
 
 def _finish(name: str, evidence: dict[str, Any], report: Report) -> int:

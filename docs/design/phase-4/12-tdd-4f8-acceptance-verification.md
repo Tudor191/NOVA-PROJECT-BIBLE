@@ -3426,3 +3426,72 @@ Each note is dated and additive. The original text is preserved.
   specs.
 - **AC-7 and AC-8 are not met, and not claimed.** A-4F8-9, CF-9, CF-10 and
   CF-11 stay OPEN.
+
+---
+
+## 37. Implementation record — the remaining negative controls, and F-4F8-19 — 2026-10-11
+
+**Added 2026-10-11, additively**, on `phase-4f8`. It records §17's N-9 and N-11
+run as real mutations, the finding the first attempt produced, and its fix.
+
+### 37.1 N-9 and N-11, as real mutations
+
+**The method.** Each control ran on a fresh local stack, with `ac8` alone and
+no P8 first. So the mutated configuration or authoring was the only one the
+stack ever saw. Each mutation was temporary, and the file was restored byte for
+byte afterwards.
+
+| # | Mutation | Result |
+|---|---|---|
+| N-9 | The `AUTO_EXECUTE` policy's `POST` names `write`, not `read`. The route refuses the category with a `422`, so **no `AUTO_EXECUTE` policy exists** | **Caught: 24 named checks failed.** The policy check; every E-9 execution check (no `action.execute`, no `completed`, no action row, no invocation); E-10; E-11; P-AC8-1's premise (the Level-2 run proposed); and E-17 |
+| N-11 | T1 authored `moderate` (`cognitive-state-engine`'s `domain/authoring.py`) | **Caught: 26 named checks failed.** T1's identity check; E-8 (the real `autonomy-engine` denied at Level 1, because *"risk=moderate exceeds the maximum low granted for category=read"*); every E-9 execution check; E-10; E-11; and E-17 |
+
+**Not run as mutations in this slice:**
+- **N-10** is E-17's own denial run, which every `ac8` run performs.
+- **N-12** rests on E-9's `completed` assertion, which P8's executed-run
+  checks make independently of the decision's outcome. 4F.P's NP-1
+  negative-controlled the `failed → EXECUTE` mapping itself.
+- **N-14 and N-15** are carried by the unchanged pinned tests.
+
+### 37.2 F-4F8-19: a failing `ac8` run could end before reporting
+
+**What happened.** The first N-11 attempt failed its E-9 checks by name. Then
+`_check_same_path` raised `ValueError` on `(action,) = …`, because the Level-2
+run had, correctly, no action row. **The phase still exited non-zero.** But E-10
+and E-11 were never evaluated, and the evidence dump and summary line were
+never printed.
+
+The first N-9 attempt was a malformed mutation (`if False:`). It sent P8's
+`configure` down its other branch, which indexed an empty list. **It proved
+nothing, and is not counted.**
+
+**The fix, in `tools/e2e_acceptance.py`:**
+- **`_check_same_path` reads counts, and checks them.** A missing row is the
+  failed check *"E-10. each run recorded exactly one decision, and the Level-2
+  run exactly one action"*, and never an unpacking error.
+- **Every phase records any other error as a failed check**, with its
+  traceback, through `_unexpected`. `_finish` still prints the evidence, and
+  the exit status is still non-zero. Nothing is retried.
+- **`ac7-latency` decides E-3 before the per-sample attribution checks.** So
+  the latency verdict and every figure are recorded even if a later check
+  cannot complete. Each figure was already printed as it was measured. **The
+  measurement, the budget and the pass rule are unchanged.**
+
+**The guards**, with their negative controls. Each mutation was temporary and
+reverted, and each failed its named test:
+
+| Guard | Mutation |
+|---|---|
+| `test_f4f8_19_an_unexpected_error_fails_the_phase_and_keeps_its_evidence` (×3) | `ac8` without the catch-all; `_unexpected` passing its check (all three failed) |
+| `test_f4f8_19_e3_is_decided_before_the_attribution_checks` | E-3 decided after `_check_samples` |
+| `test_f4f8_19_check_same_path_never_unpacks_a_row` | A tuple unpack restored |
+
+**The controls, re-run with the fix.** The results in §37.1 are those runs:
+- N-9 ended with *"=== AC-8: 24 check(s) FAILED ==="*;
+- N-11 ended with *"=== AC-8: 26 check(s) FAILED ==="*;
+- neither printed a traceback.
+
+### 37.3 What this does not show
+
+- **CI.** These are local runs.
+- **AC-7 and AC-8 are not met, and not claimed.**

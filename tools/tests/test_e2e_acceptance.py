@@ -135,6 +135,7 @@ def test_e13_the_harness_imports_no_engine() -> None:
         "subprocess",
         "sys",
         "time",
+        "traceback",
         "dataclasses",
         "datetime",
         "pathlib",
@@ -301,6 +302,42 @@ def test_the_ratified_figures() -> None:
     verdict = ast.unparse(_function("ac7_latency"))
     assert "e <= LATENCY_BUDGET_SECONDS for e in measured" in verdict
     assert "len(measured) == len(samples)" in verdict, "a sample not observed must fail AC-7"
+
+
+@pytest.mark.parametrize("phase", ["ac8", "ac7_latency", "ac7_revocation"])
+def test_f4f8_19_an_unexpected_error_fails_the_phase_and_keeps_its_evidence(phase: str) -> None:
+    """*(F-4F8-19.)* Any error fails the phase as a check, and the evidence is
+    still printed: the handler reports, and `_finish` runs after it."""
+    handlers = [
+        h
+        for h in ast.walk(_function(phase))
+        if isinstance(h, ast.ExceptHandler)
+        and isinstance(h.type, ast.Name)
+        and h.type.id == "Exception"
+    ]
+    assert len(handlers) == 1, f"{phase} has no catch-all handler"
+    assert "_unexpected" in _calls(handlers[0])
+    assert "report.check(" in ast.unparse(_function("_unexpected"))
+    assert ", False," in ast.unparse(_function("_unexpected"))
+    assert "return _finish(" in ast.unparse(_function(phase))
+
+
+def test_f4f8_19_e3_is_decided_before_the_attribution_checks() -> None:
+    """*(F-4F8-19.)* The latency verdict and every figure are recorded before
+    the per-sample attribution checks, which can time out."""
+    source = ast.unparse(_function("ac7_latency"))
+    assert source.index("E-3. AC-7's latency") < source.index("_check_samples(")
+
+
+def test_f4f8_19_check_same_path_never_unpacks_a_row() -> None:
+    """*(F-4F8-19.)* A Level-2 run that executes nothing is a failed check,
+    never a `ValueError` that ends the phase early."""
+    unpacks = [
+        n
+        for n in ast.walk(_function("_check_same_path"))
+        if isinstance(n, ast.Assign) and any(isinstance(t, ast.Tuple) for t in n.targets)
+    ]
+    assert not unpacks, [ast.unparse(n) for n in unpacks]
 
 
 def test_the_restated_path_hash_is_perception_engines() -> None:
