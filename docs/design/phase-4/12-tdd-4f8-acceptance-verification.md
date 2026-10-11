@@ -39,6 +39,18 @@
 >   permission conflict on A-4F8-1 (a)'s demonstration, needs a decision
 >   (§28.7).
 
+> **RATIFIED 2026-10-11 (§29), additively.** The status lines above are
+> preserved as written, and **§29 governs**.
+>
+> - **Ratified:** A-4F8-1, -2, -4, -6, -7 and -8, and §28.7 option (B).
+>   A-4F8-3 and A-4F8-5 are answered by 4F.P, and A-4F8-10 is absorbed.
+> - **Implementation waits only for the user's explicit GO** to cut the branch
+>   (§22 step 4).
+> - **One decision affects scope:** whether to reopen D-4F-1, so that AC-7 can
+>   be met (§29.3).
+> - **A-4F8-9** still blocks 4F's GO. **AC-7 and AC-8 are not met, and not
+>   claimed.**
+
 | | |
 |---|---|
 | **Date** | 2026-09-27 |
@@ -525,6 +537,15 @@ security, identity, persistence, acceptance or externally visible semantic
 >   §28.8.
 > - **A-4F8-9** still blocks 4F's GO, not 4F.8's implementation.
 
+> **RATIFIED 2026-10-11 (§29.1), additively.** The text above and the note
+> above are preserved as written.
+>
+> - **Ratified:** A-4F8-1 (a) with (a1) and (a2); A-4F8-2 (a) with (a1) and
+>   (a2); A-4F8-4 (a); A-4F8-6; A-4F8-7 (a); A-4F8-8 (a), restricted to
+>   §28.8's surfaces; and §28.7 (B).
+> - **Each candidate's *"Nothing … is decided"*, *"BLOCKING"* label and
+>   unchosen options are now history.** **§29 governs.**
+
 ### A-4F8-1 — Who detects OS-level permission revocation, and how does it reach the sensor lifecycle? **BLOCKING**
 
 - **Question.** For the filesystem source, which component detects that the
@@ -586,6 +607,17 @@ security, identity, persistence, acceptance or externally visible semantic
 > - **Today's companion stops silently** after a revocation (F-4F8-15), which
 >   is what (a) must replace with a report.
 
+> **RATIFIED 2026-10-11 (§29.1): option (a), with (a1) and (a2).**
+>
+> - **The companion detects**, and reports over exactly one internal
+>   `perception-engine` route.
+> - **`perception-engine` owns `running → failed`.** There is no automatic
+>   recovery.
+> - **The acceptance stack uses §28.7 (B)**, verified at runtime with the real
+>   binaries (§29.2).
+> - **Detection and reporting are acceptance checks for D1** (§29.5), because
+>   today's companion is silent (F-4F8-15).
+
 ### A-4F8-2 — What makes a project "known", and how is the correlation populated? **BLOCKING**
 
 - **Question.** How does `perception-engine` learn which filesystem location
@@ -632,6 +664,13 @@ security, identity, persistence, acceptance or externally visible semantic
   `world-model-engine` are **unchanged**.
 - **Affected criteria:** AC-7 *"known"*.
 - **Implementation must wait: yes.**
+
+> **RATIFIED 2026-10-11 (§29.1): option (a), with (a1) and (a2).**
+>
+> - Operator-declared folder bindings, activated by project IDs observed on
+>   `memory.long_term.created`.
+> - One additive `perception` table.
+> - `world-model-engine` unchanged.
 
 ### A-4F8-3 — How does a Level-2 dispatch become executable, and which action is AC-8's low-risk case? **BLOCKING**
 
@@ -724,6 +763,10 @@ The concrete action is chosen **by 4F.P's authorship rule, not by 4F.8.**
 - **Affected criteria:** AC-8; CF-11 claim 3.
 - **Implementation must wait: yes**, for this decision and for 4F.P.
 
+> **RATIFIED 2026-10-11 (§29.1): option (a).** AC-8's evidence originates
+> from the production trigger, in one 4F.8 slice. Option (c)'s split is not
+> taken.
+
 ### A-4F8-5 — What identity-confidence configuration does the AC-8 run use? **BLOCKING**
 
 - **Question.** Stage 3 reads identity confidence that the CI runner cannot
@@ -808,6 +851,14 @@ user's decision at the Gate Review, not 4F.8's.**
   World Model"*.
 - **Implementation must wait: yes.**
 
+> **RATIFIED 2026-10-11 (§29.1).**
+>
+> - **At least 10 independent samples**, each on a never-before-observed path,
+>   every sample reported. **A pass only if every sample is ≤ 5.0 s.**
+> - The observation point, start, end and deadline are as recommended above.
+> - **§29.3** traces the chain. **With the unchanged 10-second cron, AC-7 is
+>   expected to be NOT MET**, unless the user reopens D-4F-1.
+
 ### A-4F8-7 — Where is AC-8's execution evidenced, and what does "both criteria in a browser" mean? **BLOCKING**
 
 - **Question.** TDD 4F §18's 4F.8 row reads *"Both criteria in a browser"*, but
@@ -836,6 +887,10 @@ user's decision at the Gate Review, not 4F.8's.**
   clarification to TDD 4F §18 at ratification.
 - **Affected criteria:** AC-7, AC-8.
 - **Implementation must wait: yes.**
+
+> **RATIFIED 2026-10-11 (§29.1): option (a).** No new UI or route. The browser
+> shows the browser-visible clauses, and SQL and internal REST show the rest.
+> TDD 4F §18 is clarified additively, in this change.
 
 ### A-4F8-8 — SAD 15 §4 item 1 for the 4F.8 PR **BLOCKING (process)**
 
@@ -866,6 +921,15 @@ surfaces.
 > - **Recorded, not governed** (A-4FP-13's precedent): `tools/`,
 >   `pr-checks.yml` and `apps/web-client/tests/`.
 > - SAD 15 §4 item 5 applies to the 4F.8 PR's description.
+
+> **RATIFIED 2026-10-11 (§29.1): option (a), restricted to §28.8's surfaces.**
+>
+> - **Governed:** `companion/`, `services/perception-engine/` (including
+>   A-4F8-2 (a1)'s migration) and `infra/docker/` (including §29.2's
+>   acceptance-only override).
+> - **Recorded, not governed:** `tools/`, `pr-checks.yml` and
+>   `apps/web-client/tests/`.
+> - **Any other surface needs a new decision.**
 
 - **Affected components:** the PR.
 - **Affected criteria:** none directly.
@@ -1190,6 +1254,15 @@ ratified.
 >   silent stop. E-5, N-5, N-8 and D2's `real_infra` tier carry that.
 > - **E-17's denial already ran** in 4F.P's composed run (§28.2).
 
+> **Added 2026-10-11 (§29.4.6), additively.** **E-18: the revocation is
+> specific to the sensor.** After the revocation:
+>
+> - `docker compose exec -T nova-companion ls /workspace` fails;
+> - `docker compose exec -T capability-engine ls /workspace` succeeds.
+>
+> This is a read-only OS inspection inside the real containers, disclosed as
+> infrastructure evidence. §29.4.5 maps every clause to its evidence source.
+
 ### 16.1 Mapping AC-7 and AC-8 to deliverables
 
 | Criterion clause | Deliverable | Evidence | Depends on |
@@ -1234,6 +1307,10 @@ own source**, because a mutation to a test cannot be caught by that test.
 | N-13 | A correlation miss attaches a guessed `project_id` | E-2's `None` case |
 | N-14 | Add any subject to `PUBLIC_TOPICS`, or add a prefix | E-15 |
 | N-15 | Level 2 by flag alone (`permits_execution` true, no wired path) | TDD 4F §16.1 control 3, unchanged |
+
+> **Added 2026-10-11 (§29.4.6), additively.** **N-16:** drop the acceptance
+> override, so the companion runs as uid 1000. E-18 must then fail, because
+> `capability-engine` loses access too.
 
 **Flakiness.** Every real-infrastructure and browser test in 4F.8 involves
 timing. Each is run **≥ 10 times** and reported. **AC-7's latency test is
@@ -1394,6 +1471,15 @@ scope §16).
 > - **Step 4 is outstanding**: the user's explicit GO.
 > - **No implementation branch exists.**
 
+> **Ratified 2026-10-11 (§29.6), additively.**
+>
+> - **Step 1 is done:** the six candidates and §28.7 (B) are ratified.
+> - **Steps 2 and 3 are done.**
+> - **Step 4 is outstanding:** the user's explicit GO to cut the
+>   implementation branch from the then-current `phase-4` HEAD.
+> - **Implementation follows §29.4's acceptance plan**, and §29.5's acceptance
+>   checks.
+
 ---
 
 ## 23. SLOC budget
@@ -1544,6 +1630,16 @@ ratified text, and each is disclosed above:
 > - **A-4F8-9** still blocks 4F's GO.
 > - **CF-9, CF-10 and CF-11 stay OPEN.** AC-8 is not claimed.
 > - **4F.8 is not started.** §28 is the re-verification.
+
+> **Status on `phase-4f8-tdd`, 2026-10-11, after ratification (§29.6).**
+>
+> - **RATIFIED:** A-4F8-1, -2, -4, -6, -7 and -8, and §28.7 (B).
+> - **Implementation waits only for the user's explicit GO.**
+> - **One scope decision is open:** reopening D-4F-1 (§29.3).
+> - **A-4F8-9** still blocks 4F's GO.
+> - **CF-9, CF-10 and CF-11 stay OPEN.** AC-7 and AC-8 are not met, and not
+>   claimed.
+> - No implementation branch exists.
 
 ---
 
@@ -1774,6 +1870,16 @@ override is not wanted.
 - D1's Cargo tier (§18) must still establish the companion's real behaviour on
   the CI runner.
 
+> **RATIFIED 2026-10-11 (§29.1): option (B).** The acceptance-stack companion
+> runs under a distinct non-root uid.
+>
+> - **The plan is B2**: uid 1100 with the runner's gid, revoked by
+>   `chmod g-rx`, in an acceptance-only compose override.
+> - **B2 and B1 were verified at runtime** with the real companion binary and
+>   `capability-engine`'s real adapter. The revocation removed the companion's
+>   access, and `capability-engine` still listed the directory (§29.2).
+> - **The Dockerfile and the base compose are unchanged.**
+
 ### 28.8 A-4F8-8, re-scoped and not ratified
 
 A-4F8-8 asks whether the 4F.8 PR is granted RS-9's kind of exception to SAD 15
@@ -1920,3 +2026,453 @@ its §7 text. This table states what 4F.P's merge changed about each one.
 - **PREPARED. NOT RATIFIED. NOT implementation-ready.** No implementation branch
   exists. This re-verification modified no production file, test, migration,
   Dockerfile, workflow, contract or package.
+
+> **Ratified 2026-10-11, additively.** The status above is preserved. **§29
+> records the ratification**, the runtime verification of §28.7 (B), the AC-7
+> latency analysis and the acceptance plan.
+
+---
+
+## 29. Ratification and pre-implementation verification — 2026-10-11
+
+**Added 2026-10-11, additively** (protocol §0.3.4). §0–§28 are preserved as
+written. **Where §29 and an earlier section differ, §29 governs.**
+
+### 29.0 Authority and baseline
+
+**The user's decision, 2026-10-11, verbatim:**
+
+> *"The user explicitly approves the proposed 4F.8 decision set and trusts the
+> engineering recommendations. Record the decisions as ratified, subject to the
+> technical verification and constraints below."*
+
+- **Ratified:** A-4F8-1, -2, -4, -6, -7 and -8, and §28.7 option (B) (§29.1).
+- **How "subject to the technical verification" is applied:**
+  - What could be verified before implementation was verified, and is recorded
+    with its evidence (§29.2, §29.3).
+  - What cannot be verified until the code exists is an **acceptance check
+    carried into implementation** (§29.5). It is not assumed.
+- **Not ratified by §29:** A-4F8-9, which still blocks 4F's GO.
+- **Unchanged:**
+  - A-4F8-3 and A-4F8-5 are answered by 4F.P (§28.2).
+  - A-4F8-10 is absorbed by A-4FP-12 (§28.3).
+  - **D-4F-1 is unchanged** (§29.3).
+- **Baseline:** `phase-4` at `1ccce7a`, `main` at `7e273e6`, and `phase-4f8-tdd`
+  at `f28e373` before this change. The protocol (sha256 `21185dd1…`, 1131
+  lines, `origin/main`) was read in full for this ratification.
+
+### 29.1 The ratified decisions. **RATIFIED 2026-10-11**
+
+#### A-4F8-1 — the revocation owner (RS-3b). **RATIFIED: option (a), with (a1) and (a2)**
+
+- **The companion detects** OS-level permission revocation on its configured
+  watch root. It is the only process that holds that permission.
+- **It reports the loss over exactly one additional internal route** on
+  `perception-engine`'s existing internal surface (a1). That route is not
+  fronted by `api-gateway`. `POST /v1/perception/workspace-observations` stays
+  frozen.
+- **`perception-engine` owns the transition.** It moves the filesystem sensor
+  `running → failed` through the existing `report_error` path, and publishes the
+  change through 4F.7's `perception.sensor.health_changed` path. It then drops
+  every further observation, because the sensor is no longer `running`.
+- **No automatic recovery (a2).** A re-granted permission takes effect only
+  after the companion and the engine restart. This is a disclosed limitation.
+- **None of these is added:** a new subject, a `PUBLIC_TOPICS` change, a gateway
+  prefix, a consent mechanism, or an inference of failure from silence (N-8).
+- **Detection must replace today's silent drop** (F-4F8-15).
+- **It settles RS-3b's owner** (TDD 4F §24.4). It **amends TDD 4F.3 §7**'s
+  *"no new route"* for this later slice. A dated note is added at both places in
+  this change.
+
+#### A-4F8-2 — known projects. **RATIFIED: option (a), with (a1) and (a2)**
+
+- **Operator-declared folder bindings** bind a watched root to a project
+  identity.
+- **A binding becomes active only once its project identity has been observed**
+  on the existing `memory.long_term.created`. Until then it is inert.
+- **Correlation happens inside `perception-engine`'s trust boundary**
+  (D-4F3-2).
+  - A file whose ancestor root matches an active binding is published on
+    `perception.workspace.observed` with that `project_id`.
+  - A miss is published with `None`. It is never guessed (N-13).
+- **(a1):** the learned project identities persist in **one additive
+  `perception` table**, holding current state only.
+- **(a2):** `world-model-engine` is unchanged. *"Known"* is evidenced on the
+  observation (E-2), and *"reflected in the World Model"* by the `WorldObject`
+  (E-1).
+- **It adds one subscription to an existing subject.** The registry and
+  `PUBLIC_TOPICS` are unchanged. It settles L-13 when implemented.
+
+#### A-4F8-4 — the AC-8 trigger source. **RATIFIED: option (a)**
+
+> *"AC-8's acceptance evidence is produced by the production initiative path,
+> from a real input to execution, with no test code standing in for any
+> production component. A stand-in trigger is supplementary evidence only, is
+> labelled as such, and never makes AC-8 met."*
+
+- **One 4F.8 slice.** Option (c)'s split is not taken, as the approved
+  recommendation advised.
+- E-13's structural check applies.
+
+#### A-4F8-6 — the AC-7 measurement. **RATIFIED**
+
+- **At least 10 independent latency samples.**
+- **Each sample uses a file path never observed before in the stack** (FP-14,
+  §28.9).
+- **Every sample is reported.**
+- **AC-7 passes only if every sample is at or below 5.0 s.**
+- **The interval:**
+  - **Start:** the file's OS modification time, which is the `observed_at` the
+    companion reports. It is asserted not earlier than the harness's clock
+    before the write.
+  - **End:** the harness's clock at the first successful read of the object
+    through `world-model-engine`'s own `GET /v1/world/objects/{object_id}`, on
+    the internal network. It is polled at ≤ 100 ms intervals, which is
+    observation, not retry. Independent SQL on `world_model`'s tables is a
+    cross-check.
+  - **Deadline: 30 s per sample.** A sample over 5.0 s fails the test and
+    prints its figure.
+- **Writes are made at times uncorrelated with the dispatcher.**
+  - The harness never references the cron (N-1).
+  - It never retries or discards a sample (N-2).
+  - It uses no fake clock (N-3).
+- **The chain measured is the unchanged one** (TDD 4F §20.1; D-4F-1). §29.3
+  states what it is expected to produce.
+- **Never:** lower the threshold, omit a slow sample, reuse a path, or report
+  AC-7 as passed without every required sample.
+
+#### A-4F8-7 — the evidence surface. **RATIFIED: option (a)**
+
+> *"Each acceptance criterion's browser-visible clause is demonstrated in a real
+> browser. Everything else is demonstrated by real-infrastructure evidence read
+> independently of the code under test. No route, subject or prefix is added to
+> make a fact browser-visible."*
+
+- **In the browser:**
+  - the Level-1 proposal, and the absence of a Level-2 proposal (P-AC8-1);
+  - the level selector;
+  - the revocation as `failed` (P-AC7-1).
+- **By SQL and internal REST:**
+  - `autonomy.decision_log`;
+  - `action.action`;
+  - the capability's effect;
+  - the World Model object (§29.4.5).
+- **TDD 4F §18's *"Both criteria in a browser"* is clarified additively.** A
+  dated note is added there in this change.
+
+#### A-4F8-8 — SAD 15 §4 item 1. **RATIFIED: option (a), restricted to §28.8's surfaces**
+
+- **The exception is granted for exactly these surfaces:**
+  - `companion/`;
+  - `services/perception-engine/`, including one Alembic migration, for A-4F8-2
+    (a1);
+  - `infra/docker/`: D3's bindings configuration, and §28.7 (B)'s
+    acceptance-only override (§29.2).
+- **Recorded, not governed:** `tools/`, `.github/workflows/pr-checks.yml` and
+  `apps/web-client/tests/`.
+- **Items 2–5 stay mandatory.** Item 5: the PR description cites:
+  - Part 11, PERCEPTION SECURITY (l.567–589) and SENSOR HEALTH (l.529–548);
+  - Part 14, AUTONOMY LEVELS, Level 2 (l.101–107);
+  - Part 12, THE ACTION PRINCIPLE (l.43–93).
+- **Any other surface needs a new decision.**
+
+#### §28.7 option (B) — the shared folder. **RATIFIED**
+
+- **The acceptance-stack companion runs under a distinct non-root uid.** So a
+  revocation of its watched-folder permission does not also block
+  `capability-engine`.
+- **It departs from A-4F8-10 (a)'s default**, *"its image's non-root user"*,
+  which A-4FP-12 absorbed. This is disclosed here.
+- **A-4FP-12's one workspace and one NOVA user are unchanged.**
+- **Configuration and verification:** §29.2.
+
+### 29.2 Option (B): configuration, and its verification
+
+**The configuration, planned for 4F.8's acceptance wiring. Nothing is
+implemented in this change.**
+
+| Element | Plan |
+|---|---|
+| The override | A new acceptance-only file, `infra/docker/docker-compose.acceptance.yml`, setting **only** `services.nova-companion.user: "1100:${NOVA_ACCEPTANCE_COMPANION_GID}"` |
+| Where it applies | Only the e2e job's acceptance `up` of the P8 services passes `-f infra/docker/docker-compose.local.yml -f infra/docker/docker-compose.acceptance.yml` |
+| The gid | `NOVA_ACCEPTANCE_COMPANION_GID=$(id -g)`, the runner's own primary gid |
+| The workspace | Unchanged: `mkdir -p` by the runner, mode `0755`. The companion reaches it through the **group** bits. `capability-engine` (uid/gid 1000) reaches it through the **other** bits |
+| The revocation | `chmod g-rx` on the workspace root, giving mode `0705`. The harness, as the owner, can still write (E-6) |
+| Unchanged | The companion Dockerfile's runtime `USER nova` (uid 1000); `docker-compose.local.yml`; `capability-engine`; and the local-first deployment model in doc 14 §2 |
+| A structural guard (D8) | It checks four things. (i) The override sets exactly one key on exactly one service. (ii) Its uid is non-root and is not 1000. (iii) The Dockerfile's `USER` is unchanged. (iv) No other step or compose file uses the override |
+| Alternative B1 | `sudo chgrp 1000` on the workspace. The companion, at uid 1100, reaches it through the other bits, and the revocation is `chmod o-rx`. This was verified too, but it needs a privileged step on the runner |
+
+**Runtime verification.** This ran locally in this session, on kernel
+`6.18.44`, with the **real** binaries:
+
+- the real `nova-companion` release binary, built from `companion/`, which is
+  unchanged since 4F.3. It ran under the scenario's uid via `setpriv`, with a
+  clean environment: no `HOME`, and a uid absent from `/etc/passwd`. It
+  submitted to a stub intake that records each request;
+- `capability-engine`'s real `FilesystemAdapter.invoke("list", …)`, run as uid
+  1000;
+- an inotify watcher under the companion's uid.
+
+**This is not containers and not CI.** The scenarios:
+
+| # | Arrangement | Before the revocation | After the revocation |
+|---|---|---|---|
+| A | As merged. The companion and `capability-engine` are both uid 1000. Owner 1001, mode `0755`. Revoked with `chmod 0700` | The companion submits `before.txt`, with `observed_at` equal to its mtime. `capability-engine` lists it | The companion submits nothing and keeps running. **`capability-engine`: `PermissionError` (13)** |
+| B1 | Companion uid 1100. The directory's group is 1000. Revoked with `chmod 0750` | As in A | The companion submits nothing and keeps running. **`capability-engine` lists `after.txt` and `before.txt`** |
+| B2, **the plan** | Companion uid 1100, with the runner's gid. Owner and group are the runner's, mode `0755`. Revoked with `chmod 0705` | As in A | The companion submits nothing and keeps running. **`capability-engine` lists `after.txt` and `before.txt`** |
+
+In every scenario, the companion's uid received `IN_ATTRIB` on the root at the
+moment of revocation. A `stat` of each later file failed with `PermissionError`.
+
+**Static verification.** Compose CLI v5.1.1's `config` was run over
+`docker-compose.local.yml`, with and without a scratchpad probe of the
+override. **Only `nova-companion.user` differs**, and the companion's mount is
+unchanged: `/workspace`, read-only.
+
+**What this verifies:**
+
+- **Isolation.** Under B1 and B2, the revocation removes the companion's access
+  and leaves `capability-engine`'s.
+- **The companion runs under a non-1000 uid**, with a clean environment, and
+  works.
+- **A revocation stops its submissions** without crashing it.
+- **The kernel delivers the signals D1 needs to the companion's uid**:
+  `IN_ATTRIB` on the root, and `EACCES` on `stat`.
+
+**What it does not verify, because it cannot before implementation:**
+
+- **The companion detecting and reporting the loss.** D1 does not exist yet.
+  Today the companion drops events silently (F-4F8-15).
+- **`perception-engine`'s `failed` transition** (D2).
+- **Container and CI behaviour.** Docker is unavailable here.
+- **The runner's actual uid and gid.**
+
+These are acceptance checks (§29.5), not assumptions. **Option (B) is
+technically sound, and its ratification stands.**
+
+### 29.3 AC-7's latency against the dispatch architecture
+
+**The traced path, at `1ccce7a`:**
+
+| # | Step | Where | Time |
+|---|---|---|---|
+| 1 | A file write. Its mtime is t₀ | The host | — |
+| 2 | inotify reaches the companion, which `stat`s the file and submits | `companion/sensors/src/lib.rs` (`RecommendedWatcher`, no debounce; `observation_from` l.72–102); `nova-companion/src/main.rs` `run()` | ms. Locally, the submission arrived 2–4 ms after the mtime |
+| 3 | `POST /v1/perception/workspace-observations`. The handler applies the running gate and the user, computes `object_id`, and calls the debouncer, which admits a first observation at once and drops repeats within 1 s. Then `enqueue_outbox` | `workspace_orchestration.py` l.94–125; `config.py` `workspace_debounce_seconds = 1.0` | ms |
+| 4 | **Wait for the next dispatch tick** | The perception worker's `service_cron(…, second={0, 10, 20, 30, 40, 50})` (`workers/__init__.py` l.87). It is **the only caller** of `dispatch_ready_events` in `perception-engine` | **0–10 s** |
+| 5 | Publish `perception.workspace.observed` | `nova_service_kit/outbox.py` | ms |
+| 6 | `world-model-engine` writes the object **synchronously** in its handler (`observe_object`) | `world-model-engine/events/handlers.py` l.79–110 | ms |
+| 7 | The harness reads `GET /v1/world/objects/{object_id}` | A-4F8-6 | ≤ 0.1 s |
+
+**The 10-second cron is on the critical path.** There is no other dispatch path.
+
+**Runtime evidence** comes from 66 real observations in 4F.P's local P8 runs on
+2026-10-04/05. Those runs used real `perception-engine`, its worker and
+`cognitive-state-engine`, as processes. This is local evidence, not CI.
+
+- **The figure measured** is the delay from the file's mtime to the creation of
+  its Active Thought. `cognitive-state-engine` is the first consumer after
+  dispatch, so this is a proxy for the World Model's write, which happens on the
+  same publish.
+- **The delays:** 2.848–9.999 s, with a mean of 9.184 s. **64 of the 66 exceed
+  5 s.**
+- **Every thought was created 0.133–0.630 s after a 10-second boundary.** So
+  dispatch is tick-aligned.
+- **Why those delays cluster near 10 s:** the P8 driver writes right after the
+  previous tick, so its writes are correlated with the cron.
+  - For writes uncorrelated with the cron, as A-4F8-6 requires, a sample is
+    roughly uniform on [≈0.2, ≈10.6] s.
+  - So P(a sample is ≤ 5 s) ≈ 0.46, and **P(all 10 are ≤ 5 s) ≈ 4 × 10⁻⁴**.
+
+**Conclusion: AC-7 cannot reliably be met with the current dispatch
+architecture.** Under the ratified TDD, this is reported, not engineered
+around:
+
+- D-4F-1 is RATIFIED;
+- TDD 4F §20.1 forbids shortening the cron in order to satisfy AC-7;
+- a measured failure is an acceptable 4F.8 output, and a **blocking Gate Review
+  finding**.
+
+4F.8 implements and runs the honest measurement either way.
+
+**The smallest compliant architectural change.** It is **not implemented**. It
+needs the user to reopen D-4F-1.
+
+- **Scope:** `services/perception-engine/src/nova_perception_engine/workers/__init__.py`
+  only.
+  1. Run the perception outbox cron every second: `second=set(range(60))`
+     instead of `{0, 10, 20, 30, 40, 50}`.
+  2. Set `max_jobs = 1` in its `WorkerSettings`, so that dispatch runs never
+     overlap.
+- **Why (2) is required.**
+  - `list_dispatch_ready` takes no row lock: `with_for_update` and `SKIP LOCKED`
+    occur 0 times, re-verified at `1ccce7a`. That is why TDD 4F §1.1 (b)
+    rejected push-triggered dispatch.
+  - arq's default allows concurrent jobs. At a 1-second cadence, a slow run
+    could overlap the next and publish a row twice.
+  - One serial dispatcher keeps the property §1.1 (b) relies on.
+- **Expected latency:** about 1.7 s in the worst case. That is 1 s, plus the
+  observed tick phase of ≤ 0.63 s, plus milliseconds. **It is an estimate, to be
+  measured.**
+- **Kept:**
+  - the transactional outbox;
+  - at-least-once delivery, durability and replay;
+  - ordering;
+  - every other engine's cadence.
+- **Not proposed:** push-triggered dispatch or a direct publish. TDD 4F §1.1
+  rejected both.
+- **Risks:**
+  - About 10× more dispatch polls for `perception-engine`: one indexed query
+    and one Redis cron enqueue per second.
+  - A run longer than 1 s delays the next one; it is never duplicated.
+  - **It reopens a RATIFIED decision**, D-4F-1, and §20.1's prohibition.
+- **Affected tests and documents:**
+  - **No existing test pins the perception cadence.** `perception-engine`'s
+    tests and `tools/tests` reference none, and `nova-service-kit`'s tests use
+    their own values.
+  - **New:** one test asserting the cadence and `max_jobs = 1`.
+  - **Unaffected:** `perception-engine`'s `real_infra` tests, which call
+    `dispatch_ready_events` directly, and
+    `tools/tests/test_worker_queue_isolation.py`.
+  - **Dated notes needed:** TDD 4F (§1.1, D-4F-1 and §20.1), this TDD, the
+    master scope, and `perception-engine`'s README. The 10-second figure appears
+    in `infra/docker/docker-compose.local.yml`'s comments and TDD 4F.7 too.
+- **If it is not authorized**, AC-7 is measured as ratified, and is expected to
+  be **NOT MET**.
+
+### 29.4 The acceptance plan (F-4F8-13 … F-4F8-16)
+
+#### 29.4.1 Startup sequencing (F-4F8-16)
+
+1. **The stack starts, and the golden path runs**, including
+   `cognitive-state-panel.spec.ts`'s unseeded spec. This is unchanged (4F.P C-1).
+2. **The P8 services start**, with the acceptance override (§29.2).
+3. **Readiness gates**, each a bounded poll with no sleeps:
+   - `perception-engine` is healthy;
+   - `GET /v1/cognitive-state/sensors` shows `companion-filesystem` as
+     `running`. That proves `cognitive-state-engine` is subscribed (K-1);
+   - the companion has logged `nova-companion starting`.
+4. **4F.P's P8 proof runs, unchanged.**
+5. **AC-8's runs** (D6), then P-AC8-1.
+6. **AC-7's latency samples** (D5), at **Level 0**.
+7. **AC-7's revocation** (D1, D2), then E-5, E-6 and E-18, then P-AC7-1.
+8. Teardown.
+
+**P-AC7-1 and P-AC8-1 run in a second Playwright invocation**, after the
+services start, and are tagged so that the unseeded spec still runs first. The
+unseeded spec is not retargeted.
+
+#### 29.4.2 Attribution (F-4F8-14)
+
+Every run is followed along one chain of keys:
+
+| Key | From |
+|---|---|
+| `path` | Never observed before (§29.4.4) |
+| `object_id` | `perception-engine`'s path hash. The harness restates it, drift-guarded like the P8 guards G9 and G10 |
+| The `perception.outbox_event` row | `payload.object_id` |
+| `thought_id` | `uuid5(77980e9a-8808-5af9-8e41-2442669868a1, object_id)` |
+| The `autonomy.decision.requested` envelope | Tapped. It carries `thought_id`, and has an `event_id` |
+| `subject_id` | `uuid5(<the trigger namespace>, event_id)`. It equals `decision_log.subject_id`, `suggestion.id`, `action.execute`'s `action_id` and `action.action.id` |
+| `capability.invoke.request` | Tapped |
+| `result.entries` | Contain the run's file name |
+
+**Each run asserts exactly one record of each kind for its own keys, and zero
+for any other run's keys.** 4F.P's run B suggestion, which exists before AC-8,
+is excluded by its `subject_id`.
+
+#### 29.4.3 No cross-contamination (F-4F8-14)
+
+- **The phases are strictly sequential.** None overlaps another.
+- **AC-8 runs at Level 1, then at Level 2.** The policies, grants and the
+  identity row are read back by SQL before each run, and must be identical
+  (E-12).
+- **AC-7's samples run at Level 0.** Level 0 is selectable (`SELECTABLE_LEVELS`,
+  `domain/models.py` l.93–95), and at Level 0 `decide()` records `observe_only`
+  with no suggestion and no dispatch (`domain/decision.py` l.670–690).
+  - The harness asserts one `observe_only` row per sample, and zero
+    `action.execute` messages and zero `action.action` rows for the samples'
+    `subject_id`s.
+  - So the samples add nothing to the Autonomy panel (P-AC8-1), and execute
+    nothing.
+- **The revocation comes last among the steps that need observations.** The
+  companion does not recover (a2), and under (B) the revocation no longer blocks
+  `capability-engine`.
+
+#### 29.4.4 Never-before-observed paths (FP-14)
+
+- **Every file is named `{phase}-{run_id}-{n}.txt`.** `run_id` is fresh and
+  random for each job, as in the P8 driver.
+- **Before each write, the harness asserts by `SELECT` only** that its
+  `object_id` is absent from `perception.outbox_event` and from the World Model.
+- **No path is reused**, within a phase or across phases.
+
+#### 29.4.5 Evidence sources, per criterion clause
+
+| Clause | E-items | Source |
+|---|---|---|
+| AC-7 *"a known project"* | E-2 | SQL: `perception.outbox_event.payload.project_id`, one match and one miss |
+| AC-7 *"detected by a `nova-companion` sensor"* | E-1 | SQL: the outbox row's `sensor_id = companion-filesystem`. The companion's log |
+| AC-7 *"without user action"* | E-4 | A structural (AST) check of the harness |
+| AC-7 *"reflected in the World Model"* | E-1 | `world-model-engine`'s REST, plus SQL. `correlation_id` provenance |
+| AC-7 *"within five seconds"* | E-3 | The harness's figures: every sample, all ≤ 5.0 s, or the test fails |
+| AC-7 *"revoking … OS-level permission"* | E-5, E-18 | The `chmod g-rx`. The companion's report on the internal route. SQL: `perception.sensor.health_changed{failed}` |
+| AC-7 *"stops the perception stream"* | E-6 | SQL: no outbox row. REST: no World Model object for a new path, for ≥ 25 s |
+| AC-7 *"visibly … in the panel"* | E-5, P-AC7-1 | The browser, plus `GET /v1/cognitive-state/sensors` |
+| AC-8 *"the same action category"* | E-10, E-12 | SQL: `autonomy.decision_log` and the autonomy configuration tables |
+| AC-8 *"blocked at Level 1"* | E-8, P-AC8-1 | SQL: `PROPOSE` plus a suggestion, and no `action.action` row. The browser |
+| AC-8 *"auto-executes at Level 2"* | E-9, E-13, E-14, E-17 | SQL: `EXECUTE`, and `action.action.status = completed` with the run's `entries`. An AST check. The denial control |
+| AC-8 *"for a low-risk case"* | E-11 | SQL: `action.action.risk = negligible`, and T1's authored `low` |
+| AC-8 *"purely by policy"* | E-12 | SQL read-backs before each run |
+| AC-8 *"no code path differs"* | E-10 | SQL, plus the X-8 unit control |
+
+#### 29.4.6 A new item, E-18, and a new control, N-16
+
+- **E-18: the revocation is specific to the sensor.** After the revocation,
+  inside the real containers:
+  - `docker compose exec -T nova-companion ls /workspace` fails with permission
+    denied;
+  - `docker compose exec -T capability-engine ls /workspace` succeeds.
+
+  This is a read-only OS inspection, disclosed as infrastructure evidence. It is
+  not a production route.
+- **N-16:** drop the override, so the companion runs as uid 1000. E-18 must then
+  fail, because `capability-engine` is denied too.
+
+### 29.5 Acceptance checks carried into implementation, not assumed
+
+1. **D1's Cargo tier.** A real directory and a real `chmod`. The companion must
+   detect the loss, through the root's `IN_ATTRIB` and `EACCES` before a
+   submission, and call the internal route. This also establishes F-4F8-7 on the
+   CI kernel.
+2. **D2's `real_infra` tier.** A report moves the sensor to `failed`, writes one
+   outbox row, and makes a later observation be dropped.
+3. **E-5, E-6 and E-18** in CI's containers, under the override.
+4. **The runner's gid**, used by B2, or `sudo` for B1.
+5. **AC-7's measured figures.** They are expected to fail unless D-4F-1 is
+   reopened (§29.3).
+
+### 29.6 Status after ratification
+
+- **RATIFIED 2026-10-11:** A-4F8-1, -2, -4, -6, -7 and -8, and §28.7 (B).
+  - A-4F8-3 and A-4F8-5 are answered by 4F.P.
+  - A-4F8-10 is absorbed.
+  - **A-4F8-9 is not ratified**, and still blocks 4F's GO.
+- **§22:**
+  - steps 1, 2 and 3 are done;
+  - **step 4, the user's explicit GO to cut the implementation branch, is
+    outstanding.**
+- **One decision affects 4F.8's scope:** whether to reopen D-4F-1 for §29.3's
+  perception-only change.
+  - The TDD does not require it before implementation, because a measured
+    failure is an acceptable 4F.8 output.
+  - But without it, AC-7 is expected to be NOT MET.
+- **Open, and unchanged:**
+  - CF-9, CF-10 and CF-11;
+  - C-7's carried finding, F-4FP-7;
+  - FP-24, as L-23;
+  - F-4FP-3 … F-4FP-10, including F-4FP-6;
+  - L-24 … L-28;
+  - L-1 … L-6, L-8 … L-11 and L-13 … L-22.
+- **AC-7 and AC-8: NOT MET, and not claimed.**
+- **No implementation branch exists.** This change is documentation only.

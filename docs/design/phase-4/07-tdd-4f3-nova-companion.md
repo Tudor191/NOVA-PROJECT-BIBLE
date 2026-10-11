@@ -220,6 +220,17 @@ not already exist.
 finding to report, not a contract to amend.** 4F.2's route was designed against
 this caller; a mismatch means one of the two is wrong and the user decides which.
 
+> **Amended for a later slice, 2026-10-11 (TDD 4F.8 ratification, A-4F8-1
+> (a1)), additively.** This section is preserved as written. It was 4F.3's
+> boundary, and it stays true of 4F.3.
+>
+> - **4F.8 adds exactly one internal `perception-engine` route**, for the
+>   companion's revocation report.
+> - The route is **not** fronted by `api-gateway`, and adds no gateway prefix.
+> - `POST /v1/perception/workspace-observations` **stays frozen.**
+> - **The companion still has no listening port.**
+> - See [TDD 4F.8](12-tdd-4f8-acceptance-verification.md) §29.
+
 ---
 
 ## 8. Persistence

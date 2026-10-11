@@ -951,6 +951,21 @@ slices within it, not new milestones** — the Phase 4 set remains 4A–4F.
 > **Not assigned to any slice by this amendment.** The owner of OS-level
 > revocation detection (RS-3b) must be ratified before the 4F.8 TDD.
 
+> **Amended 2026-10-11 (TDD 4F.8 ratification, A-4F8-7 and A-4F8-1),
+> additively.** The table and the notes above are preserved exactly as written.
+>
+> - **The 4F.8 row's *"Both criteria in a browser"* is clarified (A-4F8-7
+>   (a)).** Each criterion's browser-visible clause is demonstrated in a real
+>   browser. The rest is demonstrated by real-infrastructure evidence, read
+>   independently of the code under test. No route, subject or prefix is added
+>   to make a fact browser-visible.
+> - **RS-3b's owner is ratified (A-4F8-1 (a)).** `nova-companion` detects OS
+>   permission revocation, and `perception-engine` owns the `failed`
+>   transition, through one internal route. There is no automatic recovery.
+>   - TDD 4F.8 was prepared with this owner as its candidate A-4F8-1, and is
+>     ratified together with it. It was not ratified before its owner.
+> - See [TDD 4F.8](12-tdd-4f8-acceptance-verification.md) §29.
+
 ---
 
 ## 19. Ratified decisions — 2026-09-15
@@ -1022,6 +1037,21 @@ mean is ~5 s, so **a run beginning just after a tick is expected to exceed the
 budget.** 4F.8 will therefore either demonstrate that the real chain meets 5 s, or
 produce the evidence that it cannot. **Both outcomes are acceptable outputs of
 4F.8; only a test that conceals the answer is not.**
+
+> **Added 2026-10-11 (TDD 4F.8 ratification, A-4F8-6), additively.** This
+> section is preserved exactly as written, and **D-4F-1 is unchanged**.
+>
+> - **The measurement is ratified.** At least 10 independent samples, each on
+>   a never-before-observed path, every one reported. The criterion is met only
+>   if every sample is ≤ 5.0 s.
+> - **TDD 4F.8 §29.3 traces the chain at `1ccce7a`.** The 10-second cron is its
+>   only dispatch path, so it is on the critical path.
+> - **Local runtime evidence:** 66 real observations, delayed 2.8–10.0 s and
+>   tick-aligned. So the measurement is expected to fail.
+> - **The smallest compliant change** that would make AC-7 attainable is a
+>   perception-only one-second cron with a serial dispatcher. It is recorded
+>   there, and **it requires the user to reopen D-4F-1**. Nothing is changed
+>   here.
 
 ### 20.2 The perception subject contract — ratified, and pinned by 4F.2
 
@@ -1395,6 +1425,17 @@ RS-3a.
   It only provides the read surface and visualizes whatever normalized sensor
   state is actually supplied.
 - **The owner of revocation detection must be ratified before the 4F.8 TDD.**
+
+> **Owner ratified 2026-10-11 (TDD 4F.8 A-4F8-1 (a)), additively.** RS-3b is
+> preserved as written.
+>
+> - `nova-companion` detects OS-level permission revocation on its watch root,
+>   and reports it over one internal `perception-engine` route.
+> - `perception-engine` moves the filesystem sensor to `failed` through
+>   `report_error`, and publishes it on `perception.sensor.health_changed`.
+> - There is no automatic recovery.
+> - **Detection itself is still unimplemented.** It is 4F.8's D1 (TDD 4F.8
+>   §29).
 
 ### 24.5 The read surface
 
