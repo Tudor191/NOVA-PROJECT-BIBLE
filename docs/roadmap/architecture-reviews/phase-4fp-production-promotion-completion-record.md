@@ -16,6 +16,20 @@
 
 **PR:** **none.** None has been requested, and TDD 4F.P §22 step 8 and protocol §11.1 allow a PR only when asked. **Nothing is merged.**
 
+> **Added 2026-10-11, additively.** The base and PR lines above were accurate when written, and are kept.
+>
+> - **PR [#39](https://github.com/Tudor191/NOVA-PROJECT-BIBLE/pull/39)** (`phase-4fp` → `phase-4`) was opened at the user's request. **It is open and not merged.**
+> - **`phase-4` has moved to `88fa46f87d575088a68a49f1c018ec9d205116a2`.** That is the merge of PR #40, a separate dependency-security change. PR #40 is not part of 4F.P (§7.1 note).
+> - **Three commits, three roles:**
+>
+>   | Role | Commit |
+>   |---|---|
+>   | The P8 implementation and end-to-end proof commit | **`d1ae98181c9af1bec24279a0a79cd62f874d0093`**: the implementation SHA above |
+>   | The 4F.P branch synchronization commit: `phase-4` @ `88fa46f` merged into `phase-4fp` | **`fee1fea50360cebfcab70059e6b9504fa7007721`** |
+>   | The CI-validated commit before this documentation update | **`fee1fea50360cebfcab70059e6b9504fa7007721`**: 40 of 40 check runs `success` (§7.2 note) |
+>
+> - **The commit that adds this note is documentation only, and CI has not run at it.** A fresh CI run on PR #39 at that commit's SHA is required (§11 note).
+
 **Protocol:** [`PROJECT_PHASE_COMPLETION_PROTOCOL.md`](../../PROJECT_PHASE_COMPLETION_PROTOCOL.md).
 
 - sha256 `21185dd1b2a43e87eac0a52aa5e53c8e8bbb01223014dc2a48408bbb0478de6a`, 1131 lines.
@@ -44,6 +58,17 @@
 - **No PR has been opened.**
 - **Nothing is merged.**
 
+> **Added 2026-10-11, additively.** The four items above were accurate when written, and are kept. Their state now:
+>
+> - **CI has run at `fee1fea`**, the branch synchronization commit. All 40 check runs concluded `success`, and the e2e job's P8 step passed 67/67 in containers (§7.2 note). **The documentation commit that adds this note has not been through CI.** A fresh run is required.
+> - **Both decisions are made** (§8.1):
+>   - F-4FP-1 is **accepted, with an explicit evidence limitation**;
+>   - F-4FP-2 is **confirmed**: six outcomes.
+> - **PR #39 is open.** It has not been reviewed for merge.
+> - **Nothing is merged.**
+>
+> **4F.P is still NOT complete** (§11 note).
+
 **Phase 4F is NOT complete.** **4F.8 has not started.** Completing 4F.P does not authorize starting 4F.8. 4F.8 also waits for 4F.P to be **merged** (TDD 4F.P §30.9).
 
 ### 0.1 Branch shape — disclosed
@@ -66,6 +91,13 @@
 - **In-session instructions** for each implementation slice (P1/P3/P5/P6, P4, P7, P8), and for this final verification.
 - **One discrepancy between an instruction and the ratified text.** It was reported at the time and is listed for confirmation in §8.1, F-4FP-2.
 
+> **Added 2026-10-11, additively.** Two user decisions of 2026-10-11 are now also in force (§8.1):
+>
+> - **F-4FP-1:** accepted, with an explicit evidence limitation.
+> - **F-4FP-2:** confirmed.
+>
+> The discrepancy in the last bullet is resolved in favour of the ratified text.
+
 ---
 
 ## 1. Status
@@ -76,6 +108,8 @@
 - **Real-infrastructure tests** ran against substitute local services, because Docker is unavailable here (§6): PostgreSQL 16, `nats-server` and `redis-server`.
 - **The composed proof** ran against a local equivalent of the e2e stack (§6.2): the same engines and the real companion binary, as processes.
 - **CI has not run at all for this branch** (§7.2).
+
+> **Added 2026-10-11, additively.** The last bullet is historical. CI has since run on PR #39. At **`fee1fea`**, every workflow concluded `success`, and that includes the P8 proof in the e2e job's containers (§7.2 note). The local evidence in §1.1 and §1.2 is unchanged, and is kept as written.
 
 ### 1.1 The slice's exit criterion
 
@@ -149,6 +183,13 @@ The driver removes A-4FP-11's row through the production route, `DELETE /v1/acti
 
 The driver's check asserts `denied`, `propose`, the reason prefix and the zero delta. **It does not assert the error string itself.** That string is read from the evidence dump the driver prints. §8.1 F-4FP-4 records this, and it is **not changed here**, as the instruction for this verification requires.
 
+> **Added 2026-10-11, after CI completed, additively.** The same control ran in CI, in the e2e job's P8 step at **`fee1fea`** (job `114220748526`). The evidence the driver printed there shows:
+>
+> - the decision reason *"proposed for explicit user approval; nothing is executed (action-engine denied the action: identity_confidence_denied)"*;
+> - the check *"V-6 (a). nothing executed: no capability invocation for the denied action"*: `ok`, evidence `0.0`.
+>
+> So **`identity_confidence_denied` led to a proposal, with zero capability invocations**, in CI's containers. F-4FP-4 stands: the driver's check still does not assert the error string, which is read here from the printed evidence.
+
 ---
 
 ## 2. Category 2 — acceptance criteria
@@ -212,6 +253,23 @@ The driver's check asserts `denied`, `propose`, the reason prefix and the zero d
 
 - **V-6 (b) is met only as two per-engine halves.** C-14 describes a single test in which the real adapter fails, and that test does not exist. It is for decision (F-4FP-1), and X-4's failure mode rests on it.
 - **None of the 23 is verified in CI**, because no CI run exists for this branch (§7.2). The composed rows are CI-pending specifically: the e2e job is their authoritative carrier.
+
+> **Added 2026-10-11, additively (protocol §2.4).** The sentence and two bullets above were accurate when written, and are kept. Their state now:
+>
+> - **V-6 (b): Met with disclosed narrowing (approval cited: the user's F-4FP-1 decision, 2026-10-11).**
+>   - The evidence is the two per-engine halves named in its row. **No single integrated test exists.**
+>   - §8.1's F-4FP-1 decision note states what each half proves, what the combined evidence supports, and the limitation.
+> - **X-4: Met with the same disclosed narrowing, for its failure mode only.** That mode rests on V-6 (b). Its other four modes are unchanged.
+> - **All 23 acceptance criteria are met.**
+>   - **V-6 (b) and X-4** are Met with disclosed narrowing, approval cited.
+>   - **The other 21** keep the status their rows give, and now also have CI evidence (below).
+>   - **No criterion is unmet.** X-5 stays excluded, because AC-8 is not claimed.
+> - **CI at `fee1fea`** (§7.2 note). `fee1fea`'s source and tests are `d1ae981`'s: between the two, only documentation and PR #40's four dependency files changed.
+>   - **The composed rows** are now verified in CI's containers: X-1, X-2, the composed part of X-3, V-1 … V-5, V-6 (a), V-7 (a1), I-1 and I-2. The e2e job's P8 step passed **67/67**.
+>   - **The per-engine `real_infra` rows** ran in `Real-Infrastructure Checks`: V-6 (b)'s `autonomy-engine` half, V-7 (a2), V-7 (b), V-7 (c)'s two real-infra tests, and V-8 (a)–(c). The jobs report `autonomy-engine` **63 passed**, `cognitive-state-engine` **57 passed** and `action-engine` **27 passed**.
+>   - **The unit-tier evidence** ran in `PR Checks`' *"Test every package"*. That covers X-3's unit tests, V-6 (b)'s `action-engine` half and V-7 (c)'s `action-engine` unit test.
+>   - **The test-backed parts of V-9, V-10 and I-3** also ran in `PR Checks`: the 26 guards under *"Test scaffolding tools"*, and the registry and `PUBLIC_TOPICS` tests under *"Test every package"*.
+>   - **Their `git diff` checks are commands, not CI evidence.** Re-run in this session, `git diff --stat 9d2d636 fee1fea -- services/action-engine services/capability-engine` is still **empty**.
 
 ### 2.1 What this slice does not claim
 
@@ -489,6 +547,13 @@ Every wait in the driver is bounded and polls a condition. None is a sleep that 
    **The composed path has none** (§1.1, link Q).
 8. **Unverified.** *These 175 real-infra tests (57 + 63 + 22 + 27 + 6) and the composed P8 proof have not been executed in CI's containers for this change. `Real-Infrastructure Checks` is non-blocking. The e2e job is staged and non-blocking. Neither has reported against `d1ae981`, because neither has run on this branch (§7.2).*
 
+   > **Added 2026-10-11, after CI completed, additively.** Item 8 is historical. At **`fee1fea`**, both ran in CI's containers and concluded `success` (§7.2 note):
+   >
+   > - **`Real-Infrastructure Checks`**: all 15 package jobs `success`. The five packages above report the same counts as item 3: `cognitive-state-engine` **57 passed**, `autonomy-engine` **63**, `perception-engine` **22**, `action-engine` **27** and `capability-engine` **6**. That is 175 in all.
+   > - **The e2e job**: the composed P8 proof, **67/67 checks**.
+   >
+   > Item 2's substitute services remain the only *local* evidence. CI's containers are the authoritative evidence.
+
 ---
 
 ## 7. Category 11 — PR, branch, commit and CI evidence
@@ -519,6 +584,26 @@ Every wait in the driver is bounded and polls a condition. None is a sleep that 
 - **`c0c47f9`'s message and every status note list the slices as *"P1, P3, P5 and P6"* / *"P1, P3 … P8"*.** They omit P2's number, although the same message describes P2's content (A-4FP-2, A-4FP-10). See F-4FP-3.
 - **No other factual claim was found to be false.**
 
+> **Added 2026-10-11, additively.** The table above ends at *"(next)"*, which is now `0cbcce7`. The branch has moved since, with no rewrite, squash, rebase, amend or force-push:
+>
+> | Commit | Content | On `phase-4fp` how |
+> |---|---|---|
+> | `0cbcce7` | P9: this record and the §9 documentation. Documentation only | Its own commit (the *"(next)"* row above) |
+> | `28af88c` | `uv.lock`: `pyjwt` 2.15.1, `urllib3` 2.8.0. **Not 4F.P** | Via `fee1fea`. Authored on `phase-4-dependency-security` for PR #40 |
+> | `7cbbc59` | `vitest` `^4.1.11` in `apps/web-client` and `packages/nova-ui`. The `pnpm-lock.yaml` refresh moves `brace-expansion` to 1.1.21 / 5.0.12 and `source-map-js` to 1.2.2, and drops `tinypool`. **Not 4F.P** | Via `fee1fea`. Same branch and PR |
+> | `88fa46f` | PR #40's merge into `phase-4` (parents `9d2d636`, `7cbbc59`). **`phase-4`'s new head** | Via `fee1fea` |
+> | **`fee1fea`** | **The branch synchronization commit**: `phase-4` @ `88fa46f` merged into `phase-4fp` (parents `0cbcce7`, `88fa46f`). It follows the precedent `9afddf6`, a normal merge of `phase-4` into a milestone branch. It brings exactly PR #40's four dependency files, and no 4F.P change | Merge |
+> | (next) | This documentation update. Documentation only | Its own commit |
+>
+> - **The roles stay separate.**
+>   - **`d1ae98181c9af1bec24279a0a79cd62f874d0093`** remains the P8 implementation and end-to-end proof commit, and the last commit that changes 4F.P's code, tests, CI or compose.
+>   - **`fee1fea50360cebfcab70059e6b9504fa7007721`** is the branch synchronization commit.
+>   - **`fee1fea50360cebfcab70059e6b9504fa7007721`** is also the CI-validated commit before this documentation update.
+> - **Against the new base, re-verified in this session:**
+>   - `git merge-base origin/phase-4 HEAD` is `88fa46f`;
+>   - PR #39's diff is 55 files;
+>   - `git diff --stat 88fa46f fee1fea -- uv.lock pnpm-lock.yaml apps packages/nova-ui` is **empty**, so 4F.P changes no lockfile or dependency manifest.
+
 ### 7.2 CI
 
 **No CI run exists for this branch, and no local result is reported as CI evidence.** These were queried through the GitHub API in this session:
@@ -538,6 +623,39 @@ Every wait in the driver is bounded and polls a condition. None is a sleep that 
 **The outstanding acceptance step.** The P8 proof's first run in containers needs a PR from `phase-4fp`. When it runs, its conclusion must be read **from the e2e job itself**. That job is *"staged, non-blocking"*, so a green PR status does not imply it passed. The P8 step has no `continue-on-error`, so its failure fails that job. The conclusions of all three workflows at the exact head SHA are then to be added to this record, additively, as 4F.7's record did.
 
 **Known CI risk** (F-4FP-6): the existing `perception-engine` flake can redden `PR Checks` spuriously.
+
+> **Added 2026-10-11, after CI completed, additively.** The paragraphs above were written before any PR existed, and are kept. CI has since run on PR [#39](https://github.com/Tudor191/NOVA-PROJECT-BIBLE/pull/39) (`phase-4fp` → `phase-4`). This note replaces nothing; it supplies the evidence those paragraphs waited for. Every conclusion below was read through the GitHub API in this session, from the runs and jobs themselves.
+>
+> **CI at the CI-validated commit: `fee1fea50360cebfcab70059e6b9504fa7007721`.** This is the branch synchronization commit (§7.1 note). PR #39's base at that point was `88fa46f87d575088a68a49f1c018ec9d205116a2`.
+>
+> - `commits/fee1fea…/check-runs` → **40 check runs, all 40 `success`**: 0 failed, 0 cancelled, 0 skipped.
+> - Every run is `pull_request`, attempt **1**. No job was re-run.
+>
+> | Workflow | Job(s) | Conclusion at `fee1fea` | Evidence |
+> |---|---|---|---|
+> | `Build & Scan` | `dependency-audit`: step *"pip-audit (Python dependencies)"* | **success** | run `38054732512`, job `114220748264` |
+> | `Build & Scan` | `dependency-audit`: step *"pnpm audit (JS dependencies)"* | **success**, *"No known vulnerabilities found"* | same job |
+> | `Build & Scan` | 22 `build-and-scan` image jobs: the 15 `*-engine` images, `nova-core`, `api-gateway`, `ws-gateway`, the three `agent-os` images and `nova-companion`. Each has a *"Scan <image> image"* Trivy step | **success**: 22/22 jobs, and 22/22 scan steps | run `38054732512`, jobs `114220748423` … `114220748552` |
+> | `Build & Scan` | the whole run (23 jobs) | **success** | run `38054732512` |
+> | `PR Checks` | `checks`: import boundaries, scaffolding tools (incl. the 26 P8 guards), Rust companion, Agent Packages, lint every package, type-check TypeScript, test every package, validate compose | **success**: every step | run `38054732529`, job `114220748333` |
+> | `PR Checks` | `Playwright golden path (staged, non-blocking)` | **success**. Steps *"Provision the shared workspace (4F.P P8)"*, *"Run the golden path"*, *"Start the P8 services (perception-engine, its worker, nova-companion)"* and *"Prove real end-to-end execution (4F.P P8)"* all `success`. The P8 step's log ends **`=== P8: all 67 checks passed ===`**. The failure-only diagnostic steps were `skipped` | run `38054732529`, job `114220748526` |
+> | `Real-Infrastructure Checks` | 15 package jobs | **success**: 15/15. `cognitive-state-engine` 57 passed, 284 deselected. `autonomy-engine` 63 passed, 379 deselected. `perception-engine` 22 passed, 208 deselected. `action-engine` 27 passed, 103 deselected. `capability-engine` 6 passed, 83 deselected | run `38054732427`; jobs `114220748137`, `114220748176`, `114220748026`, `114220748172`, `114220748229` |
+>
+> - **The P8 conclusion is read from the e2e job itself**, as the paragraph above requires. It is not inferred from PR #39's overall status.
+> - **The P8 denial control in CI:** `identity_confidence_denied` led to a proposal, with zero capability invocations (§1.2 note).
+>
+> **The earlier run, at `0cbcce74c0867403d347a5f4074b83e54f556a67` (P9's record commit), for the history.**
+>
+> - `PR Checks` run `37525468302`: **success**, including the P8 step.
+> - `Real-Infrastructure Checks` run `37525468274`: **success**.
+> - `Build & Scan` run `37525468278`: **failure**.
+>   - `dependency-audit` failed at *"pip-audit (Python dependencies)"*, which reported *"Found 17 known vulnerabilities in 2 packages"*: `pyjwt` and `urllib3`, as locked in the base's `uv.lock`.
+>   - Three image jobs failed at their Trivy scan: `reasoning-engine`, `autonomy-engine` and `planning-engine`.
+>   - The other 19 jobs were cancelled.
+> - **4F.P did not cause it.** `git diff --stat 9d2d636 0cbcce7 -- uv.lock pnpm-lock.yaml` is empty. The base's own lockfile carried the vulnerable versions.
+> - **It was fixed outside 4F.P**, by PR #40 into `phase-4`, and then the synchronization merge `fee1fea` (§7.1 note). No 4F.P file was changed to make CI pass.
+>
+> **The commit that adds this note.** It is documentation only, and **CI has not run at it** when this is written. A fresh CI run on PR #39 at that commit's SHA is **required**. Its conclusions are read from PR #39's checks at that SHA. The commit cannot cite its own CI run.
 
 ### 7.3 Boundary audit (`git diff --name-only 9d2d636 HEAD`, plus this record's commit)
 
@@ -561,6 +679,12 @@ Every wait in the driver is bounded and polls a condition. None is a sleep that 
 - **Items 2 and 5** are per-PR obligations. They apply when the PR is opened.
 
 **No change-scope linter was created.**
+
+> **Added 2026-10-11, additively.** PR #39 is now open, so SAD 15 §4 items 2 and 5 apply to it. Their state, as checked in this session:
+>
+> - **Item 2** (unit and integration tests pass) **is evidenced by CI at `fee1fea`**: *"Test every package"* and all 15 real-infra jobs passed (§7.2 note). It must hold again at the documentation commit's CI run.
+> - **Item 5 is not discharged.** It says *"PR descriptions are required to cite the Bible section(s) implemented"*. PR #39's description, as read through the API in this session, cites no Bible Part. TDD 4F.P §0's table names the Parts: [Part 6](../../bible/part-06-nova-cognitive-state-engine.md), [Part 12](../../bible/part-12-action-engine.md) and [Part 14](../../bible/part-14-autonomy-engine.md) l.101–107. Adding them to the PR description is a per-PR merge condition. This documentation change does not edit the PR.
+> - **The boundary audit against the new base is unchanged in substance.** Relative to `88fa46f`, the only file under a frozen path is `services/perception-engine/README.md`, the documentation note already listed above. `git diff --stat 88fa46f fee1fea` over `uv.lock`, `pnpm-lock.yaml`, `apps`, `packages/nova-ui`, `services/action-engine`, `services/capability-engine`, `services/perception-engine`, `services/world-model-engine`, both gateways, `companion`, `agent-os`, `agents`, `build-and-scan.yml` and `real-infra-checks.yml` shows only that README.
 
 ### 7.4 SLOC
 
@@ -596,6 +720,70 @@ The method is the 4E methodology: `cloc` **v2.06** `--skip-uniqueness --quiet` o
 - **Recommendation: (a).**
 - **Blocks 4F.P's completion until decided.** It blocks nothing else.
 
+> **Decided 2026-10-11, by the user, additively.** The finding above is kept as written.
+>
+> **The decision: V-6 (b) is ACCEPTED, with an explicit evidence limitation.**
+>
+> - The two per-engine halves are accepted as V-6 (b)'s evidence.
+> - The limitation below is part of the decision.
+> - The decision adds no composed run (option (b)), and does not defer V-6 (b) (option (c)).
+>
+> **No single integrated test exists.** None is claimed here, and C-14's V-6 (b) test, as corrected, has not been built or run.
+>
+> **What the `autonomy-engine` half proves.** The test is `services/autonomy-engine/tests/integration/test_decision_trigger_real_infra.py::test_p7_failed_and_rolled_back_are_recorded_as_execution_failed`, parametrized `[failed]` and `[rolled_back]`, in the `real_infra` tier.
+>
+> - **What it runs.** `autonomy-engine`'s production path (`create_app`, `serve()`, `decide()`, `ActionDispatchClient`) runs over real NATS and real PostgreSQL, at Level 2 with an `AUTO_EXECUTE` policy.
+> - **What answers `action.execute`.** A **labelled stand-in responder** (the `serve_action_engine` fixture; the module docstring calls it RS-8 test infrastructure). It replies with the real `ActionResultPayload` contract, with status `failed` or `rolled_back` and an error.
+> - **What it asserts:**
+>   - the trigger's reply is not degraded, and its outcome is `execution_failed`;
+>   - exactly one dispatch was made, under `action_id = uuid5(NAMESPACE, event_id)`;
+>   - exactly one `autonomy.decision_log` row exists, `(action_id, suggestion_id, outcome) == (subject_id, None, "execution_failed")`;
+>   - the row's reason names the status and the error;
+>   - no suggestion is written.
+> - **So it proves:** a `failed` or `rolled_back` reply under the real contract is recorded as `execution_failed`, never as `execute`, on production code over real infrastructure.
+> - **Its controls.** NP-1 (`failed` → `EXECUTE`) makes the `[failed]` case fail (§5.1).
+> - **CI.** It passed at `fee1fea`, in job `114220748176`: 63 passed.
+>
+> **What the `action-engine` half proves.** Both tests predate 4F.P, and `action-engine` is byte-identical to `9d2d636` (V-10).
+>
+> - **`services/action-engine/tests/unit/test_pipeline.py::test_execution_failure_without_rollback_strategy_reaches_failed`** (unit).
+>   - A fake capability port returns `("failure", None, "adapter error")` for the capability's invocation.
+>   - The real pipeline then ends with `result.status == "failed"` and `result.error == "adapter error"`.
+>   - **So it proves:** when an execution fails and there is no rollback strategy, `action-engine`'s pipeline reaches `failed`.
+> - **`services/action-engine/tests/integration/test_events_action_execute.py::test_action_execute_reports_a_structured_failure_for_an_unknown_capability`.**
+>   - It runs `main.py`'s served `action.execute` over the **in-memory** bus, with fake ports.
+>   - The reply's `status` is `"failed"`, and its error contains *"not found"*.
+>   - **So it proves:** `action-engine` reports a failure to its caller as status `failed`, on the `action.execute` reply contract.
+>   - **The failure there is an unknown capability, not an adapter failure.**
+> - **CI.** Both ran in `PR Checks`' *"Test every package"* at `fee1fea`, which passed.
+>
+> **What the combined evidence supports.**
+>
+> - Both halves meet at one contract, `ActionResultPayload` in `nova-contracts`, and its `status` field.
+> - `action-engine` produces `failed` when an execution fails.
+> - `autonomy-engine` records any `failed` (or `rolled_back`) reply under that contract as `execution_failed`, and never as `execute`.
+> - **So: "a failed action is not recorded as `EXECUTE`" holds by composition of two contract-conforming halves.** That is V-6 (b)'s property. It is the same shape of evidence as V-7 (c), and as 4F.6's precedent.
+>
+> **The limitation, explicitly.** The following are **not** evidenced:
+>
+> - **No run exists in which the real filesystem adapter fails** inside the real `capability-engine` and is then reported, through the real `action-engine`, to the real `autonomy-engine`. That is C-14's *"negligible `filesystem`/`read` of a sandbox-relative file that does not exist"*.
+> - **No run reads `action.action.status = failed`** next to an `execution_failed` decision row for the same `action_id`.
+> - **The `failed` reply `autonomy-engine` consumes comes from a stand-in**, not from `action-engine`.
+> - **The `action-engine` half uses fakes.** It uses a fake capability port in the unit test, and an in-memory bus with fake ports in the integration test. Its wire-level failure is an unknown capability, not an adapter failure.
+> - **`rolled_back`** is evidenced only on the `autonomy-engine` side, through the stand-in.
+> - **The composed stack evidences two outcomes only:** `completed` → `execute` (§1.1, link P) and `denied` → `propose` (§1.2). It evidences no failure outcome.
+> - **Per C-14, this per-engine evidence never counts toward CF-11 or AC-8.**
+>
+> **Consequences.**
+>
+> - **V-6 (b)** becomes *Met with disclosed narrowing (approval cited: this decision)*, and **X-4's failure mode** carries the same narrowing (§2 note).
+> - **The finding no longer blocks 4F.P's completion.** It stays recorded here with its limitation, and **it is not removed**.
+> - **Protocol §14.1 recording of the approved narrowing:**
+>   - **The design document:** TDD 4F.P §28.4 C-14 carries a dated note.
+>   - **The module docstrings** of the two halves are test files, which this documentation-only change may not modify. Recording the narrowing there is carried as **L-28** (§10.3 note).
+>   - **The Gate Review:** 4F's Gate Review (L-1) must carry the narrowing. That is also in L-28.
+> - **The other findings, F-4FP-3 … F-4FP-10, are unchanged by this decision.**
+
 **F-4FP-2. The outcome vocabulary has six members.**
 
 - The P7 instruction said *"exactly the ratified five members"*. A-4FP-7 (§30.2) adds `EXECUTION_FAILED` to the five that existed (`observe_only`, `propose`, `deny`, `execute`, `timeout`). §28.5 lists six.
@@ -603,6 +791,58 @@ The method is the 4E methodology: `cloc` **v2.06** `--skip-uniqueness --quiet` o
 - **Options:** keep six, as ratified, or reduce to five, which would contradict A-4FP-7.
 - **Recommendation: confirm six.**
 - **Blocks:** no, because the ratified text governs. Confirmation is requested.
+
+> **Confirmed 2026-10-11, by the user, additively.** The finding above is kept as written.
+>
+> **The decision: CONFIRMED.** `DecisionOutcome` has six members, in this order: **`observe_only`, `propose`, `deny`, `execute`, `timeout`, `execution_failed`**.
+>
+> - The P7 instruction's *"exactly the ratified five members"* is resolved in favour of the ratified text.
+> - **Nothing is removed or changed by this confirmation.** `execution_failed` stays, and so do the production outcome semantics.
+>
+> **The ratified mapping, preserved.** A-4FP-7 with SD-4 (TDD 4F.P §30.1, §30.2):
+>
+> | `action-engine`'s reply, or the dispatch result | Recorded outcome |
+> |---|---|
+> | `completed` | `execute`. Nothing else records `execute` |
+> | `denied` | `propose`, through the proposal path, with a suggestion |
+> | `failed`, `rolled_back` | `execution_failed` |
+> | `pending`, `approval_required`, `approved`, `executing` | `execution_failed` |
+> | No reply within the bound | `timeout` (D-4F5-3), unchanged |
+> | No responder | `propose` (TDD 4F.5 §22.8), unchanged |
+> | Any other dispatch or transport fault | A degraded reply, and **no** log row (4F.6 Design A), unchanged |
+>
+> - `outcome` is `TEXT` with no CHECK, so no migration was needed.
+> - A transport failure is never `execution_failed`.
+>
+> **The evidence supporting it:**
+>
+> - **The ratified text:**
+>   - A-4FP-7, §30.2: *"`EXECUTION_FAILED` is a new `DecisionOutcome` member, with the value `"execution_failed"`"*;
+>   - SD-4, §30.1;
+>   - §28.5, which retargets the vocabulary test *"to six members"* and amends TDD 4F.6 §19 row 13 openly.
+> - **The code**, unchanged since `a0b9b4f` and identical at `fee1fea`:
+>   - `services/autonomy-engine/src/nova_autonomy_engine/domain/models.py:132–136` holds the five earlier members, and `:149` holds `EXECUTION_FAILED = "execution_failed"`. The class docstring (`:125–130`) records the sixth member additively.
+>   - `domain/decision.py:255` is `ACTION_STATUS_OUTCOMES`, keyed by all eight `ActionStatus` values, exactly the table above. `:294` is `outcome_for_action_status`, applied to the reply at `:545`.
+> - **The unit tests**, run in CI at `fee1fea` (*"Test every package"*):
+>   - `test_decision_orchestration.py::test_the_outcome_vocabulary_is_the_five_plus_execution_failed` asserts the six values, in order;
+>   - `test_level_two_dispatch.py::test_p7_the_ratified_table_exactly`;
+>   - `test_level_two_dispatch.py::test_p7_completed_is_the_only_status_that_maps_to_execute`.
+> - **The real-infra tests**, run in CI at `fee1fea` (job `114220748176`):
+>   - `test_p7_completed_is_recorded_as_execute_only_after_the_reply`;
+>   - `test_p7_denied_is_recorded_as_a_proposal_with_its_suggestion`;
+>   - `test_p7_failed_and_rolled_back_are_recorded_as_execution_failed`;
+>   - `test_p7_a_non_terminal_reply_is_recorded_as_execution_failed`;
+>   - `test_p7_no_reply_within_the_bound_is_recorded_as_timeout`;
+>   - `test_p7_no_responder_is_recorded_as_a_proposal_never_a_timeout`;
+>   - `test_p7_a_transport_fault_before_any_reply_records_nothing`.
+> - **The negative controls:** NP-1 (`failed` → `EXECUTE`) and NP-2 (`denied` → `EXECUTE`) are both caught (§5.1). So are the composed control NC-2 (`completed` → `execution_failed`) and guard G10 (outcome-table drift).
+> - **The composed stack, in CI at `fee1fea`:** `execute` for `completed` (link P), and `propose` for the real `denied` (§1.2), both inside the 67/67 run.
+> - **The OpenAPI enum** widens by `execution_failed` only (§4).
+>
+> **Unchanged by this confirmation, and still OPEN:**
+>
+> - **L-23 / FP-24:** TDD 4D §4.3's *"exactly four outcomes"* is stale.
+> - **F-4FP-10:** the web client's `decisionResultSchema` enumerates four outcomes.
 
 **F-4FP-3. Every phase-4fp status note omits P2's number.**
 
@@ -631,6 +871,17 @@ The method is the 4E methodology: `cloc` **v2.06** `--skip-uniqueness --quiet` o
 - It was seen once during P8 and passed on re-run. **4F.P does not touch `perception-engine`.**
 - **Recommendation:** use a segment that cannot be hex, in a perception-owned change.
 - **Blocks:** no. It **can redden CI**; read failures by name.
+
+> **Added 2026-10-11, additively.** The finding stays **OPEN**, and nothing was changed for it.
+>
+> - **It recurred in CI on PR #40**, the dependency PR into `phase-4`, not on PR #39. It was in `Real-Infrastructure Checks` run `37760048313`, attempt 1, at `7cbbc59`, job `113253974681` (`real-infra (perception-engine, …)`).
+> - **The failing tests** were two more members of the same class, both in `services/perception-engine/tests/integration/test_workspace_real_postgres_e2e.py`:
+>   - `test_s4_no_path_segment_is_present_in_the_persisted_row`: *"path segment 'ada' reached the database"*;
+>   - `test_s4_the_published_event_carries_no_path_either`: *"path segment 'ada' was published"*.
+> - **The cause** is the module's random `_PRIMARY_USER_ID = uuid4()` (l.75), which was `adae14d9-78ce-421c-98e1-fbaeecdbd958`, against `SEGMENTS`' `"ada"` (l.83).
+> - **The user re-ran it once from the GitHub UI.** Attempt 2 passed.
+> - **At PR #39's `fee1fea`, the job passed on attempt 1** (job `114220748026`: 22 passed).
+> - **So the class covers at least four tests**, across the unit and `real_infra` tiers: the two named above (`tests/integration/test_api_workspace_observations.py` and `tests/unit/test_workspace_orchestration.py`), and these two in `test_workspace_real_postgres_e2e.py`. The recommendation above applies to all of them.
 
 **F-4FP-7. A carried-forward finding from P4.**
 
@@ -662,6 +913,19 @@ TDD 4F.P §30.7 stands:
 - **CF-9:** the composed run is the first real stage-3 pass. It settles at 4F closure.
 - **CF-10:** nothing. Trust stays `UNAVAILABLE`.
 - **CF-11:** 4F.P evidences the production mechanism. **Claim 3 is 4F.8's** and **claim 4 is 4F closure's.**
+
+> **Added 2026-10-11, additively.** **CF-9, CF-10 and CF-11 stay OPEN.** Neither CI at `fee1fea` nor the two decisions in §8.1 closes any of them.
+>
+> - **CF-9:** the composed run's real stage-3 pass and real stage-3 denial now also ran in CI's containers. That is evidence for CF-9, not its closure, which stays with 4F closure.
+> - **CF-10:** unchanged.
+> - **CF-11:** unchanged. The V-6 (b) halves are per-engine evidence, and per C-14 they never count toward it.
+>
+> **Also unchanged and OPEN:**
+>
+> - C-7's carried item, F-4FP-7;
+> - FP-24, as L-23;
+> - F-4FP-3 … F-4FP-10;
+> - every ledger row in §10.
 
 ### 8.3 Deferred, and not implemented here
 
@@ -703,6 +967,18 @@ TDD 4F.P §30.8 stands unchanged. This includes:
 | Design documents | TDD 4F.P, 4F, 4F.5, 4F.6, 4F.7; master scope | Dated per-slice status notes (P1 … P8 commits). In this commit: one 2026-10-05 note each in TDD 4F.P §30.10 and §22, and in master scope §5 and §17 | **Yes** |
 
 **Before/after.** Every change is an inserted, dated note at the place named. No existing sentence was edited. The *before* at each location is the unchanged surrounding text, and the *after* is that text plus the note (see this commit's diff).
+
+> **Added 2026-10-11, additively.** The documentation update that records the two decisions and the CI evidence is documentation only. Every change in it is an inserted, dated note:
+>
+> | Document | Note |
+> |---|---|
+> | This record | Header, §0, §0.2, §1, §1.2, §2, §6, §7.1, §7.2, §7.3, §8.1 (F-4FP-1, F-4FP-2, F-4FP-6), §8.2, §9, §10.3 (L-28), §11 and §11.1 |
+> | TDD 4F.P §28.4 C-14 | The approved narrowing of V-6 (b) (protocol §14.1's design-document place) |
+> | TDD 4F.P §22 and §30.10 | Status on `phase-4fp`: PR #39, CI at `fee1fea`, both decisions, the fresh CI run required |
+> | Master scope §5 and §17 | The same status, in one note each |
+>
+> - **No source, test, manifest, lockfile, workflow or Docker file is changed.**
+> - **The other documents §9 names were re-read**, and nothing in them is made stale by this update. The architecture notes (07, 09, 10, 14) and the three READMEs describe design, and state no CI or decision status.
 
 **Inspected and found accurate, or N/A:**
 
@@ -749,6 +1025,12 @@ TDD 4F.P §30.8 stands unchanged. This includes:
 | **L-26** | OPEN | TDD 4F.8's re-verification against merged 4F.P (§22 step 4; §30.9) | 4F.8, after merge | No |
 | **L-27** | OPEN | Project Health, roadmap and top-level README status for 4F.P (categories 4, 5 and 7). `ENGINEERING_ROADMAP.md` has no 4F.P entry | 4F closure | No |
 
+> **Added 2026-10-11, additively.** One row is opened by the F-4FP-1 decision (§8.1). No row is settled, and L-1 … L-27 are unchanged.
+>
+> | Row | Status | Obligation | Owner | Blocks 4F.P? |
+> |---|---|---|---|---|
+> | **L-28** | OPEN | Protocol §14.1's remaining places for F-4FP-1's approved narrowing of V-6 (b). (i) The module docstrings of the two halves' test files: `autonomy-engine` `test_decision_trigger_real_infra.py`, and `action-engine` `test_pipeline.py` / `test_events_action_execute.py`. They are tests, which this documentation-only change may not modify. (ii) 4F's Gate Review (L-1), which must carry the narrowing and its limitation. The design-document part is done: TDD 4F.P §28.4 C-14's 2026-10-11 note | 4F closure | No |
+
 ---
 
 ## 11. Final status
@@ -775,6 +1057,34 @@ TDD 4F.P §30.8 stands unchanged. This includes:
   - the merge is authorized.
 - **Completing 4F.P does not authorize starting 4F.8.**
 
+> **Added 2026-10-11, additively.** The status above was accurate when written, and is kept. The status now:
+>
+> - **Commits:**
+>   - **The P8 implementation and end-to-end proof commit:** `d1ae98181c9af1bec24279a0a79cd62f874d0093`.
+>   - **The branch synchronization commit:** `fee1fea50360cebfcab70059e6b9504fa7007721`.
+>   - **The CI-validated commit before this documentation update:** `fee1fea50360cebfcab70059e6b9504fa7007721`.
+> - **CI at `fee1fea`:** 40 of 40 check runs `success` (§7.2 note). That includes:
+>   - Build & Scan: the Python dependency audit `success`, the JavaScript dependency audit clean, and all 22 Trivy image scans `success`;
+>   - PR Checks, with the Docker P8 proof at **67/67**;
+>   - Real-Infrastructure Checks, **15/15** jobs.
+> - **The P8 denial control in CI:** `identity_confidence_denied` led to a proposal, with zero capability invocations (§1.2 note).
+> - **The two decisions are made** (§8.1):
+>   - **F-4FP-1:** accepted, with an explicit evidence limitation. V-6 (b) is Met with disclosed narrowing, and no single integrated test exists.
+>   - **F-4FP-2:** confirmed. The six outcomes are `observe_only`, `propose`, `deny`, `execute`, `timeout` and `execution_failed`.
+> - **The acceptance criteria:** all 23 are met, two of them with disclosed narrowing, approval cited (§2 note).
+> - **Still OPEN:**
+>   - CF-9, CF-10 and CF-11 (§8.2 note);
+>   - F-4FP-3 … F-4FP-10, including C-7's carried item F-4FP-7;
+>   - L-23 (FP-24), L-24 … L-28, and the carried rows in §10.2.
+> - **PR #39 is open, and nothing is merged.** `main` and `phase-4` are untouched by 4F.P.
+> - **The documentation commit that adds this note has not been through CI.** A fresh CI run on PR #39 at its SHA is **required** before any merge decision. Its conclusions are read from PR #39's checks at that SHA, because a commit cannot cite its own CI run.
+> - **4F.P is NOT complete.** It stays incomplete until four things hold:
+>   - CI at the documentation commit concludes green, with the e2e job's P8 step green;
+>   - SAD 15 §4 item 5 is discharged on PR #39, because its description cites no Bible section (§7.3 note);
+>   - PR #39 is reviewed;
+>   - its merge is explicitly authorized, and it is merged.
+> - **Phase 4F is NOT complete.** 4F.8 has not started, and completing 4F.P does not authorize starting it. L-26 waits for the merge.
+
 ### 11.1 What was not verified, and why
 
 - **The P8 proof in the e2e job's containers.** No Docker daemon here, and no CI run on this branch (§7.2).
@@ -782,3 +1092,15 @@ TDD 4F.P §30.8 stands unchanged. This includes:
 - **Image builds and Trivy** for the changed `cognitive-state-engine` and `autonomy-engine` images. CI-only.
 - **V-6 (b) as one test with the real adapter.** It is not possible under control 7 and V-9 as written (F-4FP-1).
 - **SAD 15 §4 items 2 and 5.** Per-PR, and no PR exists.
+
+> **Added 2026-10-11, after CI completed, additively.** The items above are kept as written. Their state now:
+>
+> - **Items 1–3 are verified in CI at `fee1fea`:**
+>   - the P8 proof in the e2e job's containers, 67/67;
+>   - the real-infra tiers in CI's containers, 15/15 jobs;
+>   - every image built and Trivy-scanned, 22/22.
+> - **Item 4 stands, as accepted by F-4FP-1.** V-6 (b) as one test with the real adapter is still not verified. That is the decision's stated limitation (§8.1).
+> - **The last item, SAD 15 §4 items 2 and 5:**
+>   - SAD 15 §4 **item 2** is evidenced at `fee1fea`.
+>   - SAD 15 §4 **item 5 is not discharged:** PR #39's description cites no Bible section (§7.3 note).
+> - **Not verified at all: CI at the documentation commit that adds these notes.** It had not run when this was written.

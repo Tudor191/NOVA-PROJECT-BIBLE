@@ -1291,6 +1291,27 @@ one PR phase-4 → main, by merge commit, only after GO (master scope §16)
 > - **Steps 4, 8 and 9 remain.** No PR has been opened, and nothing is
 >   merged. 4F.P is not complete, and 4F.8 has not started.
 
+> **Status on `phase-4fp`, 2026-10-11.** The note above is preserved as
+> written. Its *"No PR has been opened"* and *"none exists yet"* are
+> historical:
+>
+> - **Step 8 is in progress.** PR #39 (`phase-4fp` → `phase-4`) is open and
+>   not merged.
+> - **The record cites CI at the exact SHA** (§15.1). At
+>   `fee1fea50360cebfcab70059e6b9504fa7007721`, the branch synchronization
+>   commit, all 40 check runs concluded `success`. That includes the e2e
+>   job's P8 proof, 67/67, and 15/15 real-infra jobs. The P8 implementation
+>   commit stays `d1ae98181c9af1bec24279a0a79cd62f874d0093`.
+> - **The record's two findings for decision are decided.**
+>   - F-4FP-1 is accepted, with an explicit evidence limitation (§28.4
+>     C-14's 2026-10-11 note).
+>   - F-4FP-2 is confirmed: six outcomes.
+> - **The documentation commit that adds this note has not been through CI.**
+>   A fresh CI run on PR #39 at its SHA is required.
+> - **Steps 4, 8 and 9 remain.**
+>   - PR #39's review and an explicit merge authorization are outstanding.
+>   - 4F.P is not complete, and 4F.8 has not started.
+
 ---
 
 ## 23. SLOC budget
@@ -1901,6 +1922,52 @@ RETURNING *
     record `propose`. That is the wrong case.**
 - **§15's principle, corrected.** *"No stand-in counts toward V-1 … V-5, V-6
   (a), V-7 (a1) or V-9."*
+
+> **Approved narrowing of V-6 (b), 2026-10-11, additively (protocol §14.1).**
+> C-14's text above is preserved as written. The 4F.P record's F-4FP-1 is
+> decided:
+> [`phase-4fp-production-promotion-completion-record.md`](../../roadmap/architecture-reviews/phase-4fp-production-promotion-completion-record.md)
+> §8.1.
+>
+> - **The decision: ACCEPTED, with an explicit evidence limitation.**
+>   - V-6 (b) is evidenced by **two per-engine halves**, not by the single
+>     test this correction describes. **That single test was not built.**
+>   - No composed run with a test-only authoring path was added, and V-6 (b)
+>     is not deferred.
+> - **The `autonomy-engine` half.** It is
+>   `test_p7_failed_and_rolled_back_are_recorded_as_execution_failed[failed]`
+>   and `[rolled_back]`, in the `real_infra` tier.
+>   - It runs production code over real NATS and PostgreSQL.
+>   - A labelled RS-8 stand-in replies `failed` or `rolled_back` under the
+>     real `ActionResultPayload` contract.
+>   - The decision is recorded as `execution_failed`, with no `execute` row
+>     and no suggestion.
+> - **The `action-engine` half.** Both tests predate 4F.P.
+>   - `test_pipeline.py::test_execution_failure_without_rollback_strategy_reaches_failed`
+>     is a unit test: a failed invocation, through a fake capability port,
+>     reaches `failed`.
+>   - `test_events_action_execute.py::test_action_execute_reports_a_structured_failure_for_an_unknown_capability`
+>     runs over the in-memory bus: an unknown capability is reported as
+>     `failed` on the `action.execute` reply.
+> - **The combined evidence supports V-6 (b)'s property by composition at one
+>   contract.** `action-engine` reports `failed`, and `autonomy-engine` never
+>   records a `failed` reply as `EXECUTE`. §28.5's test row already called
+>   these *"V-6 halves"*.
+> - **The limitation:**
+>   - no run has the real filesystem adapter fail inside the real
+>     `capability-engine`;
+>   - no run reads `action.action.status = failed` beside an
+>     `execution_failed` row;
+>   - the reply `autonomy-engine` consumes comes from a stand-in;
+>   - the composed stack evidences only `completed` → `execute` and
+>     `denied` → `propose`;
+>   - as this correction's table says, none of it counts toward CF-11 or
+>     AC-8.
+> - **Where else the narrowing must be recorded.** The two halves' module
+>   docstrings, which are tests, and 4F's Gate Review (L-1). Both are carried
+>   as the record's ledger row **L-28**.
+> - **Unchanged:** V-6 (a), which stays in the composed tier; the tier table
+>   above; and CF-9, CF-10 and CF-11, all OPEN.
 
 #### C-15 — master scope §5 and §17
 
@@ -3327,3 +3394,47 @@ Level-2 runs use two distinct new paths.
 >   - A-4FP-14 not blocking and not ratified;
 >   - CF-9, CF-10 and CF-11 OPEN;
 >   - 4F.8 PREPARED, NOT RATIFIED, and blocked as §30.9 states.
+
+> **Status on the implementation branch `phase-4fp`, 2026-10-11.** Everything
+> above is preserved as written. The previous note's *"No CI run exists"*,
+> *"Two findings are for the user's decision"* and *"No PR has been opened"*
+> are historical. Details are in the record's 2026-10-11 notes.
+>
+> - **PR #39** (`phase-4fp` → `phase-4`) is open and not merged.
+>   - `phase-4` is now `88fa46f`, the merge of the separate dependency PR #40.
+>   - It was merged into `phase-4fp` as the branch synchronization commit
+>     `fee1fea50360cebfcab70059e6b9504fa7007721`, a normal merge.
+> - **The commits:**
+>   - **The P8 implementation and end-to-end proof commit** stays
+>     `d1ae98181c9af1bec24279a0a79cd62f874d0093`.
+>   - **The CI-validated commit before this documentation update** is
+>     `fee1fea50360cebfcab70059e6b9504fa7007721`.
+> - **CI at `fee1fea`: 40 of 40 check runs `success`.**
+>   - **Build & Scan:** the Python dependency audit passed, the JavaScript
+>     dependency audit is clean, and all 22 Trivy image scans passed.
+>   - **PR Checks:** the e2e job's P8 proof passed 67/67 in containers. Its
+>     denial control showed `identity_confidence_denied` → `propose`, with
+>     zero capability invocations.
+>   - **Real-Infrastructure Checks:** 15/15 jobs passed.
+> - **F-4FP-1 is decided: ACCEPTED, with an explicit evidence limitation.**
+>   - V-6 (b) rests on two per-engine halves, and no single integrated test
+>     exists.
+>   - §28.4 C-14's 2026-10-11 note records the approved narrowing, and the
+>     record's L-28 carries its other two places.
+> - **F-4FP-2 is CONFIRMED.** The six outcomes are `observe_only`, `propose`,
+>   `deny`, `execute`, `timeout` and `execution_failed`. A-4FP-7's mapping is
+>   unchanged.
+> - **The documentation commit that adds this note has not been through CI.** A
+>   fresh CI run on PR #39 at its SHA is required.
+> - **4F.P is still not complete.** It still needs:
+>   - that fresh CI run, green;
+>   - SAD 15 §4 item 5 on PR #39, whose description cites no Bible section;
+>   - PR review;
+>   - an explicit merge authorization, and the merge.
+> - **Unchanged:**
+>   - the ratifications in §30.1 and §30.2;
+>   - A-4FP-14 not blocking and not ratified;
+>   - CF-9, CF-10 and CF-11 OPEN;
+>   - L-23 (FP-24) and C-7's carried finding OPEN;
+>   - 4F.8 PREPARED, NOT RATIFIED, not started, and blocked as §30.9 states.
+>   - AC-8 is not claimed.
