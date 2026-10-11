@@ -51,6 +51,17 @@
 > - **A-4F8-9** still blocks 4F's GO. **AC-7 and AC-8 are not met, and not
 >   claimed.**
 
+> **D-4F-1 reopened 2026-10-11 (§30), additively.** The user reopened D-4F-1
+> **only for `perception-engine`'s outbox dispatch interval**, so that AC-7's
+> existing 5.0 s budget can be met.
+>
+> - The approach is a one-second cron with `max_jobs = 1`. It is verified safe
+>   under the supported single-replica deployment, and it is not yet
+>   implemented.
+> - **The user authorized cutting the implementation branch** from `phase-4` at
+>   `1ccce7a`.
+> - **AC-7 and AC-8 are not met, and not claimed.**
+
 | | |
 |---|---|
 | **Date** | 2026-09-27 |
@@ -154,6 +165,15 @@ acceptable outputs of 4F.8; only a test that conceals the answer is not."*).
 | A policy-authoring UI for `AUTO_EXECUTE` (L-17) | TDD 4F.5 §18: *"Not in 4F at all"* |
 | The 4F Gate Review, the Project Health record and the roadmap/README closure edits | L-1 … L-4, L-6; 4F closure, after 4F.8 |
 | Closing CF-9, CF-10 or CF-11 | TDD 4F §5.3, §6.1; TDD 4F.6 §15 |
+
+> **Amended 2026-10-11 (§30), additively.** The table is preserved as written.
+> **Row 2 has one exception.** `perception-engine`'s outbox dispatch interval
+> may be shortened, with a serial dispatcher (`max_jobs = 1`), so that AC-7's
+> unchanged 5.0 s budget can be met.
+>
+> - Every other part of row 2 stands: the outbox, every other engine's cron, no
+>   direct publish, and no push-triggered dispatch.
+> - Rows 3 onwards are unchanged.
 
 ---
 
@@ -1480,6 +1500,11 @@ scope §16).
 > - **Implementation follows §29.4's acceptance plan**, and §29.5's acceptance
 >   checks.
 
+> **Step 4 authorized 2026-10-11 (§30.4), additively.** The user authorized
+> cutting the implementation branch, **`phase-4f8`**, from `phase-4` at
+> `1ccce7a`, after the D-4F-1 record. Implementation follows §29.4 and §29.5,
+> plus §30.3.
+
 ---
 
 ## 23. SLOC budget
@@ -2340,6 +2365,16 @@ needs the user to reopen D-4F-1.
 - **If it is not authorized**, AC-7 is measured as ratified, and is expected to
   be **NOT MET**.
 
+> **Authorized 2026-10-11 (§30), additively.** The user reopened D-4F-1 for
+> `perception-engine`'s dispatch interval only.
+>
+> - **§30.2 verified the concurrency model.** The one-second cadence is safe
+>   only **with** `max_jobs = 1`, and only under the single-replica deployment.
+>   The cadence alone overlapped, and so did two replicas.
+> - **§30.3 lists what implementation must prove.**
+> - The latency estimate here is not evidence. **AC-7 is met only by measured
+>   samples.**
+
 ### 29.4 The acceptance plan (F-4F8-13 … F-4F8-16)
 
 #### 29.4.1 Startup sequencing (F-4F8-16)
@@ -2476,3 +2511,201 @@ is excluded by its `subject_id`.
   - L-1 … L-6, L-8 … L-11 and L-13 … L-22.
 - **AC-7 and AC-8: NOT MET, and not claimed.**
 - **No implementation branch exists.** This change is documentation only.
+
+---
+
+## 30. D-4F-1 reopened for `perception-engine`'s dispatch interval — 2026-10-11
+
+**Added 2026-10-11, additively** (protocol §0.3.4). §0–§29 are preserved as
+written. **Where §30 and an earlier section differ, §30 governs.**
+
+### 30.0 The user's decision
+
+**Verbatim:**
+
+> *"I approve reopening D-4F-1, strictly and exclusively to enable the
+> perception-engine dispatch path to satisfy AC-7's existing 5-second latency
+> requirement."*
+
+**The constraints given with it:**
+
+- reopen D-4F-1 only for `perception-engine`'s outbox dispatch interval;
+- keep AC-7's threshold of at most 5.0 s;
+- keep the transactional outbox design, and every unrelated service schedule;
+- change no other engine, no retry semantics, no event contract and no
+  unrelated behaviour;
+- treat the one-second interval and `max_jobs = 1` as the initial approach,
+  subject to verifying the worker's scheduling and its safety against
+  duplicate dispatch;
+- never mark AC-7 met on an estimate.
+
+### 30.1 The exception, as ratified. **RATIFIED 2026-10-11**
+
+- **Scope:** `perception-engine`'s outbox dispatch interval only, plus the
+  serial-dispatch setting that interval requires.
+  - Both live in
+    `services/perception-engine/src/nova_perception_engine/workers/__init__.py`.
+  - This is inside A-4F8-8's governed surface, `services/perception-engine/`.
+- **The initial approach:**
+  - `second=set(range(60))`, replacing `{0, 10, 20, 30, 40, 50}`;
+  - `max_jobs = 1` in `perception-engine`'s `WorkerSettings`.
+  - It is subject to §30.2's verification, and to §30.3's tests during
+    implementation.
+- **Unchanged:**
+  - **AC-7's threshold, at most 5.0 s**, and A-4F8-6's measurement rule;
+  - **the transactional outbox**: `enqueue_outbox`,
+    `nova_service_kit.dispatch_ready_events`, publish-then-mark,
+    `event_id = row id`, and at-least-once delivery;
+  - **every other engine's schedule**, and every other worker;
+  - **retry semantics, event contracts and subjects**;
+  - **the exclusions of push-triggered dispatch and of a direct publish** (TDD 4F
+    §1.1);
+  - **every other prohibition in TDD 4F §20.1**: no aligning to the cron, no
+    retry or re-run, no fake clock, and no injected message.
+- **AC-7 is not met on an estimate.** It is met only by A-4F8-6's measured
+  samples: at least 10, each on a never-before-observed path, all reported, and
+  all ≤ 5.0 s.
+- **The evidence that motivated it** (§29.3), with its limitations:
+  - **66 real observations, of which 64 exceeded 5 s.** The mean delay was
+    **9.184 s (≈ 9.2 s)**, the range 2.848–9.999 s.
+  - Every dispatch was tick-aligned, landing 0.133–0.630 s after a 10-second
+    boundary.
+  - **Limitations:**
+    - These were 4F.P's local P8 runs, on 2026-10-04/05: real
+      `perception-engine`, its worker and `cognitive-state-engine` as
+      processes. **They are not CI evidence.**
+    - The delay was measured to the Active Thought's creation, which is a
+      proxy for the World Model write on the same publish.
+    - The P8 driver writes right after a tick, so its samples are correlated
+      with the cron.
+- **What it amends**, each by a dated note in this change:
+  - D-4F-1 (TDD 4F §19, and §1.1's row 1.1), for `perception-engine`'s dispatch
+    interval only;
+  - TDD 4F §20.1's *"the existing 10-second cron dispatcher (unchanged)"* and
+    *"shortening the cron … in order to satisfy this criterion"*, for
+    `perception-engine` only;
+  - this TDD's §2 non-goal row 2;
+  - §29.3's *"not implemented"*, which now reads as authorized for
+    implementation.
+
+### 30.2 The concurrency model, verified before implementation
+
+**The scheduler.** arq is pinned at **0.28.0** in `uv.lock`. From its installed
+source:
+
+- **A worker starts a job only while `job_counter < max_jobs`**, and it
+  decrements the counter only when the job's task completes (`arq/worker.py`
+  l.389 and l.436–475). With `max_jobs = 1`, at most one job runs at a time
+  within one worker process.
+- **Each cron tick is enqueued under its own job id**, `name:timestamp`
+  (`run_cron`, l.736–771).
+- **An in-progress key** stops two workers from running the *same* tick
+  (l.450–471). **It does not stop two workers from running *different* ticks at
+  the same time.**
+
+**The outbox.**
+
+- **`list_dispatch_ready` is a plain `SELECT … WHERE dispatched_at IS NULL ORDER
+  BY created_at LIMIT n`.** It takes no lock, and claims no row
+  (`postgres_perception_repository.py` l.237–256). No `with_for_update` or `SKIP
+  LOCKED` appears in `perception-engine`'s source or in `nova-service-kit`.
+- **`dispatch_ready_events` publishes each row, then marks it**
+  (`nova_service_kit/outbox.py` l.96–107).
+- **So two concurrent runs can publish the same row twice.**
+
+**The deployment.**
+
+- **`docker-compose.local.yml` defines exactly one `perception-engine-worker`**,
+  running `arq nova_perception_engine.workers.WorkerSettings`. It has no
+  `replicas` or `scale` anywhere, and the e2e job starts one.
+- **`perception-engine`'s API process runs no arq worker.**
+- **Its `WorkerSettings` has only this cron** (`functions = []`), so
+  `max_jobs = 1` starves no other job.
+
+**Experiment.** Real arq 0.28.0 workers ran against a real local Redis 7.0.15,
+using the repository's own `service_cron` and `worker_queue_name`, with a
+per-second cron. The job stood in for `arq_run_outbox_dispatch`. **This is local
+evidence, not CI.**
+
+| Scenario | Runs | Max concurrent | Overlapping pairs |
+|---|---|---|---|
+| A 2.5-s job, the default `max_jobs` (10), one worker | 11, one starting every 1.0 s | **3** | 19 |
+| A 2.5-s job, **`max_jobs = 1`**, one worker | 4. Later ticks queued, then ran serially | **1** | **0** |
+| A 2.5-s job, `max_jobs = 1`, **two worker replicas** | 8 | **2** | 7 |
+| A 0.05-s job, `max_jobs = 1`, one worker | 13, one starting every ≈ 1.0 s | 1 | 0 |
+
+**The four questions, answered:**
+
+1. **Can a previous run still be running when the next starts?**
+   - **Yes, with the default `max_jobs`.** It was demonstrated, with three
+     concurrent runs.
+   - **No, with `max_jobs = 1` in one worker.** Later ticks queue, and run
+     serially.
+2. **Can several replicas dispatch the same row?**
+   - **Yes.** Two replicas with `max_jobs = 1` each still overlapped, and
+     `list_dispatch_ready` claims nothing.
+   - This is equally true of today's 10-second cron. It is only less likely,
+     because a run must outlast 10 s.
+   - **The supported deployment has exactly one replica.**
+3. **Does the code claim or lock rows?** **No.**
+4. **Is a minimal perception-only configuration sufficient?** **Yes, for the
+   supported single-replica deployment**, provided that:
+   - the per-second cadence comes **with** `max_jobs = 1`. **The cadence alone
+     is unsafe**, as demonstrated;
+   - **a perception-only structural guard** enforces the single replica: compose
+     defines exactly one `perception-engine-worker`, with no `replicas` or
+     `scale`.
+
+   **Making several replicas safe would need row claiming in
+   `nova_service_kit`'s shared outbox**. At `1ccce7a`, ten engines import its
+   `dispatch_ready_events`. That is an outbox redesign outside this exception.
+   **It is not proposed.**
+
+**Residuals, unchanged by the cadence:**
+
+- **At-least-once delivery.** A crash, a shutdown, or arq's 300 s job timeout
+  between a publish and its mark republishes that row on the next run, with the
+  same `event_id`. This is today's semantics.
+- **A backlog.** If a run outlasts 1 s, later ticks queue, one per second, and
+  run serially. Each is a single indexed `SELECT` once the outbox is drained.
+
+### 30.3 What implementation must prove, in addition to §29.5
+
+1. **A structural test:**
+   - `perception-engine`'s `WorkerSettings` dispatches every second, with
+     `max_jobs == 1`;
+   - compose defines exactly one `perception-engine-worker`, with no `replicas`
+     or `scale`;
+   - **every other engine's `WorkerSettings` cron schedule is unchanged** from
+     `1ccce7a`.
+2. **A real test: no overlap and no duplicate.** It runs the actual
+   `perception-engine` `WorkerSettings` schedule and `max_jobs`, in an arq
+   worker against real Redis, with the real dispatch coroutine against real
+   PostgreSQL and NATS.
+   - It seeds enough real outbox rows that one dispatch run **naturally** outlasts
+     the 1-second interval. Nothing is mocked or slowed.
+   - It subscribes on the real bus, and asserts that **every `event_id` is
+     delivered exactly once** and that **no two dispatch runs overlap**.
+3. **That test's negative control:** remove `max_jobs = 1`. The test must then
+   fail.
+4. **AC-7 measured in the acceptance stack in CI**, by A-4F8-6's rule. **AC-7 is
+   met only if every one of at least 10 samples is ≤ 5.0 s.**
+5. **Documentation, as dated notes:**
+   - `perception-engine`'s README, for the worker cadence;
+   - the compose comment on `perception-engine-worker`, if it states the
+     cadence;
+   - the TDD and master-scope notes already added in this change.
+
+### 30.4 Status
+
+- **D-4F-1 is reopened for `perception-engine`'s dispatch interval only.** The
+  approach is verified safe under the supported single-replica deployment. **It
+  is not implemented.**
+- **The user authorized cutting the 4F.8 implementation branch** from `phase-4`
+  at `1ccce7a`, after this record (§22 step 4). The branch follows the
+  `phase-4f6`, `phase-4f7` and `phase-4fp` convention: **`phase-4f8`**.
+- **Unchanged:**
+  - A-4F8-9 still blocks 4F's GO;
+  - CF-9, CF-10 and CF-11, and every carried open finding and ledger row, stay
+    OPEN;
+  - **AC-7 and AC-8 are not met, and not claimed.**

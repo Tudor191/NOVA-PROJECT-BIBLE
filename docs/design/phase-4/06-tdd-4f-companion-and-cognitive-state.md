@@ -51,6 +51,16 @@ Eight findings, each now closed by a ratified decision. **Three were blocking.**
 | **1.7** | No precedent for a non-Python process feeding an engine | **D-4F-5 — the transport already exists** (§8). `POST /v1/perception/observations` was built in 2D-C for exactly this caller |
 | **1.8** | `companion/` sits outside every measured SLOC scope | **Scope extended to include `companion/`** (§17) |
 
+> **Amended 2026-10-11 (TDD 4F.8 §30), additively.** Row 1.1 is preserved as
+> written. **The user reopened D-4F-1 for one item only:** `perception-engine`'s
+> outbox dispatch interval may be shortened, with a serial dispatcher
+> (`max_jobs = 1`), so that AC-7's unchanged 5-second budget can be met.
+>
+> - **Unchanged:** AC-7's 5-second budget, the transactional outbox, every
+>   other engine's cron, and the exclusions of push-dispatch and of a
+>   direct-publish bypass.
+> - **AC-7 is not met** until A-4F8-6's measured samples show it.
+
 ### 1.1 The two corrections this pass made to its own earlier draft
 
 **(a) "Direct publish gives up atomicity" was too broad.** The outbox serves two
@@ -981,6 +991,21 @@ slices within it, not new milestones** — the Phase 4 set remains 4A–4F.
 | **D-4F-7** | Minimal Rust CI: one `build-and-scan` matrix entry, one `pr-checks` step. No global CI policy change | **RATIFIED** |
 | **D-4F-8** | Filesystem sensing is the CI acceptance modality. **IDE/window-focus is explicitly outside the CI acceptance path** | **RATIFIED** |
 
+> **D-4F-1 reopened 2026-10-11 (TDD 4F.8 §30), additively, for one item
+> only.** The row above is preserved as written.
+>
+> - **The exception:** `perception-engine`'s outbox dispatch interval may be
+>   shortened, with a serial dispatcher. The initial approach is a one-second
+>   cron with `max_jobs = 1`. TDD 4F.8 §30.2 verified it safe under the
+>   supported single-replica deployment.
+> - **Its sole purpose** is to let the real chain meet AC-7's existing
+>   5-second budget.
+> - **Everything else in D-4F-1 stands:** the 5-second budget, the
+>   transactional outbox, every other engine's cron, no push-triggered
+>   dispatch, and no direct-publish bypass. Retry semantics and event
+>   contracts are unchanged.
+> - D-4F-2 … D-4F-8 are unchanged.
+
 ---
 
 ## 20. Two clarifications ratified 2026-09-15 (second pass)
@@ -1052,6 +1077,19 @@ produce the evidence that it cannot. **Both outcomes are acceptable outputs of
 >   perception-only one-second cron with a serial dispatcher. It is recorded
 >   there, and **it requires the user to reopen D-4F-1**. Nothing is changed
 >   here.
+
+> **Amended 2026-10-11 (TDD 4F.8 §30), additively.** The user reopened
+> D-4F-1 for `perception-engine`'s dispatch interval only.
+>
+> - **For `perception-engine` only**, the chain's *"existing 10-second cron
+>   dispatcher (unchanged)"* becomes a one-second cron with a serial
+>   dispatcher, once implemented. The last forbidden item no longer applies
+>   to that one change, which the user authorized explicitly.
+> - **Every other rule here stands:** the 5-second budget, real wall-clock
+>   measurement, no aligning to the cron, no retry or re-run, no fake clock,
+>   and no injected message, mocked transport or fabricated event.
+> - **AC-7 is met only by measured samples**, never by the new interval's
+>   estimate.
 
 ### 20.2 The perception subject contract — ratified, and pinned by 4F.2
 
