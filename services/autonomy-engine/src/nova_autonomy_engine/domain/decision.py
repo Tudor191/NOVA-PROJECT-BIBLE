@@ -46,8 +46,9 @@ engine that fails open is not a policy engine."*
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
+from types import MappingProxyType
 from uuid import UUID, uuid4
 
 from nova_contracts import ActionExecuteRequestPayload
@@ -76,7 +77,15 @@ from nova_autonomy_engine.domain.ports import (
 )
 from nova_autonomy_engine.domain.trust import compute_trust_score
 
-__all__ = ["DecisionRequest", "DecisionResult", "GateReport", "decide", "evaluate_gates"]
+__all__ = [
+    "ACTION_STATUS_OUTCOMES",
+    "DecisionRequest",
+    "DecisionResult",
+    "GateReport",
+    "decide",
+    "evaluate_gates",
+    "outcome_for_action_status",
+]
 
 _DENIED_CONFIDENCE = 0.0
 """Doc 07's `decision_log.confidence` is `REAL NOT NULL`, so a decision made
@@ -125,6 +134,21 @@ class DecisionRequest(BaseModel):
     when the payload is built rather than re-declared here."""
     execution_target: str | None = None
     verification_method: str | None = None
+
+    # --- 4F.P execution fields (A-4FP-6 with SD-3; TDD 4F.P §30.2) -----------
+    #
+    # *(Phase 4F.P, P4, 2026-09-30. The block above is preserved as written;
+    # "the three execution fields" it describes are now five.)* `action.execute`
+    # cannot run without `parameters["operation"]`, and nothing above could
+    # supply the operation or the adapter's inputs. Both are authored on the
+    # thought's `ProposedAction` and copied here from the trigger payload,
+    # which validates their form (C-5) and refuses an `"operation"` key in
+    # `parameters` (C-8). The same rules apply: **optional here, required at
+    # the dispatch branch, never defaulted** -- either one `None` means a
+    # suggestion (D-4F5-2 rules 1-3 and 6). An explicit `{}` is a present,
+    # empty object, not an absence.
+    operation: str | None = None
+    parameters: dict | None = None
 
 
 class DecisionResult(BaseModel):
@@ -194,11 +218,24 @@ def _execution_payload(
     log row and the dispatched action share one identifier and
     `action-engine`'s caller-supplied-id idempotency guard keys on something
     this engine can point at.
+
+    *(Phase 4F.P, P4 -- A-4FP-6 with SD-3, TDD 4F.P §30.2, 2026-09-30. The text
+    above is preserved as written; the three execution fields are now five.
+    `operation` and `parameters` join the refusal: either one `None` is a
+    suggestion. The payload's `parameters` -- until P4 always `{}` -- is now
+    `{"operation": operation, **parameters}`, the flat shape `action-engine`
+    reads and hands to the adapter (C-8). **A `parameters` that names
+    `"operation"` is refused here too** (C-8's third layer): it could override
+    the operation risk is classified from, and this is the last point before
+    dispatch. Nothing else in the payload changes.)*
     """
     if (
         request.action_type is None
         or request.execution_target is None
         or request.verification_method is None
+        or request.operation is None
+        or request.parameters is None
+        or "operation" in request.parameters
     ):
         return None
     return ActionExecuteRequestPayload(
@@ -208,11 +245,80 @@ def _execution_payload(
         source="autonomy-engine",
         requested_by=request.user_id,
         execution_target=request.execution_target,
-        parameters={},
+        parameters={"operation": request.operation, **request.parameters},
         verification_method=request.verification_method,
         requesting_engine="autonomy-engine",
         correlation_id=subject_id,
     )
+
+
+ACTION_STATUS_OUTCOMES: Mapping[str, DecisionOutcome] = MappingProxyType(
+    {
+        "completed": DecisionOutcome.EXECUTE,
+        "denied": DecisionOutcome.PROPOSE,
+        "failed": DecisionOutcome.EXECUTION_FAILED,
+        "rolled_back": DecisionOutcome.EXECUTION_FAILED,
+        "pending": DecisionOutcome.EXECUTION_FAILED,
+        "approval_required": DecisionOutcome.EXECUTION_FAILED,
+        "approved": DecisionOutcome.EXECUTION_FAILED,
+        "executing": DecisionOutcome.EXECUTION_FAILED,
+    }
+)
+"""**Phase 4F.P, P7 -- the one mapping from `action-engine`'s reply to the
+recorded outcome** (A-4FP-7 with SD-4, TDD 4F.P §30.1 and §30.2).
+
+Keyed by every value of `ActionStatus` (`nova_contracts.events.action`), the
+type of `ActionResultPayload.status`, and by nothing else; a unit test pins the
+keys to that type, so a ninth status cannot arrive unmapped.
+
+* **`completed` is the only key that maps to `EXECUTE`.** A request that was
+  sent, accepted by the broker or answered with anything else is never
+  `EXECUTE`.
+* `denied` maps to `PROPOSE`: stage 3 and the approval loop both run before
+  execution, so the action **provably did not run**, and `decide()` records
+  it through its existing proposal path (4F.5's precedent for
+  `ActionDispatchUnavailable`).
+* `failed` and `rolled_back` map to `EXECUTION_FAILED`: `action-engine`
+  received the action and did not complete it.
+* The four non-terminal statuses map to `EXECUTION_FAILED` (SD-4 (a)): a reply
+  came, so the audit row is kept, and completion was not reported.
+
+**Only a reply reaches this table.** No reply in time is `TIMEOUT` and no
+responder is `PROPOSE`, both decided before it; any other transport fault
+propagates and is never recorded (4F.6 Design A)."""
+
+_NON_TERMINAL_STATUSES = frozenset({"pending", "approval_required", "approved", "executing"})
+"""SD-4's four. A reply carrying one of them gets SD-4's own reason text."""
+
+
+def outcome_for_action_status(status: str) -> DecisionOutcome:
+    """The outcome `action-engine`'s reported `status` maps to.
+
+    **A status outside `ActionStatus` raises `ValueError`** rather than being
+    given an outcome: it is not a meaningful `action-engine` reply, so -- like
+    the production adapter's own contract validation of the reply -- it
+    propagates as an unknown fault, which records nothing (4F.6 Design A)."""
+    try:
+        return ACTION_STATUS_OUTCOMES[status]
+    except KeyError:
+        raise ValueError(
+            f"action-engine reported {status!r}, which is not an ActionStatus value; "
+            "no outcome is recorded for it"
+        ) from None
+
+
+def _reported(error: str | None) -> str:
+    """`action-engine`'s error text for a reason string. A reply may carry
+    none -- an approval-loop denial does not (`pipeline.py`) -- and that is
+    said, rather than rendered as `None`."""
+    return error if error is not None else "no error was reported"
+
+
+class _DeniedByActionEngine(Exception):
+    """`action-engine` replied `denied`. Raised out of `_dispatch_or_propose`
+    so that `decide()` records it through its **existing proposal path**,
+    exactly as it does `ActionDispatchUnavailable` (TDD 4F.P §28.4 C-9 item
+    1). Private to this module: it is a decision, not a port failure."""
 
 
 def _trust_denies(trust: TrustScore) -> bool:
@@ -375,6 +481,16 @@ async def _dispatch_or_propose(
     paragraph read "**`None` means "no RPC was issued"**" until the 2026-09-21
     ratified fix pass, which found that a zero-subscriber dispatch is attempted
     but delivered to nobody; preserved per protocol §0.3.4.)*
+
+    *(Phase 4F.P, P7 -- A-4FP-7 with SD-4, 2026-10-01.)* **The outcome now
+    follows `action-engine`'s reply**, through `ACTION_STATUS_OUTCOMES`. Until
+    P7 every reply was recorded as `EXECUTE`. Now `completed` is `EXECUTE`;
+    `failed`, `rolled_back` and a non-terminal status are `EXECUTION_FAILED`;
+    and `denied` raises `_DeniedByActionEngine`, which `decide()` records
+    through its proposal path, as it does `ActionDispatchUnavailable` -- the
+    second case where a dispatch happened and the action provably did not run.
+    Nothing before or at the single `dispatcher.dispatch` call changes, and
+    nothing is retried.
     """
     # Precondition 1 -- level. `permits_execution` is *eligibility*: a Level-0
     # or Level-1 run with an AUTO_EXECUTE policy reaches here and is refused,
@@ -424,22 +540,48 @@ async def _dispatch_or_propose(
             log_entry=entry,
         )
 
-    reason = (
-        f"auto-executed at autonomy level {int(level)} by policy; "
-        f"action-engine reported {result.status}"
-    )
+    # P7 (A-4FP-7): `action-engine` replied. The outcome is what it reported,
+    # mapped in exactly one place -- never `EXECUTE` because a request was sent.
+    outcome = outcome_for_action_status(result.status)
+    if outcome is DecisionOutcome.PROPOSE:
+        # `denied`: provably not executed. `decide()` records the proposal.
+        raise _DeniedByActionEngine(f"action-engine denied the action: {_reported(result.error)}")
+
+    if outcome is DecisionOutcome.EXECUTION_FAILED:
+        if result.status in _NON_TERMINAL_STATUSES:
+            reason = (
+                f"action-engine replied with non-terminal status {result.status}; "
+                f"completion was not reported"
+            )
+        elif result.status == "rolled_back":
+            reason = (
+                f"dispatched at autonomy level {int(level)} by policy; action-engine "
+                f"reported rolled_back -- the action was rolled back "
+                f"({_reported(result.error)}); it was not completed"
+            )
+        else:
+            reason = (
+                f"dispatched at autonomy level {int(level)} by policy; action-engine "
+                f"reported {result.status} ({_reported(result.error)}); it was not "
+                f"completed"
+            )
+    else:
+        reason = (
+            f"auto-executed at autonomy level {int(level)} by policy; "
+            f"action-engine reported {result.status}"
+        )
     entry = DecisionLogEntry(
         subject_id=subject_id,
         autonomy_level=level,
         risk=request.risk,
         confidence=confidence,
         policy_checks=checks,
-        outcome=DecisionOutcome.EXECUTE,
+        outcome=outcome,
         reason=reason,
         created_at=moment,
     )
     return DecisionResult(
-        outcome=DecisionOutcome.EXECUTE,
+        outcome=outcome,
         reason=reason,
         policy_checks=checks,
         trust=trust,
@@ -574,6 +716,15 @@ async def decide(
             # proposal path below rather than inventing an outcome. The reason
             # is kept specific so the log row does not read like an ordinary
             # approval requirement. **Not a TIMEOUT:** nothing received it.
+            unavailable = str(exc)
+        except _DeniedByActionEngine as exc:
+            # 4F.P, P7 (A-4FP-7; C-9 item 1): `action-engine` replied `denied`,
+            # so the action provably did not run. It joins the same proposal
+            # path, and `unavailable` -- named for the case above -- carries
+            # the parenthesised reason here too: "proposed for explicit user
+            # approval; nothing is executed (action-engine denied the action:
+            # {error})". The suggestion's id is `subject_id`, which is also the
+            # denied action's `action_id`.
             unavailable = str(exc)
         else:
             if dispatched is not None:

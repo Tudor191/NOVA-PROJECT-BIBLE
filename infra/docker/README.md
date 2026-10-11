@@ -54,6 +54,22 @@ the `pr-checks` e2e job starts it. Like `autonomy-engine` (`8019`) and
 `digital-twin-engine`, it has no Prometheus scrape target in
 `../observability/prometheus.yml`.
 
+*(Updated 2026-10-04, Phase 4F.P P8, additively -- TDD 4F.P A-4FP-12, §28.4
+C-12.)* **`nova-companion`** joins the file: the Rust perception daemon (slice
+4F.3), built from `companion/nova-companion/Dockerfile`. It has no port, no
+healthcheck and no Event Bus connection, and it watches **one shared
+workspace**, mounted read-only at `/workspace`. `capability-engine` binds the
+**same** host directory at `/workspace`, which is its sandbox root. The image
+creates no `/workspace` of its own, so before this mount the `filesystem`
+capability had no root to act on. The host directory is `NOVA_WORKSPACE_DIR`,
+defaulting to `./workspace` beside this file, which is gitignored.
+`perception-engine` now sets `PERCEPTION_ENGINE_PRIMARY_USER_ID` to
+`…0001`, the default `primary_user_id` of `cognitive-state-engine`,
+`autonomy-engine` and `action-engine`. Unset, it publishes no workspace
+observation at all. The `pr-checks` e2e job starts `perception-engine`,
+`perception-engine-worker` and `nova-companion` **after** its golden path, then
+runs `tools/e2e_real_execution.py`, 4F.P's real end-to-end execution proof.
+
 The three `agent-os` services were added in **Phase 4C (4C.1, decision D-5)**,
 discharging the containerization half of Phase 3E's ratified condition **C-3**
 — these components had no Dockerfile, no compose service and no Trivy scan for

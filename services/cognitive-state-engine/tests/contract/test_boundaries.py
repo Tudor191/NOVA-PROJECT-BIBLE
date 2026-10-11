@@ -16,6 +16,7 @@ avoided here by construction rather than rediscovered.
 from __future__ import annotations
 
 import ast
+import re
 from pathlib import Path
 
 import pytest
@@ -79,8 +80,24 @@ def test_control_11_this_engine_publishes_the_trigger_and_nothing_else() -> None
     assert "action.execute" not in PUBLISHABLE_SUBJECTS
 
 
-def test_the_subscribe_allow_list_is_exactly_the_sensor_health_subject() -> None:
-    """**Retargeted by Phase 4F.7, not retired** -- TDD 4F §24.4 **RS-3a**: this
+def test_the_subscribe_allow_list_is_exactly_the_two_ratified_subjects() -> None:
+    """**Retargeted again by Phase 4F.P, not retired** -- TDD 4F.P §30.2
+    **A-4FP-1** (4F.7's P-11): the allow-list is exactly
+    `{perception.sensor.health_changed, perception.workspace.observed}`. The
+    second is an existing, **internal** subject, consumed by
+    `make_workspace_observation_handler` for thought ingestion -- so the
+    subject still arrives with its handler. Exact equality stays, so a third
+    subject fails as loudly as before, and still no `autonomy.*` subject is
+    subscribable.
+
+    *(Until 4F.P this test was
+    `test_the_subscribe_allow_list_is_exactly_the_sensor_health_subject`,
+    asserting `frozenset({"perception.sensor.health_changed"}) ==
+    SUBSCRIBABLE_SUBJECTS`, with the docstring below. Its "nothing here is a
+    thought-ingestion input (that is 4F.P's, RS-2b)" is superseded by
+    A-4FP-1. Preserved per protocol §0.3.4.)*
+
+    **Retargeted by Phase 4F.7, not retired** -- TDD 4F §24.4 **RS-3a**: this
     engine's subscribe allow-list changes *"from empty to exactly this existing
     subject"*. The subject arrives with its handler (`events/handlers.py`), so
     the original property -- no subscription without a consumer -- still holds.
@@ -94,7 +111,10 @@ def test_the_subscribe_allow_list_is_exactly_the_sensor_health_subject() -> None
     subscription without a consumer is the dead topic `ws-gateway`'s own
     docstring warns about. Subjects arrive in 4F.6 with their handlers." 4F.6
     added none. Preserved per protocol §0.3.4.)*"""
-    assert frozenset({"perception.sensor.health_changed"}) == SUBSCRIBABLE_SUBJECTS
+    assert (
+        frozenset({"perception.sensor.health_changed", "perception.workspace.observed"})
+        == SUBSCRIBABLE_SUBJECTS
+    )
     assert not any(subject.startswith("autonomy.") for subject in SUBSCRIBABLE_SUBJECTS)
 
 
@@ -141,15 +161,143 @@ def test_control_7_no_http_client_reaches_another_engine() -> None:
                 )
 
 
+_FOREIGN_SCHEMAS = ("autonomy.", "action.", "memory.", "digital_twin.", "perception.")
+
+_SCHEMA_REFERENCE = re.compile(
+    r"(?<![\w.-])(?:autonomy|action|memory|digital_twin|perception)(?:\.[A-Za-z_][A-Za-z0-9_]*)+"
+)
+"""A **schema reference** (A-4F7-6 (a): *"scope it to schema references"*): a
+dotted name that begins with another engine's schema, anywhere in a string
+literal -- alone (`"autonomy.decision_log"`), or inside SQL or a message
+(`"SELECT … FROM action.action"`). Not preceded by a word character, a dot or a
+hyphen, so `nova_contracts.events.autonomy` and `autonomy-engine` are not
+references."""
+
+_RATIFIED_SUBJECT_STRINGS = frozenset(
+    {
+        "autonomy.decision.requested",  # published (TDD 4F.6)
+        "perception.sensor.health_changed",  # subscribed (RS-3a)
+        "perception.workspace.observed",  # subscribed (A-4FP-1)
+    }
+)
+"""**Exactly** the three schema references this engine's code may contain -- TDD
+4F.P §30.2 A-4FP-10, adopting A-4F7-6 (a)'s repair. Each is an Event Bus subject
+this engine's allow-lists name, never a table."""
+
+
+def _string_constants(source: str) -> list[str]:
+    """Every string literal in the module's executable code. **Prose is
+    excluded**: every bare string statement -- a module, class or function
+    docstring, and an attribute docstring after an assignment -- is never
+    evaluated as a value, so a citation of a schema there cannot trip the
+    control."""
+    tree = ast.parse(source)
+    prose = {
+        id(node.value)
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Expr)
+        and isinstance(node.value, ast.Constant)
+        and isinstance(node.value.value, str)
+    }
+    return [
+        node.value
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Constant) and isinstance(node.value, str) and id(node) not in prose
+    ]
+
+
+def _schema_references(source: str) -> set[str]:
+    return {
+        reference
+        for value in _string_constants(source)
+        for reference in _SCHEMA_REFERENCE.findall(value)
+    }
+
+
+def _foreign_schema_strings(source: str) -> set[str]:
+    return _schema_references(source) - _RATIFIED_SUBJECT_STRINGS
+
+
 def test_control_11_the_only_repository_this_engine_writes_is_its_own() -> None:
-    """§10: cognitive state reads other engines' facts over the bus and owns
-    none of them. No module may name another engine's schema."""
+    """**Repaired by Phase 4F.P, not retired** -- TDD 4F.P §30.2 **A-4FP-10**,
+    adopting A-4F7-6 (a) (F-4F7-1). The check now inspects `ast.Constant`
+    strings, scoped to schema references, and permits **exactly** the three
+    ratified subject strings; any other reference to another engine's schema,
+    in any string literal, fails. The negative controls below prove it can
+    fail.
+
+    *(Until 4F.P this test asserted, for every module, that
+    `f'"{schema}'` was not in `_code_only(path)`, with the docstring: "§10:
+    cognitive state reads other engines' facts over the bus and owns none of
+    them. No module may name another engine's schema." That check was vacuous:
+    `ast.unparse` renders every string with single quotes, so a double-quoted
+    pattern never matched (F-4F7-1). The property is unchanged. Preserved per
+    protocol §0.3.4.)*"""
     for path in _modules():
-        code = _code_only(path)
-        for schema in ("autonomy.", "action.", "memory.", "digital_twin.", "perception."):
-            assert f'"{schema}' not in code, (
-                f"{path.name} names the {schema} schema in executable code"
-            )
+        found = _foreign_schema_strings(path.read_text(encoding="utf-8"))
+        assert not found, f"{path.name} names another engine's schema in code: {sorted(found)}"
+
+
+def test_control_11_is_not_vacuous_it_sees_the_permitted_subjects() -> None:
+    """Anti-vacuity: the three permitted strings are really in this engine's
+    code, and the scanner really reads them."""
+    seen = set().union(
+        *(_schema_references(path.read_text(encoding="utf-8")) for path in _modules())
+    )
+    assert seen == _RATIFIED_SUBJECT_STRINGS
+
+
+@pytest.mark.parametrize(
+    "literal",
+    [
+        "perception.sensor_registration",  # A-4F7-6 (a)'s named control
+        "autonomy.decision_log",
+        "action.action",
+        "memory.long_term",
+        "digital_twin.snapshot",
+        "perception.workspace.observed.extra",
+    ],
+)
+def test_control_11_negative_control_a_foreign_schema_literal_fails(literal: str) -> None:
+    for quoting in (
+        f'X = "{literal}"',
+        f"X = '{literal}'",
+        f'f(table="{literal}")',
+        f'X = "SELECT * FROM {literal} WHERE id = 1"',
+        f'X = f"{{prefix}} {literal}"',
+    ):
+        assert _foreign_schema_strings(quoting) == {literal}, quoting
+
+
+def test_control_11_permits_the_ratified_subjects_inside_messages() -> None:
+    source = 'log("autonomy.decision.requested unavailable for thought %s")\n'
+    assert _schema_references(source) == {"autonomy.decision.requested"}
+    assert _foreign_schema_strings(source) == set()
+
+
+def test_control_11_module_paths_and_engine_names_are_not_schema_references() -> None:
+    source = (
+        'A = "nova_contracts.events.autonomy"\n'
+        'B = "autonomy-engine"\n'
+        'C = "cognitive-state-engine.events"\n'
+    )
+    assert _schema_references(source) == set()
+
+
+def test_control_11_negative_control_prose_is_not_code() -> None:
+    source = (
+        '"""Reads autonomy.decision_log? Never."""\n'
+        "X = 1\n"
+        '"""An attribute docstring citing memory.long_term."""\n'
+        "def f():\n"
+        '    """Nor action.action."""\n'
+        "    return 1\n"
+    )
+    assert _foreign_schema_strings(source) == set()
+    # ... but the same text as a value is code, and fails.
+    assert _foreign_schema_strings('X = "Reads autonomy.decision_log? Never."\n') == {
+        "autonomy.decision_log"
+    }
 
 
 def test_no_actuator_or_execution_vocabulary_in_the_domain() -> None:

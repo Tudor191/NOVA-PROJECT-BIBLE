@@ -160,6 +160,11 @@ def _request(**overrides: object) -> DecisionRequest:
         "action_type": "filesystem",
         "execution_target": "filesystem",
         "verification_method": "none",
+        # Phase 4F.P, P4 (A-4FP-6 with SD-3, 2026-09-30): T1's authored pair.
+        # Until P4 the three fields above were every execution field; without
+        # these two a Level-2 decision now, correctly, stays a suggestion.
+        "operation": "list",
+        "parameters": {},
     }
     fields.update(overrides)
     return DecisionRequest(

@@ -32,6 +32,10 @@ that true is for the vocabulary to be unable to say otherwise." That was true
 until 4F.6 ratified `ProposedAction`, which makes the "no action type" clause
 false. Preserved per protocol §0.3.4.)*
 
+*(Phase 4F.P, A-4FP-4: "three execution fields" above is now five -- a
+proposal also names the adapter `operation` and its `parameters`, the two
+values `action-engine` needs to run anything. It is still data, not a verb.)*
+
 **Invariants are validators, not conventions** -- Phase 4E's lesson (TDD 4E
 §1.2, carried forward by TDD 4F §16). A thought that claims progress it cannot
 have, or depends on itself, raises at construction rather than reaching the
@@ -48,7 +52,7 @@ from uuid import UUID
 from nova_contracts.events.action import ActionType
 from nova_contracts.events.autonomy import PermissionCategory
 from nova_contracts.events.planning import RiskLevel
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, JsonValue, field_validator, model_validator
 
 __all__ = [
     "ATTENTION_LAYER_ORDER",
@@ -149,6 +153,17 @@ class ProposedAction(BaseModel):
     `events/autonomy.py`, `RiskLevel` in `events/planning.py`, and `ActionType`
     is `action.execute`'s own literal, so a type `action-engine` could never run
     is rejected here rather than at dispatch.
+
+    **Phase 4F.P (A-4FP-4, A-4FP-5; TDD 4F.P §30.2) -- eight required fields,
+    not six.** `operation` and `parameters` are what `action-engine` needs to
+    run anything at all: its stage 2 refuses a request without
+    `parameters["operation"]`, and its adapters read their inputs as top-level
+    `parameters` keys. Both are required, both are authored (the closed table in
+    `domain/authoring.py` is their only source), and both join all-or-nothing.
+    `execution_target` is the **capability name** `action-engine` resolves at
+    stage 5; what the action acts on travels in `parameters`. *(Until 4F.P this
+    docstring's first sentence described "every field but `detail`" over six
+    required fields -- still true, over eight. Preserved per protocol §0.3.4.)*
     """
 
     category: PermissionCategory
@@ -158,6 +173,42 @@ class ProposedAction(BaseModel):
     verification_method: str = Field(min_length=1)
     title: str = Field(min_length=1)
     detail: str = ""
+
+    operation: str
+    """**A-4FP-4.** The adapter operation, and the one value `action-engine`
+    requires and classifies risk from. Non-empty, no surrounding whitespace,
+    lower case: `action-engine` strips and lower-cases it to classify risk but
+    hands it to the adapter unchanged, so the two must already be one string."""
+
+    parameters: dict[str, JsonValue]
+    """**A-4FP-4.** The adapter's inputs, a JSON object. `{}` is allowed and
+    must be given explicitly -- there is no default. **Never contains
+    `"operation"`**: `autonomy-engine` builds `{"operation": operation,
+    **parameters}`, so a second `"operation"` here could override the one the
+    risk was classified from. No numeric size limit (SD-2): the closed
+    authoring table is the bound."""
+
+    @field_validator("operation")
+    @classmethod
+    def _operation_is_exact(cls, operation: str) -> str:
+        if not operation or operation != operation.strip() or operation != operation.lower():
+            raise ValueError(
+                f"operation {operation!r} must be non-empty, without surrounding "
+                "whitespace, and lower case (A-4FP-4)"
+            )
+        return operation
+
+    @field_validator("parameters")
+    @classmethod
+    def _parameters_never_name_the_operation(
+        cls, parameters: dict[str, JsonValue]
+    ) -> dict[str, JsonValue]:
+        if "operation" in parameters:
+            raise ValueError(
+                'parameters may not contain the key "operation"; the operation is its '
+                "own field (A-4FP-4)"
+            )
+        return parameters
 
 
 class ActiveThought(BaseModel):

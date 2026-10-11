@@ -27,6 +27,10 @@ export type Priority = number;
 export type RequestingEngine = string;
 export type CorrelationId = string;
 export type SchemaVersion = number;
+export type Operation = string | null;
+export type Parameters = {
+  [k: string]: unknown;
+} | null;
 
 /**
  * A thought's authored `ProposedAction`, offered to `autonomy-engine` for a
@@ -55,6 +59,20 @@ export type SchemaVersion = number;
  * Ignoring the field silently would leave a producer believing it had steered
  * something; `autonomy-engine`'s own `api/schemas.py` `_Strict` base already
  * takes this position for its HTTP bodies.
+ *
+ * **Phase 4F.P (A-4FP-6 with SD-3; TDD 4F.P §30.2): two additive, optional
+ * execution fields, `operation` and `parameters`.** They carry the authored
+ * `ProposedAction`'s adapter operation and inputs to `action.execute`, which
+ * cannot run without `parameters["operation"]`. **Absent is `None`, never a
+ * value**, and either one absent means the decision stays a suggestion. When
+ * present, `operation` has A-4FP-4's exact form, and `parameters` is a JSON
+ * object that **never contains `"operation"`**: a payload that tries is
+ * rejected here, so `decide()` is not invoked (C-8's second layer).
+ * `schema_version` stays `1` (ADR-024, added optional fields), and both
+ * engines ship together because this model is `extra="forbid"`. *(Until 4F.P
+ * this docstring's "the three execution fields" was complete. It still
+ * describes those three; the execution fields are now five. Preserved per
+ * protocol §0.3.4.)*
  */
 export interface AutonomyDecisionRequestedPayload {
   thought_id: ThoughtId;
@@ -69,4 +87,6 @@ export interface AutonomyDecisionRequestedPayload {
   requesting_engine: RequestingEngine;
   correlation_id: CorrelationId;
   schema_version?: SchemaVersion;
+  operation?: Operation;
+  parameters?: Parameters;
 }
