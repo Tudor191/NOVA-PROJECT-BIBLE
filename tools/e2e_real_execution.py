@@ -72,6 +72,7 @@ import sys
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 from uuid import UUID, uuid4, uuid5
@@ -148,6 +149,14 @@ TAPPED_SUBJECTS = (
 """Every subject on the path, plus the replies. Subscribed to, never published."""
 
 TERMINAL = ("completed", "failed", "denied", "rolled_back")
+
+DEBOUNCE_SECONDS = 1.0
+"""`perception-engine`'s `Settings.workspace_debounce_seconds`, restated: a
+later observation of the same object is admitted only once this long has passed
+since the last admitted one, measured in the files' own OS times. *(Phase 4F.8:
+V-7 (a1)'s modification must land after it. Until D-4F-1's one-second dispatch,
+run A always took longer than the window, so nothing enforced that (TDD 4F.8
+§35, F-4F8-17).)*"""
 
 
 @dataclass(frozen=True)
@@ -487,9 +496,14 @@ async def real_run(
     stores: Stores,
     tap: Tap,
     content: str | None = None,
+    prefix: str = "p8",
 ) -> Run:
-    """Writes one fresh file and follows it through every store."""
-    label = f"p8-{run_id}-{tag}.txt"
+    """Writes one fresh file and follows it through every store.
+
+    *(Phase 4F.8: `prefix` names the file for its phase, `{prefix}-{run_id}-
+    {tag}.txt` (TDD 4F.8 §29.4.4), so `tools/e2e_acceptance.py` follows its own
+    runs with this same function. P8's own files keep the `p8` prefix.)*"""
+    label = f"{prefix}-{run_id}-{tag}.txt"
     path = cfg.workspace / label
     path.write_text(content or f"4F.P P8 real-execution probe {run_id} {tag}\n")
 
@@ -858,6 +872,12 @@ async def prove(cfg: Config) -> int:
             label_a = evidence["run_a"]["file"]
             subject_a = UUID(evidence["run_a"]["subject_id"])
             thought_a = evidence["run_a"]["thought"]["thought_id"]
+            # After the debounce window, as V-7 (a1) intends: measured from A's
+            # own observed_at, the OS time the debouncer itself compares.
+            observed_a = datetime.fromisoformat(
+                evidence["run_a"]["observation"]["payload"]["observed_at"]
+            ).timestamp()
+            await asyncio.sleep(max(0.0, observed_a + DEBOUNCE_SECONDS + 0.5 - time.time()))
             with (cfg.workspace / label_a).open("a") as handle:
                 handle.write("modified again, after the debounce window\n")
 

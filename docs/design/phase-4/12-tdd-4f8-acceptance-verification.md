@@ -3027,3 +3027,206 @@ predicts.
   `docker compose exec` in CI (§29.5 items 3 and 4). These are E-5, E-6, E-18
   and N-16 in the acceptance run.
 - **AC-7 and AC-8 are not met, and not claimed.**
+
+---
+
+## 35. Implementation record — the acceptance harness (D5, D6, D7, D8) — 2026-10-11
+
+**Added 2026-10-11, additively**, on `phase-4f8`. It records D5–D8 as built,
+two sequencing details §29.4 left to D7, and one new finding.
+
+### 35.1 What changed
+
+**`tools/e2e_acceptance.py`.** It has three phases, each its own `e2e` step.
+It reuses P8's passive `Tap`, `Stores`, `real_run`, `configure` and
+`check_executed`, rather than restating them.
+
+- **`ac8` (D6).** It re-applies P8's configuration through the production
+  routes, then:
+  1. **Level 1** from a never-observed path. E-8: `propose`, one `proposed`
+     suggestion whose title names the file, no `action.execute`, and no
+     `action.action` row.
+  2. **Level 2** from another path. E-12: before it, the configuration is read
+     back by SQL and must be identical except the level. E-9: P8's full
+     executed-run checks, including `completed`, the listing and exactly one
+     invocation.
+  3. **E-10**: the two decision rows have identical `policy_checks`, `risk` and
+     `confidence`. Only the outcome and the level differ, and the two triggers
+     carry the same T1 category, action type and authored risk.
+  4. **E-11**: authored `low`, and `negligible` in `action-engine`.
+  5. **E-13**: each decision's subject is `uuid5` of the trigger
+     `cognitive-state-engine` published.
+  6. **E-17**: the identity row is removed, then a third path. The real stage 3
+     denies, the outcome is `propose`, and nothing is invoked. The row is
+     restored.
+- **`ac7-latency` (D5).** It runs at Level 0.
+  1. **Readiness (K-1).** `cognitive-state-engine` holds `companion-filesystem`
+     as `running`.
+  2. **The project is made known** through `memory-engine`'s own
+     `POST /v1/memories`. The harness then waits for `perception.known_project`.
+  3. **E-2's miss:** a path at the workspace root carries `project_id = None`.
+  4. **≥ 10 samples, each on a never-observed path in the declared folder**, so
+     each is also E-2's match. Every sample:
+     - is asserted absent first (FP-14);
+     - is preceded by a pause drawn from the OS's entropy (N-1);
+     - runs from the file's OS mtime to the first `200` from
+       `world-model-engine`'s `GET /v1/world/objects/{id}`, polled every 50 ms,
+       with a 30 s deadline.
+  5. **Per sample, after measuring:**
+     - E-1: one observation from `companion-filesystem`;
+     - N-3: `observed_at` equals the OS time, and is not before the write;
+     - E-2: the known `project_id`;
+     - E-1 provenance: the World Model transition's `correlation_id` equals the
+       outbox row's;
+     - §29.4.3: exactly one `observe_only` row, no suggestion, no
+       `action.execute`, and no action row.
+  6. **E-3.** It passes only if every sample was observed and is ≤ 5.0 s. Every
+     figure is printed either way.
+- **`ac7-revocation` (E-5, E-6, E-18).** It runs after P-AC7-1 has revoked.
+  1. **The workspace mode:** the group bits are withdrawn, and the owner's are
+     intact.
+  2. **E-5:**
+     - the companion's logs show `permission_revoked` and `revocation_reported`
+       once each;
+     - `perception-engine` holds `failed`;
+     - exactly one `failed` report was dispatched;
+     - `cognitive_state.sensor_state` holds it, by `last_event_id`.
+  3. **E-18:**
+     - `docker compose exec nova-companion id -u` is `1100`, and its `ls` is
+       denied;
+     - `capability-engine`'s `ls` succeeds.
+  4. **E-6:** a write the OS accepted produces no outbox row, no World Model
+     object and no submission for 25 s.
+
+**The specs (D7):**
+- `acceptance-ac8.spec.ts` (P-AC8-1): the gateway serves the Level-1 subject
+  and not the Level-2 one. The panel shows Level 2. The Level-1 run is
+  `proposed`, `low` and approvable. No row carries the Level-2 file. Nothing is
+  approved.
+- `acceptance-ac7.spec.ts` (P-AC7-1): `running`, then the genuine `chmod g-rx`
+  (by the owner), then `failed` with *"last reported"* after Refresh. The panel
+  equals the gateway both times.
+- **Both** skip without their inputs, so they never run inside the golden path,
+  and both set `retries: 0`.
+
+**`pr-checks.yml`:**
+- *"Declare the AC-7 known project"*, before the P8 services start. It creates
+  `ac7-known-<run>` in the workspace and exports `NOVA_PROJECT_FOLDER_BINDINGS`
+  and the run's inputs.
+- **Five steps after P8**, in §29.4.1's order:
+  1. AC-8;
+  2. P-AC8-1;
+  3. AC-7 latency;
+  4. P-AC7-1;
+  5. AC-7 revocation.
+- **Each step** runs whatever came before (`!cancelled()`), and fails the job
+  when it fails.
+- **The two Playwright runs** override the reporter, so the golden path's
+  report files are kept.
+
+**`tools/tests/test_e2e_acceptance.py` (D8), 29 tests:**
+- E-13 / N-4: no engine import, publish, request, `promote_thought` or
+  `decide`;
+- `SELECT`-only SQL;
+- declared routes only;
+- N-1: no schedule reference, and no modulo;
+- N-2: one call site, no `continue` or `break`, every result kept;
+- N-3: no fake clock, and `observed_at` checked against the OS time;
+- E-4: the sample function only reads;
+- the ratified figures;
+- the restated path hash equals `perception-engine`'s;
+- the step order, `!cancelled()`, no `continue-on-error`, `retries: 0`, and no
+  acceptance input on the golden-path step.
+
+### 35.2 Two sequencing details, within D7 (A-4F8-7; F-4F8-16)
+
+1. **P-AC8-1 and P-AC7-1 run in two later Playwright invocations, not one.**
+   - Both still run after the P8 services start, and after the golden path's
+     own invocation.
+   - P-AC8-1 runs right after AC-8, while the level is still 2 (§29.4.1
+     step 5).
+   - P-AC7-1 runs after the AC-7 samples, which run at Level 0 (step 7).
+   - One invocation could not be in both places.
+2. **The genuine revocation is made by P-AC7-1, in the browser run**, followed
+   by E-5, E-6 and E-18 in the harness.
+   - §19 requires P-AC7-1 to show `running`, *then* `failed`. A revocation made
+     before the spec would leave only `failed` to show.
+   - The revocation is still made once, by the workspace's owner, and is
+     still the companion's alone (§29.2).
+
+### 35.3 A new finding, F-4F8-17, fixed in the P8 driver
+
+**F-4F8-17: P8's V-7 (a1) relied on the 10-second dispatch to space its second
+modification past the 1-second debounce.**
+
+- **What happened.** V-7 (a1) modifies run A's file again *"after the debounce
+  window"*, but nothing enforced that. Run A always took longer than 1 s,
+  because of the 10 s dispatch. With D-4F-1's one-second dispatch, the local run
+  finished run A in under a second.
+- **The evidence, from that run:**
+  - A was observed at `16:36:42.79`;
+  - the modification was observed at `16:36:43.56`;
+  - `perception-engine` correctly debounced it;
+  - P8 timed out waiting for a second observation.
+- **The fix**, in `tools/e2e_real_execution.py`:
+  - it sleeps until A's own `observed_at`, plus `DEBOUNCE_SECONDS` (1.0), plus
+    0.5 s;
+  - `DEBOUNCE_SECONDS` is restated from `perception-engine`'s
+    `workspace_debounce_seconds`, and drift-guarded by
+    `test_the_debounce_window_is_perception_engines`;
+  - `real_run` also gains a `prefix` argument, defaulting to `p8`.
+- **No engine changed.** Re-run, P8 passed **67 of 67**.
+
+### 35.4 Evidence (local processes; not containers, not CI)
+
+**The local stack.** The real engines ran as processes against real PostgreSQL
+16 with pgvector, nats-server and redis-server:
+- `world-model-engine` used the in-memory graph store;
+- `memory-engine` used the in-memory embedding backend;
+- the companion ran as uid 1100 with gid 1001 (the "runner"), and the workspace
+  was owned by 1001 with mode 0755;
+- `capability-engine` ran as root;
+- there were no gateways and no browser.
+
+| Phase | Result |
+|---|---|
+| P8 (4F.P) | **67 of 67**, after the F-4F8-17 fix. Before it: 66, with V-7 (a1) timing out |
+| `ac8` | **54 of 54**: E-8, E-9 (through P8's executed-run checks), E-10, E-11, E-12, E-13, E-17, and P-AC8-1's premise |
+| `ac7-latency` | **70 of 70**. Ten samples, below |
+| `ac7-revocation` | **7 of 10.** The three that failed need Docker: the companion log read through `docker compose logs`, and E-18's two `docker compose exec` checks. The companion's own process log showed `permission_revoked` once and `revocation_reported` once (`state: failed`, `transitioned: true`), and no submission for the post-revocation file. The remaining checks passed: `failed` in `perception-engine`; exactly one dispatched `failed`; `cognitive_state.sensor_state = failed` from it; and E-6's 25 s watch |
+
+**AC-7's ten local samples**, from OS mtime to the first World Model read:
+
+| # | Pause before (s) | Elapsed (s) |
+|---|---|---|
+| 1 | 1.916 | 0.284 |
+| 2 | 0.435 | 0.574 |
+| 3 | 1.322 | 0.680 |
+| 4 | 0.920 | 0.064 |
+| 5 | 1.603 | 0.400 |
+| 6 | 0.037 | 0.955 |
+| 7 | 0.531 | 0.458 |
+| 8 | 1.708 | 0.284 |
+| 9 | 0.808 | 0.172 |
+| 10 | 0.175 | 0.834 |
+
+The maximum was **0.955 s**, and all ten were ≤ 5.0 s. **This is local evidence
+and does not make AC-7 met:** A-4F8-6's measurement is the CI acceptance run's.
+
+**The guard's negative controls**, each reverted afterwards. Each of these
+failed its named test:
+- a 5.5 s budget;
+- a write aligned to a clock boundary (N-1);
+- discarding an unobserved sample (N-2);
+- a `POST` inside a sample (E-4);
+- a non-`SELECT` statement;
+- `retries` allowed in P-AC7-1;
+- `continue-on-error` on the latency step.
+
+### 35.5 What this does not show
+
+- **CI.** The acceptance run in containers, with E-18, N-16, the runner's gid,
+  and both Playwright specs. Neither spec ran here, because the local stack has
+  no gateways.
+- **AC-7 and AC-8 are not met, and not claimed**, until that run's evidence
+  exists.

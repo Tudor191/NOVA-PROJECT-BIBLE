@@ -174,6 +174,7 @@ def test_v9_the_driver_imports_no_engine_and_no_project_package() -> None:
         "time",
         "collections.abc",
         "dataclasses",
+        "datetime",
         "pathlib",
         "typing",
         "uuid",
@@ -348,3 +349,13 @@ def test_the_twelve_stages_are_action_engines() -> None:
     assert isinstance(stages, ast.Tuple)
     assert tuple(e.value for e in stages.elts if isinstance(e, ast.Constant)) == owned
     assert len(owned) == 12
+
+
+def test_the_debounce_window_is_perception_engines() -> None:
+    """*(Phase 4F.8, F-4F8-17.)* V-7 (a1) waits out this window before its second
+    modification; it must be the window `perception-engine` applies."""
+    config = (SERVICES / "perception-engine/src/nova_perception_engine/config.py").read_text()
+    match = re.search(r"^\s+workspace_debounce_seconds: float = ([0-9.]+)$", config, re.M)
+    assert match is not None
+    node = _driver_constant("DEBOUNCE_SECONDS")
+    assert isinstance(node, ast.Constant) and node.value == float(match.group(1))

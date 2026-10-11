@@ -672,6 +672,31 @@ jobs:
             exit 1
           fi
 
+      # Phase 4F.8 (TDD 4F.8 D3, A-4F8-2 (a); §29.4): the operator's declaration
+      # for AC-7's "known project". One folder in the shared workspace is bound
+      # to a project id fresh for this run.
+      # - Exported before the P8 services start, because perception-engine reads
+      #   its bindings at startup.
+      # - The folder is created now, so the companion's recursive watch includes
+      #   it from its first event.
+      # - The binding stays inert until the project is seen on
+      #   `memory.long_term.created`. `tools/e2e_acceptance.py ac7-latency` makes
+      #   that happen through memory-engine's own route.
+      - name: Declare the AC-7 known project (4F.8 D3)
+        if: ${{ !cancelled() }}
+        run: |
+          run_id="$(python3 -c 'import uuid; print(uuid.uuid4().hex[:12])')"
+          project_id="$(python3 -c 'import uuid; print(uuid.uuid4())')"
+          folder="ac7-known-${run_id}"
+          mkdir -p "${NOVA_WORKSPACE_DIR}/${folder}"
+          {
+            echo "NOVA_ACCEPTANCE_RUN_ID=${run_id}"
+            echo "NOVA_ACCEPTANCE_KNOWN_PROJECT_ID=${project_id}"
+            echo "NOVA_ACCEPTANCE_KNOWN_FOLDER=${folder}"
+            echo "NOVA_PROJECT_FOLDER_BINDINGS={\"/workspace/${folder}\": \"${project_id}\"}"
+          } >> "$GITHUB_ENV"
+          echo "known project ${project_id}, declared at /workspace/${folder}"
+
       # Phase 4F.P, P8 -- real end-to-end execution (TDD 4F.P A-4FP-12; §15's
       # V-1 ... V-5, V-6 (a), V-7 (a1), in §28.4 C-14's composed tier).
       #
@@ -718,6 +743,74 @@ jobs:
         run: |
           set -o pipefail
           uv run python tools/e2e_real_execution.py 2>&1 | tee /tmp/p8-real-execution.log
+
+      # Phase 4F.8: AC-7 and AC-8 against this stack, in TDD 4F.8 §29.4.1's
+      # order, after 4F.P's P8 proof:
+      # - AC-8's two runs, then P-AC8-1;
+      # - AC-7's latency samples at Level 0;
+      # - P-AC7-1, which makes the genuine revocation;
+      # - the revocation's evidence (E-5, E-6, E-18).
+      # Each step runs and reports whatever the one before did; each failure
+      # fails the job. The Playwright runs are separate invocations after the
+      # P8 services start (F-4F8-16), and override the reporter, so the golden
+      # path's report files are kept.
+      - name: AC-8 acceptance (4F.8 D6)
+        id: ac8
+        if: ${{ !cancelled() }}
+        env:
+          NATS_URL: nats://localhost:4222
+          NOVA_E2E_POSTGRES_DSN: postgresql://nova:nova_dev_password@localhost:5432/nova
+          NOVA_E2E_DEADLINE_SECONDS: "180"
+        run: |
+          set -o pipefail
+          uv run python tools/e2e_acceptance.py ac8 2>&1 | tee /tmp/ac8-acceptance.log
+
+      - name: P-AC8-1 in a browser (4F.8 D7)
+        if: ${{ !cancelled() }}
+        env:
+          NOVA_SESSION_TOKEN: ${{ env.NOVA_SESSION_TOKEN }}
+          NOVA_API_GATEWAY_URL: http://localhost:8014
+          NOVA_WS_GATEWAY_URL: http://localhost:8015
+          NOVA_ACCEPTANCE_AC8_LEVEL1_LABEL: ${{ steps.ac8.outputs.ac8_level1_label }}
+          NOVA_ACCEPTANCE_AC8_LEVEL1_SUBJECT_ID: ${{ steps.ac8.outputs.ac8_level1_subject_id }}
+          NOVA_ACCEPTANCE_AC8_LEVEL2_LABEL: ${{ steps.ac8.outputs.ac8_level2_label }}
+          NOVA_ACCEPTANCE_AC8_LEVEL2_SUBJECT_ID: ${{ steps.ac8.outputs.ac8_level2_subject_id }}
+        run: |
+          set -o pipefail
+          pnpm --filter @nova/web-client exec playwright test tests/e2e/acceptance-ac8.spec.ts \
+            --reporter=list,github --output=test-results-acceptance-ac8 2>&1 | tee /tmp/playwright-ac8.log
+
+      - name: AC-7 latency (4F.8 D5)
+        if: ${{ !cancelled() }}
+        env:
+          NATS_URL: nats://localhost:4222
+          NOVA_E2E_POSTGRES_DSN: postgresql://nova:nova_dev_password@localhost:5432/nova
+          NOVA_E2E_DEADLINE_SECONDS: "180"
+        run: |
+          set -o pipefail
+          uv run python tools/e2e_acceptance.py ac7-latency 2>&1 | tee /tmp/ac7-latency.log
+
+      - name: P-AC7-1 in a browser, with the genuine revocation (4F.8 D7)
+        if: ${{ !cancelled() }}
+        env:
+          NOVA_SESSION_TOKEN: ${{ env.NOVA_SESSION_TOKEN }}
+          NOVA_API_GATEWAY_URL: http://localhost:8014
+          NOVA_WS_GATEWAY_URL: http://localhost:8015
+          NOVA_ACCEPTANCE_WORKSPACE: ${{ env.NOVA_WORKSPACE_DIR }}
+        run: |
+          set -o pipefail
+          pnpm --filter @nova/web-client exec playwright test tests/e2e/acceptance-ac7.spec.ts \
+            --reporter=list,github --output=test-results-acceptance-ac7 2>&1 | tee /tmp/playwright-ac7.log
+
+      - name: AC-7 revocation evidence (4F.8 E-5, E-6, E-18)
+        if: ${{ !cancelled() }}
+        env:
+          NATS_URL: nats://localhost:4222
+          NOVA_E2E_POSTGRES_DSN: postgresql://nova:nova_dev_password@localhost:5432/nova
+          NOVA_E2E_DEADLINE_SECONDS: "180"
+        run: |
+          set -o pipefail
+          uv run python tools/e2e_acceptance.py ac7-revocation 2>&1 | tee /tmp/ac7-revocation.log
 
       - name: Collect the P8 path's logs on failure
         if: failure()
