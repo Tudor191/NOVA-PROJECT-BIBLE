@@ -635,6 +635,13 @@ services:
       # Unset, this engine publishes no workspace observation at all (its own
       # explicit degrade), so nothing downstream could ever trigger.
       PERCEPTION_ENGINE_PRIMARY_USER_ID: 00000000-0000-0000-0000-000000000001
+      # Phase 4F.8 (A-4F8-2 (a); TDD 4F.8 §29.1): the operator's declared
+      # folder -> project bindings, as JSON keyed by the path the companion
+      # reports (e.g. `{"/workspace/atlas": "<project uuid>"}`). Empty unless
+      # the operator sets NOVA_PROJECT_FOLDER_BINDINGS, so nothing is a known
+      # project by default. A binding is inert until its project is seen on
+      # `memory.long_term.created`.
+      PERCEPTION_ENGINE_PROJECT_FOLDER_BINDINGS: ${NOVA_PROJECT_FOLDER_BINDINGS:-{}}
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
     ports:
       - "8009:8000"

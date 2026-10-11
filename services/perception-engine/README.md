@@ -33,6 +33,7 @@ engine performs no gating itself.
 | Published | `perception.sensor.health_changed` | Sensor health-status change. **Phase 4F.7 (RS-3a, A-4F7-2):** now actually published -- one report per real lifecycle transition, see below. |
 | Published (RPC) | `ai_model.detect_wake_phrase.request`, `ai_model.embed_voice.request`, `ai_model.embed_face.request`, `ai_model.estimate_gaze.request` | This engine's own outbound calls to `ai-model-orchestration-engine` (ADR-020). |
 | Subscribed | `communication.session.created`, `communication.session.completed` | Feeds `SessionActivityTracker` -- one of the addressee-candidate signals (§10). `communication.session.state_changed` is deliberately not subscribed (no `user_id` in that payload). |
+| Subscribed | `memory.long_term.created` | **Phase 4F.8** (A-4F8-2 (a)). Only `project_id` and `user_id` are read: a memory of this deployment's user that names a project makes that project **known** (`perception.known_project`). See *Known projects* below. |
 
 See `events/published.py` / `events/subscribed.py` for the enforced
 allow-lists, and `tests/contract/test_event_subject_wildcard.py` for the
@@ -79,6 +80,35 @@ sensor's state (`sensor_lifecycle.py`):
   subscribes to it and keeps the last reported state per sensor. Core NATS does
   not deliver to a subscriber that is not connected at dispatch time
   (TDD 4F.7 §15 K-1).
+
+## Known projects -- Phase 4F.8
+
+*(A-4F8-2 (a), (a1) and (a2), ratified 2026-10-11; TDD 4F.8 §29.1, §33. It
+settles ledger row L-13.)*
+
+A workspace observation carries a `project_id` only when **both** of these
+hold:
+
+1. **An operator declared the folder.** `PERCEPTION_ENGINE_PROJECT_FOLDER_BINDINGS`
+   is JSON mapping an absolute folder, as the companion reports paths, to a
+   project UUID. In compose it is passed through from `NOVA_PROJECT_FOLDER_BINDINGS`.
+   - **Empty by default**, so nothing is known unless declared.
+   - The nearest declared ancestor folder wins, matched by whole path segments.
+2. **NOVA holds that project.** Its `project_id` has been seen on
+   `memory.long_term.created` and recorded in `perception.known_project`
+   (migration `0002`).
+   - Current state only.
+   - It survives a restart.
+   - A declared folder for a project never seen is **inert**.
+
+Otherwise the observation is published with `project_id = None`, never a guess
+(§9, N-13).
+
+**Unchanged:**
+- the correlation happens here, where the path is transiently available, and
+  the path is never published (D-4F3-2);
+- `world-model-engine` is unchanged (A-4F8-2 (a2)). *"Known"* shows on the
+  published observation, and the World Model object stays per file (F-4F8-6).
 
 ## Outbox dispatch -- every second, from one worker
 

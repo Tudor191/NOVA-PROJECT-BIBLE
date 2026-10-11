@@ -3,8 +3,10 @@
 
 from __future__ import annotations
 
+from pathlib import PurePosixPath
 from uuid import UUID
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -63,3 +65,33 @@ class Settings(BaseSettings):
     but `observation_orchestration.py::handle_observation_window` degrades
     explicitly (publishes nothing, logs a warning) rather than guessing a
     user identity whenever it is unset -- never a silent fallback."""
+
+    project_folder_bindings: dict[str, UUID] = {}
+    """Phase 4F.8, A-4F8-2 (a), ratified 2026-10-11 (TDD 4F.8 §29.1). The
+    operator's declaration of which folder belongs to which project: an absolute
+    folder path, as `nova-companion` reports paths, mapped to a project
+    identity. Set as JSON, e.g.
+    `PERCEPTION_ENGINE_PROJECT_FOLDER_BINDINGS='{"/workspace/atlas": "<uuid>"}'`.
+
+    **Empty by default**, so nothing is a known project until an operator says
+    so. A location is declared, never inferred.
+
+    **A binding is inert until its project identity has been seen** on
+    `memory.long_term.created` (`perception.known_project`). Declaring a folder
+    for a project NOVA does not hold makes nothing known."""
+
+    @field_validator("project_folder_bindings")
+    @classmethod
+    def _bindings_name_absolute_folders(cls, value: dict[str, UUID]) -> dict[str, UUID]:
+        """Normalized to one spelling per folder, and refused unless absolute: a
+        relative folder would match against whatever the companion's working
+        directory happened to be."""
+        normalized: dict[str, UUID] = {}
+        for folder, project_id in value.items():
+            path = PurePosixPath(folder.strip())
+            if not path.is_absolute() or path == PurePosixPath("/"):
+                raise ValueError(
+                    f"a project folder binding must name an absolute folder below /: {folder!r}"
+                )
+            normalized[str(path)] = project_id
+        return normalized

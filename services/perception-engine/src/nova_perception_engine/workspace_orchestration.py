@@ -33,12 +33,13 @@ from uuid import UUID, uuid4
 from fastapi import FastAPI
 from nova_observability import get_logger
 from pydantic import BaseModel
+from starlette.datastructures import State
 
 from nova_perception_engine.domain.workspace import (
     WorkspaceObservation,
+    bound_project_for_path,
     label_for_path,
     object_id_for_path,
-    resolve_project_id,
 )
 from nova_perception_engine.events.publishers import workspace_observed
 
@@ -113,7 +114,7 @@ async def handle_workspace_event(
         label=label_for_path(request.path),
         sensor_id=sensor_id,
         observed_at=request.observed_at,
-        project_id=resolve_project_id(object_id, state.known_projects),
+        project_id=await _known_project_for(state, request.path),
     )
 
     if not state.workspace_debouncer.admit(observation):
@@ -124,3 +125,20 @@ async def handle_workspace_event(
     event = workspace_observed(observation, user_id=user_id, correlation_id=correlation_id)
     await state.repository.enqueue_outbox(event)
     return WorkspaceObservationOutcome(sensor_id=sensor_id, object_id=object_id, published=True)
+
+
+async def _known_project_for(state: State, path: str) -> UUID | None:
+    """Phase 4F.8, A-4F8-2 (a): the project of the operator's nearest declared
+    folder for `path`, **if NOVA holds that project** -- or `None`.
+
+    Correlated here, inside this engine's trust boundary, where the path is
+    transiently available (D-4F3-2). A binding whose project has never been
+    seen on `memory.long_term.created` is inert. Either way the path itself is
+    never published."""
+    bindings = state.settings.project_folder_bindings
+    candidate = bound_project_for_path(path, bindings)
+    if candidate is None:
+        return None
+    if not await state.repository.is_project_known(candidate):
+        return None
+    return candidate

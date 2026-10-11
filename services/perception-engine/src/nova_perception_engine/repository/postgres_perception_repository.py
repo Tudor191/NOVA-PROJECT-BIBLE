@@ -10,9 +10,11 @@ and decryption both happen in `domain/enrollment.py`, never here (Sec16).
 
 from __future__ import annotations
 
+from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import func, select, update
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from nova_perception_engine.domain.models import (
@@ -27,6 +29,7 @@ from nova_perception_engine.repository.models import (
     ConsentGrantORM,
     EnrolledIdentityORM,
     IdentityObservationORM,
+    KnownProjectORM,
     OutboxEventORM,
     SensorRegistrationORM,
 )
@@ -226,6 +229,27 @@ class PostgresPerceptionRepository:
                         last_health_check_at=func.now(),
                     )
                 )
+
+    async def record_known_project(
+        self, project_id: UUID, *, source_event_id: UUID, observed_at: datetime
+    ) -> bool:
+        async with self._session_factory() as db_session, db_session.begin():
+            result = await db_session.execute(
+                pg_insert(KnownProjectORM)
+                .values(
+                    project_id=project_id,
+                    first_observed_at=observed_at,
+                    source_event_id=source_event_id,
+                )
+                .on_conflict_do_nothing(index_elements=[KnownProjectORM.project_id])
+                .returning(KnownProjectORM.project_id)
+            )
+            return result.scalar_one_or_none() is not None
+
+    async def is_project_known(self, project_id: UUID) -> bool:
+        async with self._session_factory() as db_session:
+            found = await db_session.get(KnownProjectORM, project_id)
+            return found is not None
 
     async def enqueue_outbox(self, event: OutboxEvent) -> UUID:
         async with self._session_factory() as db_session, db_session.begin():

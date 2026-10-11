@@ -179,6 +179,24 @@ nova.heartbeat|nova.mode.changed|nova.module.status_changed
 >   fills its existing `parameters` with `{"operation": operation,
 >   **parameters}`.
 
+> **Added 2026-10-11 (Phase 4F.8), additively.** 4F.8 adds **no subject** and
+> changes no payload. The registry stays at **120** and `PUBLIC_TOPICS` at
+> **18** ([TDD 4F.8](../design/phase-4/12-tdd-4f8-acceptance-verification.md)
+> §9, §32, §33).
+>
+> - **`memory.long_term.created`** gains a consumer, **`perception-engine`**,
+>   through one core-NATS `subscribe()` (A-4F8-2 (a)). It reads only
+>   `project_id` and `user_id`, to learn which project identities NOVA holds.
+>   `digital-twin-engine` still consumes it as before.
+> - **`perception.sensor.health_changed`** can now carry `status: failed` for
+>   the filesystem sensor. It is published when `nova-companion` reports a lost
+>   OS permission on `perception-engine`'s one new **internal HTTP route**,
+>   which is not a subject (A-4F8-1 (a)).
+> - **`perception-engine`'s outbox now dispatches every second, serially**,
+>   from exactly one worker. D-4F-1 was reopened for that engine's dispatch
+>   interval only (§30, §31). Every other engine's outbox keeps its 10-second
+>   poll.
+
 Every published event carries a common envelope (defined once in `nova-contracts`):
 
 ```python

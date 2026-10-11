@@ -32,16 +32,17 @@ def _app(
     *,
     sensor_state: str = "running",
     primary_user_id: UUID | None = USER_ID,
-    known_projects: dict | None = None,
+    bindings: dict | None = None,
     debounce_seconds: float = 1.0,
 ) -> tuple[SimpleNamespace, FakePerceptionRepository]:
     repository = FakePerceptionRepository()
     sensor = FakeSensor(state=sensor_state)  # type: ignore[arg-type]
     state = SimpleNamespace(
         sensors_by_source={"filesystem": sensor},
-        settings=SimpleNamespace(primary_user_id=primary_user_id),
+        settings=SimpleNamespace(
+            primary_user_id=primary_user_id, project_folder_bindings=bindings or {}
+        ),
         repository=repository,
-        known_projects=known_projects if known_projects is not None else {},
         workspace_debouncer=WorkspaceObservationDebouncer(
             window=timedelta(seconds=debounce_seconds)
         ),
@@ -146,16 +147,51 @@ async def test_a_client_supplied_user_id_cannot_override_the_configured_one() ->
 
 
 async def test_a_failed_project_correlation_publishes_without_a_project_id() -> None:
-    app, repository = _app(known_projects={})
+    app, repository = _app(bindings={})
     await handle_workspace_event(app, source="filesystem", request=_request())
     assert _rows(repository)[0].payload["project_id"] is None
 
 
-async def test_a_successful_project_correlation_is_attached() -> None:
+async def _known(repository: FakePerceptionRepository, project_id: UUID) -> None:
+    await repository.record_known_project(
+        project_id, source_event_id=uuid4(), observed_at=datetime.now(UTC)
+    )
+
+
+async def test_a_declared_folder_of_a_known_project_attaches_it() -> None:
+    """Phase 4F.8, A-4F8-2 (a): E-2's match, at the orchestration."""
     project_id = uuid4()
-    app, repository = _app(known_projects={object_id_for_path(PATH): project_id})
+    app, repository = _app(bindings={"/home/ada/projects/analytical-engine": project_id})
+    await _known(repository, project_id)
+
     await handle_workspace_event(app, source="filesystem", request=_request())
+
     assert _rows(repository)[0].payload["project_id"] == str(project_id)
+
+
+async def test_a_declared_folder_of_a_project_never_seen_is_inert() -> None:
+    """A binding is active only once its project has been seen on
+    `memory.long_term.created`. Declaring a folder alone makes nothing known."""
+    project_id = uuid4()
+    app, repository = _app(bindings={"/home/ada/projects/analytical-engine": project_id})
+
+    await handle_workspace_event(app, source="filesystem", request=_request())
+
+    assert _rows(repository)[0].payload["project_id"] is None
+
+
+async def test_a_known_project_attaches_only_to_paths_in_its_declared_folder() -> None:
+    """E-2's miss: outside every declared folder, `None`, even when projects
+    are known (N-13)."""
+    project_id = uuid4()
+    app, repository = _app(bindings={"/home/ada/projects/analytical-engine": project_id})
+    await _known(repository, project_id)
+
+    await handle_workspace_event(
+        app, source="filesystem", request=_request(path="/home/ada/elsewhere/notes.md")
+    )
+
+    assert _rows(repository)[0].payload["project_id"] is None
 
 
 async def test_the_real_observed_at_is_preserved_not_replaced_by_now() -> None:

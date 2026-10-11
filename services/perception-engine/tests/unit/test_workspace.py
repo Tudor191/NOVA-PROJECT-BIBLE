@@ -14,9 +14,9 @@ import pytest
 from nova_perception_engine.domain.workspace import (
     WorkspaceObservation,
     WorkspaceObservationDebouncer,
+    bound_project_for_path,
     label_for_path,
     object_id_for_path,
-    resolve_project_id,
 )
 
 PATH = "/home/ada/projects/analytical-engine/notes.md"
@@ -86,25 +86,43 @@ def test_the_label_is_the_final_segment_only() -> None:
 
 
 # --- enrichment: an honest unknown ---------------------------------------
+#
+# *(Phase 4F.8, A-4F8-2 (a).)* Until 4F.8 these tests exercised
+# `resolve_project_id(object_id, known)`, a lookup keyed by the path hash with no
+# population source (L-13). Correlation is now by the operator's declared
+# folder for a project. Whether that project is *known* is asserted in
+# `test_workspace_orchestration.py`, because the answer is in the store.
 
 
-def test_a_failed_project_correlation_returns_none() -> None:
+def test_a_path_under_no_declared_folder_has_no_project() -> None:
     """§9: *"When correlation fails the observation is published without a
-    `project_id`"* -- never a guess, never a default project."""
-    assert resolve_project_id("ws-unknown", {}) is None
+    `project_id`"* -- never a guess, never a default project (N-13)."""
+    assert bound_project_for_path(PATH, {}) is None
+    assert bound_project_for_path(PATH, {"/home/ada/other": uuid4()}) is None
 
 
-def test_a_successful_project_correlation_returns_the_project() -> None:
+def test_a_path_under_a_declared_folder_has_that_folders_project() -> None:
     project_id = uuid4()
-    assert resolve_project_id("ws-known", {"ws-known": project_id}) == project_id
+    bindings = {"/home/ada/projects/analytical-engine": project_id}
+    assert bound_project_for_path(PATH, bindings) == project_id
 
 
-def test_correlation_is_keyed_by_handle_not_by_path() -> None:
-    """The correlation table never sees a path either."""
-    project_id = uuid4()
-    known = {object_id_for_path(PATH): project_id}
-    assert resolve_project_id(object_id_for_path(PATH), known) == project_id
-    assert resolve_project_id(PATH, known) is None
+def test_the_nearest_declared_folder_wins() -> None:
+    outer, inner = uuid4(), uuid4()
+    bindings = {"/home/ada/projects": outer, "/home/ada/projects/analytical-engine": inner}
+    assert bound_project_for_path(PATH, bindings) == inner
+    assert bound_project_for_path("/home/ada/projects/other/x.md", bindings) == outer
+
+
+def test_a_folder_matches_by_whole_segments_not_by_prefix() -> None:
+    """`/x/atlas-old` is not inside `/x/atlas`: a string prefix would be a guess."""
+    bindings = {"/home/ada/projects/analytical": uuid4()}
+    assert bound_project_for_path(PATH, bindings) is None
+
+
+def test_the_folder_itself_is_not_inside_itself() -> None:
+    folder = "/home/ada/projects/analytical-engine"
+    assert bound_project_for_path(folder, {folder: uuid4()}) is None
 
 
 # --- debounce -------------------------------------------------------------

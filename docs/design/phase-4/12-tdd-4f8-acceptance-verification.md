@@ -2896,3 +2896,66 @@ all 33 pass. The message cannot be amended, so this records it.
 - **E-5, E-6 and E-18 in the acceptance stack**, under §29.2's override. That
   is D4/D5's sequence.
 - **AC-7 and AC-8 are not met, and not claimed.**
+
+---
+
+## 33. Implementation record — D3 — 2026-10-11
+
+**Added 2026-10-11, additively**, on `phase-4f8`. It records A-4F8-2 (a), (a1)
+and (a2) as built, and settles ledger row **L-13** once merged.
+
+### 33.1 What changed (`perception-engine`, `infra/docker`)
+
+- **The operator's declaration:** `Settings.project_folder_bindings`, JSON from
+  `PERCEPTION_ENGINE_PROJECT_FOLDER_BINDINGS`.
+  - It maps absolute folders to project UUIDs. Relative paths and `/` are
+    refused.
+  - It is **empty by default**.
+  - Compose passes it through from `NOVA_PROJECT_FOLDER_BINDINGS`, defaulting to
+    `{}`.
+- **The match:** `domain/workspace.py::bound_project_for_path`.
+  - The nearest declared ancestor folder wins, compared by whole path segments.
+  - A miss returns `None`.
+  - It replaces `resolve_project_id(object_id, known)`, whose table had no
+    population path (F-4F8-5).
+- **The activation**, in `workspace_orchestration.py::_known_project_for`. A
+  bound project counts only if `repository.is_project_known(project_id)`, one
+  primary-key read.
+- **The learning:**
+  - `memory.long_term.created` is added to `SUBSCRIBABLE_SUBJECTS` and
+    subscribed in the lifespan.
+  - `events/handlers.py::make_known_project_handler` records a `project_id` of
+    `primary_user_id`'s memories, and ignores everything else.
+  - **Not read:** the memory's content, type or privacy level.
+- **The store (a1):** migration `0002_known_project.py` creates
+  `perception.known_project` (`project_id` PK, `first_observed_at`,
+  `source_event_id`). It holds current state only, and is written with
+  `ON CONFLICT DO NOTHING`.
+- **Unchanged:** `world-model-engine` (a2), `memory-engine`, the registry
+  (120), `PUBLIC_TOPICS` (18), the gateway prefixes, and the published
+  payload's shape.
+
+### 33.2 Evidence (local; not CI)
+
+| Tier | Tests | Result |
+|---|---|---|
+| Unit | `test_workspace.py` (the match, rewritten for folders: 5); `test_workspace_orchestration.py` (known, inert and miss: 3 new); `test_known_projects.py` (12: subscription, handler, defaults, validation) | The suite: **242 passed**, 28 deselected |
+| `real_infra` | `test_known_project_real_infra.py` (2). A real `memory.long_term.created` from a producer bound as `memory-engine` (control 7), over real NATS, reaches the real app's lifespan subscription. Real PostgreSQL, and the real companion binary writing under a declared, an inert and an undeclared folder | **2 passed**. Match: `project_id = KNOWN`. Inert: `None`. Miss: `None`. One row, recording the first event |
+
+**Negative controls**, each reverted afterwards:
+
+| Mutation | Failed |
+|---|---|
+| A declared folder counts without its project being known | `test_a_declared_folder_of_a_project_never_seen_is_inert`, and the real-infra match test |
+| A miss guesses a project (N-13) | 4 unit tests, and the real-infra match test |
+| No subscription | Both real-infra tests. **Only this tier catches it**, because the unit tiers do not run the lifespan |
+
+**Flakiness:** the real-infra file passed **10 of 10**.
+
+**`docker compose … config`:** valid. The default resolves to `'{}'`.
+
+### 33.3 What this does not show
+
+- **E-2 in the acceptance stack.** The project must become known there through
+  `memory-engine`'s production `POST /v1/memories`, and that is D5's harness.
+- **AC-7 and AC-8 are not met, and not claimed.**

@@ -64,6 +64,22 @@ the Bible's requirements well.
 > The `autonomy.decision_log` DDL sketch later in this document is left as
 > written.
 
+> **Added 2026-10-11 (Phase 4F.8, ratified A-4F8-2 (a1)), additively.** The
+> `perception` schema gains one table, **`perception.known_project`** (migration
+> `0002`; [TDD 4F.8](../design/phase-4/12-tdd-4f8-acceptance-verification.md)
+> §29.1, §33).
+>
+> - **What it holds:** one row per project identity `perception-engine` has
+>   seen on `memory.long_term.created`, with `project_id` as the primary key,
+>   plus `first_observed_at` and the `source_event_id` that first made it known.
+> - **Current state only**, as `cognitive_state.sensor_state` is. There is no
+>   history, no row per event, no audit and no expiry. A repeat sighting writes
+>   nothing (`INSERT … ON CONFLICT DO NOTHING`).
+> - **What uses it:** it activates the operator's declared folder for a
+>   project. It is owned and read only by `perception-engine`, which learns
+>   project identities over the bus and never reads `memory.*`.
+> - **No existing table is altered.**
+
 **Rule:** exactly one engine owns each table/collection/graph label. No engine queries
 another engine's schema directly, even within the same physical Postgres instance —
 cross-engine data access is always through the owning engine's API/events. Each engine
