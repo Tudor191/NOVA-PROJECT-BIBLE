@@ -56,7 +56,22 @@ const permissionCategorySchema = z.enum(PERMISSION_CATEGORIES);
 
 /** `deny` and `require_approval` only -- 4D ships no `allow` effect (§6). */
 export const POLICY_EFFECTS = ["deny", "require_approval"] as const;
-const policyEffectSchema = z.enum(POLICY_EFFECTS);
+
+/**
+ * *(Phase 4F.8, F-4F8-20; TDD 4F.8 §38.)* Every effect `autonomy-engine` can
+ * **serve**: `POLICY_EFFECTS` plus 4F.5's `auto_execute` (D-4F5-1). It is used
+ * only to *read* policies and gate reports.
+ *
+ * - **Authoring is unchanged.** The editor still offers `POLICY_EFFECTS`
+ *   alone, so the panel cannot create an `AUTO_EXECUTE` policy (L-17, OPEN).
+ * - **The defect it fixes.** Reading with the authoring enum made one
+ *   `auto_execute` policy fail the whole policy list's parse, and every
+ *   suggestion that carried its policy check fail the inbox's. Both then
+ *   rendered as empty while the gateway served them.
+ * - There is still no `allow` effect.
+ */
+export const SERVED_POLICY_EFFECTS = [...POLICY_EFFECTS, "auto_execute"] as const;
+const servedPolicyEffectSchema = z.enum(SERVED_POLICY_EFFECTS);
 
 /**
  * One selectable-or-not autonomy level.
@@ -123,14 +138,14 @@ const permissionMatrixSchema = z.object({
 const policyCheckSchema = z.object({
   policy_id: z.string(),
   name: z.string(),
-  effect: policyEffectSchema,
+  effect: servedPolicyEffectSchema,
   matched: z.boolean(),
 });
 
 const policySchema = z.object({
   id: z.string(),
   name: z.string(),
-  effect: policyEffectSchema,
+  effect: servedPolicyEffectSchema,
   match_category: permissionCategorySchema.nullable(),
   match_min_risk: riskLevelSchema.nullable(),
   match_capability_class: z.string().nullable(),

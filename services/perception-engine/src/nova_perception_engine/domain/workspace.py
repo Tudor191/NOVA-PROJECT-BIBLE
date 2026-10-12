@@ -15,7 +15,10 @@ each of which exists because publishing the raw signal would be wrong:
    for a single human action.
 3. **Enrichment.** AC-7 speaks of a *"known project"*. When correlation fails
    the observation is published with `project_id=None` -- an honest unknown,
-   never a guess (§9).
+   never a guess (§9). *(Phase 4F.8, A-4F8-2 (a): correlation is by the
+   operator's declared folder for a project, matched here against the path,
+   inside this engine's trust boundary; `workspace_orchestration.py` then
+   requires that project to be known. The path is still never published.)*
 
 Pure functions and one small stateful debouncer; no I/O, no `app.state`, so
 this stays inside `domain/` per `domain/ports.py`'s own rule.
@@ -24,17 +27,18 @@ this stays inside `domain/` per `domain/ports.py`'s own rule.
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from pathlib import PurePath
+from pathlib import PurePath, PurePosixPath
 from uuid import UUID
 
 __all__ = [
     "WorkspaceObservation",
     "WorkspaceObservationDebouncer",
+    "bound_project_for_path",
     "label_for_path",
     "object_id_for_path",
-    "resolve_project_id",
 ]
 
 _HASH_PREFIX = "ws"
@@ -80,18 +84,32 @@ def label_for_path(path: str) -> str:
     return PurePath(normalized).name or normalized
 
 
-def resolve_project_id(object_id: str, known: dict[str, UUID]) -> UUID | None:
-    """AC-7's *"known project"* correlation -- or an honest `None`.
+def bound_project_for_path(path: str, bindings: Mapping[str, UUID]) -> UUID | None:
+    """The project an operator declared for the folder containing `path`, or
+    `None`. Phase 4F.8, A-4F8-2 (a).
 
-    Keyed by `object_id`, never by path: this function never sees a path, and
-    the correlation table it is given is built from hashes for the same reason.
+    **The nearest declared folder wins.** A path inside two declared folders
+    belongs to the deeper one, which is the more specific declaration. A path
+    *is* a folder's only if it lies strictly inside it, compared segment by
+    segment, so `/workspace/atlas-old/x` is not inside `/workspace/atlas`.
 
     **A miss returns `None`, and that is a result rather than a failure.**
-    §9 is explicit that a failed correlation publishes without a `project_id`,
-    so there is deliberately no fallback, no nearest-match and no default
-    project -- each of which would be a guess wearing a UUID.
+    There is deliberately no fallback, no nearest-match by name and no default
+    project -- each of which would be a guess wearing a UUID (§9, N-13).
+
+    This says only which project the operator declared. Whether that project is
+    *known* -- seen on `memory.long_term.created` -- is the caller's second
+    question, because the answer lives in this engine's store.
     """
-    return known.get(object_id)
+    candidate = PurePosixPath(path.strip())
+    best: tuple[int, UUID] | None = None
+    for folder, project_id in bindings.items():
+        root = PurePosixPath(folder)
+        if candidate != root and candidate.is_relative_to(root):
+            depth = len(root.parts)
+            if best is None or depth > best[0]:
+                best = (depth, project_id)
+    return best[1] if best is not None else None
 
 
 @dataclass

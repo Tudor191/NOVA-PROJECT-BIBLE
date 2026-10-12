@@ -159,6 +159,17 @@ class PerceptionRepository(Protocol):
         self, *, sensor_id: str, sensor_type: str, status: str, capabilities: list[str]
     ) -> None: ...
 
+    async def record_known_project(
+        self, project_id: UUID, *, source_event_id: UUID, observed_at: datetime
+    ) -> bool:
+        """Phase 4F.8, A-4F8-2 (a1): remember that NOVA holds this project
+        identity, learned from `memory.long_term.created`. Current state only:
+        the first sighting stays, a repeat writes nothing. `True` if this call
+        made it known."""
+        ...
+
+    async def is_project_known(self, project_id: UUID) -> bool: ...
+
     async def enqueue_outbox(self, event: OutboxEvent) -> UUID: ...
 
     async def list_dispatch_ready(self, *, limit: int = 100) -> list[OutboxRow]: ...

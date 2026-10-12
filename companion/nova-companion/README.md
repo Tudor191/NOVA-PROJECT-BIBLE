@@ -61,6 +61,41 @@ remains an **open policy question**, carried as ledger row **L-14**. What bounds
 the risk meanwhile is the scope rule above: one configured directory, never the
 whole filesystem, and no code path that can widen it.
 
+## A lost permission — Phase 4F.8
+
+*(A-4F8-1 (a), (a1) and (a2), ratified 2026-10-11; TDD 4F.8 §29.1.)*
+
+This process is the only one that holds the OS permission on the watched
+directory, so it is the one that detects losing it.
+
+- **Detection.** After a `chmod` on the root, an existing inotify watch keeps
+  delivering events, but nothing inside the root can be read (F-4F8-7,
+  F-4F8-15). Until 4F.8 those events were dropped with nothing said. Now the
+  root's read and search permission are re-checked:
+  - on every metadata change of the root itself, which is how a `chmod` arrives
+    (`IN_ATTRIB`);
+  - before every observation is emitted, and again before every submission.
+- **The report.** A denial is logged once, as `permission_revoked`, and reported
+  on `POST /v1/perception/permission-revocations?source=<source>` with body
+  `{"detected_at": "<RFC3339>"}`. The body carries no path and no identity.
+  - It is the one route A-4F8-1 (a1) ratified, on the same internal surface.
+  - The workspace-observation contract is unchanged.
+  - An unacknowledged report is sent again on the next event, with no timer.
+  - `perception-engine` moves its sensor to `failed`. That is its decision,
+    because it owns the lifecycle.
+- **After it.** **Nothing is submitted again for the rest of the process's
+  life**, even if the permission comes back. Recovery needs a restart of this
+  process and the engine: (a2)'s disclosed limitation.
+- **Never:** an inference from silence, or an exit because of the loss.
+- **Only a permission failure counts.** A root that vanished, or another I/O
+  failure, is not reported as a revocation.
+
+The tests that prove it change a real directory's real mode bits:
+`sensors/tests/revocation.rs` and `nova-companion/tests/revocation.rs`. They
+**must run as a non-root user**, because root bypasses permission checks. They
+fail loudly, rather than pass vacuously, if the OS does not deny access. CI runs
+`cargo test` as the runner's unprivileged user.
+
 ## What travels, and what does not
 
 The companion sends the **real path** to the engine over the internal Docker

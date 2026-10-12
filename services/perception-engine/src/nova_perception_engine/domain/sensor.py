@@ -84,6 +84,12 @@ class SensorErrorReport(BaseModel):
     sensor_id: str
     message: str
     occurred_at: str
+    kind: Literal["error", "permission_revoked"] = "error"
+    """Phase 4F.8 (A-4F8-1 (a), TDD 4F.8 §29.1). `permission_revoked` means the
+    process that captures for this sensor lost its OS permission to do so. Only
+    `api/permission_revocations.py` reports it. Every other report is an
+    `error`. Camera and voice fail on either kind; the filesystem sensor fails
+    only on a revocation, so nothing else can move it to `failed`."""
 
 
 @runtime_checkable

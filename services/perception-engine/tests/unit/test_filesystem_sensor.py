@@ -145,3 +145,62 @@ async def test_calibration_reports_honestly_that_there_is_nothing_to_calibrate()
 @pytest.mark.parametrize("capability", ["workspace_observation"])
 def test_capabilities_name_only_what_it_does(capability: str) -> None:
     assert FilesystemSensor().capabilities() == frozenset({capability})
+
+
+# --- Phase 4F.8: the `failed` path (A-4F8-1 (a), TDD 4F.8 §29.1) ------------------
+
+
+def _revocation(sensor: FilesystemSensor) -> SensorErrorReport:
+    return SensorErrorReport(
+        sensor_id=sensor.sensor_id,
+        message="lost permission",
+        occurred_at="2026-10-11T00:00:00Z",
+        kind="permission_revoked",
+    )
+
+
+async def test_a_permission_revocation_moves_a_running_sensor_to_failed() -> None:
+    sensor = FilesystemSensor()
+    await sensor.initialize()
+    await sensor.start()
+
+    sensor.report_error(_revocation(sensor))
+
+    assert sensor.state() == "failed"
+    assert sensor.permission_status().granted is False
+    assert (await sensor.health_check()).available is False
+    assert [error.kind for error in sensor.errors] == ["permission_revoked"]
+
+
+async def test_any_other_error_still_changes_nothing() -> None:
+    """N-8: a failure is never inferred. Only a revocation fails this sensor."""
+    sensor = FilesystemSensor()
+    await sensor.initialize()
+    await sensor.start()
+
+    sensor.report_error(
+        SensorErrorReport(sensor_id=sensor.sensor_id, message="x", occurred_at="2026-10-11")
+    )
+
+    assert sensor.state() == "running"
+    assert sensor.permission_status().granted is True
+
+
+async def test_a_repeated_revocation_is_a_no_op_and_nothing_recovers() -> None:
+    """A-4F8-1 (a2): no automatic recovery. A second report finds `failed` and
+    leaves it there; only an explicit `initialize` would leave it."""
+    sensor = FilesystemSensor()
+    await sensor.initialize()
+    await sensor.start()
+    sensor.report_error(_revocation(sensor))
+
+    sensor.report_error(_revocation(sensor))
+
+    assert sensor.state() == "failed"
+    assert sensor.permission_status().granted is False
+
+
+def test_permission_status_documents_the_revocation_without_becoming_consent() -> None:
+    doc = FilesystemSensor.permission_status.__doc__ or ""
+    assert "Not a consent claim" in doc
+    assert "A-4F8-1" in doc

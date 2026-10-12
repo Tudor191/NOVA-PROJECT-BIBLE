@@ -19,7 +19,18 @@
 //!   explicitly configured directory. There is no code path here that can widen
 //!   that scope, which is the property that makes deferring the consent
 //!   question safe.
+//!
+//! **What it adds in 4F.8 (A-4F8-1 (a), TDD 4F.8 §29.1): losing the root is
+//! reported, never silent.** After an OS permission on the configured root is
+//! withdrawn, an existing inotify watch keeps delivering events, but every
+//! `stat` inside the root fails with `EACCES` (TDD 4F.8 §28.7, F-4F8-15). Until
+//! 4F.8 that failure was dropped as [`Ignored::NotARegularFile`], so the stream
+//! stopped with nothing said. Now the root's access is re-checked on every
+//! metadata change of the root itself (`IN_ATTRIB`: a `chmod`, `chown` or ACL
+//! change) and before every observation is emitted, and a denial surfaces as
+//! [`SensorEvent::AccessLost`]. What to do about it is the binary's decision.
 
+use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{Receiver, channel};
 use std::time::SystemTime;
@@ -64,19 +75,85 @@ pub enum Ignored {
     NoRealTimestamp,
 }
 
+/// What the watcher hands its caller: either real changes, or the news that it
+/// can no longer see the configured root.
+#[derive(Debug)]
+pub enum SensorEvent {
+    /// Real changes inside the root, each with its real timestamp.
+    Observations(Vec<FilesystemObservation>),
+    /// This process has lost its OS permission on the configured root.
+    AccessLost(AccessLoss),
+}
+
+/// The configured root became unreadable to this process.
+#[derive(Debug)]
+pub struct AccessLoss {
+    /// When this process found out. This is a detection time, read from the
+    /// clock because that is what it is; it does not claim to be the moment
+    /// the permission changed, which the OS does not report.
+    pub detected_at: SystemTime,
+    /// The OS's own answer. Its `Display` is the OS message alone -- std does
+    /// not attach the path -- so it can be logged.
+    pub error: std::io::Error,
+}
+
+/// Can this process still use the configured root?
+///
+/// Both halves of "use" are checked, because withdrawing either loses the
+/// directory: listing it needs **read** permission on the root, and reaching
+/// anything inside it needs **search** (execute) permission, which resolving
+/// `root/.` exercises. `Ok` means both still hold.
+pub fn check_access(root: &Path) -> std::io::Result<()> {
+    std::fs::read_dir(root)?;
+    std::fs::metadata(root.join("."))?;
+    Ok(())
+}
+
+/// `Some` when `root` is denied to this process: [`check_access`], reduced to
+/// the one failure that is a permission revocation.
+///
+/// Only a **permission** failure counts. A root that vanished, or any other
+/// I/O failure, is not a permission revocation and is not reported as one --
+/// that would be a guess about why access failed.
+pub fn access_lost(root: &Path) -> Option<AccessLoss> {
+    match check_access(root) {
+        Err(error) if error.kind() == ErrorKind::PermissionDenied => Some(AccessLoss {
+            detected_at: SystemTime::now(),
+            error,
+        }),
+        _ => None,
+    }
+}
+
+/// An event kind that can become an observation: only creates and content
+/// modifications describe an object that exists and can be observed.
+fn is_observable(kind: &EventKind) -> bool {
+    matches!(
+        kind,
+        EventKind::Create(CreateKind::File)
+            | EventKind::Create(CreateKind::Any)
+            | EventKind::Modify(ModifyKind::Data(_))
+            | EventKind::Modify(ModifyKind::Any)
+    )
+}
+
+/// An event after which the root's access must be re-checked: a metadata
+/// change of the root itself, which is how a `chmod` on it arrives, or any
+/// event that would otherwise become an observation.
+fn concerns_access(event: &Event, root: &Path) -> bool {
+    match event.kind {
+        EventKind::Modify(ModifyKind::Metadata(_)) => event.paths.iter().any(|path| path == root),
+        ref kind => is_observable(kind),
+    }
+}
+
 /// Decide whether one `notify` event yields an observation.
 ///
 /// Pure apart from the `stat`, and separated from the watcher so it can be
 /// tested against constructed events without a real watcher, while the watcher
 /// itself is tested against a real filesystem.
 pub fn observation_from(event: &Event, root: &Path) -> Result<Vec<FilesystemObservation>, Ignored> {
-    if !matches!(
-        event.kind,
-        EventKind::Create(CreateKind::File)
-            | EventKind::Create(CreateKind::Any)
-            | EventKind::Modify(ModifyKind::Data(_))
-            | EventKind::Modify(ModifyKind::Any)
-    ) {
+    if !is_observable(&event.kind) {
         return Err(Ignored::UninterestingKind);
     }
 
@@ -150,22 +227,35 @@ impl FilesystemSensor {
         &self.root
     }
 
-    /// Block until the next batch of observations, or until the watcher stops.
+    /// Block until the next batch of observations, the loss of the root, or
+    /// the end of the watch.
     ///
     /// Returns `None` when the channel closes, which is how a clean shutdown
     /// reaches the caller's loop as an ordinary end-of-stream rather than an
     /// error.
-    pub fn next_batch(&self) -> Option<Result<Vec<FilesystemObservation>, WatchError>> {
+    ///
+    /// **The root's access is checked before anything is emitted** for an event
+    /// that concerns it. So a change inside a root this process can no longer
+    /// read is reported as [`SensorEvent::AccessLost`], never dropped and never
+    /// observed. While access stays lost, every such event reports it again;
+    /// whether to act on the repeat is the caller's decision.
+    pub fn next_event(&self) -> Option<Result<SensorEvent, WatchError>> {
         loop {
-            match self.events.recv() {
+            let event = match self.events.recv() {
                 Err(_) => return None,
                 Ok(Err(error)) => return Some(Err(WatchError::Notify(error))),
-                Ok(Ok(event)) => match observation_from(&event, &self.root) {
-                    Ok(observations) => return Some(Ok(observations)),
-                    // An ignored event is not an event: keep waiting rather
-                    // than handing the caller an empty batch to filter.
-                    Err(_) => continue,
-                },
+                Ok(Ok(event)) => event,
+            };
+            if concerns_access(&event, &self.root)
+                && let Some(loss) = access_lost(&self.root)
+            {
+                return Some(Ok(SensorEvent::AccessLost(loss)));
+            }
+            match observation_from(&event, &self.root) {
+                Ok(observations) => return Some(Ok(SensorEvent::Observations(observations))),
+                // An ignored event is not an event: keep waiting rather than
+                // handing the caller an empty batch to filter.
+                Err(_) => continue,
             }
         }
     }

@@ -152,6 +152,41 @@ async def test_the_filesystem_sensor_reports_nothing_on_error_it_has_no_failed_p
     assert repository.outbox == {}
 
 
+async def test_a_permission_revocation_fails_the_filesystem_sensor_and_reports_it_once() -> None:
+    """Phase 4F.8 (A-4F8-1 (a)): the revocation is reported as `failed`, through
+    the same call as camera's and voice's errors. A repeat changes nothing, so
+    it reports nothing (M6)."""
+    repository = FakePerceptionRepository()
+    sensor = FilesystemSensor()
+    await sensor.initialize()
+    await sensor.start()
+    revocation = SensorErrorReport(
+        sensor_id=sensor.sensor_id,
+        message="lost permission",
+        occurred_at="2026-10-11T00:00Z",
+        kind="permission_revoked",
+    )
+    correlation_id = uuid4()
+
+    await sensor_lifecycle.report_sensor_error(
+        sensor, revocation, repository=repository, correlation_id=correlation_id
+    )
+    await sensor_lifecycle.report_sensor_error(
+        sensor, revocation, repository=repository, correlation_id=uuid4()
+    )
+
+    assert sensor.state() == "failed"
+    assert _reports(repository) == [
+        {
+            "sensor_id": "companion-filesystem",
+            "sensor_type": "filesystem",
+            "status": "failed",
+            "schema_version": 1,
+        }
+    ]
+    assert next(iter(repository.outbox.values())).correlation_id == correlation_id
+
+
 @pytest.mark.parametrize(
     ("prepare", "action"),
     [

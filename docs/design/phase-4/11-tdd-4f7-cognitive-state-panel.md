@@ -107,6 +107,22 @@ of them.
 | E2E stack | `pr-checks.yml` l.247–259 starts neither `cognitive-state-engine` nor `perception-engine` |
 | Web client | Ten nav paths (`src/app/AppShell.tsx` l.30–44), pinned by `tests/unit/routing.test.ts` l.43–54. REST panels do not poll (`src/entities/digitalTwin.ts` l.18–22; `src/app/queryClient.ts`). The Events panel records **every** public-topic frame (`src/realtime/reconcile.ts` l.117–125) |
 
+
+> **Amended 2026-10-11 (TDD 4F.8 §30–§31), additively.** The *"Outbox
+> dispatch"* row is preserved as written.
+>
+> - **On `phase-4f8`, `perception-engine`'s cron runs every second**, with
+>   `max_jobs = 1`.
+> - **The row's other facts are unchanged:** `event_id` is the row id, and
+>   `occurred_at` is the dispatch time.
+> - So `reported_at` (§7) trails a transition by about a second plus any
+>   backlog, not by up to ten.
+> - The same holds for:
+>   - §7's *"up to about 10 s later"*;
+>   - §8's *"the existing 10 s cron"*;
+>   - §9's sequence diagram;
+>   - §15's K-3, which a note there amends.
+
 ---
 
 ## 4. Authoritative source mapping
@@ -682,6 +698,20 @@ transitions. The 2D-B text is dated and not edited (TDD 4F §24.4, consequence
 >   holds a copy of `SensorState`'s six values, because ADR-004 and control 7
 >   forbid importing `perception-engine`. Divergence is a P-22 test failure,
 >   not a silent drift.
+
+> **Amended 2026-10-11 (TDD 4F.8), additively.** The table and the note above
+> are preserved as written. On `phase-4f8`:
+>
+> - **K-2 is addressed by A-4F8-1 (a).**
+>   - The companion detects a genuine permission loss and reports it once.
+>   - `perception-engine` makes the filesystem sensor's `running → failed`
+>     transition through one internal route (TDD 4F.8 §32).
+>   - **It is shown in CI only by the acceptance run, which has not happened.**
+>     So RS-3b's acceptance evidence is still owed.
+> - **K-3 still holds, with a tighter bound.** The lag is now about one second
+>   plus any backlog, because `perception-engine` dispatches every second
+>   (§3's note).
+> - This note does not address K-1 or K-4 to K-10.
 
 ---
 

@@ -36,6 +36,9 @@ from nova_perception_engine import sensor_lifecycle
 from nova_perception_engine.api.consent import router as consent_router
 from nova_perception_engine.api.identities import router as identities_router
 from nova_perception_engine.api.observations import router as observations_router
+from nova_perception_engine.api.permission_revocations import (
+    router as permission_revocations_router,
+)
 from nova_perception_engine.api.sensors import router as sensors_router
 from nova_perception_engine.clients.ai_model_orchestration_client import (
     AIModelOrchestrationClient,
@@ -45,7 +48,10 @@ from nova_perception_engine.domain.correlation_buffer import WindowCorrelationBu
 from nova_perception_engine.domain.ports import AIModelOrchestrationPort, PerceptionRepository
 from nova_perception_engine.domain.session_activity import SessionActivityTracker
 from nova_perception_engine.domain.workspace import WorkspaceObservationDebouncer
-from nova_perception_engine.events.handlers import make_session_dispatch_handler
+from nova_perception_engine.events.handlers import (
+    make_known_project_handler,
+    make_session_dispatch_handler,
+)
 from nova_perception_engine.events.published import PUBLISHABLE_SUBJECTS
 from nova_perception_engine.events.subscribed import SUBSCRIBABLE_SUBJECTS
 from nova_perception_engine.observability import create_metrics
@@ -131,6 +137,11 @@ def create_app(
         await bus.subscribe(
             "communication.session.completed", make_session_dispatch_handler(session_tracker)
         )
+        # Phase 4F.8 (A-4F8-2 (a)): project identities, learned over the bus.
+        await bus.subscribe(
+            "memory.long_term.created",
+            make_known_project_handler(repo, primary_user_id=settings.primary_user_id),
+        )
 
         app.state.settings = settings
         app.state.repository = repo
@@ -159,14 +170,13 @@ def create_app(
         app.state.workspace_debouncer = WorkspaceObservationDebouncer(
             window=timedelta(seconds=settings.workspace_debounce_seconds)
         )
-        # AC-7's "known project" correlation table, keyed by `object_id` hash.
-        # Empty until the enrichment source exists: `memory-engine` owns
-        # `project_id` and `perception-engine` must not read its database
-        # (ADR-004), so this is populated over the Event Bus, not by a query.
-        # An empty table means `resolve_project_id` returns `None` -- §9's
-        # honest unknown, which is exactly the right behaviour before any
-        # project is known.
-        app.state.known_projects = {}
+        # AC-7's "known project" correlation. *(Until 4F.8 this was an empty
+        # `app.state.known_projects` dict keyed by `object_id` hash, with no
+        # population path -- ledger row L-13.)* Since 4F.8 (A-4F8-2 (a)) it is
+        # the operator's `settings.project_folder_bindings`, each active only
+        # once its project is in `perception.known_project`, learned from
+        # `memory.long_term.created` above. `memory-engine` owns `project_id`,
+        # and this engine never reads its database (ADR-004).
         app.state.ready = True
 
         yield
@@ -193,6 +203,9 @@ def create_app(
     fastapi_app.include_router(consent_router)
     fastapi_app.include_router(sensors_router)
     fastapi_app.include_router(observations_router)
+    # Phase 4F.8 (A-4F8-1 (a1)): the one internal route the companion reports a
+    # lost OS permission on. Internal only, like the workspace intake above.
+    fastapi_app.include_router(permission_revocations_router)
     fastapi_app.mount("/internal/metrics", prometheus_asgi_app())
     return fastapi_app
 

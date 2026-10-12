@@ -151,6 +151,20 @@ Every row cites the Bible passage it implements.
 > `action-engine` and `capability-engine` are unchanged. The composed evidence
 > for this path is TDD 4F.P's P8.
 
+> **Added 2026-10-11 (Phase 4F.8), additively.** Two flows are added, and no
+> engine calls another
+> ([TDD 4F.8](../design/phase-4/12-tdd-4f8-acceptance-verification.md) §29.1):
+>
+> - **`memory-engine` → outbox → `memory.long_term.created` → `perception-engine`**
+>   (A-4F8-2 (a)). `perception-engine` learns which project identities exist,
+>   which activates an operator's declared folder for a project. It then
+>   attaches that `project_id` to `perception.workspace.observed`. It never
+>   reads `memory.*`.
+> - **`nova-companion` → `POST /v1/perception/permission-revocations` →
+>   `perception-engine`** (A-4F8-1 (a)). This is the companion's report of a
+>   lost OS permission, on the internal network. The companion is not an
+>   engine, so ADR-004 is not engaged, as for its workspace route.
+
 ## 3. Synchronous vs. asynchronous calls
 
 Not every cross-engine interaction should be a fire-and-forget event — some steps in
