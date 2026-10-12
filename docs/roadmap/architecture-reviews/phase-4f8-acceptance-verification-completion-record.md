@@ -16,6 +16,10 @@
 
 **PR:** **none.** None has been requested, and protocol §11.1 allows a PR only when asked. **Nothing is merged.**
 
+***Updated 2026-10-12, additively (§12):*** the line above is preserved as written.
+- PR [#41](https://github.com/Tudor191/NOVA-PROJECT-BIBLE/pull/41) is now open as a draft, `phase-4f8` → `phase-4`, at the user's request. It is not merged.
+- CI has run. AC-7 and AC-8 are met in CI at `c04eaff`. 4F.8 is still not complete (§12.9).
+
 **Protocol:** [`PROJECT_PHASE_COMPLETION_PROTOCOL.md`](../../PROJECT_PHASE_COMPLETION_PROTOCOL.md).
 
 - sha256 `21185dd1b2a43e87eac0a52aa5e53c8e8bbb01223014dc2a48408bbb0478de6a`, 1131 lines.
@@ -50,6 +54,18 @@
 - **No PR has been opened, and nothing is merged.**
 
 **Phase 4F is NOT complete.** A-4F8-9 still blocks 4F's GO. CF-9, CF-10 and CF-11 stay OPEN. Completing this record does not authorize opening a PR, merging, or starting any further work.
+
+***Updated 2026-10-12, additively (§12):*** the list above is preserved as written.
+- **Settled since:**
+  - CI ran at every head;
+  - both Playwright specs ran;
+  - N-16 ran in CI;
+  - a draft PR exists.
+- **Still remaining:**
+  - L-31, the browser specs' ≥ 10 runs;
+  - the documentation head's CI;
+  - review;
+  - an explicit merge authorization, and the merge.
 
 ### 0.1 Branch shape — disclosed
 
@@ -206,12 +222,20 @@ The six met in this session are E-4, E-7, E-15, E-16, I-1 and I-3.
 
 **AC-7 and AC-8 are not met, and not claimed.** No criterion was narrowed, and no threshold was changed.
 
+***Superseded 2026-10-12, additively (§12.5):*** the table and the sentences above are preserved as written. They describe `3e44a19`, before any CI run.
+- At `c04eaff`, **33 of 34 criteria are met**, AC-7 and AC-8 among them, in CI.
+- **I-11 is not met**: the two browser specs have not run ≥ 10 times.
+
 ### 2.1 E-15 and E-16's checks
 
 - **Nothing on the boundary changed.** `git diff --name-only 1ccce7a 3bca553` touches none of `packages/nova-contracts`, `services/api-gateway`, `services/ws-gateway`, `services/action-engine`, `services/autonomy-engine`, `services/capability-engine`, `services/cognitive-state-engine`, `services/world-model-engine`, `services/memory-engine/src`, `packages/` or `apps/web-client/src`.
 - **So stage 3 is byte-identical**, and the registry, `PUBLIC_TOPICS` and the gateway's prefixes are unchanged.
 - **The tests that pin them passed** in this session's uncached run (§5): `nova-contracts` 171 passed, `api-gateway` 114, `ws-gateway` 110, `action-engine` 103, `autonomy-engine` 379, `cognitive-state-engine` 284.
 - **`api-gateway` has no `/v1/perception` prefix**, so D2's route is unreachable from a browser.
+
+***Corrected 2026-10-12, additively (§12.6):*** the first bullet above was true at `3bca553`, and is preserved as written.
+- At `c04eaff` the same diff lists one file, `apps/web-client/src/entities/autonomy.ts`. That is F-4F8-20's read-path fix, by the user's extension of A-4F8-8.
+- No contract, gateway or engine changed.
 
 ---
 
@@ -452,6 +476,10 @@ The counts were re-run at each commit, in a temporary worktree:
   - `Build & Scan`, with Trivy. No Dockerfile changed in this slice.
 - **The PR that would carry this is the user's decision** (§8.4).
 
+***Superseded 2026-10-12, additively (§12.2):*** this section is preserved as written. PR #41 now runs all three workflows.
+- At `c04eaff`, all three are green: **40 of 40 jobs**, with the e2e job's P8 step and all five 4F.8 steps.
+- The run IDs for every head are in §12.2.
+
 ### 7.3 Boundary audit (`git diff --name-only 1ccce7a 3bca553`, plus this record's commit)
 
 **A-4F8-8's governed surfaces, and the files in each:**
@@ -625,6 +653,10 @@ This slice closes none of them, and claims nothing toward their closure beyond t
 | **L-29** | OPEN | CI at the implementation SHA, with the e2e job's five 4F.8 steps green and their figures recorded here. That includes AC-7's samples, P-AC7-1, P-AC8-1, E-18, and N-16 in CI (§8.4) | 4F.8, after the user's PR decision | **Yes** |
 | **L-30** | OPEN | Project Health, roadmap and top-level README status for 4F.8 (categories 4, 5 and 7) | 4F closure | No |
 
+***Updated 2026-10-12, additively (§12.8):*** the table above is preserved as written.
+- **L-29 is SETTLED for `c04eaff`.**
+- **L-31 is opened:** each browser spec run ≥ 10 times. It blocks 4F.8.
+
 ---
 
 ## 11. Final status
@@ -649,6 +681,8 @@ This slice closes none of them, and claims nothing toward their closure beyond t
   - it is merged.
 - **Phase 4F is NOT complete**, and completing 4F.8 would not complete it: A-4F8-9 and 4F closure (L-1 …) remain.
 
+***Updated 2026-10-12, additively:*** this status is preserved as written. **§12.9 is the current status.**
+
 ### 11.1 What was not verified, and why
 
 - **The acceptance run in CI's containers:** AC-7's measured samples, E-5's container log, E-18 and N-16. No Docker daemon here, and no CI run on this branch.
@@ -656,3 +690,339 @@ This slice closes none of them, and claims nothing toward their closure beyond t
 - **The real-infra and Cargo tiers in CI.** They ran only on local substitute services, as a non-root user via `setpriv`.
 - **The CI runner's own gid and kernel.** The override's group-bit design, and the 10 ms mtime allowance, are verified only on this kernel (6.18.44).
 - **SAD 15 §4 items 2 and 5.** They are per-PR, and no PR exists.
+
+***Updated 2026-10-12, additively (§12):*** this list is preserved as written. Since then, CI has run all of the following:
+- AC-7's samples, E-5's container log, E-18 and N-16, in its containers;
+- both specs, in a browser;
+- the real-infra and Cargo tiers.
+
+**SAD 15 §4:**
+- **item 2:** the unit and integration tests pass in CI at `c04eaff` (§12.2);
+- **item 5:** PR #41 cites the Bible Parts.
+
+**What is still not verified:**
+- **≥ 10 runs of each browser spec (L-31);**
+- **multi-replica dispatch**, which is not claimed.
+
+---
+
+## 12. CI verification — addendum, 2026-10-12
+
+**Added 2026-10-12, additively.** On 2026-10-11 the user took both of §8.4's
+decisions:
+- **decision 1, option (a):** a draft PR, so that CI runs;
+- **decision 2, option (a):** N-16 by a temporary commit, after a green
+  baseline, then a revert.
+
+**Everything above this section is preserved as written.** It describes the
+branch at `3e44a19`. Where it says that no PR or CI run exists, that the specs
+never ran, or that AC-7 and AC-8 are not met, **this section supersedes it**.
+The narrative is in TDD 4F.8 §38 and §39.
+
+### 12.1 PR, commits and refs
+
+- **PR [#41](https://github.com/Tudor191/NOVA-PROJECT-BIBLE/pull/41)**, a
+  draft, `phase-4f8` → `phase-4`. **Not merged.**
+- **The commits after this record's `3e44a19`.** Every one is a normal commit.
+  Nothing was rewritten, squashed, rebased, amended or force-pushed.
+
+| Commit | What | Files |
+|---|---|---|
+| `3aab37f` | F-4F8-20's fix (§12.7), TDD 4F.8 §38, the dated L-17 correction in TDD 4F.5 | `apps/web-client/src/entities/autonomy.ts`, `apps/web-client/tests/unit/autonomy-panel.test.tsx`, two TDDs |
+| `dfb26f3` | N-16: the override removed. **TEMPORARY** | `pr-checks.yml`, one line |
+| `a1a6752` | F-4F8-21's fix (§12.7) | `tools/e2e_acceptance.py`, `tools/tests/test_e2e_acceptance.py` |
+| `c04eaff` | **The revert of `dfb26f3`.** The last commit to touch code, tests, CI or compose | `pr-checks.yml`, one line |
+| *(this addendum)* | Documentation only | — |
+
+- **`c04eaff` restores the configuration.**
+  - `git diff --quiet 3aab37f c04eaff -- .github/workflows/pr-checks.yml`
+    exits 0.
+  - `git diff --stat 3aab37f c04eaff` lists only F-4F8-21's two files.
+- **Refs, re-verified 2026-10-12:**
+  - `phase-4` is `1ccce7a`, and `main` is `7e273e6`. Both are unchanged.
+  - `1ccce7a` and `3bca553` are ancestors of the head.
+- **The protocol**, re-fetched from `origin/main`: sha256 `21185dd1…0478de6a`,
+  1131 lines. It is unchanged, and was read in full before this step.
+
+### 12.2 CI runs
+
+Every run is `pull_request`, attempt 1, at exactly the head named. A run's URL
+is `https://github.com/Tudor191/NOVA-PROJECT-BIBLE/actions/runs/<id>`.
+
+| Head | Kind | `PR Checks` | `Real-Infrastructure Checks` | `Build & Scan` | Jobs |
+|---|---|---|---|---|---|
+| `3e44a19` | Baseline, run 1 | `38183904818` **failure** (P-AC8-1) | `38183904782` success, 15/15 | `38183904822` success, 23/23 | 39/40 |
+| `3aab37f` | **Acceptance** | `38184998345` **success** | `38184998370` success, 15/15 | `38184998342` success, 23/23 | **40/40** |
+| `dfb26f3` | N-16, mutated | `38185485137` failure, as designed | `38185485109` success | `38185485125` success | 38/40 |
+| `a1a6752` | N-16, mutated | `38186438469` failure, as designed | `38186438436` success | `38186438433` success | 38/40 |
+| `c04eaff` | **Acceptance, restored** | `38187227734` **success** | `38187227720` success, 15/15 | `38187227711` success, 23/23 | **40/40** |
+
+**`checks` at `c04eaff`, in CI:**
+- `turbo` lint and test: 32/32 each, 0 cached; typecheck: 5/5;
+- `web-client` 248, `perception-engine` 242 passed with 28 deselected,
+  `autonomy-engine` 379, `cognitive-state-engine` 284, `nova-contracts` 171,
+  `action-engine` 103;
+- `lint-imports`: 7 kept, 0 broken; `tools/tests`: **386 passed**;
+- Cargo: 41 passed, including both `revocation` binaries (4 + 4).
+
+**Real-Infrastructure at `c04eaff`:** `perception-engine` **28 passed**, 242
+deselected. That includes the dispatch file (3), the revocation file (1) and
+the known-project file (2).
+
+**Build & Scan:** Trivy was green in every run. No Dockerfile changed.
+
+### 12.3 The acceptance evidence: `3aab37f` and `c04eaff`
+
+Only the two green runs with the override are acceptance evidence.
+
+| `e2e` step | `3aab37f` | `c04eaff` |
+|---|---|---|
+| The golden path | 20 passed | success |
+| Declare the AC-7 known project; start the P8 services, with the override | success | success |
+| P8 (4F.P) | 67/67 | 67/67 |
+| AC-8 (D6) | 55/55 | 55/55 |
+| **P-AC8-1** | **passed** | **passed** |
+| AC-7 latency (D5) | 70/70 | 70/70 |
+| **P-AC7-1**, with the genuine revocation | **passed** | **passed** |
+| AC-7 revocation (E-5, E-6, E-18) | 10/10 | 10/10 |
+
+**AC-7's samples,** each measured from the file's creation mtime to the first
+World Model `200`, in seconds:
+
+| # | `3aab37f` (run id `69e14d5ef961`) | `c04eaff` (run id `45d446e16342`) |
+|---|---|---|
+| 1 | 0.846 | 0.729 |
+| 2 | 0.374 | 0.165 |
+| 3 | 0.899 | 0.432 |
+| 4 | 0.217 | 0.737 |
+| 5 | 0.202 | 0.368 |
+| 6 | 0.448 | 0.160 |
+| 7 | 1.003 | 0.887 |
+| 8 | 0.688 | 0.676 |
+| 9 | 0.111 | 1.049 |
+| 10 | 0.633 | 0.115 |
+| **Max** | **1.003** | **1.049** |
+
+- **Every sample was ≤ 5.0 s**, and none was discarded or retried. E-3 passed
+  in both runs.
+- **N-3 passed 20 of 20.**
+  - At `c04eaff`'s sample 10, the companion reported the creation's stamp,
+    which is F-4F8-18's case.
+  - The creation's stamp preceded the harness's `before` by **0.116–0.996 ms**
+    across both runs. That is far inside the 10 ms allowance, which was **not**
+    widened.
+- **Every AC-7 sample in CI is reported in TDD 4F.8 §39.5.** That is fifty in
+  five runs, none over 5.0 s:
+  - the two acceptance runs above;
+  - run 1 at `3e44a19`, 0.280–0.942 s. The run was red on P-AC8-1;
+  - the two N-16 runs, 0.057–0.955 s and 0.114–1.035 s. These are mutation
+    runs, not evidence.
+
+**AC-8, from the production trigger, in both runs:**
+- **E-8:** Level 1 proposed, and did not execute.
+- **E-9:** Level 2 executed:
+  - exactly one `action.execute`, with `{"operation": "list"}`;
+  - `completed` from the real `action-engine`, with exactly one action row;
+  - the real `capability-engine` filesystem `list`, its counter up by one.
+- **E-10 … E-13 and E-17** passed. The harness published nothing and drove no
+  decision: E-13's attribution is by `uuid5`, and its AST guards ran in
+  `checks`.
+- **P-AC8-1**, in a browser, through `api-gateway`:
+  - the panel showed Level 2;
+  - exactly one suggestion row named the Level-1 file. It was `proposed`,
+    `low`, with its approve control enabled;
+  - no row named the Level-2 file.
+
+**AC-7's revocation, in both runs, in CI's containers:**
+- the workspace was `0705`;
+- **E-5:** `permission_revoked` and `revocation_reported` appeared once each
+  in the companion's container log. The sensor was `failed`, one `failed`
+  report went through the outbox, and `cognitive-state-engine` held `failed`.
+  **P-AC7-1** showed `running`, then `failed` after the genuine revocation;
+- **E-18:** the companion ran as uid `1100`, and its `ls` got *"Permission
+  denied"*. `capability-engine`'s `ls` returned 0;
+- **E-6:** a write the OS accepted produced nothing for 25 s.
+
+### 12.4 N-16 in CI: negative-control evidence only
+
+- **The mutation (`dfb26f3`):** `-f infra/docker/docker-compose.acceptance.yml`
+  removed from the one step that applies it.
+- **First run (`dfb26f3`).** It was caught by:
+  - the two structural guards in `checks`;
+  - P-AC7-1 (*Received: "running"*);
+  - E-5.
+
+  **E-18 was never evaluated.** That is F-4F8-21.
+- **Re-run (`a1a6752`).** It was caught by:
+  - the same guards (*"2 failed, 384 passed"*);
+  - **E-18's companion half**, with `{"uid": "1000", "ls": ""}`: uid 1000,
+    and no denial on stderr. `capability-engine` kept access;
+  - E-5;
+  - P-AC7-1.
+- **Restored (`c04eaff`):** a normal revert. The restored run is green
+  (§12.2).
+
+**Two imprecisions in `c04eaff`'s commit message, corrected here,
+additively,** because a pushed message cannot be amended:
+- *"the companion logged nothing"* should read: the companion's log had
+  neither `permission_revoked` nor `revocation_reported`. The check filters
+  for those two messages.
+- *"its `ls` of the workspace succeeded"* is read from its empty stderr. The
+  check records `ls`'s stderr, not its exit code.
+
+**N-16's stated reason was wrong; its prediction was right.** TDD 4F.8 §17's
+note and §29.4.6 say E-18 fails *"because `capability-engine`"* loses access.
+In CI it did not lose access. E-18 failed because the companion was not denied
+at all. Dated corrections are added at both places (TDD 4F.8 §39.4).
+
+### 12.5 Acceptance criteria, restated at `c04eaff`
+
+**Sources:** the same as §2. No criterion was narrowed, and no threshold was
+changed.
+
+| # | Status | Evidence |
+|---|---|---|
+| AC-7 | **Met (CI)** | E-1, E-2, E-3, E-5, E-6 and P-AC7-1, at `3aab37f` and `c04eaff` (§12.3) |
+| AC-8 | **Met (CI)** | E-8 … E-13 and E-17 (`ac8` 55/55), and P-AC8-1, at `3aab37f` and `c04eaff` |
+| X-1 | **Met** | Both demonstrated against the CI acceptance stack, with the evidence recorded here |
+| E-1, E-2 | **Met (CI)** | `ac7-latency` 70/70, in both runs |
+| E-3 | **Met (CI)** | 10 samples per run, every figure reported, maxima 1.003 s and 1.049 s |
+| E-4, E-7 | **Met** | Unchanged (§2) |
+| E-5 | **Met (CI)** | The container log, `failed` in both engines, and P-AC7-1 |
+| E-6 | **Met (CI)** | Both runs |
+| E-8 … E-13, E-17 | **Met (CI)** | `ac8` 55/55, in both runs. E-13's structural guards ran in `checks` |
+| E-14 | **Met: claim 3's evidence is recorded** | E-8, E-9 and E-13 in CI. **CF-11 stays OPEN**, because claim 4 is 4F closure's |
+| E-15 | **Met** | §12.6: no contract, gateway or engine boundary changed |
+| E-16 | **Met**, with one disclosed change | `autonomy-engine` and stage 3 are untouched. The web-client's read path changed (F-4F8-20); its 245 earlier tests are unchanged and pass (248 in all, in CI) |
+| E-18 | **Met (CI)** | uid 1100, *"Permission denied"*; `capability-engine` 0, in both runs |
+| P-AC7-1 | **Met (CI)** | Passed at `3e44a19`, `3aab37f` and `c04eaff` |
+| P-AC8-1 | **Met (CI)** | Passed at `3aab37f` and `c04eaff`, and in both N-16 runs. Failed at `3e44a19` on F-4F8-20 |
+| I-1, I-3 | **Met** | Unchanged (§2) |
+| I-2, I-5, I-6 | **Met (CI)** | `Real-Infrastructure Checks`, `perception-engine` 28 |
+| I-4 | **Met (CI)** | Cargo's two `revocation` binaries, 4 + 4, in `checks` |
+| I-7 | **Met (CI)** | The guard (6) in `checks`, and E-18 in CI |
+| I-8, I-9 | **Met (CI)** | D5 and D6, in both runs |
+| I-10 | **Met (CI)** | P-AC7-1 and P-AC8-1, each in its own Playwright invocation |
+| **I-11** | **Not met** | E-18, N-16 and the other controls are done. **The two browser specs' flakiness is not** (§12.8) |
+
+**33 of 34 criteria are met. The unmet criterion is I-11**, for one reason:
+TDD 4F.8 §17 requires each browser test to run ≥ 10 times, and neither spec
+has. **AC-7 and AC-8 are met in CI, at `c04eaff` and at `3aab37f`.** That is
+not a claim that 4F.8 is complete (§12.9).
+
+### 12.6 Categories 1, 8, 9, 10 and 11, as changed
+
+- **Category 1, implementation.**
+  - **A-4F8-8's governed surfaces gain one file**, by the user's decision of
+    2026-10-11 (TDD 4F.8 §38.2): `apps/web-client/src/entities/autonomy.ts`,
+    read path only.
+  - **D8's guards:** `test_e2e_acceptance.py` has **36** tests (35 + F-4F8-21's).
+  - **The deviation register gains F-4F8-20 and F-4F8-21**, each a defect,
+    found and fixed (§12.7). No undisclosed drift was found.
+- **§2.1, corrected additively.**
+  - Its *"touches none of … `apps/web-client/src`"* was true at `3bca553`.
+  - At `c04eaff`,
+    `git diff --name-only 1ccce7a c04eaff -- <§2.1's paths>` lists exactly one
+    file: `apps/web-client/src/entities/autonomy.ts`.
+- **Category 8, contracts and codegen.**
+  - `git diff 1ccce7a c04eaff -- packages/nova-contracts/` is empty.
+  - Codegen at `c04eaff` regenerated **118** files with **zero** drift (this
+    session, locally). CI's build regenerated the same 118.
+- **Category 9, tests.**
+  - The CI figures are in §12.2.
+  - The local figures at `3aab37f` were `web-client` 248 (245 before), eslint
+    and `tsc` clean, and `tools/tests` 385.
+  - **F-4F8-20's three tests and F-4F8-21's guard were each
+    negative-controlled** (TDD 4F.8 §38.2, §39.3).
+- **Category 10, real infrastructure.** §6 item 8's *"have not been executed in
+  CI's containers"* is **superseded**:
+  - `perception-engine`'s 28 ran in CI at every head (§12.2);
+  - the Cargo tier ran in `checks`;
+  - the acceptance phases ran in CI's containers in five runs.
+- **Category 11, commits.**
+  - `3aab37f`'s, `dfb26f3`'s and `a1a6752`'s messages were re-checked against
+    the CI logs, and are true.
+  - `c04eaff`'s two imprecisions are corrected in §12.4.
+- **§7.3, the boundary audit.**
+  - Governed: `apps/web-client/src/` gains 1 file, by the extension above.
+  - Recorded, not governed: `apps/web-client/tests/unit/autonomy-panel.test.tsx`.
+  - Documentation: `docs/design/phase-4/09-tdd-4f5-autonomy-level-2.md`, a
+    dated L-17 correction.
+- **Category 14, documentation.** Every change is additive and dated:
+  - **TDD 4F.8:** §38 (in `3aab37f`), and §39 with two dated corrections at
+    §17 and §29.4.6 (in this addendum's commit);
+  - **TDD 4F.5:** the L-17 correction (`3aab37f`);
+  - **the master scope:** the §5 slice-status note and its §17 row;
+  - **this record:** §12, and dated pointers at the header, §0, §2, §2.1,
+    §7.2, §10.3, §11 and §11.1.
+
+  `17-cicd-pipeline.md` needs no change: no gate or workflow changed in
+  effect, and `pr-checks.yml` at `c04eaff` equals `3aab37f`'s.
+- **§7.4, SLOC.** The same method, re-run at `c04eaff`:
+  - comparable 37,966 and wider 43,307, both unchanged;
+  - **full 47,341, +1** from `autonomy.ts`;
+  - **4F scope 48,185: +368 over `1ccce7a`**, still inside §23's 180–450;
+  - **headroom 1,815. The 50,000 gate is not crossed.**
+
+### 12.7 Findings, added
+
+| # | Finding | Status |
+|---|---|---|
+| **F-4F8-20** | The Autonomy panel read policies and gate checks with the authoring enum, so one `AUTO_EXECUTE` policy emptied the inbox and the policy list. That contradicts L-17's *"Nothing is mis-rendered"* (TDD 4F.5 §17.1.1). Found by P-AC8-1 in CI | **Fixed** (`3aab37f`), read path only, by the user's decision. **L-17 stays OPEN** for authoring |
+| **F-4F8-21** | `ac7-revocation` inspected E-18 after E-5's waits, so N-16 could never make E-18 fail. Found by N-16 in CI | **Fixed** (`a1a6752`), and guarded. No check, threshold or deadline changed |
+| **F-4F8-22** | §5.2 and I-11 left TDD 4F.8 §17's ≥ 10 runs of each browser test out of the flakiness record | **OPEN** (§12.8) |
+
+**Where the earlier findings now stand:**
+- **F-4F8-8 is resolved in CI**: the acceptance stack ran AC-7 in five runs.
+- **Still OPEN:** F-4F8-10 (A-4F8-9) and F-4F8-12. Both acceptance workflows
+  are still non-blocking.
+- **CF-9, CF-10 and CF-11 stay OPEN.**
+
+### 12.8 Ledger, and the decision this needs
+
+| Row | Status | Note |
+|---|---|---|
+| **L-29** | **SETTLED for `c04eaff`** | It asked for CI at the implementation SHA, with the five 4F.8 steps green and their figures recorded. This section records them, with AC-7's samples, P-AC7-1, P-AC8-1, E-18 and N-16. The documentation head's own run cannot be cited in its own commit. PR #41 records it |
+| **L-30** | OPEN, unchanged | 4F closure |
+| **L-31** (new) | **OPEN. Blocks 4F.8** | Each browser spec, P-AC7-1 and P-AC8-1, run ≥ 10 times and reported (TDD 4F.8 §17; F-4F8-22) |
+
+**L-31, for decision:**
+- **What it is.** §17 requires ≥ 10 runs of every browser test. The specs can
+  run only in CI.
+  - So far, P-AC8-1 has passed 4 times.
+  - P-AC7-1 has passed 3 times with the override.
+- **The documents.**
+  - TDD 4F.8 §17 says *"Each is run **≥ 10 times** and reported"*. Only AC-7's
+    latency is exempt.
+  - Protocol §9.2 says the same of any timing-sensitive test.
+  - **Neither says whether the runs must be at one SHA.**
+- **The options:**
+  - **(a)** re-run the `e2e` job at the PR's final head until each spec has
+    ≥ 10 reported runs. That is about 10 minutes per run. A re-run from this
+    session may be refused, as the dispatch was (§7.2);
+  - **(b)** accept the CI runs so far, as a disclosed narrowing. That needs the
+    user's approval.
+- **Recommendation: (a)**, at the final head, with every run's result
+  reported.
+- **Blocked until it is decided:** I-11, and so 4F.8's completion.
+- **Not blocked:** review of PR #41.
+
+### 12.9 Status, as of this addendum
+
+- **AC-7 and AC-8: met in CI** at `c04eaff` and at `3aab37f`. Every sample was
+  ≤ 5.0 s.
+- **N-16: caught in CI**, and the branch restored.
+- **4F.8 is NOT complete.** It needs four things:
+  - L-31, decided and discharged;
+  - the documentation head's CI, green;
+  - PR #41, reviewed;
+  - an explicit merge authorization, and the merge.
+- **Gate verdict: none.** This is a slice record (§0).
+- **OPEN:**
+  - A-4F8-9 (F-4F8-10), which still blocks 4F's GO;
+  - CF-9, CF-10 and CF-11;
+  - F-4F8-12;
+  - L-17, for authoring.
+- **Phase 4F is NOT complete.**
+- **`main` and `phase-4` are untouched.** PR #41 is a draft, and nothing is
+  merged.

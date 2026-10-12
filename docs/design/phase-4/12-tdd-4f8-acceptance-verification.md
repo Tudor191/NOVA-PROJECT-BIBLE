@@ -1331,6 +1331,11 @@ own source**, because a mutation to a test cannot be caught by that test.
 > **Added 2026-10-11 (§29.4.6), additively.** **N-16:** drop the acceptance
 > override, so the companion runs as uid 1000. E-18 must then fail, because
 > `capability-engine` loses access too.
+>
+> ***Corrected 2026-10-12, additively (§39.4):*** the note above is preserved
+> as written. In CI, E-18 did fail under N-16, but `capability-engine` kept its
+> access. E-18 failed because the companion, as uid 1000, was **not denied at
+> all**: it reads through the *other* bits of `0705`.
 
 **Flakiness.** Every real-infrastructure and browser test in 4F.8 involves
 timing. Each is run **≥ 10 times** and reported. **AC-7's latency test is
@@ -2473,6 +2478,10 @@ is excluded by its `subject_id`.
   not a production route.
 - **N-16:** drop the override, so the companion runs as uid 1000. E-18 must then
   fail, because `capability-engine` is denied too.
+
+  ***Corrected 2026-10-12, additively (§39.4):*** the bullet above is preserved
+  as written. In CI, E-18 failed under N-16 because the companion was **not
+  denied at all**. `capability-engine` kept its access.
 
 ### 29.5 Acceptance checks carried into implementation, not assumed
 
@@ -3659,3 +3668,279 @@ clean. `tools/tests`: 385.
 - **N-16.** It waits for a green baseline (the user's sequencing).
 - **AC-7 and AC-8 are not yet met.** P-AC8-1, AC-8's browser-visible clause,
   has not passed in CI.
+
+---
+
+## 39. CI verification: the baseline, N-16, F-4F8-21, and the restored configuration — 2026-10-12
+
+**Added 2026-10-12, additively.** §38.3 left two things open: CI at F-4F8-20's
+commit, and N-16. This section records, in order:
+- the green baseline at `3aab37f` (§39.1);
+- N-16's first CI run, and the finding it surfaced (§39.2, §39.3);
+- N-16's re-run (§39.4);
+- the restoration, and its run (§39.5).
+
+**The mutation runs (§39.2, §39.4) are negative-control evidence only.** They
+are kept apart from the acceptance evidence (§39.1, §39.5).
+
+Every run is PR #41's, on `pull_request`, at attempt 1. A run's URL is
+`https://github.com/Tudor191/NOVA-PROJECT-BIBLE/actions/runs/<id>`.
+
+| Head | What it is | `PR Checks` | `Real-Infrastructure Checks` | `Build & Scan` | Jobs |
+|---|---|---|---|---|---|
+| `3e44a19` | §38.1's run 1 | `38183904818` failure | `38183904782` success | `38183904822` success | 39/40 |
+| `3aab37f` | F-4F8-20's fix (§38.2) | `38184998345` **success** | `38184998370` success | `38184998342` success | **40/40** |
+| `dfb26f3` | N-16: the override removed (TEMPORARY) | `38185485137` failure | `38185485109` success | `38185485125` success | 38/40 |
+| `a1a6752` | F-4F8-21's fix, with N-16 still in place | `38186438469` failure | `38186438436` success | `38186438433` success | 38/40 |
+| `c04eaff` | The revert of `dfb26f3` | `38187227734` **success** | `38187227720` success | `38187227711` success | **40/40** |
+
+### 39.1 The baseline: `3aab37f`, 40 of 40
+
+- **`checks`** succeeded, and so did **`e2e`**.
+- **`Real-Infrastructure Checks`:** 15/15 jobs.
+- **`Build & Scan`:** 23/23 jobs, with Trivy.
+
+The `e2e` job's steps:
+
+| Step | Result |
+|---|---|
+| The golden path (Playwright) | **20 passed** |
+| P8 (4F.P) | **67/67** |
+| AC-8 (D6) | **55/55** |
+| **P-AC8-1** | **passed** |
+| AC-7 latency (D5) | **70/70** |
+| P-AC7-1, with the genuine revocation | **passed** |
+| AC-7 revocation (E-5, E-6, E-18) | **10/10** |
+
+**P-AC8-1 passed in a browser:**
+- the gateway served the Level-1 proposal, and not the Level-2 run;
+- the panel showed Level 2;
+- exactly one suggestion row named the Level-1 file. It was `proposed`, with
+  risk `low` and its approve control enabled;
+- no row named the Level-2 file.
+
+**AC-7's ten CI samples**, at run id `69e14d5ef961`. Each runs from its file's
+creation mtime to the first World Model `200`:
+
+| # | File | Pause before (s) | Elapsed (s) |
+|---|---|---|---|
+| 1 | `ac7-69e14d5ef961-1.txt` | 1.630 | 0.846 |
+| 2 | `ac7-69e14d5ef961-2.txt` | 0.623 | 0.374 |
+| 3 | `ac7-69e14d5ef961-3.txt` | 1.121 | 0.899 |
+| 4 | `ac7-69e14d5ef961-4.txt` | 1.767 | 0.217 |
+| 5 | `ac7-69e14d5ef961-5.txt` | 1.813 | 0.202 |
+| 6 | `ac7-69e14d5ef961-6.txt` | 1.574 | 0.448 |
+| 7 | `ac7-69e14d5ef961-7.txt` | 0.943 | 1.003 |
+| 8 | `ac7-69e14d5ef961-8.txt` | 0.328 | 0.688 |
+| 9 | `ac7-69e14d5ef961-9.txt` | 0.900 | 0.111 |
+| 10 | `ac7-69e14d5ef961-10.txt` | 0.359 | 0.633 |
+
+- **The maximum was 1.003 s.** All ten were ≤ 5.0 s, none was discarded,
+  and E-3 passed.
+- **N-3 passed 10 of 10.** The companion reported the write's stamp each time.
+- **The creation's stamp preceded the harness's `before` by 0.176–0.996 ms**,
+  inside §36.5's 10 ms allowance.
+
+**The revocation, in CI's containers:**
+- the workspace's mode was `0705`;
+- **E-5:** the companion's container log had `permission_revoked` and
+  `revocation_reported`, once each. `perception-engine`'s sensor was `failed`,
+  and exactly one `failed` report went out through the outbox.
+  `cognitive-state-engine` held `failed`;
+- **E-18:** the companion ran as uid `1100` and got *"ls: cannot open
+  directory '/workspace': Permission denied"*. `capability-engine`'s `ls`
+  returned 0 with an empty stderr;
+- **E-6:** a write the OS accepted produced no outbox row and no World Model
+  object for 25 s, and the companion submitted nothing for it.
+
+### 39.2 N-16, first run: `dfb26f3`
+
+**The mutation was one line**, in `pr-checks.yml`'s *"Start the P8 services"*
+step: `-f infra/docker/docker-compose.acceptance.yml` was removed. So the
+companion ran as the image's uid.
+
+**What caught it:**
+- **`checks`:** the two structural guards in `test_acceptance_override.py`
+  failed:
+  - `test_exactly_one_workflow_step_applies_the_override`;
+  - `test_the_applying_step_derives_the_gid_from_the_runner`;
+- **`e2e`, P-AC7-1:** *Expected: "failed" / Received: "running"*;
+- **`e2e`, `ac7-revocation`:**
+  - E-5's companion log had neither `permission_revoked` nor
+    `revocation_reported`;
+  - the sensor stayed `running`;
+  - the chain timed out after 180 s.
+
+**Unaffected:** AC-8 55/55, P-AC8-1 and AC-7 latency 70/70.
+- Its ten samples, at run id `47e4e05df69e`, were 0.167, 0.323, 0.324, 0.501,
+  0.955, 0.503, 0.749, 0.693, 0.057 and 0.488 s.
+- They are a mutation run's, and are not acceptance evidence.
+
+**E-18 was never evaluated.** That is F-4F8-21.
+
+### 39.3 F-4F8-21: E-18 could not fail under N-16
+
+**What was wrong.** `ac7_revocation` inspected E-18 after E-5's two
+`wait_for` calls.
+- Under N-16 the companion is never revoked, so the first wait times out.
+- The phase then records *"the chain completed within the deadline"* as
+  failed, and ends.
+- **So E-18's container checks never ran.**
+
+§17's note and §29.4.6 both say of N-16: *"E-18 must then fail."* As ordered,
+it could not.
+
+**The fix (`a1a6752`).** E-18 is a read-only OS inspection (§29.4.6), and it
+does not depend on E-5. It now runs first: right after the
+revocation-in-place check, before anything waits.
+- No check, threshold or deadline changed.
+- Only `tools/e2e_acceptance.py` and its guard file changed.
+
+**The guard:** `test_f4f8_21_e18_is_inspected_before_anything_waits`. It
+requires E-18's check to come before the first `wait_for(` and the first
+`companion_log_messages(` in `ac7_revocation`'s source.
+- **Negative-controlled.** With the old order restored it failed. With the
+  fix it passes.
+- `tools/tests` is 386 tests (385 + 1).
+
+**Classification:** a defect in test infrastructure, found by a negative
+control, fixed and guarded. No engine changed.
+
+### 39.4 N-16, re-run: `a1a6752`
+
+The same mutation, with F-4F8-21's order. **What caught it:**
+- **`checks`:** the same two guards. *"2 failed, 384 passed."*
+- **E-18's companion half: FAILED.** The evidence was
+  `{"uid": "1000", "ls": ""}`:
+  - the companion ran as uid 1000, not 1100;
+  - its `ls` of `/workspace` printed no error. The check records `ls`'s
+    stderr, not its exit code. A denied `ls` writes *"Permission denied"*
+    there.
+- **E-18's `capability-engine` half: passed**, with return code 0.
+- **E-5:**
+  - neither message was in the companion's log;
+  - the sensor stayed `running`;
+  - the chain timed out after 180 s.
+- **P-AC7-1:** *Received: "running"*.
+
+**Unaffected:** P8 67/67, AC-8 55/55, P-AC8-1 and AC-7 latency 70/70.
+- Its samples, at run id `30eff9b34bbc`, were 0.152, 0.327, 0.218, 0.921,
+  1.035, 0.114, 0.335, 0.304, 0.540 and 0.223 s.
+- They are a mutation run's, and are not acceptance evidence.
+
+**N-16 is caught in CI**: by the guard, by E-18, by E-5 and by P-AC7-1.
+
+**Its stated mechanism did not hold.** §17's note says E-18 fails *"because
+`capability-engine` loses access too"*. §29.4.6 says *"because
+`capability-engine` is denied too"*. In CI, `capability-engine` kept access.
+- E-18 failed because **the companion was not denied at all**.
+- Under `chmod g-rx` to `0705`, uid 1000 is neither the owner nor in the
+  group, so it reads through the *other* bits.
+- §34.2's local analogue showed the same, and `dfb26f3`'s message predicted
+  it.
+- **The prediction held, and the reason given for it did not.** Dated notes
+  are added at §17 and §29.4.6. No check depends on the reason.
+
+### 39.5 The restoration: `c04eaff`
+
+`c04eaff` reverts `dfb26f3` with a normal new commit.
+- **No history was rewritten.**
+- After it, **`pr-checks.yml` is byte-identical to `3aab37f`'s**:
+  `git diff --quiet 3aab37f c04eaff -- .github/workflows/pr-checks.yml`
+  exits 0.
+- `git diff --stat 3aab37f c04eaff` lists two files: `tools/e2e_acceptance.py`
+  and `tools/tests/test_e2e_acceptance.py`. Those are F-4F8-21's.
+
+**The restored run is 40 of 40.**
+- **`checks`:**
+  - `tools/tests`: 386 passed;
+  - `turbo` lint and test: 32/32 each, 0 cached; typecheck: 5/5;
+  - `web-client`: 248 passed; `perception-engine`: 242 passed, 28 deselected;
+  - `lint-imports`: 7 kept, 0 broken;
+  - Cargo: 41 passed, including both `revocation` binaries (4 + 4).
+- **`Real-Infrastructure Checks`:** 15/15. `perception-engine`: **28 passed**,
+  242 deselected.
+- **`Build & Scan`:** 23/23, with Trivy.
+
+The `e2e` job's steps:
+
+| Step | Result |
+|---|---|
+| The golden path (Playwright) | success |
+| P8 (4F.P) | **67/67** |
+| AC-8 (D6) | **55/55** |
+| **P-AC8-1** | **passed** |
+| AC-7 latency (D5) | **70/70** |
+| **P-AC7-1**, with the genuine revocation | **passed** |
+| AC-7 revocation (E-5, E-6, E-18) | **10/10** |
+
+**AC-7's ten CI samples**, at run id `45d446e16342`:
+
+| # | File | Pause before (s) | Elapsed (s) |
+|---|---|---|---|
+| 1 | `ac7-45d446e16342-1.txt` | 0.955 | 0.729 |
+| 2 | `ac7-45d446e16342-2.txt` | 0.821 | 0.165 |
+| 3 | `ac7-45d446e16342-3.txt` | 0.587 | 0.432 |
+| 4 | `ac7-45d446e16342-4.txt` | 0.261 | 0.737 |
+| 5 | `ac7-45d446e16342-5.txt` | 0.636 | 0.368 |
+| 6 | `ac7-45d446e16342-6.txt` | 1.830 | 0.160 |
+| 7 | `ac7-45d446e16342-7.txt` | 1.107 | 0.887 |
+| 8 | `ac7-45d446e16342-8.txt` | 0.299 | 0.676 |
+| 9 | `ac7-45d446e16342-9.txt` | 0.993 | 1.049 |
+| 10 | `ac7-45d446e16342-10.txt` | 0.843 | 0.115 |
+
+- **The maximum was 1.049 s.** All ten were ≤ 5.0 s, none was discarded,
+  and E-3 passed.
+- **N-3 passed 10 of 10.**
+  - In samples 1–9 the companion reported the write's stamp.
+  - **In sample 10 it reported the creation's.** That is F-4F8-18's case
+    (§36.2), and the interval had started there.
+- **The creation's stamp preceded `before` by 0.116–0.771 ms.**
+
+**The revocation:**
+- the workspace's mode was `0705`;
+- **E-18:** the companion ran as uid `1100`, and got *"ls: cannot open
+  directory '/workspace': Permission denied"*. `capability-engine`'s `ls`
+  returned 0;
+- **E-5:**
+  - `permission_revoked` and `revocation_reported` appeared once each in the
+    companion's container log;
+  - the sensor was `failed`, and one `failed` report went through the outbox;
+  - `cognitive-state-engine` held `failed`;
+- **E-6:** 25 s with no outbox row, no World Model object and no submission.
+
+**AC-7's CI samples, in every run.** Fifty samples, none over 5.0 s, and none
+discarded:
+
+| Head | Run id | Kind | Range (s) |
+|---|---|---|---|
+| `3e44a19` | `511abb139854` | Run 1. The run was red, on P-AC8-1 (§38) | 0.280–0.942 |
+| `3aab37f` | `69e14d5ef961` | **Acceptance** | **0.111–1.003** |
+| `dfb26f3` | `47e4e05df69e` | N-16, mutated | 0.057–0.955 |
+| `a1a6752` | `30eff9b34bbc` | N-16, mutated | 0.114–1.035 |
+| `c04eaff` | `45d446e16342` | **Acceptance** | **0.115–1.049** |
+
+### 39.6 What this shows, and what it does not
+
+- **It shows** AC-7 and AC-8 measured in CI's containers and in a browser.
+  They were measured at `3aab37f`, and again at `c04eaff`, the restored
+  configuration. Every sample was ≤ 5.0 s, and none was discarded.
+- **It shows** N-16 caught in CI, and the branch restored.
+- **It does not show** the PR reviewed, or a merge authorized. **4F.8 is not
+  complete** until both, and the merge itself.
+- **It does not resolve** A-4F8-9 (F-4F8-10), CF-9, CF-10, CF-11 or F-4F8-12:
+  - both acceptance-carrying workflows are still non-blocking;
+  - **L-17 stays OPEN** for authoring.
+- **It does not show multi-replica safety.** That is not claimed (§30.2).
+- **It does not meet §17's flakiness rule for the two browser tests.** §17 says
+  *"Every real-infrastructure and browser test in 4F.8 involves timing. Each is
+  run ≥ 10 times and reported."*
+  - The real-infrastructure tests and the acceptance phases were run 10 times
+    (§31–§37).
+  - **P-AC7-1 and P-AC8-1 were not.** They can run only in CI.
+  - In CI, P-AC8-1 has passed **4 times** (`3aab37f`, `dfb26f3`, `a1a6752`,
+    `c04eaff`). It failed once at `3e44a19`, on F-4F8-20.
+  - P-AC7-1 has passed **3 times** with the override (`3e44a19`, `3aab37f`,
+    `c04eaff`). It failed twice under N-16, as designed.
+  - **This is open, and needs the user's decision:** the completion record,
+    §12.
