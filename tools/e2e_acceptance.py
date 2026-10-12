@@ -926,6 +926,26 @@ async def ac7_revocation(acfg: AcceptanceConfig) -> int:
                 oct(mode),
             )
 
+            # --- E-18: only the sensor lost access -----------------------------------
+            # *(F-4F8-21.)* First, before anything waits: a read-only OS inspection
+            # that does not depend on E-5, so N-16 can make it fail even when the
+            # companion is never revoked and E-5's wait times out.
+            companion_id = compose(acfg, "exec", "-T", "nova-companion", "id", "-u")
+            companion_ls = compose(acfg, "exec", "-T", "nova-companion", "ls", cfg.sandbox_root)
+            capability_ls = compose(acfg, "exec", "-T", "capability-engine", "ls", cfg.sandbox_root)
+            report.check(
+                "E-18. the companion runs as the override's uid, and is denied the workspace",
+                companion_id.stdout.strip() == "1100"
+                and companion_ls.returncode != 0
+                and "Permission denied" in companion_ls.stderr,
+                {"uid": companion_id.stdout.strip(), "ls": companion_ls.stderr.strip()},
+            )
+            report.check(
+                "E-18. capability-engine can still list the workspace",
+                capability_ls.returncode == 0,
+                {"returncode": capability_ls.returncode, "stderr": capability_ls.stderr.strip()},
+            )
+
             # --- E-5: reported, and failed everywhere it is held ---------------------
             messages = [m.get("message") for m in companion_log_messages(acfg)]
             report.check(
@@ -970,23 +990,6 @@ async def ac7_revocation(acfg: AcceptanceConfig) -> int:
                 "E-5. cognitive-state-engine holds failed, from that report",
                 held[0]["last_event_id"] == failed[0]["id"],
                 _plain(held),
-            )
-
-            # --- E-18: only the sensor lost access -----------------------------------
-            companion_id = compose(acfg, "exec", "-T", "nova-companion", "id", "-u")
-            companion_ls = compose(acfg, "exec", "-T", "nova-companion", "ls", cfg.sandbox_root)
-            capability_ls = compose(acfg, "exec", "-T", "capability-engine", "ls", cfg.sandbox_root)
-            report.check(
-                "E-18. the companion runs as the override's uid, and is denied the workspace",
-                companion_id.stdout.strip() == "1100"
-                and companion_ls.returncode != 0
-                and "Permission denied" in companion_ls.stderr,
-                {"uid": companion_id.stdout.strip(), "ls": companion_ls.stderr.strip()},
-            )
-            report.check(
-                "E-18. capability-engine can still list the workspace",
-                capability_ls.returncode == 0,
-                {"returncode": capability_ls.returncode, "stderr": capability_ls.stderr.strip()},
             )
 
             # --- E-6: the stream has stopped -----------------------------------------

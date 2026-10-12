@@ -340,6 +340,16 @@ def test_f4f8_19_check_same_path_never_unpacks_a_row() -> None:
     assert not unpacks, [ast.unparse(n) for n in unpacks]
 
 
+def test_f4f8_21_e18_is_inspected_before_anything_waits() -> None:
+    """*(F-4F8-21.)* E-18 is a read-only OS inspection that does not depend on
+    E-5. It runs before the phase's first wait, so N-16 can make it fail even
+    when the companion is never revoked and E-5's wait times out."""
+    source = ast.unparse(_function("ac7_revocation"))
+    e18 = source.index("E-18. the companion runs as the override's uid")
+    assert e18 < source.index("wait_for(")
+    assert e18 < source.index("companion_log_messages(")
+
+
 def test_the_restated_path_hash_is_perception_engines() -> None:
     owned = WORKSPACE_DOMAIN.read_text()
     assert '_HASH_PREFIX = "ws"' in owned
