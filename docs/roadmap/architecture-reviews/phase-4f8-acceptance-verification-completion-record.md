@@ -7,8 +7,17 @@
 
 **Branch:** `phase-4f8`.
 
-- **Implementation SHA: `3bca5538e7de21c437423bc67791596cb7f7fef3`.** It is the last commit that touches code, tests, CI or compose.
+- **Implementation SHA: `3bca5538e7de21c437423bc67791596cb7f7fef3`.** It is the last commit that touches code, tests, CI or compose. ***Corrected 2026-10-12, additively (§12.1):*** this sentence was true at `3e44a19`, and is preserved as written. **`3bca553` is no longer the last commit to touch code, tests, CI or compose. `c04eaff` is.**
 - This record's commit follows it, and is documentation only (§7.1).
+
+  ***Added 2026-10-12, additively:*** the history after `3e44a19`, from `git show --name-only`:
+  - **Code, tests or CI:**
+    - `3aab37f`: the web-client read path and its unit test;
+    - `dfb26f3`: the temporary N-16 mutation, in `pr-checks.yml`;
+    - `a1a6752`: the harness and its guard;
+    - `c04eaff`: the revert of `dfb26f3`, in `pr-checks.yml`.
+  - **Documentation only:** `9f09b5b`, `bea9b2f`, and the commit that adds this note.
+  - `3e44a19` itself changed one docstring citation in `tools/e2e_acceptance.py` (§3.6).
 
 **Base:** `phase-4` at **`1ccce7a703cfc5c6d7c164467c5e8ed8c5820c90`**. This slice does not change it.
 
@@ -791,7 +800,7 @@ Only the two green runs with the override are acceptance evidence.
 
 | `e2e` step | `3aab37f` | `c04eaff` |
 |---|---|---|
-| The golden path | 20 passed | success |
+| The golden path | 20 passed. *3 skipped, by design (below)* | success. *20 passed, 3 skipped, by design (below)* |
 | Declare the AC-7 known project; start the P8 services, with the override | success | success |
 | P8 (4F.P) | 67/67 | 67/67 |
 | AC-8 (D6) | 55/55 | 55/55 |
@@ -799,6 +808,28 @@ Only the two green runs with the override are acceptance evidence.
 | AC-7 latency (D5) | 70/70 | 70/70 |
 | **P-AC7-1**, with the genuine revocation | **passed** | **passed** |
 | AC-7 revocation (E-5, E-6, E-18) | 10/10 | 10/10 |
+
+***Added 2026-10-12, additively*** (TDD 4F.8 §21.1: *"Zero skipped or
+cancelled, or each one explained"*). The table above is preserved as written;
+only the two golden-path cells are extended.
+
+The golden path reported **3 skipped** alongside its 20 passed, in both runs
+and in every acceptance run since. TDD 4F.8 §40.2 records them as its own
+by-design skips:
+- **P-AC7-1 and P-AC8-1, inside the golden-path invocation.**
+  - Each skips without its `NOVA_ACCEPTANCE_*` inputs.
+  - The golden-path step never receives them:
+    `test_the_golden_path_run_never_receives_the_acceptance_inputs`, F-4F8-16.
+  - Each then ran, and passed, in its own later invocation: the two bold rows
+    above.
+- **`approval-lifecycle.spec.ts`.**
+  - It skips when `NOVA_E2E_ACTION_ID` is empty.
+  - That happens when stage 3's fail-closed identity-confidence gate (ADR-032)
+    denies the Critical action before it reaches the approval loop.
+  - This skip predates 4F.8: `pr-checks.yml`'s Phase 4B step reports it.
+  - Each run's *"never reached the approval loop"* warning records it.
+
+No test or test configuration changed.
 
 **AC-7's samples,** each measured from the file's creation mtime to the first
 World Model `200`, in seconds:
@@ -1090,13 +1121,23 @@ Each job's URL is
 
 | Attempt | `e2e` job | P-AC8-1 | P-AC7-1 | Every other step | AC-7 samples (s) |
 |---|---|---|---|---|---|
-| 1 | `114803175834` | ✓ | ✓ | P8 67/67, AC-8 55/55, latency 70/70, revocation 10/10, golden path 20 passed | 0.228–0.919 |
+| 1 | `114803175834` | ✓ | ✓ | P8 67/67, AC-8 55/55, latency 70/70, revocation 10/10, golden path 20 passed. *Golden path 3 skipped, by design (below)* | 0.228–0.919 |
 | 2 | `114808685875` | ✓ | ✓ | the same | 0.095–1.027 |
 | 3 | `114811346379` | ✓ | ✓ | the same | 0.114–0.880 |
 | 4 | `114814470987` | ✓ | ✓ | the same | 0.064–0.993 |
 | 5 | `114822584441` | ✓ | ✓ | the same | 0.276–0.876 |
 | 6 | `114825522817` | ✓ | ✓ | the same | 0.270–1.011 |
 | 7 | `114828825494` | ✓ | ✓ | the same | 0.060–0.824 |
+
+***Added 2026-10-12, additively*** (TDD 4F.8 §21.1). The table above is
+preserved as written; only attempt 1's cell is extended, and *"the same"*
+carries it to attempts 2–7.
+
+In all seven attempts, the GitHub reporter's notice reads **"3 skipped, 20
+passed"**, and the *"never reached the approval loop"* warning is present.
+- The three skips are the ones explained under §12.3, and in TDD 4F.8 §40.2.
+- **They include P-AC7-1 and P-AC8-1, inside the golden-path invocation only.**
+  Both passed in their own invocations in every attempt: the ✓ columns.
 
 - **No re-run failed, and none was blocked once started.**
 - **AC-7 at `9f09b5b`:** 70 samples, 0.060–1.027 s, all ≤ 5.0 s, none

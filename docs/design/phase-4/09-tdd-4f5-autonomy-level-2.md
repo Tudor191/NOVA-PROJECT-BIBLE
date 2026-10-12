@@ -795,6 +795,32 @@ unilateral scope expansion the non-goal exists to prevent.
 >   `SERVED_POLICY_EFFECTS`, used only to read.
 > - **L-17 stays OPEN, as written, for authoring.** The panel still cannot
 >   create an `AUTO_EXECUTE` policy.
+>
+> ***Added 2026-10-12, additively (PR #41 review, finding 4):*** the note above
+> is preserved as written. **What the read-path fix also makes reachable:**
+>
+> - **An `AUTO_EXECUTE` policy now appears in the panel's policy list.** It has
+>   the same **Enable / Disable** and **Delete** controls every policy has
+>   (`AutonomyPanel.tsx`, `policy-toggle` and `policy-delete`).
+>   - Before the fix, the list failed to parse while such a policy existed.
+>   - So no policy's controls were shown at all.
+> - **So a disabled `AUTO_EXECUTE` policy can be re-enabled through the
+>   panel.**
+>   - The toggle sends `PATCH /v1/autonomy/policies/{id}` with `{ "enabled": … }`
+>     alone (`useSetPolicyEnabled`).
+>   - `autonomy-engine` applies that to a policy of any effect.
+>   - Delete removes such a policy through `DELETE /v1/autonomy/policies/{id}`,
+>     which is likewise effect-agnostic.
+>   - Re-enabling turns back on a policy that was already authored. It creates
+>     no policy, and changes no effect, match or name.
+> - **L-17 stays OPEN for policy authoring.**
+>   - The panel still cannot create an `AUTO_EXECUTE` policy, or edit any
+>     policy's effect, match or name.
+>   - Its creation form offers `POLICY_EFFECTS` alone: `deny` and
+>     `require_approval`.
+>   - The unit test *"is read only: the editor still cannot author
+>     auto_execute (L-17 stays open)"* pins that.
+>   - No creation or editing capability is added.
 
 #### 17.1.2 L-18 — the SDK's untranslated transport error
 
