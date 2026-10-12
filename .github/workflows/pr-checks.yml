@@ -726,7 +726,7 @@ jobs:
           NOVA_ACCEPTANCE_COMPANION_GID="$(id -g)"
           export NOVA_ACCEPTANCE_COMPANION_GID
           echo "NOVA_ACCEPTANCE_COMPANION_GID=${NOVA_ACCEPTANCE_COMPANION_GID}" >> "$GITHUB_ENV"
-          docker compose -f infra/docker/docker-compose.local.yml \
+          docker compose -f infra/docker/docker-compose.local.yml -f infra/docker/docker-compose.acceptance.yml \
             up -d --build perception-engine perception-engine-worker nova-companion
 
       # Writes real files into the shared workspace, configures Level 2, one
