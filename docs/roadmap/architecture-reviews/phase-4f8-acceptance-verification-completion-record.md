@@ -20,6 +20,8 @@
 - PR [#41](https://github.com/Tudor191/NOVA-PROJECT-BIBLE/pull/41) is now open as a draft, `phase-4f8` → `phase-4`, at the user's request. It is not merged.
 - CI has run. AC-7 and AC-8 are met in CI at `c04eaff`. 4F.8 is still not complete (§12.9).
 
+***Updated 2026-10-12, later, additively (§13):*** the note above is preserved as written. L-31 is discharged: each browser spec has now passed ≥ 10 times in CI. **34 of 34 criteria are met.** 4F.8 is still not complete: review and an explicit merge authorization remain (§13.4).
+
 **Protocol:** [`PROJECT_PHASE_COMPLETION_PROTOCOL.md`](../../PROJECT_PHASE_COMPLETION_PROTOCOL.md).
 
 - sha256 `21185dd1b2a43e87eac0a52aa5e53c8e8bbb01223014dc2a48408bbb0478de6a`, 1131 lines.
@@ -64,6 +66,12 @@
 - **Still remaining:**
   - L-31, the browser specs' ≥ 10 runs;
   - the documentation head's CI;
+  - review;
+  - an explicit merge authorization, and the merge.
+
+***Updated 2026-10-12, later, additively (§13):*** the list above is preserved as written. Its *"L-31"* and *"the documentation head's CI"* are now settled (§13).
+- **What remains:**
+  - this addendum's own CI;
   - review;
   - an explicit merge authorization, and the merge.
 
@@ -225,6 +233,8 @@ The six met in this session are E-4, E-7, E-15, E-16, I-1 and I-3.
 ***Superseded 2026-10-12, additively (§12.5):*** the table and the sentences above are preserved as written. They describe `3e44a19`, before any CI run.
 - At `c04eaff`, **33 of 34 criteria are met**, AC-7 and AC-8 among them, in CI.
 - **I-11 is not met**: the two browser specs have not run ≥ 10 times.
+
+***Updated 2026-10-12, later, additively (§13):*** the note above is preserved as written. I-11 is now met, so **34 of 34** criteria are met (§13.3).
 
 ### 2.1 E-15 and E-16's checks
 
@@ -657,6 +667,8 @@ This slice closes none of them, and claims nothing toward their closure beyond t
 - **L-29 is SETTLED for `c04eaff`.**
 - **L-31 is opened:** each browser spec run ≥ 10 times. It blocks 4F.8.
 
+***Updated 2026-10-12, later, additively (§13):*** the note above is preserved as written. **L-31 is SETTLED** (§13.3).
+
 ---
 
 ## 11. Final status
@@ -703,6 +715,8 @@ This slice closes none of them, and claims nothing toward their closure beyond t
 **What is still not verified:**
 - **≥ 10 runs of each browser spec (L-31);**
 - **multi-replica dispatch**, which is not claimed.
+
+***Updated 2026-10-12, later, additively (§13):*** the list above is preserved as written. Its first item is settled (§13). Multi-replica dispatch is still not claimed.
 
 ---
 
@@ -910,6 +924,8 @@ TDD 4F.8 §17 requires each browser test to run ≥ 10 times, and neither spec
 has. **AC-7 and AC-8 are met in CI, at `c04eaff` and at `3aab37f`.** That is
 not a claim that 4F.8 is complete (§12.9).
 
+***Updated 2026-10-12, later, additively (§13):*** the sentence above is preserved as written. **I-11 is met. 34 of 34 criteria are met** (§13.3).
+
 ### 12.6 Categories 1, 8, 9, 10 and 11, as changed
 
 - **Category 1, implementation.**
@@ -972,6 +988,8 @@ not a claim that 4F.8 is complete (§12.9).
 | **F-4F8-21** | `ac7-revocation` inspected E-18 after E-5's waits, so N-16 could never make E-18 fail. Found by N-16 in CI | **Fixed** (`a1a6752`), and guarded. No check, threshold or deadline changed |
 | **F-4F8-22** | §5.2 and I-11 left TDD 4F.8 §17's ≥ 10 runs of each browser test out of the flakiness record | **OPEN** (§12.8) |
 
+***Updated 2026-10-12, later, additively (§13):*** the table above is preserved as written. **F-4F8-22 is RESOLVED.** The runs exist and are recorded (§13).
+
 **Where the earlier findings now stand:**
 - **F-4F8-8 is resolved in CI**: the acceptance stack ran AC-7 in five runs.
 - **Still OPEN:** F-4F8-10 (A-4F8-9) and F-4F8-12. Both acceptance workflows
@@ -1007,6 +1025,10 @@ not a claim that 4F.8 is complete (§12.9).
 - **Blocked until it is decided:** I-11, and so 4F.8's completion.
 - **Not blocked:** review of PR #41.
 
+***Updated 2026-10-12, later, additively (§13):*** the text above is preserved as written.
+- **The user chose (a)** on 2026-10-12. It was carried out at `9f09b5b`, and **L-31 is SETTLED** (§13).
+- *"So far … 4 times … 3 times"* was true at `c04eaff`.
+
 ### 12.9 Status, as of this addendum
 
 - **AC-7 and AC-8: met in CI** at `c04eaff` and at `3aab37f`. Every sample was
@@ -1017,6 +1039,8 @@ not a claim that 4F.8 is complete (§12.9).
   - the documentation head's CI, green;
   - PR #41, reviewed;
   - an explicit merge authorization, and the merge.
+
+  ***Updated 2026-10-12, later, additively (§13):*** the list above is preserved as written. Its first two items are settled (§13.1, §13.3). **§13.4 is the current status.**
 - **Gate verdict: none.** This is a slice record (§0).
 - **OPEN:**
   - A-4F8-9 (F-4F8-10), which still blocks 4F's GO;
@@ -1024,5 +1048,108 @@ not a claim that 4F.8 is complete (§12.9).
   - F-4F8-12;
   - L-17, for authoring.
 - **Phase 4F is NOT complete.**
+- **`main` and `phase-4` are untouched.** PR #41 is a draft, and nothing is
+  merged.
+
+---
+
+## 13. L-31 discharged — addendum, 2026-10-12, later
+
+**Added 2026-10-12, additively.** §12 is preserved as written. The user chose
+§12.8's option (a). This section records the result, at PR #41's head
+`9f09b5b`. The narrative is in TDD 4F.8 §40.
+
+### 13.1 The documentation head's CI: `9f09b5b`, 40 of 40
+
+| Workflow | Run | Result |
+|---|---|---|
+| `PR Checks` | [`38246972802`](https://github.com/Tudor191/NOVA-PROJECT-BIBLE/actions/runs/38246972802), attempt 1 | success: `checks` and `e2e` |
+| `Real-Infrastructure Checks` | [`38246972743`](https://github.com/Tudor191/NOVA-PROJECT-BIBLE/actions/runs/38246972743) | success, 15/15 |
+| `Build & Scan` | [`38246972753`](https://github.com/Tudor191/NOVA-PROJECT-BIBLE/actions/runs/38246972753) | success, 23/23 |
+
+### 13.2 The re-runs
+
+**What was re-run:** attempts 2–7 of run `38246972802`, each a re-run of the
+`e2e` job alone.
+- The head was `9f09b5b` each time. No source, test, workflow or threshold
+  changed, and no commit was made to trigger a run.
+- The user triggered every one by hand.
+
+**This session could not trigger them.** GitHub refused the job re-run endpoint
+at 12:17, 12:19–12:20 and 13:14–13:15 UTC, before and after the user's grant.
+- It returned **HTTP 403 "Resource not accessible by integration"**,
+  requiring `actions=write`.
+- The GitHub MCP tool's credential was refused the same way.
+
+**A success is the spec's own `✓ … 1 passed` in the job log, and the
+reporter's `1 passed` notice.** A green step is not enough, because a spec
+with missing inputs skips and its step stays green.
+
+Each job's URL is
+`https://github.com/Tudor191/NOVA-PROJECT-BIBLE/actions/runs/38246972802/job/<job>`.
+
+| Attempt | `e2e` job | P-AC8-1 | P-AC7-1 | Every other step | AC-7 samples (s) |
+|---|---|---|---|---|---|
+| 1 | `114803175834` | ✓ | ✓ | P8 67/67, AC-8 55/55, latency 70/70, revocation 10/10, golden path 20 passed | 0.228–0.919 |
+| 2 | `114808685875` | ✓ | ✓ | the same | 0.095–1.027 |
+| 3 | `114811346379` | ✓ | ✓ | the same | 0.114–0.880 |
+| 4 | `114814470987` | ✓ | ✓ | the same | 0.064–0.993 |
+| 5 | `114822584441` | ✓ | ✓ | the same | 0.276–0.876 |
+| 6 | `114825522817` | ✓ | ✓ | the same | 0.270–1.011 |
+| 7 | `114828825494` | ✓ | ✓ | the same | 0.060–0.824 |
+
+- **No re-run failed, and none was blocked once started.**
+- **AC-7 at `9f09b5b`:** 70 samples, 0.060–1.027 s, all ≤ 5.0 s, none
+  discarded.
+- **N-3:** 70 of 70. The 10 ms allowance was not changed.
+  - The signed gap, `before` minus the creation stamp, was −0.061 to
+    +1.795 ms.
+  - One creation stamp in attempt 3 fell 0.061 ms *after* `before`.
+  - So §12.3's *"preceded … by"* holds for its two runs, but not for every
+    sample in general.
+- **E-18, every attempt:** uid `1100`, *"Permission denied"*;
+  `capability-engine`'s `ls` returned 0.
+- **N-16 was not repeated.** §12.4 stands.
+
+### 13.3 Counts, criteria, findings and ledger
+
+| Spec | Successful CI runs | Where | Failures, not counted |
+|---|---|---|---|
+| **P-AC8-1** | **11** | `3aab37f`; `dfb26f3` and `a1a6752`, where N-16 removes the companion's override, which this spec does not use; `c04eaff`; `9f09b5b` attempts 1–7 | `3e44a19`, F-4F8-20 |
+| **P-AC7-1** | **10** | `3e44a19`; `3aab37f`; `c04eaff`; `9f09b5b` attempts 1–7 | `dfb26f3` and `a1a6752`, by N-16's design |
+
+- **At the final head alone, each spec passed 7 of 7.**
+- **I-11 is met. 34 of 34 criteria are met** (§12.5, with I-11 now met). No
+  criterion was narrowed, and no threshold was changed.
+- **F-4F8-22 is RESOLVED.**
+- **L-31 is SETTLED.**
+- **Unchanged:**
+  - L-29 is SETTLED (§12.8);
+  - L-30 is OPEN, for 4F closure;
+  - L-17 is OPEN, for authoring.
+
+### 13.4 Status, as of this addendum
+
+- **AC-7 and AC-8:** met in CI:
+  - at `3aab37f` and `c04eaff`;
+  - at `9f09b5b`, in seven runs.
+
+  **CI has measured 120 AC-7 samples**, every one ≤ 5.0 s; the largest was
+  1.049 s. That is 10 in each of twelve runs: the five before `9f09b5b`, two of
+  them under N-16, and the seven at it.
+- **All 34 criteria are met.**
+- **4F.8 is NOT complete.** It still needs:
+  - this addendum's CI, green (PR #41 records it, because a commit cannot cite
+    its own run);
+  - PR #41, reviewed;
+  - an explicit merge authorization, and the merge.
+- **OPEN:**
+  - A-4F8-9 (F-4F8-10), which still blocks 4F's GO;
+  - CF-9, CF-10 and CF-11;
+  - F-4F8-12;
+  - L-17, for authoring;
+  - L-30.
+- **Gate verdict: none** (§0). **Phase 4F is NOT complete.** No Phase 4 Gate
+  Review has been started.
 - **`main` and `phase-4` are untouched.** PR #41 is a draft, and nothing is
   merged.

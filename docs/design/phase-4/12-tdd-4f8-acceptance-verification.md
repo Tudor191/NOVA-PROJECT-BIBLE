@@ -3944,3 +3944,106 @@ discarded:
     `c04eaff`). It failed twice under N-16, as designed.
   - **This is open, and needs the user's decision:** the completion record,
     §12.
+
+  ***Superseded 2026-10-12, additively (§40):*** the bullet above is preserved
+  as written.
+  - P-AC8-1 has now passed **11** times in CI, and P-AC7-1 **10** times.
+  - At `9f09b5b` alone, each passed 7 of 7.
+  - L-31 is discharged.
+
+---
+
+## 40. The browser specs' ten runs (L-31) — 2026-10-12
+
+**Added 2026-10-12, additively.** §39.6 recorded that §17's flakiness rule was
+not met for the two browser tests. §17's rule:
+> *"Every real-infrastructure and browser test in 4F.8 involves timing. Each
+> is run ≥ 10 times and reported."*
+
+The user chose option (a) of the completion record's §12.8: re-run the `e2e`
+job at the PR's final head. This section records that, and supersedes §39.6's
+last bullet.
+
+### 40.1 Method
+
+- **Head:** `9f09b5b`, PR #41's final head. No source, test, workflow or
+  threshold changed for these runs, and no commit was made to trigger them.
+- **The run:** `PR Checks` run
+  [`38246972802`](https://github.com/Tudor191/NOVA-PROJECT-BIBLE/actions/runs/38246972802),
+  on `pull_request`, attempts 2–7.
+  - Each was a **re-run of the `e2e` job alone**. The `checks` job in every
+    attempt carries attempt 1's own timestamps, 12:07:20–12:13:01 UTC.
+  - Each run is a fresh stack, with its own acceptance run id (`uuid4`), so
+    every AC-7 path is never-observed.
+  - The specs are configured `retries: 0`.
+- **Who triggered them:** the user, by hand.
+  - This session's GitHub integration was refused:
+    `POST /actions/jobs/{id}/rerun` returned **HTTP 403 "Resource not
+    accessible by integration"**, needing `actions=write`.
+  - It was refused at 12:17, 12:19–12:20 and 13:14–13:15 UTC, before and
+    after the user granted the permission.
+  - No attempt was started from this session.
+- **What counts as a success.** The spec's own `✓ … 1 passed` line in the job
+  log, and the GitHub reporter's `1 passed` notice. A green step alone does
+  not count: a spec whose inputs are missing *skips*, and its step is still
+  green.
+
+### 40.2 The attempts at `9f09b5b`
+
+| Attempt | `e2e` job | Acceptance run id | P8 | AC-8 | P-AC8-1 | AC-7 latency | AC-7 samples (s) | P-AC7-1 | Revocation | Golden path |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 1 | `114803175834` | `2732616c34a9` | 67/67 | 55/55 | **✓** | 70/70 | 0.228–0.919 | **✓** | 10/10 | 20 passed |
+| 2 | `114808685875` | `a819ce276ce5` | 67/67 | 55/55 | **✓** | 70/70 | 0.095–1.027 | **✓** | 10/10 | 20 passed |
+| 3 | `114811346379` | `e7fa7de185ef` | 67/67 | 55/55 | **✓** | 70/70 | 0.114–0.880 | **✓** | 10/10 | 20 passed |
+| 4 | `114814470987` | `3df70a33be19` | 67/67 | 55/55 | **✓** | 70/70 | 0.064–0.993 | **✓** | 10/10 | 20 passed |
+| 5 | `114822584441` | `e825d45fbb0d` | 67/67 | 55/55 | **✓** | 70/70 | 0.276–0.876 | **✓** | 10/10 | 20 passed |
+| 6 | `114825522817` | `d2eb180931e0` | 67/67 | 55/55 | **✓** | 70/70 | 0.270–1.011 | **✓** | 10/10 | 20 passed |
+| 7 | `114828825494` | `f80e8c8858e5` | 67/67 | 55/55 | **✓** | 70/70 | 0.060–0.824 | **✓** | 10/10 | 20 passed |
+
+The golden path also had 3 skipped in every attempt. Those are its own
+by-design skips: the approval spec, and the two acceptance specs in that
+invocation.
+
+**No attempt failed. No step and no check failed in any of them.**
+
+**AC-7, at `9f09b5b`: 70 samples, 0.060–1.027 s.** Every one was ≤ 5.0 s, and
+none was discarded.
+- N-3 passed 70 of 70. The 10 ms allowance was not changed.
+- The signed gap, the harness's `before` minus the creation stamp, was
+  −0.061 ms to +1.795 ms.
+  - In attempt 3, one creation stamp fell **0.061 ms after** `before`.
+  - That is inside the allowance, and N-3 passed.
+- So the creation stamp does not always *precede* `before`, as §38.1 and
+  §39.5's wording suggested. Their figures are unaffected.
+
+**The revocation, in every attempt:**
+- E-18: the companion ran as uid `1100` and got *"Permission denied"*.
+  `capability-engine`'s `ls` returned 0;
+- E-5 and E-6 passed.
+
+**The N-16 mutation was not repeated.** Its evidence (§39.2–§39.4) is
+unchanged.
+
+### 40.3 The cumulative count of successful runs
+
+Successes only. A run of the spec at a mutated head is counted only where the
+mutation does not touch that spec.
+
+| Spec | Successful CI runs | Where | Not counted |
+|---|---|---|---|
+| **P-AC8-1** | **11** | `3aab37f`; `dfb26f3` and `a1a6752` (N-16 removes the companion's override, which this spec does not use); `c04eaff`; `9f09b5b` attempts 1–7 | `3e44a19`: failed, F-4F8-20 |
+| **P-AC7-1** | **10** | `3e44a19`, `3aab37f`, `c04eaff`; `9f09b5b` attempts 1–7 | `dfb26f3`, `a1a6752`: failed, as N-16 designs |
+
+**At the final head alone, each spec passed 7 of 7.** §17's ≥ 10 is met for
+both. **L-31 is discharged.** I-11 is met.
+
+### 40.4 What this does not show
+
+- **The PR reviewed, or a merge authorized.** 4F.8 is not complete until both
+  have happened, and the merge itself.
+- **It does not resolve:**
+  - A-4F8-9 (F-4F8-10);
+  - CF-9, CF-10 and CF-11;
+  - F-4F8-12;
+  - L-17.
+- **Multi-replica dispatch.** It is not claimed.
