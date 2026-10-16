@@ -134,7 +134,16 @@ jobs:
       - name: Type-check TypeScript
         run: pnpm turbo run typecheck
 
+      # COVERAGE_RCFILE (added 2026-10-16, finding N-11): each package's
+      # `test` script runs in its own directory, where coverage.py does not
+      # read the root `pyproject.toml`, so its `fail_under = 85` was never
+      # applied and a package below 85% passed. Pointing coverage at the
+      # root config makes the gate doc 16 §1 describes an enforced one.
+      # `turbo.json` declares the variable, or turbo's strict env mode would
+      # drop it before the task runs.
       - name: Test every package
+        env:
+          COVERAGE_RCFILE: ${{ github.workspace }}/pyproject.toml
         run: pnpm turbo run test
 
       - name: Validate docker-compose.local.yml
