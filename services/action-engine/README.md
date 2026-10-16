@@ -107,6 +107,22 @@ allow-lists.
 - `GET /internal/readiness`
 - `GET /internal/metrics`
 
+*(Added 2026-10-16, ledger row L-16.)* The list above omits CF-9's write
+surface, added in Phase 4F.4 (`api/identity_confidence_policy.py`; TDD 4F.4
+§6):
+
+| Method | Path | Behaviour |
+|---|---|---|
+| `GET` | `/v1/action/identity-confidence-policy` | The deployment's policy, or **404** when none is configured (which means 1.0 at every tier) |
+| `PUT` | `/v1/action/identity-confidence-policy` | Replaces the whole `minimum_confidence_by_risk` map. Each value must be in `[0.0, 0.75]`; `user_id` comes from the server, never the body |
+| `DELETE` | `/v1/action/identity-confidence-policy` | Removes the row, returning every tier to fail-closed. **404** when there was nothing to delete |
+
+Every `PUT` and `DELETE` logs `identity-confidence policy changed` with the map
+before and after. A change that lowers any tier's threshold is logged at
+`WARNING`, naming the tier in `loosened_tiers`. **This is a log line, not an
+audit trail.** Nothing is persisted (D-4F4-3), and L-15, the decision on a
+persisted audit, stays open.
+
 **Reachable through `api-gateway`** since Phase 4B, which added a `/v1/action`
 prefix to the gateway's route table. *(Corrected 2026-09-06: this section
 previously said "exposed directly (no `api-gateway` yet)" and called the decide
