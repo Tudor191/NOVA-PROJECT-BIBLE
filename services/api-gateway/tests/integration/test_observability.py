@@ -121,9 +121,7 @@ def _scrape(client: TestClient) -> str:
     return response.text
 
 
-def _refusal(
-    records: list[logging.LogRecord], reason: str
-) -> logging.LogRecord:
+def _refusal(records: list[logging.LogRecord], reason: str) -> logging.LogRecord:
     matching = [
         r
         for r in records
@@ -240,16 +238,15 @@ def test_a_forwarded_request_is_counted_and_timed_end_to_end_and_upstream(
         )
     }
 
-    assert client.post(
-        "/v1/communication/sessions", json={"x": 1}, headers=_auth_header()
-    ).status_code == 200
+    assert (
+        client.post("/v1/communication/sessions", json={"x": 1}, headers=_auth_header()).status_code
+        == 200
+    )
 
     scrape = _scrape(client)
     for name, value in before.items():
         assert _sample(scrape, name, **labels) - value == 1, name
-    assert (
-        _sample(_scrape(client), "api_gateway_requests_total", method="POST", **labels) >= 1
-    )
+    assert _sample(_scrape(client), "api_gateway_requests_total", method="POST", **labels) >= 1
 
 
 def test_latency_is_bucketed_in_seconds_not_the_sdk_millisecond_default(
@@ -294,9 +291,7 @@ def test_session_exchange_outcomes_are_counted_and_the_token_is_never_logged(
     assert exchanges(scrape, "invalid_token") - before["invalid_token"] == 1
     assert exchanges(scrape, "not_configured") - before["not_configured"] == 1
 
-    rendered = " ".join(
-        f"{r.getMessage()} {sorted(vars(r).items())}" for r in records
-    )
+    rendered = " ".join(f"{r.getMessage()} {sorted(vars(r).items())}" for r in records)
     assert TOKEN not in rendered
     assert near_miss not in rendered
     assert TOKEN not in scrape

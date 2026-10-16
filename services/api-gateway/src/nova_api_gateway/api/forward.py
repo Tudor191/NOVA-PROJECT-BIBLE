@@ -138,6 +138,8 @@ async def forward(path: str, request: Request) -> Response:
                 },
             )
             _record(request, upstream=route.upstream_name, outcome="rate_limited", started=started)
+            # TDD 4A §7: "429 with a structured retry hint". The standard
+            # header, so the envelope's error schema is unchanged.
             return JSONResponse(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 content=failure(
@@ -145,7 +147,10 @@ async def forward(path: str, request: Request) -> Response:
                     "Too many requests for this endpoint class.",
                     correlation_id,
                 ).model_dump(mode="json"),
-                headers={CORRELATION_ID_HEADER: correlation_id},
+                headers={
+                    CORRELATION_ID_HEADER: correlation_id,
+                    "Retry-After": str(limiter.retry_after_seconds()),
+                },
             )
 
     # --- forward, 1:1, no path rewriting (D-6) ---------------------------

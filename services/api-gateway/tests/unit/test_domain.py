@@ -232,11 +232,41 @@ async def test_in_memory_limiter_blocks_past_the_limit() -> None:
     assert await limiter.allow(session_key="s", endpoint_class="write") is False
 
 
+@pytest.mark.parametrize(
+    ("clock", "expected"),
+    [(120.0, 60), (120.4, 60), (150.0, 30), (179.2, 1), (179.999, 1)],
+)
+def test_retry_after_is_the_rest_of_the_fixed_window(
+    monkeypatch: pytest.MonkeyPatch, clock: float, expected: int
+) -> None:
+    """Whole seconds until the minute `allow()` counts in ends -- never 0,
+    because "retry in 0 s" against a window that has not closed would be
+    refused again."""
+    monkeypatch.setattr("nova_api_gateway.domain.rate_limit.time.monotonic", lambda: clock)
+    limiter = InMemoryRateLimiter(read_per_minute=1, write_per_minute=1)
+    assert limiter.retry_after_seconds() == expected
+
+
+@pytest.mark.asyncio
+async def test_a_request_after_the_hinted_wait_is_allowed_again(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The hint is honest: waiting exactly that long reaches a fresh window."""
+    now = [150.5]
+    monkeypatch.setattr("nova_api_gateway.domain.rate_limit.time.monotonic", lambda: now[0])
+    limiter = InMemoryRateLimiter(read_per_minute=1, write_per_minute=1)
+    assert await limiter.allow(session_key="s", endpoint_class="read") is True
+    assert await limiter.allow(session_key="s", endpoint_class="read") is False
+    now[0] += limiter.retry_after_seconds()
+    assert await limiter.allow(session_key="s", endpoint_class="read") is True
+
+
 @pytest.mark.asyncio
 async def test_null_limiter_always_allows() -> None:
     limiter = NullRateLimiter()
     for _ in range(50):
         assert await limiter.allow(session_key="s", endpoint_class="write") is True
+    assert limiter.retry_after_seconds() == 0
 
 
 # --- Phase 4E: the Digital Twin panel's prefix (TDD 4E Sec7, D-6) -----------

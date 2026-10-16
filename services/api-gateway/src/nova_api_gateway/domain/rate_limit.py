@@ -26,12 +26,21 @@ not decide it.
 
 from __future__ import annotations
 
+import math
 import time
 from typing import Protocol
+
+_WINDOW_SECONDS = 60
 
 
 class RateLimiter(Protocol):
     async def allow(self, *, session_key: str, endpoint_class: str) -> bool: ...
+
+    def retry_after_seconds(self) -> int:
+        """Whole seconds until a refused request could be allowed again --
+        the `Retry-After` of TDD 4A §7's "structured retry hint" (added
+        2026-10-16)."""
+        ...
 
 
 class InMemoryRateLimiter:
@@ -45,7 +54,7 @@ class InMemoryRateLimiter:
         limit = self._limits.get(endpoint_class)
         if limit is None or limit <= 0:
             return True
-        window = int(time.monotonic() // 60)
+        window = int(time.monotonic() // _WINDOW_SECONDS)
         key = (session_key, endpoint_class, window)
         count = self._counters.get(key, 0) + 1
         self._counters[key] = count
@@ -57,9 +66,20 @@ class InMemoryRateLimiter:
             }
         return count <= limit
 
+    def retry_after_seconds(self) -> int:
+        """The rest of the current window, rounded up and never 0: every
+        class and session shares one window boundary, and a "retry in 0 s"
+        before it closes would be refused again."""
+        remaining = _WINDOW_SECONDS - (time.monotonic() % _WINDOW_SECONDS)
+        return max(1, math.ceil(remaining))
+
 
 class NullRateLimiter:
     """Explicitly disabled. Named, so `rate_limit_enabled=False` is legible."""
 
     async def allow(self, *, session_key: str, endpoint_class: str) -> bool:
         return True
+
+    def retry_after_seconds(self) -> int:
+        """Never consulted: nothing is ever refused."""
+        return 0

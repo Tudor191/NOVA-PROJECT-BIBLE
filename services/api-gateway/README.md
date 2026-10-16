@@ -132,6 +132,11 @@ Redis-backed token bucket with three classes. What runs is an in-process
 fixed-window counter with two (`read`, `write`); see
 `domain/rate_limit.py`. The deviation is disclosed and awaiting a decision.
 
+**A 429 carries `Retry-After`** *(added 2026-10-16)*: the whole seconds until
+the fixed window ends, never 0. This is TDD 4A §7's "structured retry hint",
+which the 429 lacked until now. It is the standard header, so the envelope's
+`error` schema is unchanged. `web-client` reads the header and shows the hint.
+
 ## Testing
 
 ```bash
