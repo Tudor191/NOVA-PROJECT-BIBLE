@@ -21,17 +21,30 @@ identifier the schema does not have and imply a multiplicity it cannot store.
 supplies rows, it does not change how they are read or compared. There is no new
 table, no migration, no ORM class, no Event Bus subject and no `api-gateway`
 change -- `/v1/action` already forwards this subtree.
+
+*(Added 2026-10-16, SAD 15 §9.1 item 9.)* **Every change is logged** with the
+map before and after, and a write that lowers any tier's threshold -- a weaker
+gate -- is logged at `WARNING`. This is a log line, **not an audit trail**:
+D-4F4-3 (no audit persistence, no Event Bus subject) stands, and L-15 stays
+open for the decision on a persisted audit.
 """
 
 from __future__ import annotations
 
+import logging
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Request, status
 from nova_contracts.events.planning import RiskLevel
+from nova_observability import get_logger
 from pydantic import BaseModel, Field, field_validator
 
 router = APIRouter(prefix="/v1/action", tags=["identity-confidence-policy"])
+
+logger = get_logger("action-engine.identity-confidence-policy")
+
+_FAIL_CLOSED = 1.0
+"""What stage 3 uses for a tier absent from the map, or when no row exists."""
 
 _ROUTE = "/identity-confidence-policy"
 
@@ -118,6 +131,34 @@ def _identity(request: Request) -> UUID:
     return user_id
 
 
+def _loosened(before: dict[str, float] | None, after: dict[str, float] | None) -> list[str]:
+    """Tiers whose effective threshold went down. An absent tier, or no row at
+    all, is the fail-closed 1.0, so adding a tier always loosens it."""
+    old = before or {}
+    new = after or {}
+    return sorted(
+        tier
+        for tier in _VALID_RISK_TIERS
+        if new.get(tier, _FAIL_CLOSED) < old.get(tier, _FAIL_CLOSED)
+    )
+
+
+def _log_change(
+    *, operation: str, before: dict[str, float] | None, after: dict[str, float] | None
+) -> None:
+    loosened = _loosened(before, after)
+    logger.log(
+        logging.WARNING if loosened else logging.INFO,
+        "identity-confidence policy changed",
+        extra={
+            "operation": operation,
+            "before": before,
+            "after": after,
+            "loosened_tiers": loosened,
+        },
+    )
+
+
 @router.get(_ROUTE, response_model=IdentityConfidencePolicyResponse)
 async def get_identity_confidence_policy(request: Request) -> IdentityConfidencePolicyResponse:
     """The deployment's own policy, or **404** when none is configured.
@@ -153,11 +194,18 @@ async def put_identity_confidence_policy(
     from nova_action_engine.domain.models import IdentityConfidencePolicy
 
     user_id = _identity(request)
-    stored = await request.app.state.repository.upsert_identity_confidence_policy(
+    repository = request.app.state.repository
+    previous = await repository.find_identity_confidence_policy(user_id)
+    stored = await repository.upsert_identity_confidence_policy(
         IdentityConfidencePolicy(
             user_id=user_id,
             minimum_confidence_by_risk=body.minimum_confidence_by_risk,
         )
+    )
+    _log_change(
+        operation="create" if previous is None else "replace",
+        before=previous.minimum_confidence_by_risk if previous is not None else None,
+        after=stored.minimum_confidence_by_risk,
     )
     return IdentityConfidencePolicyResponse(
         user_id=stored.user_id,
@@ -174,9 +222,16 @@ async def delete_identity_confidence_policy(request: Request) -> None:
     fail-closed, which is why this can never be the dangerous direction.
     """
     user_id = _identity(request)
-    deleted = await request.app.state.repository.delete_identity_confidence_policy(user_id)
+    repository = request.app.state.repository
+    previous = await repository.find_identity_confidence_policy(user_id)
+    deleted = await repository.delete_identity_confidence_policy(user_id)
     if not deleted:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="no identity-confidence policy is configured",
         )
+    _log_change(
+        operation="delete",
+        before=previous.minimum_confidence_by_risk if previous is not None else None,
+        after=None,
+    )
