@@ -1,15 +1,27 @@
-"""Token-bucket rate limiting per `(session, endpoint class)`, doc 11 §5.
+"""Rate limiting per `(session, endpoint class)`, doc 11 §5.
 
-Redis-backed, because Redis already exists in the local stack -- this adds
-no new infrastructure dependency, which is what `3-P` §2 committed to. The
-gateway itself stays stateless beyond this: **4A introduces no Postgres
-schema.**
+**What is built: an in-process fixed-window counter, two classes.**
+`InMemoryRateLimiter` counts requests per `(session, class, minute)`;
+`endpoint_class()` assigns `read` to `GET`/`HEAD`/`OPTIONS` and `write` to
+everything else. A single-instance local deployment (ADR-025) has exactly one
+gateway process, so an in-process counter enforces the limit correctly for
+that topology. The gateway stays stateless beyond it: **4A introduces no
+Postgres schema.**
 
-The limiter is a port with two implementations. `InMemoryRateLimiter` is not
-a test double bolted on afterwards: a single-instance local deployment
-(ADR-025) has exactly one gateway process, so an in-process bucket is a
-correct implementation for that topology, and the Redis one exists for when
-that stops being true.
+*(Corrected 2026-10-16. The original text said the limiter was
+"Redis-backed" and that "the Redis one exists for when that stops being
+true". Both claims were false when written: no Redis implementation exists
+anywhere in this package, and `Settings.redis_url` is read by nothing. The
+original wording is quoted here rather than silently replaced.)*
+
+**A disclosed deviation from the approved design, not yet ratified.** TDD 4A
+§2.3 and doc 11 §5 specify a **Redis-backed token bucket** with **three**
+classes -- `read`, `write` and `expensive-reasoning`. What is built differs
+in all three respects: in-process, fixed window, and no
+`expensive-reasoning` class, so reasoning calls are limited only as `write`.
+Whether to ratify the narrowing or build the design is recorded as a
+decision for the user in the Phase 4 closure matrix (N-10); this module does
+not decide it.
 """
 
 from __future__ import annotations
