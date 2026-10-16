@@ -97,7 +97,8 @@ src/nova_autonomy_engine/
 │   ├── action_dispatch.py        ActionDispatchClient: action.execute, 15 s bound
 │   └── conversational_trust.py   the CF-10 seam: reports UNAVAILABLE
 ├── domain/                       no I/O
-│   ├── decision.py               decide(): Level ▸ Policy ▸ Permission ▸ Trust ▸ dispatch
+│   ├── decision.py               decide(): Policy ▸ Permission ▸ Trust ▸ Level ▸ dispatch
+│   │                             (the level is applied last, TDD 4D §4.3)
 │   ├── levels.py                 parse_level, require_selectable
 │   ├── models.py                 AutonomyLevel, Policy, PermissionGrant, DecisionOutcome, ...
 │   ├── permissions.py            the ten-category matrix
