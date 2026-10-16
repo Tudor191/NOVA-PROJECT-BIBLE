@@ -316,6 +316,12 @@ def test_rate_limit_returns_structured_429(upstream: FakeUpstream) -> None:
         response = limited.get("/v1/communication/sessions")
         assert response.status_code == 429
         assert response.json()["error"]["code"] == "rate_limited"
+        # TDD 4A §7: "429 with a structured retry hint" -- RFC 9110
+        # delta-seconds until this class's fixed window ends. (Added
+        # 2026-10-16; the 429 carried no hint before.)
+        retry_after = response.headers["retry-after"]
+        assert retry_after.isdigit()
+        assert 1 <= int(retry_after) <= 60
 
 
 # --- Agents surface, Phase 4C milestone 4C.2c (decision D-4) ----------------
