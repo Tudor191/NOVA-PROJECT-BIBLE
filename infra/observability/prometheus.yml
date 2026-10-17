@@ -12,3 +12,33 @@ scrape_configs:
   # Migrating to Prometheus service discovery (docker_sd_configs) is a Roadmap
   # Phase 8 scale-out concern (docs/architecture/19-scalability-strategy.md), not a
   # Phase 0 one -- a handful of engines is well within static config's comfort zone.
+  #
+  # (2026-10-16, closure-matrix X-06.) The comment above was followed by no
+  # engine: until now only nova-core was scraped. Every HTTP service the local
+  # stack runs is listed below. The `*-worker` services run arq and serve no
+  # HTTP, so they are not. tools/tests/test_prometheus_targets.py fails on a
+  # missing or a stale target.
+  - job_name: nova-services
+    metrics_path: /internal/metrics
+    static_configs:
+      - targets:
+          - "memory-engine:8000"
+          - "knowledge-engine:8000"
+          - "world-model-engine:8000"
+          - "ai-model-orchestration-engine:8000"
+          - "reasoning-engine:8000"
+          - "executive-cognition-engine:8000"
+          - "personality-engine:8000"
+          - "communication-engine:8000"
+          - "perception-engine:8000"
+          - "digital-twin-engine:8000"
+          - "capability-engine:8000"
+          - "action-engine:8000"
+          - "autonomy-engine:8000"
+          - "cognitive-state-engine:8000"
+          - "planning-engine:8000"
+          - "api-gateway:8000"
+          - "ws-gateway:8000"
+          - "agent-os-kernel:8000"
+          - "agent-os-registry:8000"
+          - "agent-os-supervisors:8000"
