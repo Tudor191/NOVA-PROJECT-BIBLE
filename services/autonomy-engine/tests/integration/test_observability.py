@@ -192,6 +192,91 @@ def test_a_permission_change_logs_each_named_category_before_and_after(
     assert set(second.changes) == {"read"}  # type: ignore[attr-defined]
 
 
+def _refusals(records: list[logging.LogRecord], kind: str) -> list[logging.LogRecord]:
+    return [
+        r
+        for r in records
+        if r.getMessage() == "autonomy configuration change refused"
+        and getattr(r, "kind", None) == kind
+    ]
+
+
+def test_a_change_names_its_request_its_target_and_that_no_actor_is_known(
+    client: TestClient, records: list[logging.LogRecord]
+) -> None:
+    response = client.put(
+        "/v1/autonomy/level", json={"level": 1}, headers={"x-correlation-id": "corr-level-1"}
+    )
+    assert response.status_code == 200
+
+    (change,) = _changes(records, "level")
+    assert change.outcome == "applied"  # type: ignore[attr-defined]
+    assert change.correlation_id == "corr-level-1"  # type: ignore[attr-defined]
+    assert change.user_id == str(client.app.state.settings.primary_user_id)  # type: ignore[attr-defined]
+    assert change.actor is None  # type: ignore[attr-defined]
+
+
+def test_a_change_without_a_correlation_header_says_so(
+    client: TestClient, records: list[logging.LogRecord]
+) -> None:
+    assert client.put("/v1/autonomy/level", json={"level": 1}).status_code == 200
+    (change,) = _changes(records, "level")
+    assert change.correlation_id is None  # type: ignore[attr-defined]
+
+
+def test_a_level_the_engine_refuses_is_logged_as_refused(
+    client: TestClient, records: list[logging.LogRecord]
+) -> None:
+    response = client.put(
+        "/v1/autonomy/level", json={"level": 3}, headers={"x-correlation-id": "corr-level-3"}
+    )
+    assert response.status_code == 422
+
+    (refusal,) = _refusals(records, "level")
+    assert refusal.levelno == logging.WARNING
+    assert (refusal.operation, refusal.outcome, refusal.status_code) == ("set", "refused", 422)  # type: ignore[attr-defined]
+    assert refusal.correlation_id == "corr-level-3"  # type: ignore[attr-defined]
+    assert refusal.actor is None  # type: ignore[attr-defined]
+    assert _changes(records, "level") == []
+
+
+def test_a_body_rejected_by_validation_is_logged_as_refused_without_its_values(
+    client: TestClient, records: list[logging.LogRecord]
+) -> None:
+    """Request validation answers before the handler runs, so this is the
+    path the handler alone could never log."""
+    response = client.post(
+        "/v1/autonomy/policies",
+        json={"name": "x", "effect": "do_whatever_it_likes", "match_category": "modify"},
+    )
+    assert response.status_code == 422
+
+    (refusal,) = _refusals(records, "policy")
+    assert (refusal.operation, refusal.status_code) == ("create", 422)  # type: ignore[attr-defined]
+    assert ["body", "effect"] in [entry["loc"] for entry in refusal.reason]  # type: ignore[attr-defined]
+    assert "do_whatever_it_likes" not in repr(refusal.reason)  # type: ignore[attr-defined]
+
+
+def test_writes_to_an_unknown_policy_are_logged_as_refused(
+    client: TestClient, records: list[logging.LogRecord]
+) -> None:
+    missing = uuid4()
+    assert (
+        client.patch(f"/v1/autonomy/policies/{missing}", json={"enabled": True}).status_code == 404
+    )
+    assert client.delete(f"/v1/autonomy/policies/{missing}").status_code == 404
+
+    refusals = _refusals(records, "policy")
+    assert [(r.operation, r.status_code) for r in refusals] == [("update", 404), ("delete", 404)]  # type: ignore[attr-defined]
+
+
+def test_a_refused_read_is_not_logged_as_a_refused_configuration_change(
+    client: TestClient, records: list[logging.LogRecord]
+) -> None:
+    assert client.get("/v1/autonomy/suggestions", params={"cursor": "not-ours"}).status_code == 422
+    assert [r for r in records if r.getMessage() == "autonomy configuration change refused"] == []
+
+
 # --- suggestion inbox --------------------------------------------------------
 
 

@@ -41,6 +41,8 @@ from typing import Annotated
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, HTTPException, Query, Request, status
+from fastapi.exceptions import RequestValidationError
+from fastapi.routing import APIRoute
 from nova_observability import get_logger
 
 from nova_autonomy_engine.api.schemas import (
@@ -95,7 +97,83 @@ from nova_autonomy_engine.repository.cursor import InvalidCursorError
 
 logger = get_logger("autonomy-engine")
 
-router = APIRouter(prefix="/v1/autonomy", tags=["autonomy"])
+#: The header `api-gateway` forwards (its `domain/envelope.py`; restated, not
+#: imported, per ADR-004). The gateway accepts a caller-supplied value and a
+#: direct caller sends none, so it ties a line to a request trace and proves
+#: nothing about who sent the request.
+_CORRELATION_ID_HEADER = "x-correlation-id"
+
+#: The routes that change this engine's authority, by route template.
+_CONFIGURATION_ROUTES = {
+    "/v1/autonomy/level": "level",
+    "/v1/autonomy/policies": "policy",
+    "/v1/autonomy/policies/{policy_id}": "policy",
+    "/v1/autonomy/permissions": "permissions",
+}
+_OPERATIONS = {"PUT": "set", "POST": "create", "PATCH": "update", "DELETE": "delete"}
+
+
+def _context(request: Request) -> dict[str, object]:
+    """What a configuration line is about, as far as this engine can know.
+
+    `user_id` is the target, resolved server-side (ADR-025). `actor` is always
+    None: `api-gateway` authenticates one shared session token and forwards no
+    principal, and a request reaching the engine directly carries none, so
+    the engine cannot tell who asked."""
+    return {
+        "correlation_id": request.headers.get(_CORRELATION_ID_HEADER),
+        "user_id": str(request.app.state.settings.primary_user_id),
+        "actor": None,
+    }
+
+
+def _configuration_refused(
+    request: Request, *, kind: str, status_code: int, reason: object
+) -> None:
+    logger.warning(
+        "autonomy configuration change refused",
+        extra={
+            "kind": kind,
+            "operation": _OPERATIONS[request.method],
+            "outcome": "refused",
+            "status_code": status_code,
+            "reason": reason,
+            **_context(request),
+        },
+    )
+
+
+class _ConfigurationRoute(APIRoute):
+    """Logs a refused write to a configuration route, then lets FastAPI answer
+    it exactly as before. A 422 from request validation is raised before the
+    handler runs, so the handler alone cannot log it."""
+
+    def get_route_handler(self):  # type: ignore[no-untyped-def]
+        handler = super().get_route_handler()
+        kind = _CONFIGURATION_ROUTES.get(self.path)
+        if kind is None or not self.methods & _OPERATIONS.keys():
+            return handler
+
+        async def logged(request: Request):  # type: ignore[no-untyped-def]
+            try:
+                return await handler(request)
+            except RequestValidationError as exc:
+                # Locations and error types only: the rejected values are the
+                # caller's input, not something this line needs to repeat.
+                reason = [{"loc": list(e["loc"]), "type": e["type"]} for e in exc.errors()]
+                _configuration_refused(request, kind=kind, status_code=422, reason=reason)
+                raise
+            except HTTPException as exc:
+                if 400 <= exc.status_code < 500:
+                    _configuration_refused(
+                        request, kind=kind, status_code=exc.status_code, reason=exc.detail
+                    )
+                raise
+
+        return logged
+
+
+router = APIRouter(prefix="/v1/autonomy", tags=["autonomy"], route_class=_ConfigurationRoute)
 
 _UNCONFIGURED_LEVEL = AutonomyLevel.OBSERVATION_ONLY
 """What an unconfigured instance behaves as. Bible Part 14's Level 0 -- *"NOVA
@@ -110,10 +188,21 @@ def _state(request: Request):  # type: ignore[no-untyped-def]
 def _configuration_changed(
     request: Request, *, kind: str, operation: str, **detail: object
 ) -> None:
-    """One log line and one count for each change to this engine's authority."""
+    """One log line and one count for each change to this engine's authority.
+
+    An operational log line, not an audit record: it goes to stdout and is
+    not persisted. The `*_before` values come from a read made before the
+    write, in a separate statement, so under a concurrent write they may not
+    be the value this write replaced."""
     logger.info(
         "autonomy configuration changed",
-        extra={"kind": kind, "operation": operation, **detail},
+        extra={
+            "kind": kind,
+            "operation": operation,
+            "outcome": "applied",
+            **detail,
+            **_context(request),
+        },
     )
     metrics = getattr(request.app.state, "metrics", None)
     if metrics is not None:
@@ -139,7 +228,12 @@ def _suggestion_decision(
 ) -> None:
     logger.info(
         "suggestion decision",
-        extra={"suggestion_id": str(suggestion_id), "decision": decision, "result": result},
+        extra={
+            "suggestion_id": str(suggestion_id),
+            "decision": decision,
+            "result": result,
+            **_context(request),
+        },
     )
 
 
