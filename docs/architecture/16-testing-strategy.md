@@ -66,6 +66,17 @@ logic.
 > percent; `domain/ranking.py` and `domain/simulation.py` had no test. They
 > now do, and it measures 90.77%. Locally, the gate applies only when
 > `COVERAGE_RCFILE` is set as CI sets it.
+>
+> **Correction, 2026-10-17.** The note above is kept as written, but its
+> rounding remark understates the defect: coverage.py decides the exit code
+> with `round(total, precision) < fail_under`, so at the default precision 0
+> any package from 84.5% up to 85% exited 0 while printing "FAIL … not
+> reached". Root `pyproject.toml` now sets `precision = 4`. Two decimals were
+> not enough: a package of 1,013 statements plus branches can measure 84.99506%,
+> which rounds to 85.00. At four decimals no total below 85% passes for any
+> package up to 100,000 units. `tools/tests/test_coverage_gate.py` asserts
+> that, asserts that 84.55% fails, and asserts that every `src/*/domain`
+> package's `test` script measures its `domain` with `--cov`.
 
 ## 2. Unit testing
 
