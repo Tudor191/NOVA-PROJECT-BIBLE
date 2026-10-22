@@ -3,8 +3,18 @@
 Every other test of this service replaces the Event Bus with a fake. That
 proves the bridge's bookkeeping, but not the property the service exists
 for: that an event published on the real broker reaches a subscribed
-browser, that a subject outside `PUBLIC_TOPICS` never does, and that an
-unsubscribe actually stops delivery at the broker.
+browser, that a subject outside `PUBLIC_TOPICS` never does, that an
+unsubscribe removes the gateway's subscription at the broker while the same
+connection keeps delivering its other topics, and that closing the browser
+connection removes every broker subscription it held.
+
+"At the broker" is read from the broker itself: this module starts its own
+NATS with monitoring enabled and counts subscriptions on `/subsz`, rather than
+inferring removal from frames that did not arrive.
+
+**Not covered: reconnecting after a broker restart.** A restarted container
+is mapped to a new host port, so a restart here would test reconnecting to a
+different address, which is not the scenario. It remains a recorded gap.
 
 So nothing here is a double. `create_app()` builds its bus from
 `NATS_URL`, exactly as in the composed stack, and its lifespan connects it;
@@ -24,6 +34,7 @@ import asyncio
 import json
 import threading
 import time
+import urllib.request
 from collections.abc import AsyncIterator, Iterator
 from datetime import UTC, datetime
 from typing import Any
@@ -35,6 +46,7 @@ from nova_contracts import EventEnvelope
 from nova_eventbus_sdk.backends.nats import NatsEventBus
 from nova_ws_gateway.config import Settings
 from nova_ws_gateway.main import create_app
+from testcontainers.nats import NatsContainer
 from websockets.asyncio.client import ClientConnection, connect
 from websockets.exceptions import InvalidStatus
 
@@ -42,6 +54,9 @@ pytestmark = pytest.mark.real_infra
 
 TOKEN = "ws-real-nats-token"
 PUBLIC = "communication.turn.received"
+#: A second public topic, kept subscribed while `PUBLIC` is unsubscribed: the
+#: positive control that the connection still delivers.
+CONTROL = "communication.intent.delivered"
 #: Matched by `events/subscribed.py`'s `communication.*` pattern, so the bus
 #: side would allow it -- but it is not in `PUBLIC_TOPICS`, so no browser
 #: may name it. Only the public allow-list stands between it and a client.
@@ -74,10 +89,20 @@ class _Server:
         self._thread.join(timeout=20)
 
 
+@pytest.fixture(scope="module")
+def monitored_nats() -> Iterator[NatsContainer]:
+    """The compose image, with monitoring on, so broker state can be read.
+    nova-testkit's shared `nats_container` runs `-js` only, which leaves the
+    monitoring endpoint off."""
+    container = NatsContainer("nats:2-alpine").with_command("-js -m 8222")
+    with container as started:
+        yield started
+
+
 @pytest.fixture
-def gateway(nats_container, monkeypatch: pytest.MonkeyPatch) -> Iterator[_Server]:  # type: ignore[no-untyped-def]
+def gateway(monitored_nats: NatsContainer, monkeypatch: pytest.MonkeyPatch) -> Iterator[_Server]:
     monkeypatch.setenv("EVENT_BUS_BACKEND", "nats")
-    monkeypatch.setenv("NATS_URL", nats_container.nats_uri())
+    monkeypatch.setenv("NATS_URL", monitored_nats.nats_uri())
     server = _Server(create_app(Settings(session_token=TOKEN)))
     server.start()
     try:
@@ -87,13 +112,33 @@ def gateway(nats_container, monkeypatch: pytest.MonkeyPatch) -> Iterator[_Server
 
 
 @pytest.fixture
-async def publisher(nats_container) -> AsyncIterator[NatsEventBus]:  # type: ignore[no-untyped-def]
-    bus = NatsEventBus(servers=nats_container.nats_uri())
+async def publisher(monitored_nats: NatsContainer) -> AsyncIterator[NatsEventBus]:
+    bus = NatsEventBus(servers=monitored_nats.nats_uri())
     await bus.connect()
     try:
         yield bus
     finally:
         await bus.close()
+
+
+def _broker_subscriptions(nats: NatsContainer, subject: str) -> int:
+    """How many subscriptions on exactly `subject` the broker holds now."""
+    url = (
+        f"http://{nats.get_container_host_ip()}:{nats.get_exposed_port(8222)}"
+        "/subsz?subs=1&limit=1024"
+    )
+    with urllib.request.urlopen(url, timeout=5) as response:
+        listed = json.load(response).get("subscriptions_list") or []
+    return sum(1 for sub in listed if sub["subject"] == subject)
+
+
+async def _await_broker(nats: NatsContainer, subject: str, expected: int) -> None:
+    """The broker applies SUB and UNSUB asynchronously; wait, bounded."""
+    deadline = time.monotonic() + 5
+    while (count := _broker_subscriptions(nats, subject)) != expected:
+        if time.monotonic() > deadline:
+            raise AssertionError(f"broker holds {count} subscriptions on {subject}, not {expected}")
+        await asyncio.sleep(0.05)
 
 
 def _envelope(subject: str) -> EventEnvelope:
@@ -189,22 +234,46 @@ async def test_an_internal_subject_never_reaches_the_browser_even_when_published
     assert delivered["topic"] == PUBLIC
 
 
-async def test_unsubscribing_stops_delivery_at_the_broker(
-    gateway: _Server, publisher: NatsEventBus
+async def test_unsubscribing_removes_the_subscription_at_the_broker(
+    gateway: _Server, publisher: NatsEventBus, monitored_nats: NatsContainer
 ) -> None:
     async with connect(_url(gateway), additional_headers=_cookie()) as ws:
         await _recv(ws)
         await _command(ws, "subscribe", [PUBLIC])
+        await _command(ws, "subscribe", [CONTROL])
+        await _await_broker(monitored_nats, PUBLIC, 1)
+        await _await_broker(monitored_nats, CONTROL, 1)
         await _deliver(publisher, ws, _envelope(PUBLIC))
         await _frames_within(ws, 0.3)  # drain retries' duplicates
 
         ack = await _command(ws, "unsubscribe", [PUBLIC])
         assert ack["type"] == "unsubscribed" and ack["topics"] == [PUBLIC]
+        # The broker itself no longer holds it; the other topic is untouched.
+        await _await_broker(monitored_nats, PUBLIC, 0)
+        assert _broker_subscriptions(monitored_nats, CONTROL) == 1
+
         for _ in range(5):
             await publisher.publish(_envelope(PUBLIC))
         after = await _frames_within(ws, 1.0)
+        # Positive control on the same connection: delivery still works, so
+        # the absence above is the unsubscribe, not a dead connection.
+        control = await _deliver(publisher, ws, _envelope(CONTROL))
 
-    assert [f for f in after if f.get("type") == "event"] == []
+    assert [f for f in after if f.get("topic") == PUBLIC] == []
+    assert control["topic"] == CONTROL
+
+
+async def test_closing_the_browser_connection_removes_its_broker_subscriptions(
+    gateway: _Server, monitored_nats: NatsContainer
+) -> None:
+    async with connect(_url(gateway), additional_headers=_cookie()) as ws:
+        await _recv(ws)
+        await _command(ws, "subscribe", [PUBLIC, CONTROL])
+        await _await_broker(monitored_nats, PUBLIC, 1)
+        await _await_broker(monitored_nats, CONTROL, 1)
+
+    await _await_broker(monitored_nats, PUBLIC, 0)
+    await _await_broker(monitored_nats, CONTROL, 0)
 
 
 async def test_an_unauthenticated_handshake_is_refused_before_any_subscription(

@@ -151,3 +151,10 @@ The default tier replaces the bus with a recording fake.
 runs a real uvicorn server and a real WebSocket client against a real NATS:
 delivery, the public allow-list and unsubscribe are all decided at the broker.
 It is in `real-infra-checks.yml`'s matrix.
+
+*(2026-10-17.)* "Decided at the broker" is now observed, not inferred: the
+module starts its own NATS with monitoring on and reads the broker's
+subscription count from `/subsz`. That shows an unsubscribe removing the
+subscription while another topic on the same connection still delivers, and
+closing a connection removing every subscription it held. **Not tested:**
+the bus reconnecting after a broker restart.
