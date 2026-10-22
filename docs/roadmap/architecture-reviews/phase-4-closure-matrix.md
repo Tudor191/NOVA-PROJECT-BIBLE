@@ -51,7 +51,13 @@ Thirteen are spelled exactly like a ratified label with another meaning:
 
 X-01 … X-09, N-01 … N-09 and R-01 … R-06 differ from TDD 4F.5's X-1 … X-9,
 TDD 4F.8's N-1 … N-9 and master scope's risks R-1 … R-6 only by the leading
-zero, and are qualified the same way.
+zero, and are qualified the same way. *(2026-10-22: R-07 and R-08 collide with
+nothing; master scope has no R-7 or R-8.)*
+
+*(2026-10-22.)* **The colliding labels are not findings at their source**, so
+no item is counted twice and none is missing: TDD 4F.5's X-1 … X-17 are its
+acceptance criteria (§11, l.500), and TDD 4F.8's N-1 … N-16 are its negative
+controls (§17, l.1307).
 
 Where the short form is already cited outside this document:
 
@@ -113,8 +119,77 @@ wording.
 notes from a read of the workflows and the run history.
 Nothing is reclassified and no count changes.
 
+**Revision, 2026-10-22, identities.** §0.1 traces every label this document
+defines, X-01 … X-22, N-01 … N-14 and R-01 … R-08, to the record or the
+repository evidence it rests on. One identity is unresolved (X-19). §3.8 adds
+R-07 and R-08, two `api-gateway` error-handling defects found while
+validating R-06's fix: **104 open, FIX 18**. Nothing is closed.
+
 Everything new here was produced by the implementing agent, so it is **not
 independent** (§0).
+
+### 0.1 Source identity of this document's labels *(added 2026-10-22)*
+
+**Prior record:** an earlier record names the item, and this label is an alias
+for it, counted once. **First recorded here:** no earlier record names it; the
+evidence is in the repository at `a7d52c1` unless stated, or on GitHub.
+
+| ID | Origin | Source record, or evidence | Identity |
+|---|---|---|---|
+| X-01 | Prior record | 4B Gate Review l.1469 (C-6) | Resolved: alias of 4B C-6 |
+| X-02 | Prior record | 4C Gate Review (`phase-4c2-agents-surface-gate-review.md`) l.781: *"milestone 4C.1 has no Gate Review document"* | Resolved; no ID at the source |
+| X-03 | Prior record | 4B Gate Review l.1470 (C-7); §7.2 l.791–801 | Resolved: alias of 4B C-7 |
+| X-04 | Prior record | 4B Gate Review l.418 (DEV-4) | Resolved: alias of 4B DEV-4 |
+| X-05 | First recorded here | `ws-gateway` `events/subscribed.py` l.28, l.49 | Resolved |
+| X-06 | Prior record | 4F.7 record l.502 (F-4F7-7); first reported in the 4C Gate Review l.383 | Resolved: alias of F-4F7-7 |
+| X-07 | Prior record | 4E Gate Review §13.1 row 1 (l.658); TDD 4E §0.1.8 | Resolved |
+| X-08 | Prior record | 4E Gate Review §13.1 row 2 (l.659); `routing.py` l.165–200 | Resolved by row. **The bare label is ambiguous at the source:** `routing.py` and two tests call this *"finding 3"* (4E Gate Review l.646–652). Cite the row |
+| X-09 | Prior record | 4E Gate Review §13.1 row 3 (l.660); TDD 4E §5 | Resolved by row; not the code's *"finding 3"* |
+| X-10 | Prior record | 4D Gate Review l.429: *"SLOC methodology Option A / Option B — open"* | Resolved; no ID at the source |
+| X-11 | First recorded here | No Phase 4 Gate Review in `architecture-reviews/` | Resolved by absence |
+| X-12 | First recorded here | No `docs/project-health/phase-4.md`, and no Phase 4 row in its master table | Resolved by absence |
+| X-13 | First recorded here | `docs/project-health/project-health-master.md` l.30: *"CONDITIONAL-GO (2026-09-07, final review), not merged."* | Resolved |
+| X-14 | First recorded here | `docs/roadmap/ENGINEERING_ROADMAP.md`, Phase 4 table (l.583 …); master scope l.59, AC-7's revised text | Resolved; one composite item |
+| X-15 | First recorded here | `README.md` l.69, l.78 | Resolved |
+| X-16 | First recorded here | Protocol (`main`) §8.2 l.627–640, §9.2, §10.1 | Sections resolved. **The stale values are not listed in the repository**; they were in a session report. D-A6's correction must list them |
+| X-17 | First recorded here | SAD 15 l.14 (branch protection), l.31 (`CODEOWNERS`); repository settings, read through the GitHub API | Resolved |
+| X-18 | First recorded here | SAD 15 l.44 (change-scope linter), l.84 (README lint), l.77 (squash-merge), against master scope l.1338 (merge commit) | Resolved |
+| **X-19** | First recorded here | *"Reconciliation §5.1"*: a 2026-10-15 session report, **outside the repository** | **UNRESOLVED.** Counted, as D-C11's subject, but not confirmed: the PR list and the 12 / 5 / 10 counts cannot be checked from the repository. Re-derive them from PRs #23–#41 before D-C11 names them |
+| X-20 | Prior record | TDD 4F.7 l.688 (K-7, which includes `observability.py` packaging) and l.689 (K-8) | Resolved: one item for K-7, K-8 and the packaging |
+| X-21 | First recorded here | SAD 15 §4 (l.39 …); §6 below | Resolved |
+| X-22 | First recorded here | GitHub run annotations on every run since 2026-10-19, e.g. run 39754932446 | Resolved |
+| N-01 | First recorded here | `infra/docker/docker-compose.local.yml` published ports, against doc 11 l.148–150 | Resolved |
+| N-02 | First recorded here | `autonomy-engine` `api/autonomy.py`: level, policy and grant writes with no log line. No 4D record names it | Resolved. Distinct from L-15 (`action-engine`) and L-19 (README) |
+| N-03 | First recorded here | `api-gateway` `domain/rate_limit.py` docstring | Resolved |
+| N-04 | First recorded here | `ws-gateway` README | Resolved |
+| N-05 | First recorded here | No `docs/design/phase-4/README.md` | Resolved |
+| N-06 | Prior record | 4B Gate Review l.419 (DEV-5) | Resolved: alias of 4B DEV-5 |
+| N-07 | First recorded here | The remote branch list | Resolved |
+| N-08 | First recorded here | Protocol §8.1; `nova-contracts` tests | Resolved |
+| N-09 | First recorded here | Every `create_histogram` call in 13 engines | Resolved |
+| N-10 | First recorded here | TDD 4A §2.3 l.85–87, against `domain/rate_limit.py` | Resolved |
+| N-11 | First recorded here | Doc 16 §1, against package-directory CI runs | Resolved |
+| N-12 | First recorded here | TDD 4A §7 l.319 | Resolved |
+| N-13 | First recorded here | TDD 4A §7 l.320 | Resolved |
+| N-14 | First recorded here | 4B Gate Review l.462–463; master scope l.1383 | Resolved |
+| R-01 | First recorded here | Doc 13 l.111; doc 17 l.27; `build-and-scan.yml` | Resolved |
+| R-02 | First recorded here | Run #150's annotation; `cognitive-state-panel.spec.ts` l.154 | Resolved |
+| R-03 | First recorded here | `ws-gateway` `api/stream.py` handshake; `api-gateway` `api/auth.py` l.66 | Resolved |
+| R-04 | First recorded here | TDD 4F l.781, against TDD 4F.8 l.582 and its negative control N-8 (l.1322) | Resolved |
+| R-05 | First recorded here | `pr-checks.yml` l.15–30; the workflow-run list for `phase-4` | Resolved |
+| R-06 | First recorded here | `domain/routing.py`, `api/forward.py`; the probe in §3.8; doc 11 l.148, master scope l.1266 | Resolved |
+| R-07 | First recorded here | `clients/upstream.py` l.97, l.103; `api/forward.py` invariant 3 | Resolved |
+| R-08 | First recorded here | `api/forward.py` l.124; `clients/upstream.py` l.102, l.104 | Resolved |
+
+**Labels that cannot be checked here.** R-01 … R-05 carry *"AUD-2"*, *"AUD-3"*,
+*"AUD-5"*, *"AUD-6"* and *"AUD-9"*: labels from a session report outside the
+repository. They are kept as written, and identity rests on the evidence above.
+
+**The items without an ID, verified 2026-10-22:**
+- demotion and INTERRUPTIONS: TDD 4F.P l.260 and TDD 4F l.1776;
+- more ingestion sources, and model-based authoring: TDD 4F.P l.259 and §30.8 (l.3008);
+- stale slice statuses, for example TDD 4F.4 l.21 (*"PR #32 is not merged"*);
+- slice declarations, and the "PR reviewed" ruling: the 4F.8 record §14.4 (l.1368, l.1377, l.1386), **present only on PR #42** (`6b0093b`). If #42 does not merge, the 4F closure PR must re-record both.
 
 ---
 
@@ -252,10 +327,11 @@ windows"*.
 
 ### 2.3 Rows and IDs
 
-§3 holds **83 data rows**: the 76 of 2026-10-17 (73 open, plus 3 rows of met
-criteria) and the 7 rows of §3.8. They carry **108 items**: 102 open and 6
-met. Six of the open items have no ID (§2.1). *(82 rows, 107 items and 101
-open until R-06 was recorded, 2026-10-19.)*
+§3 holds **85 data rows**: the 76 of 2026-10-17 (73 open, plus 3 rows of met
+criteria) and the 9 rows of §3.8. They carry **110 items**: 104 open and 6
+met. Six of the open items have no ID (§2.1). *(83 rows, 108 items and 102
+open until R-07 and R-08 were recorded, 2026-10-22; 82, 107 and 101 until
+R-06, 2026-10-19.)*
 
 **18 items are settled and unchanged**, all named:
 CF-1, CF-2, CF-3, CF-7 and CF-12 (4D Gate Review §21.9); L-7 and L-12 (4F.3
@@ -264,20 +340,20 @@ recorded only on PR #42; F-4F7-1, repaired under A-4F7-6 (a) (TDD 4F.P
 l.2409); and F-4F8-3, -6, -9, -13, -14 and -16, which are by design and
 **must be disclosed in the 4F Gate Review**.
 
-### 2.4 Where the 102 stand
+### 2.4 Where the 104 stand
 
 | Disposition | Count | IDs |
 |---|---|---|
 | CLOSED ON VERIFIED EVIDENCE | **0** | Nothing is merged |
-| FIX REQUIRED | **16** | Fix in an unmerged PR (status source: §1.2): L-8, L-16, L-19, F-4FP-6, F-4FP-10, N-03, N-04, N-05, N-08, N-11 (**fix incomplete**, §1.5), N-12, N-13, X-06 (**live scrape unverified**). No fix in any PR: R-01, R-02 (a fix is prepared, not pushed), R-06 (a fix is prepared, not pushed) |
+| FIX REQUIRED | **18** | Fix in an unmerged PR (status source: §1.2): L-8, L-16, L-19, F-4FP-6, F-4FP-10, N-03, N-04, N-05, N-08, N-11 (**fix incomplete**, §1.5), N-12, N-13, X-06 (**live scrape unverified**). No fix in any PR: R-01, R-02 (a fix is prepared, not pushed), R-06 (a fix is prepared, not pushed), R-07 (a fix is prepared, not pushed), R-08 (a fix is prepared, not pushed) |
 | DOCUMENTATION REQUIRED | **34** | L-1 … L-6, L-9, L-10, L-20 … L-25, L-27, L-28, L-30; CF-6, CF-9, CF-11; 4F.6 F-3, F-5; stale slice statuses; X-01, X-02, X-10 … X-16; N-07; R-04 |
 | USER DECISION REQUIRED | **52** | AC-3, AC-4; CF-4, CF-5, CF-8, CF-10; L-11, L-14, L-15, L-17, L-18; A-4F8-9; 4F.6 F-1, F-2, F-4, F-7; F-4F7-4, K-1, K-6; K-5, A-4F6-4, demotion/INTERRUPTIONS; FP-7/FP-15, FP-13, FP-18, A-4FP-14(b), more ingestion sources, model-based authoring; F-4FP-4, F-4FP-7; slice declarations; the "PR reviewed" ruling; X-03, X-04, X-05, X-07, X-08, X-09, X-17 … X-22; N-01, N-02, N-06, N-09, N-10, N-14; R-03, R-05 |
 | APPROVED DEFERRAL | **0** | No open item is fully discharged by a recorded approval. Only clauses are: AC-3's plan and trace (2026-09-06) and AC-4's clauses 2–3 (2026-09-07), with no receiving milestone named |
 | CARRY FORWARD WITH OWNER AND MILESTONE | **0** | Only L-15 names both (`action-engine`, "4F closure"; D-4F4-3), and its milestone is now, so it is a decision. Every other owner is **UNASSIGNED** |
 
-16 + 34 + 52 = **102**. *(101 before R-06.)*
+18 + 34 + 52 = **104**. *(102 before R-07 and R-08; 101 before R-06.)*
 
-**Unverified, and outside the 102:** AC-1, AC-2, AC-5, AC-6, AC-7 and AC-8
+**Unverified, and outside the 104:** AC-1, AC-2, AC-5, AC-6, AC-7 and AC-8
 at the final SHA (met at `a7d52c1`'s code); a live Prometheus scrape (X-06);
 the first ~5,767 lines of the 4F.8 E2E log, which the log tool cannot return.
 
@@ -421,6 +497,7 @@ recorded on PR #42.
 
 Labels R-01 … R-06 exist only in this document. They are not master scope's
 risks R-1 … R-6, which the Phase 4 Gate Review re-checks (TDD 4F.8 §20.2).
+*(2026-10-22: R-07 and R-08 likewise.)*
 
 | ID | Item | Evidence | Blocks | Class | Status |
 |---|---|---|---|---|---|
@@ -430,6 +507,8 @@ risks R-1 … R-6, which the Phase 4 Gate Review re-checks (TDD 4F.8 §20.2).
 | **R-04** (AUD-6) | TDD 4F §15 row 1 (*"Companion absent or crashed: sensors report unavailable"*) is not built. RS-3a and A-4F8-1 rule out inferring failure from silence, so a crashed companion leaves the sensor `running`, labelled with its `reported_at` | TDD 4F l.781; TDD 4F.8 l.582, l.1322; TDD 4F.7 §14 | 4F | DOCUMENT | A dated note on TDD 4F §15 that the ratified rule supersedes row 1 |
 | **R-05** (AUD-9) | `pr-checks.yml` never runs on `phase-4`: it triggers on `pull_request`, on `push` to `main` only, and on dispatch. It has 0 runs on `phase-4` | `pr-checks.yml` l.15–30; `list_workflow_runs` for `branch=phase-4` | GO | Decision | Add a `push` trigger for `phase-4`, or record the procedure: update each PR onto the fresh head before merging, and dispatch once at the final SHA |
 | **R-06** | `api-gateway` matched a route's prefix on the decoded path, then built the upstream URL with `httpx`, which removes `.` and `..` segments and reads a decoded `?` or `#` as a query or fragment. So an authenticated caller could reach any path on a fronted engine, `/internal/*` included: `GET /v1/digital-twin/../../internal/health` returned that engine's `/internal/health`, and `/v1/digital-twin/..%23` reached its `/v1`. A decoded NUL made `httpx` raise outside the client's error handling, an unstructured 500. A browser cannot send these paths, because it normalizes them | Local probe (2026-10-18/19) of the real app under uvicorn, h11 and httptools, with the real `UpstreamClient`, at `a7d52c1` and at #43's `d7876cb`: every dot segment, literal or percent-encoded (`%2E`, `%2F`, `%252E`), and every decoded `?` or `#` changed the forwarded path, and most left the prefix. `test_gateway.py`'s `/v1/../internal/health` case never reaches the app: the test client normalizes it | GO (condition 10: doc 11 l.148, master scope l.1266, `forward.py`'s first invariant) | FIX | A fix is prepared, not pushed: the route table refuses any path it could not forward unchanged, with 43 tests. Placement, #43 or its own PR, needs authorization |
+| **R-07** | A non-ASCII request header value reaches `httpx` as a `str`, and `httpx` raises `UnicodeEncodeError`, which is not an `httpx.HTTPError`. `UpstreamClient` does not catch it, so an authenticated request gets an unstructured 500 (*"Internal Server Error"*, no stack trace). An unauthenticated one gets the structured 401 first. That breaks `forward.py`'s invariant 3, *"A failure is always a structured error"* | `clients/upstream.py` l.97 and l.103, at `a7d52c1` and at #43's `d7876cb`; `httpx` 0.28.1. Local probe (2026-10-22) of the real app under uvicorn, h11 and httptools: header values `caf\xe9`, `\xff\xfe` and UTF-8 each gave the 500 | GO (`forward.py` invariant 3) | FIX | A fix is prepared for #43's branch, not pushed: headers are forwarded as the latin-1 bytes received, with an ASGI-level test that fails without it |
+| **R-08** | The 502 `upstream_unavailable` body carries `str(exc)`, which names the upstream's internal URL (*"upstream unreachable: http://…:8000/…"*), to an authenticated caller | `api/forward.py` l.124 and `clients/upstream.py` l.102 and l.104, at `a7d52c1`; the same at `d7876cb` | — (hygiene; no document requires it) | FIX | A fix is prepared for #43's branch, not pushed: the body names the engine's public name only and the log keeps the detail; a test fails without it |
 | **FP-18** | `action-engine`'s identity client does not translate a no-responders error; `autonomy-engine` then records `TIMEOUT` for an action that stopped before executing | TDD 4F.P l.1627 (*"the L-18 family"*; *"`action-engine` is a non-goal"*) | 4F | DEFER | **D-C15** (carry). Owner UNASSIGNED |
 
 ---
@@ -575,6 +654,12 @@ passes once the named PR merges.
      Playwright flaky count is reported, not gated.
    - **R-06.** Its fix comes before any X-08 deny in `api-gateway`; without it,
      a deny-list on a prefix is bypassable with `..`.
+
+   *Revised 2026-10-22.* A CI PR (the runner pin, Build & Scan dispatch and
+   `cargo audit`, if D-A10, D-A14 and D-A15 are approved) comes first, so every
+   later merge runs on one image. #43 carries R-06, R-07 and R-08 as separate
+   commits; R-07 and R-08 build on #43's own log line, so they cannot go
+   separately before it.
 4. **Post-merge verification** of `phase-4` (master scope §16 rule 7).
 5. **C-7** per D-A7, then the **Phase 4 Gate Review** (X-01, X-02, X-11, X-12,
    X-14, X-16 … X-19, AC re-verification at the final SHA). That is its own PR.
