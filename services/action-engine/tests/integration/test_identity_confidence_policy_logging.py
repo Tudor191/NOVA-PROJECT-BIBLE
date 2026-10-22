@@ -185,3 +185,87 @@ def test_reading_an_absent_policy_is_not_logged_as_a_refused_change(
     client, records = harness
     assert client.get(ROUTE).status_code == 404
     assert _refusals(records) == []
+
+
+def test_a_refusal_never_logs_a_tier_name_the_caller_chose(
+    harness: tuple[TestClient, _Records],
+) -> None:
+    client, records = harness
+    body = {"minimum_confidence_by_risk": {"sk-live-CALLER": "not-a-number"}}
+    assert client.put(ROUTE, json=body).status_code == 422
+
+    [refusal] = _refusals(records)
+    assert refusal.reason == [  # type: ignore[attr-defined]
+        {"loc": ["body", "minimum_confidence_by_risk", "<unrecognized>"], "type": "float_parsing"}
+    ]
+    assert "sk-live-CALLER" not in repr(refusal.__dict__)
+
+
+
+def test_a_refusal_lists_at_most_ten_validation_errors(
+    harness: tuple[TestClient, _Records],
+) -> None:
+    client, records = harness
+    body = {"minimum_confidence_by_risk": {f"tier-{n}": "x" for n in range(40)}}
+    assert client.put(ROUTE, json=body).status_code == 422
+
+    [refusal] = _refusals(records)
+    assert len(refusal.reason) == 11  # type: ignore[attr-defined]
+    assert refusal.reason[-1] == {"more": 30}  # type: ignore[attr-defined]
+
+
+def test_a_refusal_is_named_by_its_status_not_its_message(
+    harness: tuple[TestClient, _Records],
+) -> None:
+    client, records = harness
+    assert client.delete(ROUTE).status_code == 404
+    [refusal] = _refusals(records)
+    assert refusal.reason == "not_found"  # type: ignore[attr-defined]
+
+
+@pytest.mark.parametrize(
+    "header",
+    [
+        "A" * 129,
+        "corr\r\nlevel=CRITICAL actor=admin",
+        'corr", "actor": "admin',
+        "corr\u2028actor=admin",
+        "\x1b[31mcorr",
+        "-starts-with-a-dash",
+        "",
+    ],
+)
+def test_a_correlation_id_that_is_not_a_short_token_is_never_logged(
+    header: str, harness: tuple[TestClient, _Records]
+) -> None:
+    client, records = harness
+    # Sent as bytes, as a raw HTTP caller would; the server reads them as latin-1.
+    raw = header.encode("utf-8")
+    response = client.put(
+        ROUTE,
+        json={"minimum_confidence_by_risk": {"low": 0.6}},
+        headers={"x-correlation-id": raw},
+    )
+    assert response.status_code == 200
+    [change] = _changes(records)
+    assert change.correlation_id == "<invalid>"  # type: ignore[attr-defined]
+    if header:
+        received = raw.decode("latin-1")
+        assert not any(received in str(value) for value in change.__dict__.values())
+
+
+@pytest.mark.parametrize(
+    "header", ["0d1e2f30-0000-4000-8000-000000000001", "corr-policy-1", "a" * 128]
+)
+def test_a_short_token_correlation_id_is_logged_as_sent(
+    header: str, harness: tuple[TestClient, _Records]
+) -> None:
+    client, records = harness
+    response = client.put(
+        ROUTE,
+        json={"minimum_confidence_by_risk": {"low": 0.6}},
+        headers={"x-correlation-id": header},
+    )
+    assert response.status_code == 200
+    [change] = _changes(records)
+    assert change.correlation_id == header  # type: ignore[attr-defined]

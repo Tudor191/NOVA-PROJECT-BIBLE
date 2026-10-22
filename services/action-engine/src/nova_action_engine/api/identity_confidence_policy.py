@@ -32,6 +32,7 @@ open for the decision on a persisted audit.
 from __future__ import annotations
 
 import logging
+import re
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Request, status
@@ -49,6 +50,19 @@ logger = get_logger("action-engine.identity-confidence-policy")
 #: nothing about who sent the request.
 _CORRELATION_ID_HEADER = "x-correlation-id"
 
+#: A correlation id this engine will log as written: a UUID, as `api-gateway`
+#: mints, or another short token of these characters. Anything else -- too
+#: long, a line break, a quote, a control or non-ASCII character -- is logged as
+#: `"<invalid>"`, never as the caller's text.
+_TOKEN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,127}")
+_INVALID = "<invalid>"
+
+#: A refused request's validation errors beyond this many are counted, not listed.
+_MAX_REASONS = 10
+
+#: A refusal is named by its status, never its message.
+_STATUS_REASONS = {404: "not_found", 409: "conflict"}
+
 
 def _context(request: Request) -> dict[str, object]:
     """What a policy line is about, as far as this engine can know.
@@ -57,8 +71,11 @@ def _context(request: Request) -> dict[str, object]:
     None: `api-gateway` authenticates one shared session token and forwards no
     principal, and a request reaching the engine directly carries none, so
     the engine cannot tell who asked."""
+    correlation_id = request.headers.get(_CORRELATION_ID_HEADER)
+    if correlation_id is not None and _TOKEN.fullmatch(correlation_id) is None:
+        correlation_id = _INVALID
     return {
-        "correlation_id": request.headers.get(_CORRELATION_ID_HEADER),
+        "correlation_id": correlation_id,
         "user_id": str(_identity(request)),
         "actor": None,
     }
@@ -91,13 +108,31 @@ class _PolicyWriteRoute(APIRoute):
             try:
                 return await handler(request)
             except RequestValidationError as exc:
-                # Locations and error types only, never the rejected values.
-                reason = [{"loc": list(e["loc"]), "type": e["type"]} for e in exc.errors()]
+                # Locations and error types only, never the rejected values,
+                # and at most `_MAX_REASONS` of them; a risk-tier key is the
+                # caller's text, so it is not logged.
+                errors = exc.errors()
+                reason: list[dict[str, object]] = [
+                    {
+                        "loc": [
+                            part if part in _KNOWN_LOCATIONS else "<unrecognized>"
+                            for part in e["loc"]
+                        ],
+                        "type": e["type"],
+                    }
+                    for e in errors[:_MAX_REASONS]
+                ]
+                if len(errors) > _MAX_REASONS:
+                    reason.append({"more": len(errors) - _MAX_REASONS})
                 _log_refusal(request, status_code=422, reason=reason)
                 raise
             except HTTPException as exc:
                 if 400 <= exc.status_code < 500:
-                    _log_refusal(request, status_code=exc.status_code, reason=exc.detail)
+                    _log_refusal(
+                        request,
+                        status_code=exc.status_code,
+                        reason=_STATUS_REASONS.get(exc.status_code, f"http_{exc.status_code}"),
+                    )
                 raise
 
         return logged
@@ -179,6 +214,12 @@ class IdentityConfidencePolicyRequest(BaseModel):
                     "omit the tier instead, which leaves it at the fail-closed 1.0."
                 )
         return value
+
+
+#: The only names a refused request's error location may log as written.
+_KNOWN_LOCATIONS = frozenset(
+    {"body", "query", "path", *IdentityConfidencePolicyRequest.model_fields}
+)
 
 
 class IdentityConfidencePolicyResponse(BaseModel):

@@ -125,14 +125,16 @@ persisted audit, stays open.
 
 *(2026-10-17.)* A refused `PUT` or `DELETE` logs `identity-confidence policy
 change refused` at `WARNING`: a 422 from request validation, which includes
-the 0.75 ceiling and an unknown tier (reason = error locations and types,
-never the rejected values), and a 404 delete. Change and refusal lines carry:
+the 0.75 ceiling and an unknown tier (reason = at most 10 error locations and
+types, never a rejected value or a tier name the caller wrote), and a 404
+delete (reason = `not_found`, never the response's message). On a refusal,
+`operation` is the request method. Change and refusal lines carry:
 
 | Field | Source | Trust |
 |---|---|---|
 | `outcome` | `applied` or `refused`, set by the engine | Reliable |
 | `user_id` | `Settings.primary_user_id`, server-side | The target. Reliable under ADR-025 |
-| `correlation_id` | The `x-correlation-id` request header | Ties a line to a trace. `api-gateway` accepts a caller's value and a direct caller sends none (`null`), so it is not attribution |
+| `correlation_id` | The `x-correlation-id` request header, if it is a UUID or another token of at most 128 letters, digits and `._:-`; otherwise `"<invalid>"`, never the header's text | Ties a line to a trace. `api-gateway` accepts a caller's value and a direct caller sends none (`null`), so it is not attribution |
 | `actor` | Always `null` | **Not determinable**: the gateway authenticates one shared token and forwards no principal |
 
 `before` comes from a read made before the write, in a separate statement.
