@@ -109,6 +109,10 @@ reclassified and no count changes: the source for "demotion" (TDD 4F.P l.260,
 not TDD 4F §24.12); D-C12's §14.4, which exists only on PR #42; and CM:N-14's
 wording.
 
+**Revision, 2026-10-22, CI decisions.** D-A7, D-A10 and D-A14 gain dated
+notes from a read of the workflows and the run history.
+Nothing is reclassified and no count changes.
+
 Everything new here was produced by the implementing agent, so it is **not
 independent** (§0).
 
@@ -455,14 +459,14 @@ supported by the evidence; it is not a decision.
 | D-C16 | N-10, the rate limiter design | Ratify the narrowing for single-user Phase 4, and record it in TDD 4A | GO |
 | **D-C17 (new)** | R-03, `Origin` validation in both gateways | Accept for local single-user Phase 4, stating the threat model; add an allow-list before any networked or multi-user use | P (networked use) |
 | D-A1 … D-A6 | 4F.6 F-2 ratify; F-3/F-5; F-1 (a); F-4/F-7; DEV-4 ratify; protocol counts | As the reconciliation recommended | 4F, GO |
-| **D-A7** | C-7's counting unit | Strict: 10 consecutive PR Checks workflow runs, dispatched one after another at the final code SHA, each with E2E green and **0 flaky** (`failOnFlakyTests` in CI); then make the E2E job blocking. *(2026-10-19: "blocking" means a required check, which needs branch protection or a ruleset, D-C10. 4B Gate Review §7.2 counts runs across pushes and §15.1 against an unchanged SHA; this decision chooses between them.)* | GO |
+| **D-A7** | C-7's counting unit | Strict: 10 consecutive PR Checks workflow runs, dispatched one after another at the final code SHA, each with E2E green and **0 flaky** (`failOnFlakyTests` in CI); then make the E2E job blocking. *(2026-10-19: "blocking" means a required check, which needs branch protection or a ruleset, D-C10. 4B Gate Review §7.2 counts runs across pushes and §15.1 against an unchanged SHA; this decision chooses between them.)* *(2026-10-22: the counting rules, if approved: runs counted by run ID, first attempt only; each needs whole-run success, 0 failed, 0 flaky and only the declared skips. A failure, a flake or a timeout resets the count, and so does a cancellation after the E2E job starts. A code change restarts it. Dispatch takes a branch, not a SHA, so `phase-4` must not move during the series. The rule is stricter than either reading of the source, so it needs ratification, not only a choice)* | GO |
 | D-A8 | §9.1 applies to all eight subsystems | Yes, with N/A per cell | §5 |
 | **D-A9** | Traces (§9.1 item 10) | Keep the requirement; record repository-wide absence as a deferred gap; a propagation design for HTTP and the bus envelope is a contract decision | §5 |
-| D-A10 | Runner pin before 2026-10-19 | Pin `ubuntu-24.04` until Phase 4 is promoted | Final CI stability |
+| D-A10 | Runner pin before 2026-10-19 | Pin `ubuntu-24.04` until Phase 4 is promoted *(2026-10-22: the date has passed, and the migration is a rollout, so the pin still applies. Which image any run since 2026-10-19 used is not known here: the jobs API shows only the `ubuntu-latest` label. A pin on `phase-4` does not reach `main`'s nightly run, and pins neither the image's Rust nor its Docker)* | Final CI stability |
 | D-A11 | N-09 histogram buckets | One shared-package PR (a `nova-observability` View) | — |
 | D-A12 | Coverage: line (doc 16) or branch (config) | Keep branch, amend doc 16 (stricter, already passing) | — |
 | D-A13 | Waive the 4B TDD | Waive on the record, as 4C's was | GO |
-| **D-A14 (new)** | R-05, CI on `phase-4` | Record the procedure (update each PR onto the fresh head before merging; dispatch at the final SHA) rather than add a `push` trigger | GO |
+| **D-A14 (new)** | R-05, CI on `phase-4` | Record the procedure (update each PR onto the fresh head before merging; dispatch at the final SHA) rather than add a `push` trigger *(2026-10-22: `build-and-scan.yml` has no `workflow_dispatch`, so this procedure cannot run Build & Scan at the final SHA; the decision request's option (a) adds the trigger. No dispatched run exists in this repository, and `main`'s copies of `pr-checks.yml` and `build-and-scan.yml` lack the trigger, so whether a dispatch on `phase-4` runs is unverified until the owner's first attempt)* | GO |
 | **D-A15 (new)** | R-01: what `cargo audit` fails on | Fail on vulnerabilities, as `pip-audit` does; report yanked, unmaintained and unsound warnings without failing, each listed in the Gate Review (today: `yoke-derive` 0.8.3, yanked) | R-01's fix |
 | **D-A16 (new)** | PR #42 (the post-merge record of #41, and the only record that L-13 and L-26 are settled): merge it on its own, or leave it open to become the 4F closure PR | Merge it on its own, after its CI is refreshed at an updated head. The 4F closure PR is then a new documentation PR. Reuse would change #42's title, description and scope, and would hold the §16 rule 7 record until 4F closes | Step 2's #42; step 3's shape |
 
