@@ -1,6 +1,6 @@
 # Phase 4 — Master Closure Matrix
 
-**Date:** 2026-10-17, **revised 2026-10-18**. **Base:** `phase-4` = `a7d52c16eb704ea95d113f70a610f83d54710805`.
+**Date:** 2026-10-17, **revised 2026-10-18 and 2026-10-19**. **Base:** `phase-4` = `a7d52c16eb704ea95d113f70a610f83d54710805`.
 **Protocol:** [`PROJECT_PHASE_COMPLETION_PROTOCOL.md`](../../PROJECT_PHASE_COMPLETION_PROTOCOL.md),
 read in full from `origin/main` (sha256 `21185dd1…`, 1131 lines; identical on `phase-4`).
 
@@ -25,6 +25,46 @@ changed and CI ran on the exact head. Even then it stays **pending** until the
 change is merged, which needs the owner's authorization. Nothing is merged
 here.
 
+**Labels are this document's own, and some collide.** *(Added 2026-10-18;
+mapping added 2026-10-19.)* X-nn, N-nn and R-nn are closure-matrix labels. Their
+qualified form is `CM:X-nn`, `CM:N-nn` and `CM:R-nn`. This document keeps the
+short form, and **nothing is renamed**, because PRs and records already cite the
+short form. Outside this document, use the qualified form.
+
+Thirteen are spelled exactly like a ratified label with another meaning:
+
+| Qualified | Here | Same spelling in a source, a different item |
+|---|---|---|
+| CM:X-10 | SLOC method, Option A or B | TDD 4F.5 X-10: `autonomy-engine` publishes `action.execute` and nothing else |
+| CM:X-11 | The Phase 4 Gate Review | TDD 4F.5 X-11: the decision log records the Level-2 execution |
+| CM:X-12 | `phase-4.md` and its master row | TDD 4F.5 X-12: CF-10 is still unresolved |
+| CM:X-13 | 4B health records say "not merged" | TDD 4F.5 X-13: a dispatch with no reply in 15 s becomes a timeout |
+| CM:X-14 | Roadmap Phase 4 status | TDD 4F.5 X-14: a Level-2 request missing an execution field stays a suggestion |
+| CM:X-15 | Pre-4F README claims | TDD 4F.5 X-15: `permits_execution` is eligibility, not permission (cited in `domain/decision.py`) |
+| CM:X-16 | The protocol's stale counts | TDD 4F.5 X-16: trust `UNAVAILABLE` is never coerced into a pass |
+| CM:X-17 | SAD 15 §1 and §3 versus the repository | TDD 4F.5 X-17: `action.execute` is request/reply (cited in `test_autonomy_boundaries.py`) |
+| CM:N-10 | The rate-limiter deviation | TDD 4F.8 N-10: remove A-4F8-5's identity-confidence row |
+| CM:N-11 | The coverage gate was never enforced | TDD 4F.8 N-11: author `moderate` risk |
+| CM:N-12 | The 401 first-run flow was not built | TDD 4F.8 N-12: accept a `failed` EXECUTE as success |
+| CM:N-13 | The 429 retry hint | TDD 4F.8 N-13: a correlation miss attaches a guessed `project_id` (cited in `perception-engine`'s tests) |
+| CM:N-14 | 4B's TDD was never written or waived | TDD 4F.8 N-14: add a subject to `PUBLIC_TOPICS` |
+
+X-01 … X-09, N-01 … N-09 and R-01 … R-05 differ from TDD 4F.5's X-1 … X-9,
+TDD 4F.8's N-1 … N-9 and master scope's risks R-1 … R-6 only by the leading
+zero, and are qualified the same way.
+
+Where the short form is already cited outside this document:
+
+| Where (PR) | As written | Means |
+|---|---|---|
+| `api-gateway` `domain/rate_limit.py` (#43) | *"closure matrix (N-10)"* | CM:N-10 |
+| `autonomy-engine` README and `api/autonomy.py` (#45) | N-02 | CM:N-02 |
+| `pr-checks.yml` and doc 16 (#48) | *"finding N-11"* | CM:N-11. Not qualified there |
+| `perception-engine` `test_workspace_orchestration.py` (#49) | *"(N-13)"* | **TDD 4F.8 N-13**, not CM:N-13 |
+| `infra/observability/prometheus.yml`, `tools/tests/test_prometheus_targets.py` (#51) | X-06 | CM:X-06 |
+| `nova-contracts` `test_memory_events.py` (#52) | N-08 | CM:N-08 |
+| `docs/design/phase-4/README.md` (#53) | N-05, N-14 | CM:N-05, CM:N-14 |
+
 **Terms kept apart throughout.**
 
 | Term | Meaning |
@@ -44,9 +84,24 @@ silently:
   re-derived from the row classes, and "counted row by row" was wrong: §3 has
   76 data rows holding 101 IDs.
 - FP-18 is no longer an alias of L-18 (§3.3, §3.8).
-- X-03 (C-7), N-01 and N-11 are corrected. §3.8 adds R-01 … R-06.
+- X-03 (C-7), N-01 and N-11 are corrected. §3.8 adds R-01 … R-05 and FP-18.
 - §5 records the failure-mode mapping (B2); §3.4 records the scope check (B3).
 - §7 gives the merge order the prepared amendments require.
+
+**Revision, 2026-10-19.** Also corrected in place:
+
+- §0 maps the labels whose spelling collides with TDD 4F.5's and TDD 4F.8's,
+  and says what each short-form citation outside this document means. Nothing
+  is renamed.
+- §2.1 said three items have no ID; six have none. §2.3 counts items, not IDs.
+- §2.2: *"phase-4f preserved"* is a content of L-1 (a 4F closure condition),
+  not of the L-9 and L-10 sweeps. The count is unchanged.
+- The line above said *"R-01 … R-06"*; §3.8 held R-01 … R-05 and FP-18.
+- §4 adds D-C3, which §3 cited and §4 lacked, D-A15 (R-01's policy) and D-A16
+  (#42), and restates D-A1 … D-A6's recommendations, which pointed outside the
+  repository.
+- §7: #42's place and *"with 0 flaky"* are not settled; each waits on a
+  decision.
 
 Everything new here was produced by the implementing agent, so it is **not
 independent** (§0).
@@ -149,8 +204,10 @@ locally and **has not been pushed**.
   obligation is merged under one canonical ID, with the alias kept beside it.
 - **Contents are not counted twice.** An item a source places inside another
   obligation is counted once, as that obligation.
-- **Three items have no ID** and count once each: demotion/INTERRUPTIONS,
-  the slice-completion declarations, and the stale slice statuses.
+- **Six items have no ID** and count once each: demotion/INTERRUPTIONS,
+  the slice-completion declarations, the stale slice statuses, the "PR
+  reviewed" ruling, and TDD 4F.P §30.8's more ingestion sources and
+  model-based authoring.
 - **Defects in unmerged fixes are not new IDs** (§1.5). They are tracked
   under the obligation the PR remediates.
 - **Met acceptance criteria are counted separately**, as re-verification
@@ -165,6 +222,17 @@ locally and **has not been pushed**.
 | Matrix, 2026-10-17 | 95 | **+6** found (N-09 … N-14) |
 | **This revision, 2026-10-18** | **101** | **+1**: FP-18 split from L-18. Its source calls it *"the L-18 family"* (TDD 4F.P l.1627), not the same obligation, and its fix site and owner differ (`action-engine`'s identity client; L-18 is `nova-eventbus-sdk`'s). **+5** found: R-01 … R-05 (§3.8) |
 
+*Correction, 2026-10-18.* The 2026-10-15 row placed *"phase-4f preserved"*
+under L-9 and L-10. Its sources make it a **4F closure condition**: *"merged into
+`phase-4` by a normal two-parent merge; `phase-4f` preserved; `main` untouched"*
+(TDD 4F l.1215–1217; TDD 4F.8 §21.2 l.1453). It is counted as a content of L-1,
+so the count is unchanged. `phase-4f` exists at `c0798a1`, 4F.1's head, and is an
+ancestor of `phase-4`. Because the 4F slices merged into `phase-4` directly, the
+4F Gate Review must state how the merge condition is met. The other four
+contents of L-1 are as sourced: F-4F8-12 (4F.8 record l.568), the D-4F-1
+residual risk (TDD 4F.8 §20.1 item 2), the 4F.1 ledger gap (4F.2 record §11.3)
+and 4F.3 §8.3's wrong commit-message figures (protocol §11.1).
+
 **The two 101s are different sets.** The inventory's counted duplicates and
 met criteria; this one counts neither. The match is a coincidence.
 
@@ -175,7 +243,8 @@ windows"*.
 ### 2.3 Rows and IDs
 
 §3 holds **82 data rows**: the 76 of 2026-10-17 (73 open, plus 3 rows of met
-criteria) and the 6 rows of §3.8. They carry **107 IDs**: 101 open and 6 met.
+criteria) and the 6 rows of §3.8. They carry **107 items**: 101 open and 6
+met. Six of the open items have no ID (§2.1).
 
 **18 items are settled and unchanged**, all named:
 CF-1, CF-2, CF-3, CF-7 and CF-12 (4D Gate Review §21.9); L-7 and L-12 (4F.3
@@ -250,7 +319,7 @@ recorded on PR #42.
 
 | Row | Obligation | Evidence | Class | Action / status |
 |---|---|---|---|---|
-| L-1 | The 4F Gate Review, carrying F-4F8-12's exact-SHA citations, the D-4F-1 residual risk, the 4F.1 ledger gap, the 4F.3 §8.3 confirmation, and TDD 4F §21's six items | Absent | DOCUMENT (BLOCKED on the decisions in §4) | Written after the decisions; a docs-only PR |
+| L-1 | The 4F Gate Review, carrying F-4F8-12's exact-SHA citations, the D-4F-1 residual risk, the 4F.1 ledger gap, the 4F.3 §8.3 confirmation, TDD 4F §21's six items, and TDD 4F's closure conditions (two-parent merge, `phase-4f` preserved, `main` untouched; §2.2) | Absent | DOCUMENT (BLOCKED on the decisions in §4) | Written after the decisions; a docs-only PR |
 | L-2, L-3 | `phase-4f.md`; the master health row | Absent | DOCUMENT | With L-1 |
 | L-4 | Roadmap 4F row | Still *"2 of 8 slices merged"* | DOCUMENT | With L-1 |
 | L-5 | Master scope §17 SLOC and §2 methodology | Not reconciled | DOCUMENT | With L-1; §1.3 here holds the figures |
@@ -339,7 +408,8 @@ recorded on PR #42.
 
 ### 3.8 Found by the re-audit (2026-10-17/18)
 
-Labels R-nn exist only in this document.
+Labels R-01 … R-05 exist only in this document. They are not master scope's
+risks R-1 … R-6, which the Phase 4 Gate Review re-checks (TDD 4F.8 §20.2).
 
 | ID | Item | Evidence | Blocks | Class | Status |
 |---|---|---|---|---|---|
@@ -361,6 +431,7 @@ supported by the evidence; it is not a decision.
 |---|---|---|---|
 | **D-C1** | A-4F8-9's deliverables, and L-11 | Defer beyond Phase 4. Receiver: Phase 5 (topical) or UNASSIGNED, stated explicitly | 4F GO |
 | **D-C2** | AC-3 and AC-4 remaining clauses through closure and promotion; supervisor structure; the AC-3 approval clause test configuration | Defer the provider clauses (receiver UNASSIGNED). Classify supervisor structure as met by design, with a browser test added | Phase 4 GO |
+| **D-C3** | K-5 (Focus `signals_used` always empty), A-4F6-4 (TTL) and demotion/INTERRUPTIONS. No slice delivers them (B3, §3) | Approve each as a recorded narrowing of master scope §5's Focus System and Attention Layers, carried in the 4F Gate Review with a receiver named or UNASSIGNED. Without approval this is silent narrowing, a NO-GO (protocol §3.2) | 4F GO |
 | **D-C4** | N-01, host exposure | Bind published ports to `127.0.0.1` (a compose PR), and correct doc 11 | Phase 4 GO (condition 10) |
 | **D-C5** | L-15 and N-02: log line or persisted audit | Accept the log lines for Phase 4 (#45, #50), and carry the persisted audit to Phase 7 (topical) or UNASSIGNED | 4F |
 | D-C6 | L-17, re-enabling `AUTO_EXECUTE` | Accept: it is now logged, and bounded by risk ≤ low and deny-wins | 4F |
@@ -376,7 +447,7 @@ supported by the evidence; it is not a decision.
 | D-C16 | N-10, the rate limiter design | Ratify the narrowing for single-user Phase 4, and record it in TDD 4A | GO |
 | **D-C17 (new)** | R-03, `Origin` validation in both gateways | Accept for local single-user Phase 4, stating the threat model; add an allow-list before any networked or multi-user use | P (networked use) |
 | D-A1 … D-A6 | 4F.6 F-2 ratify; F-3/F-5; F-1 (a); F-4/F-7; DEV-4 ratify; protocol counts | As the reconciliation recommended | 4F, GO |
-| **D-A7** | C-7's counting unit | Strict: 10 consecutive PR Checks workflow runs, dispatched one after another at the final code SHA, each with E2E green and **0 flaky** (`failOnFlakyTests` in CI); then make the E2E job blocking | GO |
+| **D-A7** | C-7's counting unit | Strict: 10 consecutive PR Checks workflow runs, dispatched one after another at the final code SHA, each with E2E green and **0 flaky** (`failOnFlakyTests` in CI); then make the E2E job blocking. *(2026-10-19: "blocking" means a required check, which needs branch protection or a ruleset, D-C10. 4B Gate Review §7.2 counts runs across pushes and §15.1 against an unchanged SHA; this decision chooses between them.)* | GO |
 | D-A8 | §9.1 applies to all eight subsystems | Yes, with N/A per cell | §5 |
 | **D-A9** | Traces (§9.1 item 10) | Keep the requirement; record repository-wide absence as a deferred gap; a propagation design for HTTP and the bus envelope is a contract decision | §5 |
 | D-A10 | Runner pin before 2026-10-19 | Pin `ubuntu-24.04` until Phase 4 is promoted | Final CI stability |
@@ -384,6 +455,16 @@ supported by the evidence; it is not a decision.
 | D-A12 | Coverage: line (doc 16) or branch (config) | Keep branch, amend doc 16 (stricter, already passing) | — |
 | D-A13 | Waive the 4B TDD | Waive on the record, as 4C's was | GO |
 | **D-A14 (new)** | R-05, CI on `phase-4` | Record the procedure (update each PR onto the fresh head before merging; dispatch at the final SHA) rather than add a `push` trigger | GO |
+| **D-A15 (new)** | R-01: what `cargo audit` fails on | Fail on vulnerabilities, as `pip-audit` does; report yanked, unmaintained and unsound warnings without failing, each listed in the Gate Review (today: `yoke-derive` 0.8.3, yanked) | R-01's fix |
+| **D-A16 (new)** | PR #42 (the post-merge record of #41, and the only record that L-13 and L-26 are settled): merge it on its own, or leave it open to become the 4F closure PR | Merge it on its own, after its CI is refreshed at an updated head. The 4F closure PR is then a new documentation PR. Reuse would change #42's title, description and scope, and would hold the §16 rule 7 record until 4F closes | Step 2's #42; step 3's shape |
+
+*Added 2026-10-18.* D-A1 … D-A6 point to the reconciliation, a session
+report outside the repository. Their recommendations, restated so they can
+be checked here: **D-A1** ratify the 20 s bound; **D-A2** document F-3's
+retargeted test and F-5's wording; **D-A3** option (a), no contract change;
+**D-A4** defer F-4 and F-7, recorded; **D-A5** ratify DEV-4 as a narrowing;
+**D-A6** correct the protocol's counts as facts, separately from any policy
+change.
 
 **Authorizations, each separate and none given:** pushing to PR #42; reusing
 PR #42 as the 4F closure PR; each merge; opening the Phase 4 closure PR;
@@ -471,6 +552,15 @@ passes once the named PR merges.
    the slice statuses). It cites CI at the merged code head, under the
    docs-only rule. Reusing PR #42 needs its title, description and scope
    changed, and is the owner's choice.
+
+   *Corrected 2026-10-19.* Two statements in steps 2 and 3 are not settled
+   and are not rules:
+   - **#42.** Step 2 merges #42, and step 3 offers to reuse it. A merged PR is
+     finished and is never reused (protocol §11.1), so it cannot be both.
+     Until **D-A16** is decided, #42 is in neither step.
+   - **"with 0 flaky".** That is the rule only if **D-A7** is approved. Until
+     then, each merge needs every check run green at the updated head, and the
+     Playwright flaky count is reported, not gated.
 4. **Post-merge verification** of `phase-4` (master scope §16 rule 7).
 5. **C-7** per D-A7, then the **Phase 4 Gate Review** (X-01, X-02, X-11, X-12,
    X-14, X-16 … X-19, AC re-verification at the final SHA). That is its own PR.
