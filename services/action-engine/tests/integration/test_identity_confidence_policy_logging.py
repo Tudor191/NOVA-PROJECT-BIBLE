@@ -123,3 +123,65 @@ def test_a_refused_write_or_a_delete_of_nothing_logs_no_change(
     assert client.put(ROUTE, json={"minimum_confidence_by_risk": {"low": 0.9}}).status_code == 422
     assert client.delete(ROUTE).status_code == 404
     assert _changes(records) == []
+
+
+def _refusals(records: _Records) -> list[logging.LogRecord]:
+    return [
+        r for r in records.records if r.getMessage() == "identity-confidence policy change refused"
+    ]
+
+
+def test_a_change_names_its_request_its_target_and_that_no_actor_is_known(
+    harness: tuple[TestClient, _Records],
+) -> None:
+    client, records = harness
+    response = client.put(
+        ROUTE,
+        json={"minimum_confidence_by_risk": {"low": 0.6}},
+        headers={"x-correlation-id": "corr-policy-1"},
+    )
+    assert response.status_code == 200
+
+    [change] = _changes(records)
+    assert change.outcome == "applied"  # type: ignore[attr-defined]
+    assert change.correlation_id == "corr-policy-1"  # type: ignore[attr-defined]
+    assert change.user_id == response.json()["user_id"]  # type: ignore[attr-defined]
+    assert change.actor is None  # type: ignore[attr-defined]
+
+
+def test_a_threshold_above_the_ceiling_is_logged_as_refused_without_its_value(
+    harness: tuple[TestClient, _Records],
+) -> None:
+    """The 0.75 ceiling is request validation: the 422 is answered before the
+    handler runs, so this is the path the handler alone could never log."""
+    client, records = harness
+    response = client.put(
+        ROUTE,
+        json={"minimum_confidence_by_risk": {"low": 0.9}},
+        headers={"x-correlation-id": "corr-policy-2"},
+    )
+    assert response.status_code == 422
+
+    [refusal] = _refusals(records)
+    assert refusal.levelno == logging.WARNING
+    assert (refusal.operation, refusal.outcome, refusal.status_code) == ("put", "refused", 422)  # type: ignore[attr-defined]
+    assert refusal.correlation_id == "corr-policy-2"  # type: ignore[attr-defined]
+    assert refusal.actor is None  # type: ignore[attr-defined]
+    assert ["body", "minimum_confidence_by_risk"] in [e["loc"] for e in refusal.reason]  # type: ignore[attr-defined]
+    assert "0.9" not in repr(refusal.reason)  # type: ignore[attr-defined]
+
+
+def test_a_delete_of_nothing_is_logged_as_refused(harness: tuple[TestClient, _Records]) -> None:
+    client, records = harness
+    assert client.delete(ROUTE).status_code == 404
+
+    [refusal] = _refusals(records)
+    assert (refusal.operation, refusal.status_code) == ("delete", 404)  # type: ignore[attr-defined]
+
+
+def test_reading_an_absent_policy_is_not_logged_as_a_refused_change(
+    harness: tuple[TestClient, _Records],
+) -> None:
+    client, records = harness
+    assert client.get(ROUTE).status_code == 404
+    assert _refusals(records) == []

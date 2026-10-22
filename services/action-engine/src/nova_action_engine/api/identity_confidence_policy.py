@@ -35,13 +35,77 @@ import logging
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Request, status
+from fastapi.exceptions import RequestValidationError
+from fastapi.routing import APIRoute
 from nova_contracts.events.planning import RiskLevel
 from nova_observability import get_logger
 from pydantic import BaseModel, Field, field_validator
 
-router = APIRouter(prefix="/v1/action", tags=["identity-confidence-policy"])
-
 logger = get_logger("action-engine.identity-confidence-policy")
+
+#: The header `api-gateway` forwards (its `domain/envelope.py`; restated, not
+#: imported, per ADR-004). The gateway accepts a caller-supplied value and a
+#: direct caller sends none, so it ties a line to a request trace and proves
+#: nothing about who sent the request.
+_CORRELATION_ID_HEADER = "x-correlation-id"
+
+
+def _context(request: Request) -> dict[str, object]:
+    """What a policy line is about, as far as this engine can know.
+
+    `user_id` is the target, resolved server-side (ADR-025). `actor` is always
+    None: `api-gateway` authenticates one shared session token and forwards no
+    principal, and a request reaching the engine directly carries none, so
+    the engine cannot tell who asked."""
+    return {
+        "correlation_id": request.headers.get(_CORRELATION_ID_HEADER),
+        "user_id": str(_identity(request)),
+        "actor": None,
+    }
+
+
+def _log_refusal(request: Request, *, status_code: int, reason: object) -> None:
+    logger.warning(
+        "identity-confidence policy change refused",
+        extra={
+            "operation": request.method.lower(),
+            "outcome": "refused",
+            "status_code": status_code,
+            "reason": reason,
+            **_context(request),
+        },
+    )
+
+
+class _PolicyWriteRoute(APIRoute):
+    """Logs a refused `PUT` or `DELETE`, then lets FastAPI answer it exactly as
+    before. The 0.75 ceiling and the tier check are request validation, which
+    answers 422 before the handler runs, so the handler alone cannot log it."""
+
+    def get_route_handler(self):  # type: ignore[no-untyped-def]
+        handler = super().get_route_handler()
+        if not self.methods & {"PUT", "DELETE"}:
+            return handler
+
+        async def logged(request: Request):  # type: ignore[no-untyped-def]
+            try:
+                return await handler(request)
+            except RequestValidationError as exc:
+                # Locations and error types only, never the rejected values.
+                reason = [{"loc": list(e["loc"]), "type": e["type"]} for e in exc.errors()]
+                _log_refusal(request, status_code=422, reason=reason)
+                raise
+            except HTTPException as exc:
+                if 400 <= exc.status_code < 500:
+                    _log_refusal(request, status_code=exc.status_code, reason=exc.detail)
+                raise
+
+        return logged
+
+
+router = APIRouter(
+    prefix="/v1/action", tags=["identity-confidence-policy"], route_class=_PolicyWriteRoute
+)
 
 _FAIL_CLOSED = 1.0
 """What stage 3 uses for a tier absent from the map, or when no row exists."""
@@ -144,8 +208,16 @@ def _loosened(before: dict[str, float] | None, after: dict[str, float] | None) -
 
 
 def _log_change(
-    *, operation: str, before: dict[str, float] | None, after: dict[str, float] | None
+    request: Request,
+    *,
+    operation: str,
+    before: dict[str, float] | None,
+    after: dict[str, float] | None,
 ) -> None:
+    """An operational log line, not an audit record: stdout only, nothing
+    persisted (D-4F4-3, L-15). `before` is read in a separate statement
+    before the write, so under a concurrent write it may not be the map this
+    write replaced."""
     loosened = _loosened(before, after)
     logger.log(
         logging.WARNING if loosened else logging.INFO,
@@ -155,6 +227,8 @@ def _log_change(
             "before": before,
             "after": after,
             "loosened_tiers": loosened,
+            "outcome": "applied",
+            **_context(request),
         },
     )
 
@@ -203,6 +277,7 @@ async def put_identity_confidence_policy(
         )
     )
     _log_change(
+        request,
         operation="create" if previous is None else "replace",
         before=previous.minimum_confidence_by_risk if previous is not None else None,
         after=stored.minimum_confidence_by_risk,
@@ -231,6 +306,7 @@ async def delete_identity_confidence_policy(request: Request) -> None:
             detail="no identity-confidence policy is configured",
         )
     _log_change(
+        request,
         operation="delete",
         before=previous.minimum_confidence_by_risk if previous is not None else None,
         after=None,
