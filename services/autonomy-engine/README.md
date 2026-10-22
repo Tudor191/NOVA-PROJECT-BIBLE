@@ -131,8 +131,8 @@ Shared packages: `nova-contracts`, `nova-eventbus-sdk`, `nova-service-kit`
 | Log message | When |
 |---|---|
 | `autonomy configuration changed` | Every level, policy or permission change, with the values **before and after**, `outcome=applied` |
-| `autonomy configuration change refused` (WARNING) | Every refused write to those routes: request validation (422, reason = error locations and types, never the rejected values), an unselectable level (422) and an unknown policy (404) |
-| `suggestion decision` | Every inbox decision attempt and its result, including refusals |
+| `autonomy configuration change refused` (WARNING) | Every refused write to those routes: request validation (422; reason = at most 10 error locations and types, never a rejected value or a name the caller chose), an unselectable level (422) and an unknown policy (404), each named by its error class or status, never its message |
+| `suggestion decision` | Every inbox decision attempt and its result, with `outcome` and `status_code`. A refusal is logged at WARNING, including a body that fails validation (422) and a suggestion removed mid-request (404) |
 | `autonomy decision recorded` | A triggered decision, with `event_id`, `correlation_id`, `subject_id`, `outcome` |
 | `autonomy.decision.requested rejected/degraded ...` | The trigger's refusal and degraded paths (existing) |
 
@@ -146,7 +146,7 @@ carries:
 | Field | Source | Trust |
 |---|---|---|
 | `user_id` | `Settings.primary_user_id`, server-side | The target. Reliable under ADR-025 |
-| `correlation_id` | The `x-correlation-id` request header | Ties a line to a trace. `api-gateway` accepts a caller's value and a direct caller sends none (`null`), so it is not attribution |
+| `correlation_id` | The `x-correlation-id` request header, if it is a UUID or another token of at most 128 letters, digits and `._:-`; otherwise `"<invalid>"`, never the header's text | Ties a line to a trace. `api-gateway` accepts a caller's value and a direct caller sends none (`null`), so it is not attribution |
 | `actor` | Always `null` | **Not determinable**: the gateway authenticates one shared token and forwards no principal |
 
 The `*_before` values come from a read made before the write, in a separate

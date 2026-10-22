@@ -35,6 +35,7 @@ from nova_autonomy_engine.domain.models import (
     PermissionCategory,
     PermissionGrant,
 )
+from nova_autonomy_engine.domain.ports import SuggestionNotFoundError
 from nova_autonomy_engine.observability import DECISION_OUTCOMES, create_metrics
 from nova_contracts import EventEnvelope
 from nova_contracts.events.planning import RiskLevel
@@ -406,3 +407,156 @@ def test_every_outcome_label_emitted_is_from_the_bounded_set(client: TestClient)
         if line.startswith("autonomy_decisions_total{"):
             outcome = re.search(r'outcome="([^"]*)"', line)
             assert outcome is not None and outcome.group(1) in DECISION_OUTCOMES
+
+
+
+# --- what a line may carry: never the caller's text ---------------------------
+
+
+def test_a_refusal_never_logs_a_name_or_value_the_caller_chose(
+    client: TestClient, records: list[logging.LogRecord]
+) -> None:
+    body = {"name": "x", "effect": "deny", "match_category": "modify", "sk-live-CALLER": "hunter2"}
+    assert client.post("/v1/autonomy/policies", json=body).status_code == 422
+    assert client.put("/v1/autonomy/level", json={"level": 987654321}).status_code == 422
+    assert client.delete(f"/v1/autonomy/policies/{uuid4()}").status_code == 404
+
+    (policy, missing), (level,) = _refusals(records, "policy"), _refusals(records, "level")
+    assert policy.reason == [{"loc": ["body", "<unrecognized>"], "type": "extra_forbidden"}]  # type: ignore[attr-defined]
+    assert level.reason == "LevelNotDefinedError"  # type: ignore[attr-defined]
+    assert missing.reason == "not_found"  # type: ignore[attr-defined]
+    logged = repr([(r.getMessage(), r.__dict__) for r in records])
+    for text in ("sk-live-CALLER", "hunter2", "987654321", "no such policy"):
+        assert text not in logged
+
+
+def test_a_refusal_lists_at_most_ten_validation_errors(
+    client: TestClient, records: list[logging.LogRecord]
+) -> None:
+    grants = [{"category": f"not-a-category-{n}"} for n in range(40)]
+    assert client.put("/v1/autonomy/permissions", json={"grants": grants}).status_code == 422
+
+    (refusal,) = _refusals(records, "permissions")
+    assert len(refusal.reason) == 11  # type: ignore[attr-defined]
+    assert refusal.reason[-1]["more"] > 0  # type: ignore[attr-defined]
+    assert "not-a-category" not in repr(refusal.__dict__)
+
+
+@pytest.mark.parametrize(
+    "header",
+    [
+        "A" * 129,
+        "corr\r\nlevel=CRITICAL actor=admin",
+        'corr", "actor": "admin',
+        "corr\u2028actor=admin",
+        "\x1b[31mcorr",
+        "-starts-with-a-dash",
+        "",
+    ],
+)
+def test_a_correlation_id_that_is_not_a_short_token_is_never_logged(
+    header: str, client: TestClient, records: list[logging.LogRecord]
+) -> None:
+    # Sent as bytes, as a raw HTTP caller would; the server reads them as latin-1.
+    raw = header.encode("utf-8")
+    response = client.put(
+        "/v1/autonomy/level", json={"level": 1}, headers={"x-correlation-id": raw}
+    )
+    assert response.status_code == 200
+    (change,) = _changes(records, "level")
+    assert change.correlation_id == "<invalid>"  # type: ignore[attr-defined]
+    if header:
+        received = raw.decode("latin-1")
+        assert not any(received in str(value) for value in change.__dict__.values())
+
+
+@pytest.mark.parametrize(
+    "header", ["0d1e2f30-0000-4000-8000-000000000001", "corr-level-1", "a" * 128]
+)
+def test_a_short_token_correlation_id_is_logged_as_sent(
+    header: str, client: TestClient, records: list[logging.LogRecord]
+) -> None:
+    headers = {"x-correlation-id": header}
+    assert client.put("/v1/autonomy/level", json={"level": 1}, headers=headers).status_code == 200
+    (change,) = _changes(records, "level")
+    assert change.correlation_id == header  # type: ignore[attr-defined]
+
+
+def test_a_policy_capability_class_is_logged_only_as_a_short_identifier(
+    client: TestClient, records: list[logging.LogRecord]
+) -> None:
+    for capability_class in ("git", "rm -rf / # sk-live-CALLER"):
+        body = {
+            "name": "x",
+            "effect": "require_approval",
+            "match_category": "execute",
+            "match_capability_class": capability_class,
+        }
+        assert client.post("/v1/autonomy/policies", json=body).status_code == 201
+
+    plain, written = [c.policy_after["capability_class"] for c in _changes(records, "policy")]  # type: ignore[attr-defined]
+    assert (plain, written) == ("git", "<unrecognized>")
+    assert "sk-live-CALLER" not in repr([r.__dict__ for r in records])
+
+
+# --- every decision attempt, with its outcome and status ---------------------
+
+
+def _decisions(records: list[logging.LogRecord]) -> list[tuple[object, ...]]:
+    return [
+        (r.result, r.outcome, r.status_code, r.levelno)  # type: ignore[attr-defined]
+        for r in records
+        if r.getMessage() == "suggestion decision"
+    ]
+
+
+async def test_every_decision_line_says_whether_it_was_applied_and_with_what_status(
+    client: TestClient,
+    repository: FakeAutonomyRepository,
+    settings: Settings,
+    records: list[logging.LogRecord],
+) -> None:
+    suggestion = await _seed_suggestion(repository, settings)
+    url = f"/v1/autonomy/suggestions/{suggestion.id}/decide"
+    assert client.post(url, json={"decision": "reject"}).status_code == 200
+    assert client.post(url, json={"decision": "reject"}).status_code == 409
+    unknown = f"/v1/autonomy/suggestions/{uuid4()}/decide"
+    assert client.post(unknown, json={"decision": "reject"}).status_code == 404
+
+    assert _decisions(records) == [
+        ("rejected", "applied", 200, logging.INFO),
+        ("refused_already_decided", "refused", 409, logging.WARNING),
+        ("not_found", "refused", 404, logging.WARNING),
+    ]
+
+
+def test_a_decision_body_rejected_by_validation_is_logged_as_refused(
+    client: TestClient, records: list[logging.LogRecord]
+) -> None:
+    response = client.post(
+        f"/v1/autonomy/suggestions/{uuid4()}/decide", json={"decision": "maybe-CALLER"}
+    )
+    assert response.status_code == 422
+
+    assert _decisions(records) == [("refused_invalid_request", "refused", 422, logging.WARNING)]
+    (refusal,) = [r for r in records if r.getMessage() == "suggestion decision"]
+    assert (refusal.decision, refusal.suggestion_id) == (None, None)  # type: ignore[attr-defined]
+    assert "maybe-CALLER" not in repr(refusal.__dict__)
+
+
+async def test_a_suggestion_removed_mid_request_is_logged_as_refused(
+    client: TestClient,
+    repository: FakeAutonomyRepository,
+    settings: Settings,
+    records: list[logging.LogRecord],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    suggestion = await _seed_suggestion(repository, settings)
+
+    async def removed(*_: object, **__: object) -> None:
+        raise SuggestionNotFoundError(str(suggestion.id))
+
+    monkeypatch.setattr(repository, "decide_suggestion", removed)
+    url = f"/v1/autonomy/suggestions/{suggestion.id}/decide"
+    assert client.post(url, json={"decision": "reject"}).status_code == 404
+    assert _decisions(records) == [("not_found", "refused", 404, logging.WARNING)]
