@@ -5,7 +5,10 @@ this module is responsible for holding, all of them load-bearing:
 
 1. **`/internal/*` is never routable** (doc 11 §3). The route table refuses
    any prefix outside `/v1/`, and this router is mounted only on `/v1`, so
-   there is no path from a browser to an engine's internal RPC surface.
+   there is no path from a browser to an engine's internal RPC surface. It
+   also refuses any path it could not forward unchanged (`is_canonical`), so
+   no caller can leave a prefix with `..` once `httpx` builds the URL
+   (closure matrix R-06).
 2. **Every request is authenticated** (D-3) before any upstream call is
    made, so an unauthenticated caller cannot even probe which engines exist.
 3. **A failure is always a structured error**, never an empty success.
