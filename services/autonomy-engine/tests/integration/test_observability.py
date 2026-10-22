@@ -34,8 +34,12 @@ from nova_autonomy_engine.domain.models import (
     AutonomyLevel,
     PermissionCategory,
     PermissionGrant,
+    SuggestionStatus,
 )
-from nova_autonomy_engine.domain.ports import SuggestionNotFoundError
+from nova_autonomy_engine.domain.ports import (
+    SuggestionAlreadyDecidedError,
+    SuggestionNotFoundError,
+)
 from nova_autonomy_engine.observability import DECISION_OUTCOMES, create_metrics
 from nova_contracts import EventEnvelope
 from nova_contracts.events.planning import RiskLevel
@@ -560,3 +564,34 @@ async def test_a_suggestion_removed_mid_request_is_logged_as_refused(
     url = f"/v1/autonomy/suggestions/{suggestion.id}/decide"
     assert client.post(url, json={"decision": "reject"}).status_code == 404
     assert _decisions(records) == [("not_found", "refused", 404, logging.WARNING)]
+
+
+async def test_approving_what_a_gate_denies_is_logged_as_refused(
+    client: TestClient,
+    repository: FakeAutonomyRepository,
+    settings: Settings,
+    records: list[logging.LogRecord],
+) -> None:
+    # No permission grant, so the permission gate denies an approval.
+    suggestion = await _seed_suggestion(repository, settings)
+    url = f"/v1/autonomy/suggestions/{suggestion.id}/decide"
+    assert client.post(url, json={"decision": "approve"}).status_code == 409
+    assert _decisions(records) == [("refused_permission_gate", "refused", 409, logging.WARNING)]
+
+
+async def test_a_suggestion_decided_mid_request_is_logged_as_refused(
+    client: TestClient,
+    repository: FakeAutonomyRepository,
+    settings: Settings,
+    records: list[logging.LogRecord],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    suggestion = await _seed_suggestion(repository, settings)
+
+    async def decided(*_: object, **__: object) -> None:
+        raise SuggestionAlreadyDecidedError(suggestion.id, SuggestionStatus.APPROVED)
+
+    monkeypatch.setattr(repository, "decide_suggestion", decided)
+    url = f"/v1/autonomy/suggestions/{suggestion.id}/decide"
+    assert client.post(url, json={"decision": "reject"}).status_code == 409
+    assert _decisions(records) == [("refused_already_decided", "refused", 409, logging.WARNING)]
