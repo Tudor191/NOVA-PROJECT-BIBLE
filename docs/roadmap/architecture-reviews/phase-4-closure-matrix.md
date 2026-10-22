@@ -49,7 +49,7 @@ Thirteen are spelled exactly like a ratified label with another meaning:
 | CM:N-13 | The 429 retry hint | TDD 4F.8 N-13: a correlation miss attaches a guessed `project_id` (cited in `perception-engine`'s tests) |
 | CM:N-14 | 4B's TDD was never written or waived | TDD 4F.8 N-14: add a subject to `PUBLIC_TOPICS` |
 
-X-01 … X-09, N-01 … N-09 and R-01 … R-05 differ from TDD 4F.5's X-1 … X-9,
+X-01 … X-09, N-01 … N-09 and R-01 … R-06 differ from TDD 4F.5's X-1 … X-9,
 TDD 4F.8's N-1 … N-9 and master scope's risks R-1 … R-6 only by the leading
 zero, and are qualified the same way.
 
@@ -97,6 +97,7 @@ silently:
 - §2.2: *"phase-4f preserved"* is a content of L-1 (a 4F closure condition),
   not of the L-9 and L-10 sweeps. The count is unchanged.
 - The line above said *"R-01 … R-06"*; §3.8 held R-01 … R-05 and FP-18.
+- §3.8 adds R-06, the gateway's dot-segment forwarding: 102 open, FIX 16.
 - §4 adds D-C3, which §3 cited and §4 lacked, D-A15 (R-01's policy) and D-A16
   (#42), and restates D-A1 … D-A6's recommendations, which pointed outside the
   repository.
@@ -242,9 +243,10 @@ windows"*.
 
 ### 2.3 Rows and IDs
 
-§3 holds **82 data rows**: the 76 of 2026-10-17 (73 open, plus 3 rows of met
-criteria) and the 6 rows of §3.8. They carry **107 items**: 101 open and 6
-met. Six of the open items have no ID (§2.1).
+§3 holds **83 data rows**: the 76 of 2026-10-17 (73 open, plus 3 rows of met
+criteria) and the 7 rows of §3.8. They carry **108 items**: 102 open and 6
+met. Six of the open items have no ID (§2.1). *(82 rows, 107 items and 101
+open until R-06 was recorded, 2026-10-19.)*
 
 **18 items are settled and unchanged**, all named:
 CF-1, CF-2, CF-3, CF-7 and CF-12 (4D Gate Review §21.9); L-7 and L-12 (4F.3
@@ -253,20 +255,20 @@ recorded only on PR #42; F-4F7-1, repaired under A-4F7-6 (a) (TDD 4F.P
 l.2409); and F-4F8-3, -6, -9, -13, -14 and -16, which are by design and
 **must be disclosed in the 4F Gate Review**.
 
-### 2.4 Where the 101 stand
+### 2.4 Where the 102 stand
 
 | Disposition | Count | IDs |
 |---|---|---|
 | CLOSED ON VERIFIED EVIDENCE | **0** | Nothing is merged |
-| FIX REQUIRED | **15** | Fix in an unmerged PR (status source: §1.2): L-8, L-16, L-19, F-4FP-6, F-4FP-10, N-03, N-04, N-05, N-08, N-11 (**fix incomplete**, §1.5), N-12, N-13, X-06 (**live scrape unverified**). No fix in any PR: R-01, R-02 (a fix is prepared, not pushed) |
+| FIX REQUIRED | **16** | Fix in an unmerged PR (status source: §1.2): L-8, L-16, L-19, F-4FP-6, F-4FP-10, N-03, N-04, N-05, N-08, N-11 (**fix incomplete**, §1.5), N-12, N-13, X-06 (**live scrape unverified**). No fix in any PR: R-01, R-02 (a fix is prepared, not pushed), R-06 (a fix is prepared, not pushed) |
 | DOCUMENTATION REQUIRED | **34** | L-1 … L-6, L-9, L-10, L-20 … L-25, L-27, L-28, L-30; CF-6, CF-9, CF-11; 4F.6 F-3, F-5; stale slice statuses; X-01, X-02, X-10 … X-16; N-07; R-04 |
 | USER DECISION REQUIRED | **52** | AC-3, AC-4; CF-4, CF-5, CF-8, CF-10; L-11, L-14, L-15, L-17, L-18; A-4F8-9; 4F.6 F-1, F-2, F-4, F-7; F-4F7-4, K-1, K-6; K-5, A-4F6-4, demotion/INTERRUPTIONS; FP-7/FP-15, FP-13, FP-18, A-4FP-14(b), more ingestion sources, model-based authoring; F-4FP-4, F-4FP-7; slice declarations; the "PR reviewed" ruling; X-03, X-04, X-05, X-07, X-08, X-09, X-17 … X-22; N-01, N-02, N-06, N-09, N-10, N-14; R-03, R-05 |
 | APPROVED DEFERRAL | **0** | No open item is fully discharged by a recorded approval. Only clauses are: AC-3's plan and trace (2026-09-06) and AC-4's clauses 2–3 (2026-09-07), with no receiving milestone named |
 | CARRY FORWARD WITH OWNER AND MILESTONE | **0** | Only L-15 names both (`action-engine`, "4F closure"; D-4F4-3), and its milestone is now, so it is a decision. Every other owner is **UNASSIGNED** |
 
-15 + 34 + 52 = **101**.
+16 + 34 + 52 = **102**. *(101 before R-06.)*
 
-**Unverified, and outside the 101:** AC-1, AC-2, AC-5, AC-6, AC-7 and AC-8
+**Unverified, and outside the 102:** AC-1, AC-2, AC-5, AC-6, AC-7 and AC-8
 at the final SHA (met at `a7d52c1`'s code); a live Prometheus scrape (X-06);
 the first ~5,767 lines of the 4F.8 E2E log, which the log tool cannot return.
 
@@ -408,7 +410,7 @@ recorded on PR #42.
 
 ### 3.8 Found by the re-audit (2026-10-17/18)
 
-Labels R-01 … R-05 exist only in this document. They are not master scope's
+Labels R-01 … R-06 exist only in this document. They are not master scope's
 risks R-1 … R-6, which the Phase 4 Gate Review re-checks (TDD 4F.8 §20.2).
 
 | ID | Item | Evidence | Blocks | Class | Status |
@@ -418,6 +420,7 @@ risks R-1 … R-6, which the Phase 4 Gate Review re-checks (TDD 4F.8 §20.2).
 | **R-03** (AUD-5) | Neither gateway checks `Origin`. SameSite=Strict keeps the cookie from other sites but not from other ports on the same host, so a page served from `localhost` could read the public event stream or send body-less POSTs | `ws-gateway/api/stream.py` handshake; `api-gateway/api/auth.py` l.66 | — (P for networked use) | Decision | No document requires the check. Accept with the stated threat model, or add an allow-list |
 | **R-04** (AUD-6) | TDD 4F §15 row 1 (*"Companion absent or crashed: sensors report unavailable"*) is not built. RS-3a and A-4F8-1 rule out inferring failure from silence, so a crashed companion leaves the sensor `running`, labelled with its `reported_at` | TDD 4F l.781; TDD 4F.8 l.582, l.1322; TDD 4F.7 §14 | 4F | DOCUMENT | A dated note on TDD 4F §15 that the ratified rule supersedes row 1 |
 | **R-05** (AUD-9) | `pr-checks.yml` never runs on `phase-4`: it triggers on `pull_request`, on `push` to `main` only, and on dispatch. It has 0 runs on `phase-4` | `pr-checks.yml` l.15–30; `list_workflow_runs` for `branch=phase-4` | GO | Decision | Add a `push` trigger for `phase-4`, or record the procedure: update each PR onto the fresh head before merging, and dispatch once at the final SHA |
+| **R-06** | `api-gateway` matched a route's prefix on the decoded path, then built the upstream URL with `httpx`, which removes `.` and `..` segments and reads a decoded `?` or `#` as a query or fragment. So an authenticated caller could reach any path on a fronted engine, `/internal/*` included: `GET /v1/digital-twin/../../internal/health` returned that engine's `/internal/health`, and `/v1/digital-twin/..%23` reached its `/v1`. A decoded NUL made `httpx` raise outside the client's error handling, an unstructured 500. A browser cannot send these paths, because it normalizes them | Local probe (2026-10-18/19) of the real app under uvicorn, h11 and httptools, with the real `UpstreamClient`, at `a7d52c1` and at #43's `d7876cb`: every dot segment, literal or percent-encoded (`%2E`, `%2F`, `%252E`), and every decoded `?` or `#` changed the forwarded path, and most left the prefix. `test_gateway.py`'s `/v1/../internal/health` case never reaches the app: the test client normalizes it | GO (condition 10: doc 11 l.148, master scope l.1266, `forward.py`'s first invariant) | FIX | A fix is prepared, not pushed: the route table refuses any path it could not forward unchanged, with 43 tests. Placement, #43 or its own PR, needs authorization |
 | **FP-18** | `action-engine`'s identity client does not translate a no-responders error; `autonomy-engine` then records `TIMEOUT` for an action that stopped before executing | TDD 4F.P l.1627 (*"the L-18 family"*; *"`action-engine` is a non-goal"*) | 4F | DEFER | **D-C15** (carry). Owner UNASSIGNED |
 
 ---
@@ -561,6 +564,8 @@ passes once the named PR merges.
    - **"with 0 flaky".** That is the rule only if **D-A7** is approved. Until
      then, each merge needs every check run green at the updated head, and the
      Playwright flaky count is reported, not gated.
+   - **R-06.** Its fix comes before any X-08 deny in `api-gateway`; without it,
+     a deny-list on a prefix is bypassable with `..`.
 4. **Post-merge verification** of `phase-4` (master scope §16 rule 7).
 5. **C-7** per D-A7, then the **Phase 4 Gate Review** (X-01, X-02, X-11, X-12,
    X-14, X-16 … X-19, AC re-verification at the final SHA). That is its own PR.
