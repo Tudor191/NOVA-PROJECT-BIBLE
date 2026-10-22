@@ -179,15 +179,20 @@ async def forward(path: str, request: Request) -> Response:
                 "method": request.method.upper(),
                 "path": full_path,
                 "correlation_id": correlation_id,
+                "detail": str(exc),
             },
         )
         _record(
             request, upstream=route.upstream_name, outcome="upstream_unavailable", started=started
         )
+        # The exception names the upstream's internal URL; the caller gets
+        # the engine's public name only. The log above keeps the detail.
         return JSONResponse(
             status_code=status.HTTP_502_BAD_GATEWAY,
             content=failure(
-                "upstream_unavailable", str(exc), correlation_id
+                "upstream_unavailable",
+                f"{route.upstream_name} did not answer.",
+                correlation_id,
             ).model_dump(mode="json"),
             headers={CORRELATION_ID_HEADER: correlation_id},
         )

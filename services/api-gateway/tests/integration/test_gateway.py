@@ -736,3 +736,62 @@ async def test_a_canonical_path_reaches_its_engine_unchanged(path: str) -> None:
     assert request.url.path == path
     assert request.url.raw_path.split(b"?", 1)[0] == path.encode("ascii")
     assert dict(request.url.params) == {"limit": "5", "cursor": "abc/def=="}
+
+
+# --- error hygiene: structured, and naming nothing internal -----------------
+
+
+def test_an_unreachable_upstream_does_not_reveal_its_address(
+    client: TestClient, upstream: FakeUpstream
+) -> None:
+    upstream.raise_unavailable = True
+    _auth(client)
+    response = client.get("/v1/communication/sessions")
+    assert response.status_code == 502
+    message = response.json()["error"]["message"]
+    assert "http" not in message and ":8000" not in message
+    assert message == "communication-engine did not answer."
+
+
+@pytest.mark.asyncio
+async def test_a_non_ascii_header_value_is_forwarded_as_sent_not_a_500() -> None:
+    """Called the way the ASGI server calls the app, with the raw header
+    bytes a caller sent: the test client would re-encode them first."""
+    sent: list[httpx.Request] = []
+
+    def record(request: httpx.Request) -> httpx.Response:
+        sent.append(request)
+        return httpx.Response(200, json={"ok": True})
+
+    app = create_app(_settings())
+    app.state.upstream = UpstreamClient(httpx.AsyncClient(transport=httpx.MockTransport(record)))
+    scope = {
+        "type": "http",
+        "asgi": {"version": "3.0"},
+        "http_version": "1.1",
+        "method": "GET",
+        "scheme": "http",
+        "server": ("testserver", 80),
+        "client": ("127.0.0.1", 1),
+        "root_path": "",
+        "path": "/v1/communication/sessions",
+        "raw_path": b"/v1/communication/sessions",
+        "query_string": b"",
+        "headers": [
+            (b"host", b"testserver"),
+            (b"authorization", f"Bearer {TOKEN}".encode()),
+            (b"x-probe", b"caf\xe9"),
+        ],
+    }
+    messages: list[dict[str, Any]] = []
+
+    async def receive() -> dict[str, Any]:
+        return {"type": "http.request", "body": b"", "more_body": False}
+
+    async def send(message: dict[str, Any]) -> None:
+        messages.append(message)
+
+    await app(scope, receive, send)
+    assert next(m["status"] for m in messages if m["type"] == "http.response.start") == 200
+    [request] = sent
+    assert dict(request.headers.raw)[b"x-probe"] == b"caf\xe9"
