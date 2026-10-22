@@ -1,6 +1,6 @@
 # Phase 4 — Master Closure Matrix
 
-**Date:** 2026-10-17. **Base:** `phase-4` = `a7d52c16eb704ea95d113f70a610f83d54710805`.
+**Date:** 2026-10-17, **revised 2026-10-18**. **Base:** `phase-4` = `a7d52c16eb704ea95d113f70a610f83d54710805`.
 **Protocol:** [`PROJECT_PHASE_COMPLETION_PROTOCOL.md`](../../PROJECT_PHASE_COMPLETION_PROTOCOL.md),
 read in full from `origin/main` (sha256 `21185dd1…`, 1131 lines; identical on `phase-4`).
 
@@ -34,6 +34,23 @@ here.
 | GitHub review approval | An approving review on the PR: **none exists on any Phase 4 PR** |
 | Merge authorization | The owner's instruction to merge one specific PR |
 
+**Revision, 2026-10-18.** This is still an unmerged draft, so it is
+corrected in place; what changed is listed here so that nothing changes
+silently:
+
+- §1.2 now gives final CI for #51, #52 and #53, and the flaky retry at #43's
+  head. §1.5 is new: review findings against the open PRs.
+- §2 is rewritten. The earlier tally (13 / 3 / 31 / 4 / 42 / 2) could not be
+  re-derived from the row classes, and "counted row by row" was wrong: §3 has
+  76 data rows holding 101 IDs.
+- FP-18 is no longer an alias of L-18 (§3.3, §3.8).
+- X-03 (C-7), N-01 and N-11 are corrected. §3.8 adds R-01 … R-06.
+- §5 records the failure-mode mapping (B2); §3.4 records the scope check (B3).
+- §7 gives the merge order the prepared amendments require.
+
+Everything new here was produced by the implementing agent, so it is **not
+independent** (§0).
+
 ---
 
 ## 1. Baseline, verified 2026-10-16/17
@@ -56,7 +73,7 @@ Implementation PRs are one engine each, or platform-only (SAD 15 §4 item 1).
 | PR | Head | Scope | What it settles | CI at the head |
 |---|---|---|---|---|
 | #42 | `6b0093b` | docs | 4F.8 post-merge record (L-13, L-26) | **40/40** (runs 38462664060, …4034, …3775) |
-| #43 | `d7876cb` | `api-gateway` | §9.1 items 3, 9, 10 (metrics); N-03; N-10 disclosed; N-13 server half | **40/40** (38976279923, …973, …280016) |
+| #43 | `d7876cb` | `api-gateway` | §9.1 items 3, 9, 10 (metrics); N-03; N-10 disclosed; N-13 server half | **40/40** (38976279923, …973, …280016). **The E2E job passed only on a retry**: one flaky test, `cognitive-state-panel.spec.ts:154` (run #150, job 117226387232; R-02) |
 | #44 | `4f27c7c` | `ws-gateway` | §9.1 items 3, 4, 6, 9, 10; L-8; N-04 | **41/41**, including the new real-NATS job: *"4 passed"* (job 117215426434) |
 | #45 | `22ef074` | `autonomy-engine` | §9.1 items 3, 4, 9, 10; L-19; N-02 (log line only) | **40/40** (38978730212, …245, …411) |
 | #46 | `ab0ac0f` | `cognitive-state-engine` | §9.1 items 3, 10; F-4FP-8 verified | **40/40** (38974862332, …378, …381) |
@@ -64,11 +81,18 @@ Implementation PRs are one engine each, or platform-only (SAD 15 §4 item 1).
 | #48 | `ab4e667` | CI + doc 16 + `world-model-engine` tests | N-11 | **40/40.** The log shows *"Required test coverage of 85.0% reached"* for all 19 measured packages (job 117229308999) |
 | #49 | `b4b28d9` | `perception-engine` tests | F-4FP-6 | **40/40** (38977924060, …138, …192) |
 | #50 | `0ca0b7b` | `action-engine` | L-16; L-15 (log line only) | **40/40** (38978396982, …7021, …7119) |
-| #51 | `65c2683` | infra + `tools/tests` | X-06 | **39/40 green, 1 still running** when this was written |
-| #52 | `5b3a61e` | `nova-contracts` tests | N-08 | **39/40 green, 1 still running** when this was written |
+| #51 | `65c2683` | infra + `tools/tests` | X-06 | **40/40** (PR Checks #155, run 39069763759) |
+| #52 | `5b3a61e` | `nova-contracts` tests | N-08 | **40/40** (PR Checks #156, run 39069850595) |
+| #53 | `2e384cb` | docs | N-05; this document; doc 14 | **40/40** (PR Checks #157, run 39070238888) |
 
 **Combined:** all ten implementation PRs merge onto `phase-4` together **with
-no conflict**. This was checked in a scratch worktree and never pushed.
+no conflict**. This was checked in a scratch worktree and never pushed. **No
+CI has run on that combination**, and none can run on `phase-4` itself
+without a dispatch (R-05).
+
+Every head above has 0 GitHub reviews. The PR Checks run of each head is the
+one in the run list (`list_workflow_runs`, 2026-10-17); only #43's contains a
+flaky test.
 
 ### 1.3 SLOC
 
@@ -101,34 +125,81 @@ These are local runs, **not CI evidence**. Real infrastructure means Postgres
   enforces.
 - **Negative controls:** every new test has at least one, recorded in its PR.
 
+### 1.5 Review findings against the open PRs (re-audit, 2026-10-17/18)
+
+These are defects in unmerged fixes. They are tracked under the obligation
+each PR remediates, not as new IDs. Every amendment named here was prepared
+locally and **has not been pushed**.
+
+| PR | Finding | Obligation | Status |
+|---|---|---|---|
+| #48 | **The gate does not fail between 84.5% and 85%.** coverage.py exits non-zero only when `round(total, precision) < fail_under`. At the default precision 0, `world-model-engine` at 84.55% (394/466) printed "FAIL … not reached" and **exited 0** | N-11 | Amendment prepared: `precision = 4` and `tools/tests/test_coverage_gate.py`. Two decimals are not enough: a package of 1,013 units can measure 84.99506% and pass. Locally: exit 1 at 84.55%, all 21 domain packages measured, the guard's negative controls fail at precision 0 and 2. Not CI evidence |
+| #48 | The new guard fails until `api-gateway` and `ws-gateway` measure `--cov` | N-11 | Merge order: #43 and #44 first (§7) |
+| #44 | The test said unsubscribe "stops delivery at the broker", but it inferred that from frames not arriving. No positive control after unsubscribe; close-cleanup untested | X-20 (`ws-gateway` §9.1 item 6) | Amendment prepared: a monitored NATS and `/subsz` counts, a positive-control topic, a close-cleanup test. Three mutations each caught locally; 10/10 local runs. **Reconnect after a broker restart stays untested** |
+| #45, #50 | Configuration logs had no `correlation_id`, no target `user_id`, no refused writes. Before-values come from a separate read | N-02, L-15 | Amendments prepared (§3.6 N-02 gives the fields). **Still operational stdout logs, not an audit trail** |
+| #47 | 39/40 at its head (`checks`: F-4FP-6) | N-12, N-13, F-4FP-10 | Needs green CI at an exact head; R-02's spec fix prepared for this branch |
+
 ---
 
 ## 2. Count reconciliation
 
-| Pass | Open | Why the number changed |
+### 2.1 Counting rules
+
+- **One ID per obligation.** An alias recorded in a source as the same
+  obligation is merged under one canonical ID, with the alias kept beside it.
+- **Contents are not counted twice.** An item a source places inside another
+  obligation is counted once, as that obligation.
+- **Three items have no ID** and count once each: demotion/INTERRUPTIONS,
+  the slice-completion declarations, and the stale slice statuses.
+- **Defects in unmerged fixes are not new IDs** (§1.5). They are tracked
+  under the obligation the PR remediates.
+- **Met acceptance criteria are counted separately**, as re-verification
+  tasks, and settled items are listed, not counted as open.
+
+### 2.2 From the inventory to this matrix
+
+| Pass | Open | Change, with its source |
 |---|---|---|
-| Inventory, 2026-10-14 | 101 | — |
-| Reconciliation, 2026-10-15 | 89 | 14 duplicates merged, 6 met criteria moved out, 8 missed items (N-01 … N-08) added |
-| **This matrix, 2026-10-17** | **95** | **+6 found this pass:** N-09 … N-14 (§3.7). None removed |
+| Inventory, 2026-10-14 | 101 | A session report; **not in the repository, so not verifiable here**. Its constituents are reproduced below |
+| Reconciliation, 2026-10-15 | 89 | **−14 duplicates**, each checked against a repository record: FP-8 = AC-5 (TDD 4F.P l.431); 4B C-1 and C-2 = AC-3 (4B Gate Review l.1466–1467); 4C C-3 = AC-4 (4C Gate Review l.439); F-4F7-7 = X-06 (4F.7 record l.502); K-7, K-8 and `observability.py` packaging = X-20 (TDD 4F.7 l.686–687); FP-18 = L-18; F-4F8-12, the D-4F-1 residual risk, the 4F.1 ledger gap and 4F.3 §8.3 are contents of L-1; "phase-4f preserved" belongs to L-9 and L-10. **−6** met criteria (AC-1, AC-2, AC-5, AC-6, AC-7, AC-8). **+8** found (N-01 … N-08) |
+| Matrix, 2026-10-17 | 95 | **+6** found (N-09 … N-14) |
+| **This revision, 2026-10-18** | **101** | **+1**: FP-18 split from L-18. Its source calls it *"the L-18 family"* (TDD 4F.P l.1627), not the same obligation, and its fix site and owner differ (`action-engine`'s identity client; L-18 is `nova-eventbus-sdk`'s). **+5** found: R-01 … R-05 (§3.8) |
 
-Besides the 95 open rows:
+**The two 101s are different sets.** The inventory's counted duplicates and
+met criteria; this one counts neither. The match is a coincidence.
 
-- **6 met criteria still need re-verification at the final SHA:** AC-1, AC-2,
-  AC-5, AC-6, AC-7 and AC-8.
-- **18 rows are settled and unchanged.**
+FP-7 and FP-15 stay one obligation: TDD 4F.P l.3030 defers them together as
+*"persistent lost-trigger auditability, including FP-7's and FP-15's
+windows"*.
 
-**Where the 95 stand:**
+### 2.3 Rows and IDs
 
-| Status | Rows |
-|---|---|
-| **FIX ready**: fixed in an open PR, CI green at its head (pending CI for #51 and #52), merge not authorized | **13**: L-8, L-16, L-19, F-4FP-6, F-4FP-10, N-03, N-04, N-05, N-08, N-11, N-12, N-13, X-06 |
-| **Partly fixed**: code landed in a PR, and a decision remains | **3**: N-02, L-15, X-20 |
-| **DOCUMENT**: a record the protocol requires, written in the 4F closure or the Phase 4 Gate Review | **31** |
-| **VERIFY**: evidence to obtain (K-5, A-4F6-4, demotion/INTERRUPTIONS, X-03) | **4** |
-| **Owner decision** (DEFER, ACCEPT RISK or N/A, as proposed per row) | **42** |
-| **BLOCKED** on decisions or authorizations (slice declarations, X-21) | **2** |
+§3 holds **82 data rows**: the 76 of 2026-10-17 (73 open, plus 3 rows of met
+criteria) and the 6 rows of §3.8. They carry **107 IDs**: 101 open and 6 met.
 
-13 + 3 + 31 + 4 + 42 + 2 = **95**, counted row by row from §3.
+**18 items are settled and unchanged**, all named:
+CF-1, CF-2, CF-3, CF-7 and CF-12 (4D Gate Review §21.9); L-7 and L-12 (4F.3
+record §10.1); L-29 and L-31; L-13 and L-26, settled by `a7d52c1` and
+recorded only on PR #42; F-4F7-1, repaired under A-4F7-6 (a) (TDD 4F.P
+l.2409); and F-4F8-3, -6, -9, -13, -14 and -16, which are by design and
+**must be disclosed in the 4F Gate Review**.
+
+### 2.4 Where the 101 stand
+
+| Disposition | Count | IDs |
+|---|---|---|
+| CLOSED ON VERIFIED EVIDENCE | **0** | Nothing is merged |
+| FIX REQUIRED | **15** | Fix in an unmerged PR (status source: §1.2): L-8, L-16, L-19, F-4FP-6, F-4FP-10, N-03, N-04, N-05, N-08, N-11 (**fix incomplete**, §1.5), N-12, N-13, X-06 (**live scrape unverified**). No fix in any PR: R-01, R-02 (a fix is prepared, not pushed) |
+| DOCUMENTATION REQUIRED | **34** | L-1 … L-6, L-9, L-10, L-20 … L-25, L-27, L-28, L-30; CF-6, CF-9, CF-11; 4F.6 F-3, F-5; stale slice statuses; X-01, X-02, X-10 … X-16; N-07; R-04 |
+| USER DECISION REQUIRED | **52** | AC-3, AC-4; CF-4, CF-5, CF-8, CF-10; L-11, L-14, L-15, L-17, L-18; A-4F8-9; 4F.6 F-1, F-2, F-4, F-7; F-4F7-4, K-1, K-6; K-5, A-4F6-4, demotion/INTERRUPTIONS; FP-7/FP-15, FP-13, FP-18, A-4FP-14(b), more ingestion sources, model-based authoring; F-4FP-4, F-4FP-7; slice declarations; the "PR reviewed" ruling; X-03, X-04, X-05, X-07, X-08, X-09, X-17 … X-22; N-01, N-02, N-06, N-09, N-10, N-14; R-03, R-05 |
+| APPROVED DEFERRAL | **0** | No open item is fully discharged by a recorded approval. Only clauses are: AC-3's plan and trace (2026-09-06) and AC-4's clauses 2–3 (2026-09-07), with no receiving milestone named |
+| CARRY FORWARD WITH OWNER AND MILESTONE | **0** | Only L-15 names both (`action-engine`, "4F closure"; D-4F4-3), and its milestone is now, so it is a decision. Every other owner is **UNASSIGNED** |
+
+15 + 34 + 52 = **101**.
+
+**Unverified, and outside the 101:** AC-1, AC-2, AC-5, AC-6, AC-7 and AC-8
+at the final SHA (met at `a7d52c1`'s code); a live Prometheus scrape (X-06);
+the first ~5,767 lines of the 4F.8 E2E log, which the log tool cannot return.
 
 **Zero rows are closed by this document.**
 
@@ -145,6 +216,10 @@ defined by the request. DEFER, ACCEPT RISK and N/A are proposals until approved.
 
 **Owner** is named only where the repository names one. Otherwise it is
 **UNASSIGNED**, and the Gate Review must say so (GO condition 10).
+
+**Sources.** A status of the form "FIX ready (#N)" cites PR #N's head and CI
+in §1.2. Every other status cites the record in its Evidence column. A status
+with neither is **UNVERIFIED**.
 
 ### 3.1 Acceptance criteria (master scope §1)
 
@@ -187,7 +262,7 @@ recorded on PR #42.
 | **L-15** | Identity-confidence policy changes unaudited | **#50 now logs every change**, before and after, at WARNING when a tier loosens. It is not persisted, so D-4F4-3 stands | Partly FIX + DEFER | **D-C5**: is a log line sufficient, or is a persisted audit required? |
 | **L-16** | `action-engine` README omits the policy routes | — | **FIX ready (#50)** | — |
 | L-17 | The panel can re-enable an `AUTO_EXECUTE` policy | `AutonomyPanel.tsx` l.266–273. Re-enabling is now logged with `effect=auto_execute` and enabled false → true (#45) | ACCEPT RISK | **D-C6** |
-| L-18 (FP-18) | The NATS SDK leaves `NoRespondersError` untranslated | 4F.5 record §10.4 | DEFER | **D-C15** |
+| L-18 | The NATS SDK leaves `NoRespondersError` untranslated | 4F.5 record §10.4; TDD 4F.5 l.754 (owner `nova-eventbus-sdk`) | DEFER | **D-C15**. *(2026-10-18: FP-18 is no longer recorded as an alias; see §3.8)* |
 | **L-19** | `autonomy-engine` README is a scaffold | — | **FIX ready (#45)** | Gate order corrected in `22ef074` |
 | L-20 | Doc 20 omits the cognitive-state sensor copy | 0 hits | DOCUMENT | With L-1 |
 | L-21, L-22, L-24, L-27, L-30 | Dated status notes in the TDDs, health records, roadmap and README | The roadmap never mentions 4F.P | DOCUMENT | With L-1 |
@@ -204,7 +279,7 @@ recorded on PR #42.
 | 4F.6 F-3; F-5 | Retargeted test; §8 chain wording | 4F | DOCUMENT | **D-A2** |
 | 4F.6 F-4; F-7 | Redelivered `propose` reads "degraded"; the `correlation_id` convention | 4F | DEFER | **D-A4** |
 | F-4F7-4; K-1; K-6 | Non-strict `digitalTwin.ts` schemas; at-most-once delivery; no pagination | 4F | DEFER | **D-C15** |
-| K-5; A-4F6-4; demotion and INTERRUPTIONS | Focus `signals_used` is always empty; TTL; Part 6 interruptions | 4F | VERIFY → decision | B3, a read-only scope check, still pending. Then **D-C3** |
+| K-5; A-4F6-4; demotion and INTERRUPTIONS | Focus `signals_used` is always empty; TTL; Part 6 interruptions | 4F | Decision | **B3 done (2026-10-17):** no slice delivers any of the three, and TDD 4F §24.12 lists all three as OPEN. Master scope §5 names the *"Focus System"* and *"Attention Layers"* as 4F scope, so K-5 and INTERRUPTIONS are partial deliveries of it; TTL is 4F.6's open semantics (TDD 4F l.1607, l.1767). **D-C3** |
 | FP-7/FP-15; more ingestion sources; model-based authoring; A-4FP-14(b); FP-13 | TDD 4F.P §30.8, *"Beyond 4F.P"*, approval not found | 4F | DEFER | **D-C15** |
 | F-4FP-4; F-4FP-7 | 4F.P record §8.1 | 4F | DEFER | **D-C15** |
 | **F-4FP-10** | `decisionResultSchema` listed 4 of 6 outcomes | 4F | **FIX ready (#47)** | A drift guard reads `DecisionOutcome` |
@@ -219,7 +294,7 @@ recorded on PR #42.
 |---|---|---|---|---|---|
 | X-01 | 4A Gate Review and `phase-4a.md` (4B C-6) | Absent | GO | DOCUMENT | Phase 4 closure PR |
 | X-02 | 4C.1 Gate Review | 4C Gate Review §19.3 | GO | DOCUMENT | Phase 4 closure PR |
-| **X-03** | **4B C-7**: promote E2E to a required check once it is stable (bar ≥10×, protocol §9.2) | **The counting unit is contested.** 4B §7.2 says *"ten consecutive green E2E runs"* in the PR Checks series; the C-7 row says *"against an unchanged SHA"*. **Measured this pass:** #139–#154 are **16 consecutive green E2E runs** across SHAs, while one SHA's best is **7** (#140, 7 attempts at `9f09b5b`). The job is still *"staged, non-blocking"* | GO | VERIFY → decision | **D-A7**: fix the unit. Under the series reading the bar is met and only the promotion remains (make the job blocking: a CI change). Under the strict reading, 10 runs at the final SHA (`workflow_dispatch` exists). Making it *required* needs branch protection (X-17) |
+| **X-03** | **4B C-7**: promote E2E to a required check once it is stable (bar ≥10×, protocol §9.2) | **Corrected 2026-10-18.** The unit is a **workflow run** of PR Checks, counted by `list_workflow_runs` (4B Gate Review §7.2, l.791–800); the discharge row adds *"against an unchanged SHA"* (l.1470). **Attempts are not runs:** #140 is one run with 7 attempts, so the earlier "7 at one SHA" was wrong. **Retries are not passes:** Playwright retries once in CI, and #150 was green with one flaky test. Measured (2026-10-17): E2E green in every run #139–#157 (19), across 13 branches and 19 SHAs; whole-run conclusions break at #149 (`checks`), leaving 8 (#150–#157); **no SHA has more than one run, so 0 qualify under the strict reading**. The job is still *"staged, non-blocking"* | GO | Decision, then evidence | **D-A7**: the strict reading is 10 consecutive dispatched runs at the final code SHA, each with E2E green and 0 flaky. Dispatches must be sequential: `pr-checks.yml` cancels an in-progress run on the same ref. Making the job *required* needs branch protection (X-17) |
 | X-04 | 4B DEV-4: `GET /v1/system/health` never built | 4B Gate Review l.418 | GO | DEFER (ratify) | **D-A5** |
 | X-05 | `ws-gateway`'s broad `communication.*` and `personality.*` bus subscriptions | `events/subscribed.py` l.28, l.49; documented in #44 | 4F | DEFER or FIX | **D-C15**. A narrowing is a one-engine change if wanted |
 | **X-06** (F-4F7-7) | Prometheus scrapes only `nova-core` | — | 4F | **FIX ready (#51)** | 20 services plus a drift guard |
@@ -242,8 +317,8 @@ recorded on PR #42.
 
 | ID | Item | Blocks | Class | Status |
 |---|---|---|---|---|
-| **N-01** | Every engine port and an unauthenticated NATS are published on all host interfaces. That contradicts doc 11 l.148 (*"on `localhost` only"*) and lets anyone who can reach the host bypass the gateway | **GO** | FIX or ACCEPT RISK | **D-C4.** Binding the ports to `127.0.0.1` is a small compose change; not made, because it changes a deployment security decision |
-| **N-02** | `autonomy-engine` level, policy and permission changes had no record | 4F | Partly FIX (#45: before and after log lines) | **D-C5**: persisted audit or not |
+| **N-01** | Every engine port and an unauthenticated NATS are published on all host interfaces. That contradicts doc 11 l.148 (*"on `localhost` only"*) and lets anyone who can reach the host bypass the gateway. **Scope, measured 2026-10-17:** all **36** published ports bind every interface; NATS (4222, 8222) and Redis (6379) have no authentication; Postgres, Neo4j, MinIO and Grafana use the default password; Grafana allows anonymous viewers; seven images are unpinned `:latest`; perception's identity and consent write routes are reachable on 8009 | **GO** | FIX or ACCEPT RISK | **D-C4.** Binding to `127.0.0.1` closes access from other hosts only. It does not protect against processes on the same host, other containers on the compose network, or DNS rebinding through the user's browser |
+| **N-02** | `autonomy-engine` level, policy and permission changes had no record | 4F | Partly FIX (#45: before and after log lines) | **D-C5**: persisted audit or not. *(2026-10-18: #45's lines lack `correlation_id` and target `user_id`, and refused writes were unlogged. The prepared amendment adds `outcome`, `user_id` (server-side, the target), `correlation_id` (a header; not attribution), `actor` (always null: not determinable under the single-token model), and a refusal line for 422 and 404. They remain stdout operational logs, not an audit trail)* |
 | **N-03** | `rate_limit.py` claimed a Redis limiter that does not exist | GO | **FIX ready (#43)** | Corrected, quoting the original |
 | **N-04** | `ws-gateway` README omitted `agent_os.task.completed` | 4F | **FIX ready (#44)** | — |
 | **N-05** | `docs/design/phase-4/` had no README | GO | **FIX ready (this PR)** | — |
@@ -257,10 +332,23 @@ recorded on PR #42.
 |---|---|---|---|---|---|
 | **N-09** | About 30 `_seconds` histograms in 13 pre-Phase-4 engines use the SDK's millisecond-default buckets, so almost every observation lands in the lowest bucket and percentiles are unreadable | A scan of every `create_histogram` call; 0 of them set buckets | — (quality) | DEFER or FIX | **D-A11 (new)**. Proposed fix: one `View` in `nova-observability` for `*_seconds` instruments, a single shared-package PR. Not made: it changes every engine's metric output. The four Phase 4 services already set second-scale buckets (#43–#46) |
 | **N-10** | The rate limiter deviates from TDD 4A §2.3 and doc 11 §5: in-process fixed window with two classes, versus Redis token bucket with three. The deviation was undisclosed | `domain/rate_limit.py` | GO | DEFER or ACCEPT RISK | Disclosed in #43. **D-C16 (new)**: ratify, or build |
-| **N-11** | The 85% domain-coverage gate (doc 16 §1) was never enforced in CI: package-directory runs ignore the root config. A package at 81% passed | Demonstrated | GO | **FIX ready (#48)** | Gate on in CI; log shows all 19 packages pass. **D-A12 (new)**: doc 16 says *line*, the config says *branch* |
+| **N-11** | The 85% domain-coverage gate (doc 16 §1) was never enforced in CI: package-directory runs ignore the root config. A package at 81% passed | Demonstrated | GO | **FIX ready (#48), incomplete** | Gate on in CI; log shows all 19 packages pass. **D-A12 (new)**: doc 16 says *line*, the config says *branch*. *(2026-10-18: the gate still passes 84.5–85% by rounding; see §1.5. #48's head is not a sufficient fix)* |
 | **N-12** | TDD 4A §7: *"401 → the frontend re-runs the first-run session flow"* was not built. A 401 left the workspace up with failing panels | 6 of 8 failure-path tests fail on `phase-4` | GO | **FIX ready (#47)** | — |
 | **N-13** | TDD 4A §7: *"429 with a structured retry hint"*. The 429 carried no hint, and the client could not show one | Tests fail before the change | GO | **FIX ready (#43 server, #47 client)** | `Retry-After`; no envelope change |
 | **N-14** | 4B's TDD was never written and, unlike 4C's, never waived; master scope §17 still says *"Planned"* | 4B Gate Review l.462; master scope l.1383 | GO | DOCUMENT (waiver) | **D-A13 (new)**: waive, as 4C's was. The §17 rows for doc 14 and this package's README wait for PR #42, which edits the same table |
+
+### 3.8 Found by the re-audit (2026-10-17/18)
+
+Labels R-nn exist only in this document.
+
+| ID | Item | Evidence | Blocks | Class | Status |
+|---|---|---|---|---|---|
+| **R-01** (AUD-2) | CI runs no `cargo audit`, though doc 13 §9 requires it for every PR | doc 13 l.111; `build-and-scan.yml` has no `cargo` step. A local run (cargo-audit 0.22.2, RustSec DB `999ec89`): 98 crates, 0 vulnerabilities, 1 yanked (`yoke-derive` 0.8.3, via `ureq`) | GO | FIX | No fix in any PR. CI addition planned; needs authorization |
+| **R-02** (AUD-3) | `cognitive-state-panel.spec.ts:154` races: it clicks Refresh when the first section has settled, while another may be on its first fetch, which TanStack Query reuses rather than re-issues | Run #150 annotation (*"Expected: >= 3, Received: 2"*); `query-core` 5.102.8 `query.ts` l.401–411. Local harness, retries off: old spec 10/10 failed with one section in flight, fixed spec 10/10 passed, both 10/10 with no delay | GO (C-7) | FIX | A test-only fix is prepared for #47's branch, not pushed. Not product behaviour |
+| **R-03** (AUD-5) | Neither gateway checks `Origin`. SameSite=Strict keeps the cookie from other sites but not from other ports on the same host, so a page served from `localhost` could read the public event stream or send body-less POSTs | `ws-gateway/api/stream.py` handshake; `api-gateway/api/auth.py` l.66 | — (P for networked use) | Decision | No document requires the check. Accept with the stated threat model, or add an allow-list |
+| **R-04** (AUD-6) | TDD 4F §15 row 1 (*"Companion absent or crashed: sensors report unavailable"*) is not built. RS-3a and A-4F8-1 rule out inferring failure from silence, so a crashed companion leaves the sensor `running`, labelled with its `reported_at` | TDD 4F l.781; TDD 4F.8 l.582, l.1322; TDD 4F.7 §14 | 4F | DOCUMENT | A dated note on TDD 4F §15 that the ratified rule supersedes row 1 |
+| **R-05** (AUD-9) | `pr-checks.yml` never runs on `phase-4`: it triggers on `pull_request`, on `push` to `main` only, and on dispatch. It has 0 runs on `phase-4` | `pr-checks.yml` l.15–30; `list_workflow_runs` for `branch=phase-4` | GO | Decision | Add a `push` trigger for `phase-4`, or record the procedure: update each PR onto the fresh head before merging, and dispatch once at the final SHA |
+| **FP-18** | `action-engine`'s identity client does not translate a no-responders error; `autonomy-engine` then records `TIMEOUT` for an action that stopped before executing | TDD 4F.P l.1627 (*"the L-18 family"*; *"`action-engine` is a non-goal"*) | 4F | DEFER | **D-C15** (carry). Owner UNASSIGNED |
 
 ---
 
@@ -284,16 +372,18 @@ supported by the evidence; it is not a decision.
 | D-C12 | Do the agent's technical reviews satisfy "PR reviewed"? | The owner's ruling; options as in the 4F.8 record §14.4 | Slice declarations |
 | D-C13 | The promotion PR | Item-1 exception in advance; merge commit (master scope §16) | Promotion |
 | D-C14 | §9.1 dispositions (§5) | Approve the N/A cells; decide traces (D-A9); set or waive performance targets | 4F, GO |
-| D-C15 | Carry list (CF-4/5/8, K-1, K-6, F-4F7-4, F-4FP-4/7, X-05, X-07, X-09, L-18, the FP items, N-06) | Carry, owners UNASSIGNED | 4F |
+| D-C15 | Carry list (CF-4/5/8, K-1, K-6, F-4F7-4, F-4FP-4/7, X-05, X-07, X-09, L-18, FP-18, the FP items, N-06) | Carry, owners UNASSIGNED | 4F |
 | D-C16 | N-10, the rate limiter design | Ratify the narrowing for single-user Phase 4, and record it in TDD 4A | GO |
+| **D-C17 (new)** | R-03, `Origin` validation in both gateways | Accept for local single-user Phase 4, stating the threat model; add an allow-list before any networked or multi-user use | P (networked use) |
 | D-A1 … D-A6 | 4F.6 F-2 ratify; F-3/F-5; F-1 (a); F-4/F-7; DEV-4 ratify; protocol counts | As the reconciliation recommended | 4F, GO |
-| **D-A7** | C-7's counting unit | Strict: 10 green runs at the final code SHA (`workflow_dispatch`), then make the E2E job blocking | GO |
+| **D-A7** | C-7's counting unit | Strict: 10 consecutive PR Checks workflow runs, dispatched one after another at the final code SHA, each with E2E green and **0 flaky** (`failOnFlakyTests` in CI); then make the E2E job blocking | GO |
 | D-A8 | §9.1 applies to all eight subsystems | Yes, with N/A per cell | §5 |
 | **D-A9** | Traces (§9.1 item 10) | Keep the requirement; record repository-wide absence as a deferred gap; a propagation design for HTTP and the bus envelope is a contract decision | §5 |
 | D-A10 | Runner pin before 2026-10-19 | Pin `ubuntu-24.04` until Phase 4 is promoted | Final CI stability |
 | D-A11 | N-09 histogram buckets | One shared-package PR (a `nova-observability` View) | — |
 | D-A12 | Coverage: line (doc 16) or branch (config) | Keep branch, amend doc 16 (stricter, already passing) | — |
 | D-A13 | Waive the 4B TDD | Waive on the record, as 4C's was | GO |
+| **D-A14 (new)** | R-05, CI on `phase-4` | Record the procedure (update each PR onto the fresh head before merging; dispatch at the final SHA) rather than add a `push` trigger | GO |
 
 **Authorizations, each separate and none given:** pushing to PR #42; reusing
 PR #42 as the 4F closure PR; each merge; opening the Phase 4 closure PR;
@@ -313,9 +403,9 @@ passes once the named PR merges.
 | `packages/nova-ui` | F | N | →P doc 14 | N | P | N | N | N | N | N |
 | `api-gateway` | P | →P doc 14 | →P #43 | P | P | N | F | P | →P #43 | metrics →P #43; traces F |
 | `ws-gateway` | P | →P doc 14 | →P #44 | →P #44 | P | →P #44 | F | P | →P #44 | metrics →P #44; traces F |
-| `autonomy-engine` | P | →P doc 14 | →P #45 | →P #45 | P | P | F | U | →P #45 | metrics →P #45; traces F |
-| `cognitive-state-engine` | P | →P doc 14 | →P #46 | P (verified, #46) | P | P | F | U | P | metrics →P #46; traces F |
-| `companion/nova-companion` | F | →P doc 14 | →P doc 14 | P | P | N | P | U | F | F |
+| `autonomy-engine` | P | →P doc 14 | →P #45 | →P #45 | P | P | F | P (B2) | →P #45 | metrics →P #45; traces F |
+| `cognitive-state-engine` | P | →P doc 14 | →P #46 | P (verified, #46) | P | P | F | P (B2) | P | metrics →P #46; traces F |
+| `companion/nova-companion` | F | →P doc 14 | →P doc 14 | P | P | N | P | F (R-04) | F | F |
 | `companion/sensors` | F | →P doc 14 | →P doc 14 | N | P | N | P | P | N | N |
 
 **What remains, by cell:**
@@ -332,9 +422,14 @@ passes once the named PR merges.
   - `autonomy-engine` decision p95 under 250 ms, excluding dispatch;
   - `cognitive-state-engine` ingestion p95 under 500 ms, excluding the
     trigger's wait.
-- **Item 8, U cells.** B2, mapping each named failure mode to a test, is
-  pending for `autonomy-engine`, `cognitive-state-engine` and
-  `nova-companion`.
+- **Item 8 (B2 done, 2026-10-17; by the implementing agent, not independent).**
+  TDD 4D §13: 6 of 6 rows have a test (the policy-raises row asserts the
+  denial, not its log line). TDD 4F §15: 8 of 9; row 1 is R-04. TDD 4F.6 §9.1
+  (Design A) and TDD 4F.7 §14: every row has a test, except *"the Event Bus
+  is unreachable at startup"*, which rests on shared service-kit behaviour and
+  is not tested in this engine (UNVERIFIED). The companion tests an
+  unreachable engine, an unregistered source, server errors, revocation and
+  watch-error redaction.
 - **Item 9, `nova-companion`.** Its JSON log lines carry no correlation id;
   adding one is a companion change and an intake contract decision.
 - **Item 10, traces.** Absent everywhere (D-A9). The companion has no metrics
@@ -365,9 +460,13 @@ passes once the named PR merges.
 
 1. **Owner decisions** in §4. None needs code first. Only B2, B3 and the AC-4
    browser test are read-only or test-only work that can run in parallel.
-2. **Merge authorizations** for #43–#52. They are independent and
-   conflict-free, and each is CI-green or running. Merging #49 first removes
-   the flake for the rest.
+2. **Merge authorizations**, one at a time. *(Revised 2026-10-18.)* The order
+   the prepared amendments require: #49 (removes F-4FP-6); #47 with R-02's
+   spec fix; #43 and #44 (they add the gateways' `--cov`); #48 (its new guard
+   needs both); then #42, #52, #51, the N-01 and X-08 PRs if authorized, #46,
+   #45, #50, and #53 last. Before each merge, the PR is updated onto the
+   current `phase-4` head and must be green, with 0 flaky, at that new head:
+   `phase-4` has no CI of its own (R-05).
 3. **The 4F closure PR**, documentation only (L-1 … L-10, CF-6, CF-9, CF-11,
    the slice statuses). It cites CI at the merged code head, under the
    docs-only rule. Reusing PR #42 needs its title, description and scope
