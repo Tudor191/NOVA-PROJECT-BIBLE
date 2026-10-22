@@ -47,7 +47,7 @@ Thirteen are spelled exactly like a ratified label with another meaning:
 | CM:N-11 | The coverage gate was never enforced | TDD 4F.8 N-11: author `moderate` risk |
 | CM:N-12 | The 401 first-run flow was not built | TDD 4F.8 N-12: accept a `failed` EXECUTE as success |
 | CM:N-13 | The 429 retry hint | TDD 4F.8 N-13: a correlation miss attaches a guessed `project_id` (cited in `perception-engine`'s tests) |
-| CM:N-14 | 4B's TDD was never written or waived | TDD 4F.8 N-14: add a subject to `PUBLIC_TOPICS` |
+| CM:N-14 | 4B's TDD was never written or waived | TDD 4F.8 N-14: add any subject to `PUBLIC_TOPICS`, or add a prefix |
 
 X-01 … X-09, N-01 … N-09 and R-01 … R-06 differ from TDD 4F.5's X-1 … X-9,
 TDD 4F.8's N-1 … N-9 and master scope's risks R-1 … R-6 only by the leading
@@ -103,6 +103,11 @@ silently:
   repository.
 - §7: #42's place and *"with 0 flaky"* are not settled; each waits on a
   decision.
+
+**Revision, 2026-10-22.** Three source citations made exact; nothing is
+reclassified and no count changes: the source for "demotion" (TDD 4F.P l.260,
+not TDD 4F §24.12); D-C12's §14.4, which exists only on PR #42; and CM:N-14's
+wording.
 
 Everything new here was produced by the implementing agent, so it is **not
 independent** (§0).
@@ -350,7 +355,7 @@ recorded on PR #42.
 | 4F.6 F-3; F-5 | Retargeted test; §8 chain wording | 4F | DOCUMENT | **D-A2** |
 | 4F.6 F-4; F-7 | Redelivered `propose` reads "degraded"; the `correlation_id` convention | 4F | DEFER | **D-A4** |
 | F-4F7-4; K-1; K-6 | Non-strict `digitalTwin.ts` schemas; at-most-once delivery; no pagination | 4F | DEFER | **D-C15** |
-| K-5; A-4F6-4; demotion and INTERRUPTIONS | Focus `signals_used` is always empty; TTL; Part 6 interruptions | 4F | Decision | **B3 done (2026-10-17):** no slice delivers any of the three, and TDD 4F §24.12 lists all three as OPEN. Master scope §5 names the *"Focus System"* and *"Attention Layers"* as 4F scope, so K-5 and INTERRUPTIONS are partial deliveries of it; TTL is 4F.6's open semantics (TDD 4F l.1607, l.1767). **D-C3** |
+| K-5; A-4F6-4; demotion and INTERRUPTIONS | Focus `signals_used` is always empty; TTL; Part 6 interruptions | 4F | Decision | **B3 done (2026-10-17):** no slice delivers any of the three, and TDD 4F §24.12 lists all three as OPEN. *(2026-10-22: §24.12 lists TTL, the Focus signals and INTERRUPTIONS; automatic demotion is deferred by TDD 4F.P l.260, §21.)* Master scope §5 names the *"Focus System"* and *"Attention Layers"* as 4F scope, so K-5 and INTERRUPTIONS are partial deliveries of it; TTL is 4F.6's open semantics (TDD 4F l.1607, l.1767). **D-C3** |
 | FP-7/FP-15; more ingestion sources; model-based authoring; A-4FP-14(b); FP-13 | TDD 4F.P §30.8, *"Beyond 4F.P"*, approval not found | 4F | DEFER | **D-C15** |
 | F-4FP-4; F-4FP-7 | 4F.P record §8.1 | 4F | DEFER | **D-C15** |
 | **F-4FP-10** | `decisionResultSchema` listed 4 of 6 outcomes | 4F | **FIX ready (#47)** | A drift guard reads `DecisionOutcome` |
@@ -443,7 +448,7 @@ supported by the evidence; it is not a decision.
 | D-C9 | L-14, per-source consent | Defer with an explicit privacy acceptance | 4F |
 | D-C10 | SAD 15 §1, §3, §6 and §7 versus reality | A documented deviation; optionally, protect `main` with required checks only | Phase 4 GO |
 | D-C11 | Past PRs' SAD 15 §4 gaps | A retrospective approval naming the PRs; a recorded deviation for item 5 | 4F, GO |
-| D-C12 | Do the agent's technical reviews satisfy "PR reviewed"? | The owner's ruling; options as in the 4F.8 record §14.4 | Slice declarations |
+| D-C12 | Do the agent's technical reviews satisfy "PR reviewed"? | The owner's ruling; options as in the 4F.8 record §14.4 *(2026-10-22: §14.4 is on PR #42, `6b0093b`, not yet on `phase-4`; see D-A16)* | Slice declarations |
 | D-C13 | The promotion PR | Item-1 exception in advance; merge commit (master scope §16) | Promotion |
 | D-C14 | §9.1 dispositions (§5) | Approve the N/A cells; decide traces (D-A9); set or waive performance targets | 4F, GO |
 | D-C15 | Carry list (CF-4/5/8, K-1, K-6, F-4F7-4, F-4FP-4/7, X-05, X-07, X-09, L-18, FP-18, the FP items, N-06) | Carry, owners UNASSIGNED | 4F |
