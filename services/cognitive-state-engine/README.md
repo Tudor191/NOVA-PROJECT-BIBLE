@@ -204,6 +204,24 @@ and no body; every other method answers 405 (TDD 4F.7 §7):
 
 An empty store answers empty lists; a store failure is an error, never `[]`.
 
+*(Note, 2026-10-16 — F-4FP-8, checked against the code rather than reworded.)*
+The 4F.P record's F-4FP-8 says this section *"omits 4F.7's three `GET`
+routes"*. Read literally that was already untrue when F-4FP-8 was written
+(2026-10-05): the table above was added by `33ca95f` on 2026-09-26. What was
+true is that the bullet list at the top of this section names only the
+`/internal` routes, and the paragraph after it still reads in the future
+tense. Both are kept as written. **The complete surface today**, matching the
+`@router` declarations in `api/`:
+
+| Method | Path | Declared in |
+|---|---|---|
+| `GET` | `/v1/cognitive-state/thoughts` | `api/cognitive_state.py` |
+| `GET` | `/v1/cognitive-state/focus` | `api/cognitive_state.py` |
+| `GET` | `/v1/cognitive-state/sensors` | `api/cognitive_state.py` |
+| `GET` | `/internal/health` | `api/health.py` |
+| `GET` | `/internal/readiness` | `api/health.py` |
+| `GET` | `/internal/metrics` | mounted in `main.py` (`prometheus_asgi_app()`) |
+
 ## Persistence
 
 One table, `cognitive_state.active_thought`, in its own schema. **Additive only;
@@ -234,6 +252,74 @@ never left to the column default. That is Phase 4E's ratified Option A applied
 from the first line rather than retrofitted: `memory-engine`'s `create_long_term`
 shipped omitting exactly those two columns, so the defaults fired and a caller's
 timestamps were silently discarded.
+
+## Internal structure
+
+*(Added 2026-10-16, SAD 15 §9.1 item 3. Drawn from `src/` at this commit.)*
+
+```
+src/nova_cognitive_state_engine/
+├── main.py                       create_app(): bus, repository, trigger client,
+│                                 the two subscriptions, /internal/metrics
+├── config.py                     Settings (primary_user_id, focus_capacity,
+│                                 decision_trigger_timeout_seconds, DSN)
+├── observability.py              CognitiveStateMetrics: the four instruments below
+├── ingestion_orchestration.py    insert-if-absent, then promote once (A-4FP-2);
+│                                 the only production caller of promote_thought
+├── promotion_orchestration.py    promote_thought(): compare-and-set to IMMEDIATE,
+│                                 then one trigger
+├── api/
+│   ├── cognitive_state.py        GET /v1/cognitive-state/{thoughts,focus,sensors}
+│   └── health.py                 /internal/health, /internal/readiness
+├── clients/
+│   └── decision_trigger_client.py  autonomy.decision.requested; never raises
+├── domain/                       no I/O
+│   ├── models.py                 ActiveThought, AttentionLayer, ProposedAction, ...
+│   ├── attention.py              next_layer(): one layer per step
+│   ├── focus.py                  select_focus(), combine_signals()
+│   ├── authoring.py              the closed ProposedAction table (T1)
+│   ├── ingestion.py              observation → thought (uuid5 key)
+│   ├── sensor_state.py           the six lifecycle values; SensorStateRecord
+│   └── ports.py                  repositories, DecisionTriggerPort, TriggerDelivery
+├── events/
+│   ├── handlers.py               sensor-health and workspace-observation handlers
+│   └── published.py / subscribed.py   the enforced allow-lists
+├── models/                       scaffold package; empty
+└── repository/
+    ├── models.py                 ORM: active_thought, sensor_state
+    └── postgres_cognitive_state_repository.py
+```
+
+Migrations: `alembic/versions/0001_initial_schema.py`, `0002_proposed_action.py`,
+`0003_sensor_state.py`. Shared packages: `nova-contracts`, `nova-eventbus-sdk`,
+`nova-service-kit` (database engine and sessions), `nova-observability`.
+
+## Observability
+
+*(Added 2026-10-16, SAD 15 §9.1 items 9 and 10.)* Each counter's label is the
+outcome the handler's log line already names, so a count and its log agree.
+
+| Metric | Type | Labels |
+|---|---|---|
+| `cognitive_state_sensor_reports_total` | counter | `outcome`: `applied`, `ignored_duplicate_or_stale`, `rejected_invalid_payload`, `rejected_unknown_status`, `not_stored` |
+| `cognitive_state_workspace_observations_total` | counter | `outcome`: `created`, `duplicate`, `foreign_user`, `initiative_lost`, `rejected_invalid_payload`, `not_ingested` |
+| `cognitive_state_initiative_triggers_total` | counter | `status`: the `TriggerDelivery` status (`decided`, `rejected`, `degraded`, `unavailable`, `unconfirmed`, `failed`) |
+| `cognitive_state_ingestion_duration_seconds` | histogram (seconds, to 30 s) | `outcome` |
+
+The histogram's buckets reach past 20 s because an ingestion that promotes a
+thought waits for `autonomy-engine`'s reply, bounded at
+`decision_trigger_timeout_seconds` (20 s). A rising `initiative_lost` is FP-15:
+a thought that exists and whose initiative nothing recovers.
+
+| Log message | When |
+|---|---|
+| `sensor_report_*` | Each sensor report, by outcome (the counter's labels) |
+| `workspace_observation_*` | Each observation, by outcome; `workspace_observation_ingested` carries `trigger_status`, `decision_outcome` and `subject_id` |
+| `autonomy.decision.requested unconfirmed/unavailable/failed/rejected/degraded ...` | A trigger that did not end in a decision (`clients/decision_trigger_client.py`) |
+
+Every handler log carries `event_id` and `correlation_id`. An observation's
+`label` is not logged. **Traces are not built** here or anywhere in the
+repository.
 
 ## Testing
 
