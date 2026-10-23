@@ -14,6 +14,7 @@ every other integration test in this engine fakes, for the same reasons.
 from __future__ import annotations
 
 import asyncio
+import re
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
@@ -32,8 +33,14 @@ _ENCRYPTION_KEY = "3ktMjuHsQ9TNWhEiReuORzkawsz4KEYq2zDMZByQhHo="  # test-only Fe
 
 # A path with several identifying segments, so "the path did not leak" is a
 # meaningful assertion rather than one satisfied by a short name.
-PATH = "/home/ada/projects/analytical-engine/design/notes.md"
-SEGMENTS = ("home", "ada", "projects", "analytical-engine", "design")
+#
+# *(2026-10-16.)* The user segment was "ada". Every letter of it is a hex
+# digit, so it occurred by chance inside the payload's random `user_id` UUID
+# (measured: about one run in 180) and failed S-4 with no leak at all -- CI run
+# 38976046385 matched it inside "...-ada3-...". Segments must contain a
+# non-hex character; `test_every_leak_segment_cannot_occur_in_hex` holds that.
+PATH = "/home/lovelace/projects/analytical-engine/design/notes.md"
+SEGMENTS = ("home", "lovelace", "projects", "analytical-engine", "design")
 
 
 @pytest.fixture
@@ -88,6 +95,15 @@ def test_s3_one_accepted_event_produces_exactly_one_outbox_row(harness) -> None:
     assert response.json()["published"] is True
     assert len(_rows(repository)) == 1
     assert _rows(repository)[0].subject == "perception.workspace.observed"
+
+
+def test_every_leak_segment_cannot_occur_in_hex() -> None:
+    """S-4 is a substring check over the whole payload, which holds random
+    UUIDs and hex digests. A segment spelled only from `[0-9a-f-]` can occur in
+    those by chance and fail the check with nothing leaked, so each segment
+    must contain at least one character no UUID or digest can."""
+    for segment in SEGMENTS:
+        assert re.search(r"[^0-9a-f-]", segment), segment
 
 
 def test_s4_the_raw_path_is_absent_from_the_outbox_payload(harness) -> None:  # type: ignore[no-untyped-def]

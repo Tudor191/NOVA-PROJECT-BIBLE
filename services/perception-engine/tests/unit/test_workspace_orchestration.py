@@ -24,7 +24,7 @@ from nova_perception_engine.workspace_orchestration import (
 from tests.fakes.repository import FakePerceptionRepository
 from tests.fakes.sensor import FakeSensor
 
-PATH = "/home/ada/projects/analytical-engine/notes.md"
+PATH = "/home/lovelace/projects/analytical-engine/notes.md"
 USER_ID = uuid4()
 
 
@@ -85,7 +85,7 @@ async def test_the_enqueued_payload_carries_the_hash_and_never_the_path() -> Non
     payload = _rows(repository)[0].payload
     assert payload["object_id"] == object_id_for_path(PATH)
     assert PATH not in str(payload)
-    for segment in ("home", "ada", "analytical-engine"):
+    for segment in ("home", "lovelace", "analytical-engine"):
         assert segment not in str(payload)
     assert payload["label"] == "notes.md"
 
@@ -161,7 +161,7 @@ async def _known(repository: FakePerceptionRepository, project_id: UUID) -> None
 async def test_a_declared_folder_of_a_known_project_attaches_it() -> None:
     """Phase 4F.8, A-4F8-2 (a): E-2's match, at the orchestration."""
     project_id = uuid4()
-    app, repository = _app(bindings={"/home/ada/projects/analytical-engine": project_id})
+    app, repository = _app(bindings={"/home/lovelace/projects/analytical-engine": project_id})
     await _known(repository, project_id)
 
     await handle_workspace_event(app, source="filesystem", request=_request())
@@ -173,7 +173,7 @@ async def test_a_declared_folder_of_a_project_never_seen_is_inert() -> None:
     """A binding is active only once its project has been seen on
     `memory.long_term.created`. Declaring a folder alone makes nothing known."""
     project_id = uuid4()
-    app, repository = _app(bindings={"/home/ada/projects/analytical-engine": project_id})
+    app, repository = _app(bindings={"/home/lovelace/projects/analytical-engine": project_id})
 
     await handle_workspace_event(app, source="filesystem", request=_request())
 
@@ -184,11 +184,11 @@ async def test_a_known_project_attaches_only_to_paths_in_its_declared_folder() -
     """E-2's miss: outside every declared folder, `None`, even when projects
     are known (N-13)."""
     project_id = uuid4()
-    app, repository = _app(bindings={"/home/ada/projects/analytical-engine": project_id})
+    app, repository = _app(bindings={"/home/lovelace/projects/analytical-engine": project_id})
     await _known(repository, project_id)
 
     await handle_workspace_event(
-        app, source="filesystem", request=_request(path="/home/ada/elsewhere/notes.md")
+        app, source="filesystem", request=_request(path="/home/lovelace/elsewhere/notes.md")
     )
 
     assert _rows(repository)[0].payload["project_id"] is None
