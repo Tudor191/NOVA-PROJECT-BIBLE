@@ -31,6 +31,11 @@
 
 ***Updated 2026-10-12, later, additively (§13):*** the note above is preserved as written. L-31 is discharged: each browser spec has now passed ≥ 10 times in CI. **34 of 34 criteria are met.** 4F.8 is still not complete: review and an explicit merge authorization remain (§13.4).
 
+***Updated 2026-10-13, additively (§14):*** the notes above are preserved as written.
+- **PR #41 is merged into `phase-4`** as `a7d52c16eb704ea95d113f70a610f83d54710805`. Its parents are `1ccce7a` and `1b3ccbd`.
+- `phase-4` is verified post-merge. L-13 and L-26 are settled.
+- **4F.8 is not declared complete here.** That declaration is reserved to the user (§14.4).
+
 **Protocol:** [`PROJECT_PHASE_COMPLETION_PROTOCOL.md`](../../PROJECT_PHASE_COMPLETION_PROTOCOL.md).
 
 - sha256 `21185dd1b2a43e87eac0a52aa5e53c8e8bbb01223014dc2a48408bbb0478de6a`, 1131 lines.
@@ -657,6 +662,10 @@ This slice closes none of them, and claims nothing toward their closure beyond t
 | **L-13** (`known_projects` population) | D3 (A-4F8-2). It settles on merge into `phase-4` |
 | **L-26** (TDD 4F.8's re-verification against merged 4F.P) | Done in `f28e373` (§28). TDD 4F.8 §28.12 keeps it OPEN in the 4F.P record until this branch reaches `phase-4` |
 
+***Updated 2026-10-13, additively (§14.3):*** the table above is preserved as written.
+- **L-13 and L-26 are SETTLED.** PR #41's merge, `a7d52c1`, put D3 and `f28e373` on `phase-4`.
+- The evidence is in §14.3.
+
 ### 10.2 Still open
 
 **L-1 … L-6, L-8 … L-11, L-14 … L-25, L-27 and L-28** are carried forward **unchanged**. That includes:
@@ -1194,3 +1203,241 @@ passed"**, and the *"never reached the approval loop"* warning is present.
   Review has been started.
 - **`main` and `phase-4` are untouched.** PR #41 is a draft, and nothing is
   merged.
+
+  ***Updated 2026-10-13, additively (§14):*** the status above is preserved as written.
+  - PR #41 is merged into `phase-4`, as `a7d52c1`, on the user's explicit authorization.
+  - `main` is unchanged.
+  - **§14.4 is the current 4F.8 status.**
+
+---
+
+## 14. Post-merge verification — addendum, 2026-10-13
+
+**Added 2026-10-13, additively.** §0 … §13 are preserved as written. They
+describe PR #41 before its merge. Where they say that PR #41 is open or a
+draft, that nothing is merged, or that `phase-4` is at `1ccce7a`, **this
+section supersedes them.**
+
+This section records the merge and the verification of `phase-4` that master
+scope §16 rule 7 requires: *"After each merge, `phase-4` is verified to contain
+the complete milestone result and to be clean before the next branch is cut."*
+
+**The protocol** was re-read for this addendum from `origin/main` at
+`7e273e62e942ecd5528ca807e65933d6bb675669`:
+- file last changed in `733a31d`;
+- blob `29dab696453d698c7ef2234639ce8cf06b1c36be`;
+- sha256 `21185dd1b2a43e87eac0a52aa5e53c8e8bbb01223014dc2a48408bbb0478de6a`, 1131
+  lines.
+
+It is unchanged since this record was written.
+
+### 14.1 The merge
+
+| | |
+|---|---|
+| **PR** | [#41](https://github.com/Tudor191/NOVA-PROJECT-BIBLE/pull/41), `phase-4f8` → `phase-4`. **Closed and merged**, 2026-10-12 18:42:44 UTC |
+| **Authorization** | The user's explicit authorization, 2026-10-12, for a normal two-parent merge commit |
+| **Method** | GitHub's merge operation, *"Create a merge commit"*, pinned to the expected head `1b3ccbd`. No squash, no rebase, no auto-merge |
+| **Merge commit** | **`a7d52c16eb704ea95d113f70a610f83d54710805`**, *"Merge pull request #41 from Tudor191/phase-4f8"* |
+| **First parent** | `1ccce7a703cfc5c6d7c164467c5e8ed8c5820c90`, the previous `phase-4` |
+| **Second parent** | `1b3ccbd3d10a557e749961c74ad658329f7028ad`, the PR head |
+
+**Re-verified immediately before the merge** (18:42 UTC):
+- open, ready for review and unmerged;
+- head `1b3ccbd`, and base `phase-4` at `1ccce7a`;
+- 40 of 40 checks green on that head;
+- no new commits, reviews or comments;
+- GitHub's test merge `5b49c68` had parents `1ccce7a` and `1b3ccbd`, and a tree
+  equal to the head's.
+
+**Review, stated exactly:**
+- **What reviewed PR #41**, at the user's request, all by the agent that
+  implemented it, so **none is independent:**
+  - a pre-merge technical review: *PASS WITH NON-BLOCKING FINDINGS*. Findings
+    3–5 were then fixed in `1b3ccbd`;
+  - a final technical review: *APPROVE MERGE*, no blockers;
+  - a read-only verification immediately before the merge.
+- **No GitHub review was recorded**: PR #41 had 0 reviews.
+- **Nobody else could review it:**
+  - the repository's only collaborator is the PR's author;
+  - GitHub does not accept an author's own approval;
+  - there is no `CODEOWNERS` file.
+- **Nothing enforced a review either:** the branches API reports `phase-4` and
+  `main` as unprotected, and no ruleset applies to `phase-4`.
+- **SAD 15 §1 and §3** describe required reviews, branch protection and
+  `CODEOWNERS` owner approval. As configured, the repository cannot meet them.
+  That discrepancy is recorded in §14.5.
+
+### 14.2 Post-merge verification of `phase-4` (master scope §16 rule 7)
+
+Read-only Git and GitHub reads, 2026-10-13:
+
+| Check | Result |
+|---|---|
+| `phase-4` | **`a7d52c16eb704ea95d113f70a610f83d54710805`** (`git ls-remote`). Nothing has been added since the merge |
+| Two parents, in order | `1ccce7a`, then `1b3ccbd`. Both are ancestors of `phase-4` |
+| Tree | **`c78cb581467608945fb71ed677ae71fee6cb5b1b`**, identical to `1b3ccbd`'s. `git diff 1b3ccbd a7d52c1` is empty |
+| What the merge brought in | 23 commits beyond `1ccce7a`: PR #41's 22, and the merge |
+| `main` | **`7e273e62e942ecd5528ca807e65933d6bb675669`**, unchanged. It is an ancestor of `phase-4` |
+| `phase-4f8` | Retained, at `1b3ccbd`. `phase-4f8-tdd` is retained at `aff01ae` |
+| PR #41 | Closed and merged. GitHub's `merge_commit_sha` is `a7d52c1`. No PR into `phase-4` is open |
+| The milestone's content | Every deliverable is present on `phase-4` (spot-checked by path): D1's two `revocation.rs` tiers; D2's route; D3's migration `0002`; the acceptance override; the harness and both specs; the five 4F.8 steps in `pr-checks.yml`; `max_jobs = 1` with the one-second cron; `SERVED_POLICY_EFFECTS`; this record |
+
+**CI on the merged tree.**
+- **No workflow ran on `a7d52c1` itself.** All three workflows trigger on pull
+  requests, on pushes to `main`, or on a schedule or dispatch; none on a push
+  to `phase-4`.
+- **PR #41's final runs tested this exact tree.** The `checks` job of run
+  `38258189387` checked out GitHub's merge ref:
+  *"HEAD is now at 5b49c68 Merge 1b3ccbd… into 1ccce7a…"*. Its tree,
+  `c78cb58`, is the tree `phase-4` now holds.
+- **The runs at that head, 40 of 40:**
+  - `PR Checks` `38258189387`: 2/2;
+  - `Real-Infrastructure Checks` `38258189650`: 15/15;
+  - `Build & Scan` `38258189386`: 23/23.
+
+**Local gates on the merged tree**, run on a branch at `a7d52c1` before this
+addendum, in this session:
+
+| Gate | Result |
+|---|---|
+| `uv run pytest tools/tests -q` | **386 passed** |
+| `uv run lint-imports` | **7 kept, 0 broken** |
+| Codegen | **118** files regenerated; **zero** drift |
+| `docker compose … config --quiet`, with and without the acceptance override | **valid**, both. Compose CLI v5.1.1; there is no daemon |
+| `perception-engine`, `-m "not real_infra"` | **242 passed**, 28 deselected |
+| `web-client` unit | **248 passed** (14 files) |
+| `git diff --check 1ccce7a a7d52c1` | clean |
+| Working tree after every gate | clean |
+
+**Not run locally:**
+- the uncached `turbo` lint, test and typecheck across every package;
+- Cargo;
+- the `real_infra` tiers;
+- the acceptance phases.
+
+**Why:** there is no Docker daemon here, and Cargo's revocation tests must run as
+a non-root user. Each ran in CI, on this exact tree, above.
+
+**No unexpected change was found.**
+
+### 14.3 The ledger, after the merge
+
+| Row | Before | Now | Evidence and rationale |
+|---|---|---|---|
+| **L-13** (`known_projects` population) | Settles on merge (§10.1) | **SETTLED**, 2026-10-12, by `a7d52c1` | See below |
+| **L-26** (TDD 4F.8's re-verification against merged 4F.P) | Done in `f28e373`, OPEN until it reached `phase-4` (§10.1) | **SETTLED**, 2026-10-12, by `a7d52c1` | See below |
+| **L-29** | SETTLED for `c04eaff` (§12.8) | SETTLED, unchanged | The merged tree's code is `c04eaff`'s. Every later commit is documentation |
+| **L-31** | SETTLED (§13.3) | SETTLED, unchanged | — |
+| **L-30** | OPEN, for 4F closure | **OPEN**, unchanged | Status in Project Health, the roadmap and the README |
+| **L-17** | OPEN, for authoring | **OPEN**, unchanged | TDD 4F.5 §17.1.1 and its dated notes |
+
+**L-13, the evidence and rationale:**
+- **The rule:** §10.1 says L-13 *"settles on merge into `phase-4`"*. D3 is
+  A-4F8-2 (a), ratified.
+- **What is on `phase-4`:**
+  - migration `0002_known_project.py`;
+  - the `memory.long_term.created` subscription, and its handler wired in
+    `main.py`;
+  - `tests/unit/test_known_projects.py`;
+  - `tests/integration/test_known_project_real_infra.py`.
+- **CI on this tree:** `perception-engine`'s real-infra tier passed 28, which
+  includes that file's 2. Every acceptance run passed AC-7's E-2 match and miss
+  checks.
+- **By design:** the bindings are empty by default. So no folder is a known
+  project until an operator declares one, as A-4F8-2 (a) ratified.
+
+**L-26, the evidence and rationale:**
+- **The rule:** TDD 4F.8 §28.12 says L-26 *"stays OPEN in the 4F.P record until
+  this change reaches `phase-4`"*.
+- **The fact:** `git merge-base --is-ancestor f28e373 a7d52c1` succeeds.
+
+**Where each settlement is recorded.** Each is recorded here, in the settling
+slice's own ledger, as every 4F slice record has done ("Settled by this
+slice"). The rows where they began are preserved as written, as historical
+records:
+- the 4F.2 record, for L-13;
+- the 4F.P record, for L-26.
+
+**Every other row** is carried forward unchanged, as §10.2 lists:
+- L-1 … L-6, L-8 … L-11;
+- L-14 … L-25;
+- L-27, L-28;
+- L-30.
+
+### 14.4 4F.8: its conditions, after the merge
+
+The conditions §11, §12.9 and §13.4 named:
+
+| Condition | Status |
+|---|---|
+| L-29 settled | **Met** (§12.8) |
+| L-31 settled; I-11 met | **Met** (§13) |
+| The documentation head's CI, green | **Met**: 40/40 at `9f09b5b`, `bea9b2f` and `1b3ccbd` |
+| PR #41 reviewed | **Met only as qualified in §14.1**: technical reviews, not independent, and no GitHub review. Whether that discharges this condition, and SAD 15 §3, is the user's determination |
+| An explicit merge authorization | **Met**: the user's, 2026-10-12 |
+| Merged | **Met**: `a7d52c1` |
+| Post-merge verification (master scope §16 rule 7) | **Met** (§14.2) |
+| L-13 and L-26, which settle on merge | **Met** (§14.3) |
+
+**4F.8 is not declared complete by this record.**
+- Every named condition is met, except that the review condition is met only as
+  qualified in §14.1.
+- **Declaring 4F.8 complete is reserved to the user**, and is not made here.
+- This addendum reaches `phase-4` only through its own documentation PR. That
+  PR's merge is likewise the user's decision.
+
+### 14.5 Phase 4F and the Phase 4 Gate Review
+
+**Phase 4F is NOT complete.** 4F closure (L-1) still needs all of the following:
+- **Records:**
+  - the 4F Gate Review;
+  - `docs/project-health/phase-4f.md`, in 23 fields;
+  - the master health row;
+  - the roadmap's 4F row (L-4). It still reads *"2 of 8 slices merged"*;
+  - the README's status (L-22, L-27, L-30);
+  - the SLOC methodology entry.
+- **The ledger:** every row settled, or deferred by recorded approval
+  (protocol §0.2).
+- **Findings:**
+  - A-4F8-9 (F-4F8-10) settled;
+  - CF-9 checked against TDD 4F §5.3;
+  - CF-11's claim 4 recorded;
+  - CF-10, F-4F8-12 and L-17 dispositioned.
+
+**The Phase 4 Gate Review has not been started.** It is a separate decision,
+after 4F closure. **Carried to it, as known limitations:**
+- **How AC-7 is met.** It is met under ratified interpretations:
+  - a file write in an operator-declared folder of a project NOVA holds
+    (A-4F8-2 (a));
+  - the project identity is on the perception observation, not the World Model
+    object (A-4F8-2 (a2), F-4F8-6);
+  - the modality is the filesystem sensor, not IDE or window focus (E-7,
+    D-4F-8);
+  - measured per A-4F8-6.
+- **Permission isolation was shown only under the acceptance-only override**
+  (§28.7 (B), F-4F8-13). In the base deployment, `nova-companion` and
+  `capability-engine` both run as uid 1000 and mount the same workspace. So
+  revoking the sensor's access there would also revoke `capability-engine`'s.
+- **A disabled `AUTO_EXECUTE` policy can be re-enabled through the panel.** It
+  can also be deleted there. L-17 stays OPEN for authoring.
+- **Dispatch is safe in one worker replica only.** Multiple replicas are not
+  claimed.
+- **No automatic recovery after a revocation** (A-4F8-1 (a2)). A failed
+  revocation report is retried only on the next filesystem event.
+- **Governance:** SAD 15 §1 and §3 describe required reviews, branch protection
+  and `CODEOWNERS`, and none is configured.
+
+### 14.6 Findings: all still OPEN
+
+| Finding | Blocks merging 4F.8? | Blocks 4F.8's completion? | Blocks 4F closure and Phase 4 Gate Review GO? |
+|---|---|---|---|
+| A-4F8-9 (F-4F8-10) | No (merged) | No | **Yes** |
+| CF-9 | No | No (a slice closes none of them, TDD 4F.8 §21.1) | **Yes**: dispositioned against TDD 4F §5.3 |
+| CF-10 | No | No | **Yes**: expected to be carried beyond Phase 4, by approval |
+| CF-11 | No | No. Claim 3's evidence is recorded (E-14) | **Yes**: claim 4 is 4F closure's |
+| F-4F8-12 | No | No | **Yes**: dispositioned |
+| L-17 | No | No | **Yes**: settled, or deferred by approval (§0.2) |
+| L-30 | No | No | **Yes**: 4F closure's |
+
+**This section closes none of them, and changes no severity.**
