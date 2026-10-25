@@ -41,7 +41,7 @@ SUBSCRIBABLE_SUBJECTS: frozenset[str] = frozenset(
         # the gateway process would have been receiving it -- the same gap
         # `agent_os.*` was narrowed to `agent_os.task.*` to close (see the
         # entry below). These three are the perception subjects the panels
-        # actually read; `test_no_raw_perception_subject_is_subscribable`
+        # actually read; `test_4f2_no_raw_perception_subject_is_subscribable`
         # fails if a fourth ever becomes reachable here.
         "perception.presence.observed",
         "perception.identity.observed",

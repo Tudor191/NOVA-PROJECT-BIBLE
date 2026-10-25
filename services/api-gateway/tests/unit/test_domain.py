@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import httpx
 import pytest
 from nova_api_gateway.domain.envelope import failure, new_correlation_id, success
 from nova_api_gateway.domain.rate_limit import InMemoryRateLimiter, NullRateLimiter
@@ -10,6 +11,7 @@ from nova_api_gateway.domain.routing import (
     UpstreamRoute,
     build_route_table,
     endpoint_class,
+    is_canonical,
 )
 from nova_api_gateway.domain.session import (
     LocalTokenSessionValidator,
@@ -232,11 +234,41 @@ async def test_in_memory_limiter_blocks_past_the_limit() -> None:
     assert await limiter.allow(session_key="s", endpoint_class="write") is False
 
 
+@pytest.mark.parametrize(
+    ("clock", "expected"),
+    [(120.0, 60), (120.4, 60), (150.0, 30), (179.2, 1), (179.999, 1)],
+)
+def test_retry_after_is_the_rest_of_the_fixed_window(
+    monkeypatch: pytest.MonkeyPatch, clock: float, expected: int
+) -> None:
+    """Whole seconds until the minute `allow()` counts in ends -- never 0,
+    because "retry in 0 s" against a window that has not closed would be
+    refused again."""
+    monkeypatch.setattr("nova_api_gateway.domain.rate_limit.time.monotonic", lambda: clock)
+    limiter = InMemoryRateLimiter(read_per_minute=1, write_per_minute=1)
+    assert limiter.retry_after_seconds() == expected
+
+
+@pytest.mark.asyncio
+async def test_a_request_after_the_hinted_wait_is_allowed_again(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The hint is honest: waiting exactly that long reaches a fresh window."""
+    now = [150.5]
+    monkeypatch.setattr("nova_api_gateway.domain.rate_limit.time.monotonic", lambda: now[0])
+    limiter = InMemoryRateLimiter(read_per_minute=1, write_per_minute=1)
+    assert await limiter.allow(session_key="s", endpoint_class="read") is True
+    assert await limiter.allow(session_key="s", endpoint_class="read") is False
+    now[0] += limiter.retry_after_seconds()
+    assert await limiter.allow(session_key="s", endpoint_class="read") is True
+
+
 @pytest.mark.asyncio
 async def test_null_limiter_always_allows() -> None:
     limiter = NullRateLimiter()
     for _ in range(50):
         assert await limiter.allow(session_key="s", endpoint_class="write") is True
+    assert limiter.retry_after_seconds() == 0
 
 
 # --- Phase 4E: the Digital Twin panel's prefix (TDD 4E Sec7, D-6) -----------
@@ -349,3 +381,60 @@ def test_no_cognitive_state_internal_path_is_routable() -> None:
     assert table.resolve("/internal/readiness") is None
     with pytest.raises(ValueError, match="must start with '/v1/'"):
         RouteTable([UpstreamRoute("/internal/health", "cognitive-state-engine", "http://c")])
+
+
+# --- closure matrix R-06: a path is matched only as the engine receives it -
+
+#: Each one leaves `/v1/digital-twin` once `httpx` builds the upstream URL, is
+#: reinterpreted by it, or makes it raise. All are already percent-decoded, as
+#: the ASGI server hands them over.
+_NON_CANONICAL = [
+    "/v1/digital-twin/../../internal/health",
+    "/v1/digital-twin/domains/../profile",
+    "/v1/digital-twin/..",
+    "/v1/agents/./x",
+    "/v1/digital-twin//../internal/health",
+    "/v1/digital-twin//domains",
+    "/v1/digital-twin/..#",
+    "/v1/digital-twin/..?",
+    "/v1/digital-twin/domains?user_id=x",
+    "/v1/digital-twin/..;/..;/internal/health",
+    "/v1/digital-twin/domains;jsessionid=x",
+    "/v1/digital-twin/domains//",
+    "/v1/digital-twin/%2E%2E/internal/health",
+    "/v1/digital-twin/..\\..\\internal/health",
+    "/v1/digital-twin/domains\x00",
+    "/v1/digital-twin/domains\r\nX-Injected: 1",
+    "/v1/digital-twin/caf\u00e9",
+    "/v1/digital-twin/\ufffd\ufffd",
+    "v1/digital-twin/domains",
+]
+
+_CANONICAL = [
+    "/v1/digital-twin",
+    "/v1/digital-twin/domains",
+    "/v1/digital-twin/domains/",
+    "/v1/digital-twin/domains/projects/0d1e2f30-0000-0000-0000-000000000001",
+    "/v1/digital-twin/domains/goals/refresh",
+    "/v1/agents/0d1e2f30-0000-0000-0000-000000000001/activity",
+    "/v1/autonomy/suggestions/0d1e2f30-0000-0000-0000-000000000001/decide",
+    "/v1/capabilities/file.read",
+    "/v1/digital-twin/...",
+    "/v1/digital-twin/a-._~!$&'()*+,=:@b",
+]
+
+
+@pytest.mark.parametrize("path", _NON_CANONICAL)
+def test_a_path_the_engine_would_not_receive_unchanged_resolves_to_no_route(path: str) -> None:
+    assert not is_canonical(path)
+    assert _table().resolve(path) is None
+
+
+@pytest.mark.parametrize("path", _CANONICAL)
+def test_a_canonical_path_is_forwarded_as_written(path: str) -> None:
+    """The assumption `is_canonical` rests on, pinned: for every path it lets
+    through, the URL `httpx` builds has the same host and the same path."""
+    assert is_canonical(path)
+    url = httpx.URL(f"http://digital-twin-engine:8000{path}")
+    assert url.host == "digital-twin-engine"
+    assert url.path == path

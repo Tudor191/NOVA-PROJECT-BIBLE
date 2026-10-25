@@ -58,6 +58,7 @@ from nova_autonomy_engine.domain.ports import (
 )
 from nova_autonomy_engine.events.published import PUBLISHABLE_SUBJECTS
 from nova_autonomy_engine.events.subscribed import SUBSCRIBABLE_SUBJECTS
+from nova_autonomy_engine.observability import create_metrics
 from nova_autonomy_engine.repository.postgres_autonomy_repository import (
     PostgresAutonomyRepository,
 )
@@ -78,6 +79,7 @@ def _make_decision_request_handler(app: FastAPI):  # type: ignore[no-untyped-def
             trust_source=state.trust_source,
             dispatcher=state.dispatcher,
             user_id=state.settings.primary_user_id,
+            metrics=getattr(state, "metrics", None),
         )
 
     return handle
@@ -139,6 +141,7 @@ def create_app(
         await bus.close()
 
     fastapi_app = FastAPI(title="autonomy-engine", version="0.1.0", lifespan=lifespan)
+    fastapi_app.state.metrics = create_metrics()
     fastapi_app.include_router(health_router)
     fastapi_app.include_router(autonomy_router)
     fastapi_app.mount("/internal/metrics", prometheus_asgi_app())

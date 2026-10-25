@@ -37,6 +37,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import re
 import socket
 import time
 from collections.abc import AsyncIterator
@@ -503,3 +504,52 @@ async def test_k1_a_report_published_while_offline_is_not_received(
         assert await _state_of(database, "published-while-offline") is None
         served = (await client.get("/v1/cognitive-state/sensors")).json()["sensors"]
         assert [s["sensor_id"] for s in served] == ["published-while-online"]
+
+
+def _scraped(body: str, name: str, **labels: str) -> float:
+    """The sum of `name`'s samples whose labels include `labels`, from a
+    Prometheus text scrape. A subset match, because the exporter adds its own
+    `otel_scope_*` labels to every sample."""
+    total = 0.0
+    for line in body.splitlines():
+        sample, _, value = line.rpartition(" ")
+        metric, _, rest = sample.partition("{")
+        if metric != name:
+            continue
+        found = dict(re.findall(r'(\w+)="([^"]*)"', rest))
+        if all(found.get(key) == wanted for key, wanted in labels.items()):
+            total += float(value)
+    return total
+
+
+async def test_the_production_subscription_counts_each_report_on_internal_metrics(
+    producer: BoundEventBus,
+    database: AsyncEngine,
+    postgres_container: PostgresContainer,
+    nats_container,  # type: ignore[no-untyped-def]
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """SAD 15 §9.1 item 10, end to end: `main.py` hands the instruments to the
+    lifespan subscription, so a report over the real bus moves the counter the
+    real `/internal/metrics` scrape serves. The counter is process-global, so
+    the assertion is a delta; the ordered marker settles the unknown status."""
+    name = "cognitive_state_sensor_reports_total"
+    async with _running_engine(postgres_container, nats_container, monkeypatch) as client:
+
+        async def scrape() -> str:
+            response = await client.get("/internal/metrics/", follow_redirects=True)
+            assert response.status_code == 200
+            return response.text
+
+        before = await scrape()
+        await producer.publish(_envelope("running", at=T0))
+        await producer.publish(_envelope("healthy", at=T0 + timedelta(seconds=1)))
+        await producer.publish(_envelope("initialized", sensor_id="metrics-marker", at=T0))
+        await wait_until(lambda: _is(database, "metrics-marker", "initialized"), timeout_s=10.0)
+        after = await scrape()
+
+    def delta(outcome: str) -> float:
+        return _scraped(after, name, outcome=outcome) - _scraped(before, name, outcome=outcome)
+
+    assert delta("applied") == 2
+    assert delta("rejected_unknown_status") == 1
