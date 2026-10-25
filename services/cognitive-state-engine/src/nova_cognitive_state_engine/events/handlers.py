@@ -32,7 +32,9 @@ sensor handler and still hold for it.)*
 
 from __future__ import annotations
 
+import time
 from collections.abc import Awaitable, Callable
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 from nova_contracts import EventEnvelope
@@ -54,6 +56,9 @@ from nova_cognitive_state_engine.domain.sensor_state import (
 )
 from nova_cognitive_state_engine.ingestion_orchestration import ingest_workspace_observation
 
+if TYPE_CHECKING:
+    from nova_cognitive_state_engine.observability import CognitiveStateMetrics
+
 __all__ = [
     "SENSOR_HEALTH_SUBJECT",
     "WORKSPACE_OBSERVED_SUBJECT",
@@ -73,7 +78,16 @@ logger = get_logger("cognitive-state-engine.events")
 
 def make_sensor_health_handler(
     repository: SensorStateRepository,
+    *,
+    metrics: CognitiveStateMetrics | None = None,
 ) -> Callable[[EventEnvelope], Awaitable[None]]:
+    """*(`metrics` added 2026-10-16, SAD 15 §9.1 item 10: each report is
+    counted by the same outcome its log line already names.)*"""
+
+    def count(outcome: str) -> None:
+        if metrics is not None:
+            metrics.sensor_reports_total.add(1, {"outcome": outcome})
+
     async def handle(envelope: EventEnvelope) -> None:
         context = {
             "event_id": str(envelope.event_id),
@@ -86,6 +100,7 @@ def make_sensor_health_handler(
                 "sensor_report_rejected_invalid_payload",
                 extra={**context, "detail": str(exc.errors(include_url=False))},
             )
+            count("rejected_invalid_payload")
             return
 
         state = accept_lifecycle_state(payload.status)
@@ -96,6 +111,7 @@ def make_sensor_health_handler(
                 "sensor_report_rejected_unknown_status",
                 extra={**context, "sensor_id": payload.sensor_id, "status": payload.status},
             )
+            count("rejected_unknown_status")
             return
 
         record = SensorStateRecord(
@@ -111,12 +127,14 @@ def make_sensor_health_handler(
             logger.exception(
                 "sensor_report_not_stored", extra={**context, "sensor_id": payload.sensor_id}
             )
+            count("not_stored")
             return
 
         logger.info(
             "sensor_report_applied" if changed else "sensor_report_ignored_duplicate_or_stale",
             extra={**context, "sensor_id": payload.sensor_id, "state": state},
         )
+        count("applied" if changed else "ignored_duplicate_or_stale")
 
     return handle
 
@@ -126,6 +144,7 @@ def make_workspace_observation_handler(
     trigger: DecisionTriggerPort,
     *,
     user_id: UUID,
+    metrics: CognitiveStateMetrics | None = None,
 ) -> Callable[[EventEnvelope], Awaitable[None]]:
     """**Phase 4F.P, A-4FP-1 and A-4FP-10 (SD-6).** One observation, one
     ingestion step, **awaited inline** -- the insert, the promotion and the
@@ -143,7 +162,15 @@ def make_workspace_observation_handler(
     callback, where nothing can act on it. The observation's `label` is not
     logged, and its path never reaches this engine at all."""
 
+    def record(outcome: str, started: float) -> None:
+        if metrics is not None:
+            metrics.workspace_observations_total.add(1, {"outcome": outcome})
+            metrics.ingestion_duration_seconds.record(
+                time.perf_counter() - started, {"outcome": outcome}
+            )
+
     async def handle(envelope: EventEnvelope) -> None:
+        started = time.perf_counter()
         context = {
             "event_id": str(envelope.event_id),
             "correlation_id": str(envelope.correlation_id),
@@ -160,6 +187,7 @@ def make_workspace_observation_handler(
                     "detail": str(exc.errors(include_url=False, include_input=False)),
                 },
             )
+            record("rejected_invalid_payload", started)
             return
 
         try:
@@ -172,7 +200,10 @@ def make_workspace_observation_handler(
                 "workspace_observation_not_ingested",
                 extra={**context, "object_id": payload.object_id},
             )
+            record("not_ingested", started)
             return
+
+        record(result.outcome, started)
 
         detail = {
             **context,
@@ -194,6 +225,8 @@ def make_workspace_observation_handler(
         else:
             promotion = result.promotion
             delivery = promotion.trigger if promotion is not None else None
+            if delivery is not None and metrics is not None:
+                metrics.initiative_triggers_total.add(1, {"status": delivery.status})
             logger.info(
                 "workspace_observation_ingested",
                 extra={
