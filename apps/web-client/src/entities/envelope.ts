@@ -62,12 +62,22 @@ export class GatewayError extends Error {
     readonly status: number,
     readonly correlationId: string | null,
     readonly upstreamStatus: number | null = null,
+    /**
+     * The gateway's `Retry-After`, in seconds, when it sent one as
+     * delta-seconds -- TDD 4A §7's "structured retry hint". `null` means none
+     * was sent; nothing here estimates one.
+     */
+    readonly retryAfterSeconds: number | null = null,
   ) {
     super(message);
     this.name = "GatewayError";
   }
 
-  /** The session is gone or was never valid -- the shell re-runs first-run auth. */
+  /**
+   * The session is gone or was never valid. `createQueryClient()` re-asks the
+   * session probe on any such failure, and `SessionGate` re-runs first-run
+   * auth if the probe agrees (TDD 4A §7).
+   */
   get isUnauthenticated(): boolean {
     return this.status === 401 || this.code === "unauthenticated";
   }

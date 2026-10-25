@@ -80,7 +80,7 @@ NESTED_DIR = "design"
 FILE_NAME = "notes.md"
 #: Every directory name on the watched path. The assertion that none of these
 #: survives into Postgres is the whole of S-4's persisted leg.
-SEGMENTS = ("home", "ada", "projects", PROJECT_DIR, NESTED_DIR)
+SEGMENTS = ("home", "lovelace", "projects", PROJECT_DIR, NESTED_DIR)
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -148,7 +148,7 @@ async def engine(
 
 @pytest.fixture
 def watch_root(tmp_path: Path) -> Path:
-    root = tmp_path / "home" / "ada" / "projects"
+    root = tmp_path / "home" / "lovelace" / "projects"
     (root / PROJECT_DIR / NESTED_DIR).mkdir(parents=True)
     return root
 
