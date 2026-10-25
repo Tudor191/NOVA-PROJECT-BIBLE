@@ -11,12 +11,16 @@ unauthenticated caller must not be able to reach or probe an upstream.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from typing import Any
+from urllib.parse import unquote
 
+import httpx
 import pytest
 from fastapi.testclient import TestClient
 from nova_api_gateway.clients.upstream import (
+    UpstreamClient,
     UpstreamResponse,
     UpstreamUnavailableError,
     filter_request_headers,
@@ -316,6 +320,12 @@ def test_rate_limit_returns_structured_429(upstream: FakeUpstream) -> None:
         response = limited.get("/v1/communication/sessions")
         assert response.status_code == 429
         assert response.json()["error"]["code"] == "rate_limited"
+        # TDD 4A §7: "429 with a structured retry hint" -- RFC 9110
+        # delta-seconds until this class's fixed window ends. (Added
+        # 2026-10-16; the 429 carried no hint before.)
+        retry_after = response.headers["retry-after"]
+        assert retry_after.isdigit()
+        assert 1 <= int(retry_after) <= 60
 
 
 # --- Agents surface, Phase 4C milestone 4C.2c (decision D-4) ----------------
@@ -630,3 +640,158 @@ def test_the_cognitive_state_engines_internal_surface_is_never_forwarded(
 
     client.get("/v1/cognitive-state/internal/health")
     assert upstream.calls[-1]["url"] == f"{_COGNITIVE_STATE}/v1/cognitive-state/internal/health"
+
+
+
+# --- closure matrix R-06: no caller leaves a prefix -------------------------
+#
+# Every HTTP client used in tests removes a literal `..` before it sends, and
+# the test client decodes a path twice. So these call the app the way uvicorn
+# does: `raw_path` as received, `path = unquote(raw_path)` (uvicorn's
+# `h11_impl`). The upstream is the real `UpstreamClient` over a recording
+# transport, so the URL checked is the one `httpx` actually builds.
+
+
+async def _call(target: bytes) -> tuple[int, dict[str, Any], list[httpx.Request]]:
+    sent: list[httpx.Request] = []
+
+    def record(request: httpx.Request) -> httpx.Response:
+        sent.append(request)
+        return httpx.Response(200, json={"ok": True})
+
+    app = create_app(_settings())
+    app.state.upstream = UpstreamClient(httpx.AsyncClient(transport=httpx.MockTransport(record)))
+    raw_path, _, query = target.partition(b"?")
+    scope = {
+        "type": "http",
+        "asgi": {"version": "3.0"},
+        "http_version": "1.1",
+        "method": "GET",
+        "scheme": "http",
+        "server": ("testserver", 80),
+        "client": ("127.0.0.1", 1),
+        "root_path": "",
+        "path": unquote(raw_path.decode("ascii")),
+        "raw_path": raw_path,
+        "query_string": query,
+        "headers": [(b"host", b"testserver"), (b"authorization", f"Bearer {TOKEN}".encode())],
+    }
+    messages: list[dict[str, Any]] = []
+
+    async def receive() -> dict[str, Any]:
+        return {"type": "http.request", "body": b"", "more_body": False}
+
+    async def send(message: dict[str, Any]) -> None:
+        messages.append(message)
+
+    await app(scope, receive, send)
+    status_code = next(m["status"] for m in messages if m["type"] == "http.response.start")
+    body = b"".join(m.get("body", b"") for m in messages if m["type"] == "http.response.body")
+    return status_code, json.loads(body), sent
+
+
+@pytest.mark.parametrize(
+    "target",
+    [
+        b"/v1/digital-twin/../../internal/health",
+        b"/v1/cognitive-state/../../internal/metrics",
+        b"/v1/digital-twin/domains/../profile",
+        b"/v1/digital-twin/%2E%2E/%2E%2E/internal/health",
+        b"/v1/digital-twin/.%2e/%2e./internal/health",
+        b"/v1/digital-twin%2F..%2F..%2Finternal%2Fhealth",
+        b"/v1/digital-twin//../internal/health",
+        b"/v1/digital-twin/..%23",
+        b"/v1/digital-twin/..%3F",
+        b"/v1/digital-twin/..;/..;/internal/health",
+        b"/v1/digital-twin/..%3B/..%3B/internal/health",
+        b"/v1/digital-twin/%252E%252E/%252E%252E/internal/health",
+        b"/v1/digital-twin/..%5C..%5Cinternal/health",
+        b"/v1/digital-twin/domains%00",
+        b"/v1/digital-twin/%C0%AE%C0%AE/internal/health",
+    ],
+)
+@pytest.mark.asyncio
+async def test_a_non_canonical_path_reaches_no_upstream(target: bytes) -> None:
+    status_code, body, sent = await _call(target)
+    assert status_code == 404
+    assert body["error"]["code"] == "no_route"
+    assert sent == []
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/v1/digital-twin/domains",
+        "/v1/digital-twin/domains/projects/0d1e2f30-0000-0000-0000-000000000001",
+        "/v1/agents/0d1e2f30-0000-0000-0000-000000000001/activity",
+        "/v1/cognitive-state/thoughts",
+        "/v1/digital-twin/a-._~!$&'()*+,=:@b",
+    ],
+)
+@pytest.mark.asyncio
+async def test_a_canonical_path_reaches_its_engine_unchanged(path: str) -> None:
+    status_code, _, sent = await _call(f"{path}?limit=5&cursor=abc%2Fdef%3D%3D".encode())
+    assert status_code == 200
+    [request] = sent
+    assert request.url.path == path
+    assert request.url.raw_path.split(b"?", 1)[0] == path.encode("ascii")
+    assert dict(request.url.params) == {"limit": "5", "cursor": "abc/def=="}
+
+
+# --- error hygiene: structured, and naming nothing internal -----------------
+
+
+def test_an_unreachable_upstream_does_not_reveal_its_address(
+    client: TestClient, upstream: FakeUpstream
+) -> None:
+    upstream.raise_unavailable = True
+    _auth(client)
+    response = client.get("/v1/communication/sessions")
+    assert response.status_code == 502
+    message = response.json()["error"]["message"]
+    assert "http" not in message and ":8000" not in message
+    assert message == "communication-engine did not answer."
+
+
+@pytest.mark.asyncio
+async def test_a_non_ascii_header_value_is_forwarded_as_sent_not_a_500() -> None:
+    """Called the way the ASGI server calls the app, with the raw header
+    bytes a caller sent: the test client would re-encode them first."""
+    sent: list[httpx.Request] = []
+
+    def record(request: httpx.Request) -> httpx.Response:
+        sent.append(request)
+        return httpx.Response(200, json={"ok": True})
+
+    app = create_app(_settings())
+    app.state.upstream = UpstreamClient(httpx.AsyncClient(transport=httpx.MockTransport(record)))
+    scope = {
+        "type": "http",
+        "asgi": {"version": "3.0"},
+        "http_version": "1.1",
+        "method": "GET",
+        "scheme": "http",
+        "server": ("testserver", 80),
+        "client": ("127.0.0.1", 1),
+        "root_path": "",
+        "path": "/v1/communication/sessions",
+        "raw_path": b"/v1/communication/sessions",
+        "query_string": b"",
+        "headers": [
+            (b"host", b"testserver"),
+            (b"authorization", f"Bearer {TOKEN}".encode()),
+            (b"x-probe", b"caf\xe9"),
+        ],
+    }
+    messages: list[dict[str, Any]] = []
+
+    async def receive() -> dict[str, Any]:
+        return {"type": "http.request", "body": b"", "more_body": False}
+
+    async def send(message: dict[str, Any]) -> None:
+        messages.append(message)
+
+    await app(scope, receive, send)
+    assert next(m["status"] for m in messages if m["type"] == "http.response.start") == 200
+    [request] = sent
+    assert dict(request.headers.raw)[b"x-probe"] == b"caf\xe9"

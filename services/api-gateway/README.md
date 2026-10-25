@@ -59,6 +59,84 @@ request/response boundary only. Realtime delivery to the browser is
 - `GET /internal/metrics` — the Prometheus scrape endpoint, mounted as a
   sub-application in `main.py` rather than declared in `api/health.py`.
 
+## Internal structure
+
+*(Added 2026-10-16, SAD 15 §9.1 item 3. Drawn from `src/` at this commit.)*
+
+```
+src/nova_api_gateway/
+├── main.py             create_app(): settings, route table, session validator,
+│                       rate limiter, metrics, routers, /internal/metrics mount
+├── config.py           Settings (env prefix API_GATEWAY_)
+├── observability.py    GatewayMetrics: the four instruments below
+├── api/
+│   ├── auth.py         POST/GET/DELETE /v1/auth/session (decision D-3)
+│   ├── forward.py      /v1/{path} catch-all: authenticate → route → limit → forward
+│   └── health.py       /internal/health, /internal/readiness
+├── clients/
+│   └── upstream.py     UpstreamClient (httpx), header filtering, UpstreamUnavailableError
+├── domain/             no I/O
+│   ├── envelope.py     doc 11 §4 envelope, correlation ids
+│   ├── routing.py      RouteTable: the nine allow-listed prefixes, endpoint_class()
+│   ├── rate_limit.py   InMemoryRateLimiter, NullRateLimiter
+│   └── session.py      LocalTokenSessionValidator (constant-time comparison)
+├── events/             published.py / subscribed.py: both sets empty by design
+├── models/             scaffold package; empty
+└── repository/         scaffold package; empty (the gateway owns no data)
+```
+
+Shared packages: `nova-observability` (logging, metrics). `nova-contracts`
+and `nova-eventbus-sdk` are declared dependencies, but the gateway publishes
+and subscribes to nothing.
+
+## Observability
+
+*(Added 2026-10-16, SAD 15 §9.1 items 9 and 10.)*
+
+**Metrics**, scraped from `/internal/metrics`. Every label is bounded: no
+path, query, token or correlation id is ever a label.
+
+| Metric | Type | Labels | Meaning |
+|---|---|---|---|
+| `api_gateway_requests_total` | counter | `upstream`, `method`, `outcome` | Every `/v1/*` forwarding decision |
+| `api_gateway_request_duration_seconds` | histogram | `upstream`, `outcome` | Time to answer a `/v1/*` request |
+| `api_gateway_upstream_duration_seconds` | histogram | `upstream`, `outcome` | Time inside the upstream call alone |
+| `api_gateway_session_exchanges_total` | counter | `outcome` | `issued`, `invalid_token`, `not_configured` |
+
+`outcome` is one of `forwarded`, `upstream_error`, `upstream_unavailable`,
+`unauthenticated`, `no_route`, `rate_limited`. Histogram buckets are in
+seconds (5 ms to 30 s); the OpenTelemetry default buckets assume
+milliseconds and would put every request in one bucket.
+
+**Logs** (JSON, via `nova-observability`). Each refusal or failure carries
+the request's `correlation_id`, its method and its path:
+
+| Message | Level | When |
+|---|---|---|
+| `request refused`, `reason=unauthenticated` | info | No valid session; no upstream was contacted |
+| `request refused`, `reason=no_route` | info | Not an allow-listed prefix |
+| `request refused`, `reason=rate_limited` | warning | The limiter refused; carries `endpoint_class` |
+| `upstream unavailable` | warning | The upstream could not be reached (502) |
+| `upstream returned an error` | info | The upstream answered ≥ 400; carries `upstream_status` |
+| `session exchange refused` | warning | `reason=invalid_token` or `session_not_configured`. The presented value is never logged |
+| `session issued` | info | A session cookie was set |
+
+**Not built: traces.** `configure_observability()` installs an OTLP
+exporter, but no span is created here or anywhere in the repository, and
+no trace context is propagated to upstreams. SAD 15 §9.1 item 10 asks for
+both; doing it needs a propagation decision across HTTP and the Event Bus
+envelope, recorded as open in the Phase 4 closure matrix.
+
+**Rate limiting differs from its design.** TDD 4A §2.3 specifies a
+Redis-backed token bucket with three classes. What runs is an in-process
+fixed-window counter with two (`read`, `write`); see
+`domain/rate_limit.py`. The deviation is disclosed and awaiting a decision.
+
+**A 429 carries `Retry-After`** *(added 2026-10-16)*: the whole seconds until
+the fixed window ends, never 0. This is TDD 4A §7's "structured retry hint",
+which the 429 lacked until now. It is the standard header, so the envelope's
+`error` schema is unchanged. `web-client` reads the header and shows the hint.
+
 ## Testing
 
 ```bash
