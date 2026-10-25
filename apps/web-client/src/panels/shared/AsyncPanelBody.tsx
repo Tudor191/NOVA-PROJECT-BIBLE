@@ -37,9 +37,11 @@ export function AsyncPanelBody({
     return (
       <DegradationNotice
         title={
-          gatewayError?.isUnauthenticated
-            ? "This session is no longer valid"
-            : "This panel could not read its data"
+          gatewayError?.isRateLimited
+            ? "Too many requests"
+            : gatewayError?.isUnauthenticated
+              ? "This session is no longer valid"
+              : "This panel could not read its data"
         }
         detail={error instanceof Error ? error.message : String(error)}
         code={gatewayError?.code ?? null}
