@@ -57,7 +57,7 @@ logic.
 > **Open question, not decided here:** this paragraph says *line* coverage,
 > while the root config it points to sets `branch = true`. The enforced gate
 > therefore measures line and branch coverage together, which is stricter.
-> Every package clears it (lowest 90.18% on 2026-10-16). Whether the
+> Every package clears it (lowest 89.82% on 2026-10-16). Whether the
 > paragraph or the config should change is a decision for the owner,
 > recorded in the Phase 4 closure matrix.
 >
