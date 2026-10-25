@@ -28,6 +28,7 @@ from nova_api_gateway.config import Settings
 from nova_api_gateway.domain.rate_limit import InMemoryRateLimiter, NullRateLimiter
 from nova_api_gateway.domain.routing import build_route_table
 from nova_api_gateway.domain.session import LocalTokenSessionValidator
+from nova_api_gateway.observability import create_metrics
 
 logger = get_logger("api-gateway")
 
@@ -76,6 +77,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     fastapi_app = FastAPI(title="api-gateway", version="0.1.0", lifespan=lifespan)
 
     fastapi_app.state.settings = settings
+    fastapi_app.state.metrics = create_metrics()
     fastapi_app.state.route_table = route_table
     fastapi_app.state.session_validator = session_validator
     fastapi_app.state.rate_limiter = (

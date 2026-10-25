@@ -15,6 +15,7 @@ from nova_ws_gateway.config import Settings
 from nova_ws_gateway.domain.session import LocalTokenSessionValidator
 from nova_ws_gateway.events.published import PUBLISHABLE_SUBJECTS
 from nova_ws_gateway.events.subscribed import SUBSCRIBABLE_SUBJECTS
+from nova_ws_gateway.observability import create_metrics
 
 logger = get_logger("ws-gateway")
 
@@ -54,6 +55,7 @@ def create_app(
 
     fastapi_app = FastAPI(title="ws-gateway", version="0.1.0", lifespan=lifespan)
     fastapi_app.state.settings = settings
+    fastapi_app.state.metrics = create_metrics()
     fastapi_app.state.session_validator = LocalTokenSessionValidator(
         settings.session_token
     )
