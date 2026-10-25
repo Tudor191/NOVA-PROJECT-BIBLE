@@ -23,6 +23,7 @@ from nova_cognitive_state_engine.events.handlers import (
 )
 from nova_cognitive_state_engine.events.published import PUBLISHABLE_SUBJECTS
 from nova_cognitive_state_engine.events.subscribed import SUBSCRIBABLE_SUBJECTS
+from nova_cognitive_state_engine.observability import create_metrics
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncEngine
@@ -104,7 +105,10 @@ def create_app(
         # Phase 4F.7 (RS-3a): the one subscription. Registered before readiness,
         # so a ready engine is a listening one. Core NATS: a report dispatched
         # before this line runs is not delivered here (TDD 4F.7 §15 K-1).
-        await bus.subscribe(SENSOR_HEALTH_SUBJECT, make_sensor_health_handler(repo))
+        await bus.subscribe(
+            SENSOR_HEALTH_SUBJECT,
+            make_sensor_health_handler(repo, metrics=app.state.metrics),
+        )
 
         # Phase 4F.P (A-4FP-1, A-4FP-10): the second subscription -- "the one
         # subscription" above is preserved as written. Thought ingestion from
@@ -116,7 +120,10 @@ def create_app(
         await bus.subscribe(
             WORKSPACE_OBSERVED_SUBJECT,
             make_workspace_observation_handler(
-                repo, app.state.trigger, user_id=settings.primary_user_id
+                repo,
+                app.state.trigger,
+                user_id=settings.primary_user_id,
+                metrics=app.state.metrics,
             ),
         )
 
@@ -129,6 +136,7 @@ def create_app(
             await engine.dispose()
 
     fastapi_app = FastAPI(title="cognitive-state-engine", version="0.1.0", lifespan=lifespan)
+    fastapi_app.state.metrics = create_metrics()
     fastapi_app.include_router(health_router)
     fastapi_app.include_router(cognitive_state_router)
     fastapi_app.mount("/internal/metrics", prometheus_asgi_app())
