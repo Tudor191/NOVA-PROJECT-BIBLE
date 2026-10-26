@@ -153,6 +153,12 @@ changed:
 - §4 (D-A16, D-C12, authorizations), §6, §7 and §8 gain dated notes.
 - §6's heading said *"`main` → `phase-4`"*. Promotion is `phase-4` → `main`.
 
+**Revision, 2026-10-26, master scope §17.** The owner authorized this PR to
+add master scope §17's rows for doc 14 and for the design README, so the PR
+now edits a fourth file, `00-master-scope.md`. N-05's and N-14's rows gain
+dated notes, and so do §4's authorizations and §7 step 4. **Nothing is
+closed, reclassified or re-counted:** 104 open, 0 closed.
+
 Everything new here was produced by the implementing agent, so it is **not
 independent** (§0).
 
@@ -696,7 +702,7 @@ recorded on PR #42 *(merged, `43c6b12`)*.
 | **N-02** | `autonomy-engine` level, policy and permission changes had no record | 4F | Partly FIX (#45: before and after log lines) | **D-C5**: persisted audit or not. *(2026-10-18: #45's lines lack `correlation_id` and target `user_id`, and refused writes were unlogged. The prepared amendment adds `outcome`, `user_id` (server-side, the target), `correlation_id` (a header; not attribution), `actor` (always null: not determinable under the single-token model), and a refusal line for 422 and 404. They remain stdout operational logs, not an audit trail)* *(2026-10-26: the amendment merged with #45, `6663062`: `58a0f8f`, `5195171`, `5220515`. Still stdout, not an audit trail. D-C5 is still open)* |
 | **N-03** | `rate_limit.py` claimed a Redis limiter that does not exist | GO | **FIX ready (#43)** → ***FIX MERGED (#43, `cdeef3c`), open*** | Corrected, quoting the original (`692ae2b`) |
 | **N-04** | `ws-gateway` README omitted `agent_os.task.completed` | 4F | **FIX ready (#44)** → ***FIX MERGED (#44, `550bc78`), open*** | `4f27c7c` |
-| **N-05** | `docs/design/phase-4/` had no README | GO | **FIX ready (this PR)** *(2026-10-26: still unmerged; it merges with this document)* | — |
+| **N-05** | `docs/design/phase-4/` had no README | GO | **FIX ready (this PR)** *(2026-10-26: still unmerged; it merges with this document. Master scope §17 now indexes the README, on the owner's authorization. N-05 stays open: once merged it is FIX MERGED, and §2.5 applies)* | — |
 | N-06 | 4B DEV-5 (cosmetic) | — | ACCEPT RISK | **D-C15** |
 | N-07 | About 20 retained Phase 4 branches; remote deletion is blocked to this session | — | DOCUMENT | Report in the Gate Review |
 | **N-08** | `created_at` had no `nova-contracts` test (protocol §8.1) | GO | **FIX ready (#52)** → ***FIX MERGED (#52, `634999b`), open*** | 3 tests and a negative control (`5b3a61e`, `test_memory_events.py`). The model is unchanged; only tests were added. **Not closed:** §2.5 says what closing it needs |
@@ -710,7 +716,7 @@ recorded on PR #42 *(merged, `43c6b12`)*.
 | **N-11** | The 85% domain-coverage gate (doc 16 §1) was never enforced in CI: package-directory runs ignore the root config. A package at 81% passed | Demonstrated | GO | **FIX ready (#48), incomplete** → ***FIX MERGED (#48, `a916a6e`), open*** | Gate on in CI; log shows all 19 packages pass. **D-A12 (new)**: doc 16 says *line*, the config says *branch*. *(2026-10-18: the gate still passes 84.5–85% by rounding; see §1.5. #48's head is not a sufficient fix)* *(2026-10-26: `f3fdaf3` set `precision = 4`, with `tools/tests/test_coverage_gate.py`, and merged with #48. At `c81a5c6`, the `checks` job's log (job 121317204270) shows *"Tasks: 32 successful"* and *"Required test coverage of 85.0% reached"*, with the gate on. D-A12 is still open: doc 16 says so, as an open question)* |
 | **N-12** | TDD 4A §7: *"401 → the frontend re-runs the first-run session flow"* was not built. A 401 left the workspace up with failing panels | 6 of 8 failure-path tests fail on `phase-4` *(at `a7d52c1`)* | GO | **FIX ready (#47)** → ***FIX MERGED (#47, `ea0234d`), open*** | `7b9d020` |
 | **N-13** | TDD 4A §7: *"429 with a structured retry hint"*. The 429 carried no hint, and the client could not show one | Tests fail before the change | GO | **FIX ready (#43 server, #47 client)** → ***FIX MERGED (#43 `d7876cb`, #47 `7b9d020`), open*** | `Retry-After`; no envelope change |
-| **N-14** | 4B's TDD was never written and, unlike 4C's, never waived; master scope §17 still says *"Planned"* | 4B Gate Review l.462; master scope l.1383 | GO | DOCUMENT (waiver) | **D-A13 (new)**: waive, as 4C's was. The §17 rows for doc 14 and this package's README wait for PR #42, which edits the same table. *(2026-10-26: D-A13 is not decided. #42 merged without adding the two rows, so §17 has neither. Adding them edits master scope, outside this PR's three files, and needs authorization)* |
+| **N-14** | 4B's TDD was never written and, unlike 4C's, never waived; master scope §17 still says *"Planned"* | 4B Gate Review l.462; master scope l.1383 | GO | DOCUMENT (waiver) | **D-A13 (new)**: waive, as 4C's was. The §17 rows for doc 14 and this package's README wait for PR #42, which edits the same table. *(2026-10-26: D-A13 is not decided. #42 merged without adding the two rows, so §17 has neither. Adding them edits master scope, outside this PR's three files, and needs authorization)* *(2026-10-26, later: authorized by the owner, and added by this PR to master scope §17, as its last two rows. D-A13 is still undecided, and §17's `02-tdd-4b-…` row still reads "Planned". N-14 stays open)* |
 
 ### 3.8 Found by the re-audit (2026-10-17/18)
 
@@ -786,7 +792,9 @@ those listed.
 (§1.5). Reusing PR #42 is moot, because it is merged. Not given: merging this
 PR; opening the Phase 4 closure PR or the promotion PR; triggering C-7 runs;
 the N-01 (D-C4) and X-08 (D-C8) PRs; R-01's CI addition; any change to the
-runner or the workflow triggers (D-A10, D-A14).
+runner or the workflow triggers (D-A10, D-A14). *(Later the same day:
+adding master scope §17's rows for doc 14 and the design README, in this
+PR, was authorized.)*
 
 ---
 
@@ -924,7 +932,9 @@ Promotion is `phase-4` → `main`, master scope §16.)*
    - **No N-01 or X-08 PR exists.** D-C4 and D-C8 are undecided.
 4. **Post-merge verification** of `phase-4` (master scope §16 rule 7).
    *(2026-10-26: not yet recorded for the §1.6 merges. §1.6 lists what was
-   checked at each merge and what is missing.)*
+   checked at each merge and what is missing. The owner has directed that
+   the record be completed on `phase-4` after PR #53 merges. The rule itself
+   is unchanged.)*
 5. **C-7** per D-A7, then the **Phase 4 Gate Review** (X-01, X-02, X-11, X-12,
    X-14, X-16 … X-19, AC re-verification at the final SHA). That is its own PR.
 6. **Promotion PR**, only after **GO** and the owner's authorization to open

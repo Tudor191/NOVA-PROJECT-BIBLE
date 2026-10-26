@@ -53,3 +53,7 @@ wait for PR #42, which edits the same table, so the two changes do not collide.
 add either row, so §17 still has neither. Adding them means editing master
 scope, which is outside this pull request's three files. That edit needs the
 owner's authorization (closure matrix, N-05 and N-14).
+
+*(2026-10-26, later.)* The owner authorized it, and PR #53 adds both rows to
+master scope §17. N-05 and N-14 stay open. So does D-A13, the 4B waiver, and
+§17's `02-tdd-4b-…` row is unchanged.
