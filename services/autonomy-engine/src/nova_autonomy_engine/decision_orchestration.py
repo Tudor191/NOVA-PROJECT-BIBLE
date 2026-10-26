@@ -61,6 +61,8 @@ failure. **No constraint, no migration and no second mechanism is added.**
 
 from __future__ import annotations
 
+import time
+from typing import TYPE_CHECKING
 from uuid import UUID, uuid5
 
 from nova_contracts import EventEnvelope
@@ -102,6 +104,9 @@ _UNCONFIGURED_LEVEL = AutonomyLevel.OBSERVATION_ONLY
 """What an unconfigured instance decides at -- the same Level 0 `api/autonomy.py`
 reports for a user who never set one (TDD 4D §19). A trigger arriving before
 anyone configured autonomy is therefore observed, never proposed or executed."""
+
+if TYPE_CHECKING:
+    from nova_autonomy_engine.observability import AutonomyMetrics
 
 logger = get_logger("autonomy-engine")
 
@@ -154,6 +159,15 @@ async def _record(result: DecisionResult, repository: AutonomyRepository) -> Non
         await repository.append_decision_log(result.log_entry)
 
 
+def _reply_outcome(reply: AutonomyDecisionReplyPayload) -> str:
+    """The bounded `outcome` label for one reply (`observability.py`)."""
+    if reply.rejected:
+        return "rejected"
+    if reply.degraded or reply.outcome is None:
+        return "degraded"
+    return reply.outcome
+
+
 async def handle_decision_request(
     envelope: EventEnvelope,
     *,
@@ -161,9 +175,53 @@ async def handle_decision_request(
     trust_source: ConversationalTrustSource,
     dispatcher: ActionDispatchPort | None,
     user_id: UUID,
+    metrics: AutonomyMetrics | None = None,
 ) -> AutonomyDecisionReplyPayload:
     """Serve one `autonomy.decision.requested`. **Never raises** -- every path
-    returns a structured reply (Design A)."""
+    returns a structured reply (Design A).
+
+    *(Added 2026-10-16, SAD 15 §9.1 items 9 and 10.)* Every reply is counted
+    in `autonomy_decisions_total` and timed in
+    `autonomy_decision_duration_seconds`; a decision that was made and
+    recorded is logged once with its `event_id`, `correlation_id`,
+    `subject_id` and outcome -- the degraded and rejected paths already log
+    below, so between them every reply leaves one line."""
+    started = time.perf_counter()
+    reply = await _decide_and_record(
+        envelope,
+        repository=repository,
+        trust_source=trust_source,
+        dispatcher=dispatcher,
+        user_id=user_id,
+    )
+    outcome = _reply_outcome(reply)
+    if metrics is not None:
+        metrics.decisions_total.add(1, {"source": "trigger", "outcome": outcome})
+        metrics.decision_duration_seconds.record(
+            time.perf_counter() - started, {"outcome": outcome}
+        )
+    if outcome not in {"rejected", "degraded"}:
+        logger.info(
+            "autonomy decision recorded",
+            extra={
+                "event_id": str(envelope.event_id),
+                "correlation_id": str(envelope.correlation_id),
+                "subject_id": str(reply.subject_id) if reply.subject_id else None,
+                "outcome": outcome,
+            },
+        )
+    return reply
+
+
+async def _decide_and_record(
+    envelope: EventEnvelope,
+    *,
+    repository: AutonomyRepository,
+    trust_source: ConversationalTrustSource,
+    dispatcher: ActionDispatchPort | None,
+    user_id: UUID,
+) -> AutonomyDecisionReplyPayload:
+    """The decision itself, unchanged by the instrumentation above."""
     try:
         payload = AutonomyDecisionRequestedPayload.model_validate(envelope.payload)
     except ValidationError as exc:

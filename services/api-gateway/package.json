@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "scripts": {
     "lint": "uv run --package api-gateway ruff check . && uv run --package api-gateway mypy src",
-    "test": "uv run --package api-gateway pytest",
+    "test": "uv run --package api-gateway pytest -m \"not real_infra\" --cov=nova_api_gateway.domain",
     "build": "echo 'api-gateway: no build step (container image built via Dockerfile in CI)'",
     "dev": "uv run --package api-gateway uvicorn nova_api_gateway.main:app --reload --port 8000"
   }
