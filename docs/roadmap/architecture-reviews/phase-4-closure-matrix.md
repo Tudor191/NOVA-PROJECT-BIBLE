@@ -1,6 +1,9 @@
 # Phase 4 — Master Closure Matrix
 
 **Date:** 2026-10-17, **revised 2026-10-18 and 2026-10-19**. **Base:** `phase-4` = `a7d52c16eb704ea95d113f70a610f83d54710805`.
+**Refreshed 2026-10-26** against `phase-4` = `634999be0b09dafdcc56f5b899f37f0c6ea60b03`,
+after thirteen merges (§1.6). Line citations are to the file at `a7d52c1`
+unless a row names another commit (§1.6 lists the cited lines that have moved).
 **Protocol:** [`PROJECT_PHASE_COMPLETION_PROTOCOL.md`](../../PROJECT_PHASE_COMPLETION_PROTOCOL.md),
 read in full from `origin/main` (sha256 `21185dd1…`, 1131 lines; identical on `phase-4`).
 
@@ -24,6 +27,11 @@ It **is not:**
 changed and CI ran on the exact head. Even then it stays **pending** until the
 change is merged, which needs the owner's authorization. Nothing is merged
 here.
+
+*(2026-10-26.)* Thirteen PRs have merged since, each on the owner's
+authorization for that PR (§1.6). A row whose fix has merged now reads **FIX
+MERGED**. It is **still open**, because this document still closes nothing.
+§2.5 says what closing such a row needs, and what is missing.
 
 **Labels are this document's own, and some collide.** *(Added 2026-10-18;
 mapping added 2026-10-19.)* X-nn, N-nn and R-nn are closure-matrix labels. Their
@@ -70,6 +78,9 @@ Where the short form is already cited outside this document:
 | `infra/observability/prometheus.yml`, `tools/tests/test_prometheus_targets.py` (#51) | X-06 | CM:X-06 |
 | `nova-contracts` `test_memory_events.py` (#52) | N-08 | CM:N-08 |
 | `docs/design/phase-4/README.md` (#53) | N-05, N-14 | CM:N-05, CM:N-14 |
+
+*(2026-10-26: #43 … #52 are merged, so every citation above except #53's is
+on `phase-4`.)*
 
 **Terms kept apart throughout.**
 
@@ -124,6 +135,23 @@ defines, X-01 … X-22, N-01 … N-14 and R-01 … R-08, to the record or the
 repository evidence it rests on. One identity is unresolved (X-19). §3.8 adds
 R-07 and R-08, two `api-gateway` error-handling defects found while
 validating R-06's fix: **104 open, FIX 18**. Nothing is closed.
+
+**Revision, 2026-10-26, merges.** The document is refreshed against
+`phase-4` = `634999b`, after PRs #42, #54, #55, #43, #44, #45, #46, #49, #47,
+#48, #50, #51 and #52 merged. **Nothing is closed, reclassified or
+re-counted:** 104 open, FIX 18, DOCUMENTATION 34, DECISION 52, 0 closed. What
+changed:
+- §1.6 is new. It records each merge: the final head, the merge commit, the
+  CI at that exact head, and the tree identity. §1.1, §1.2 and §1.5 are kept
+  as the record of 2026-10-17/18, with dated notes.
+- §1.3 adds the SLOC of the merged `phase-4`.
+- §2.4 splits the FIX row's IDs by merge state, and §2.5 is new.
+- In §3, every status that named an unmerged fix now names the merge.
+  Decision rows keep their decisions, which stay **open**.
+- §5's cells that waited only on a merged PR now pass, and the cells that
+  also wait on doc 14 still wait.
+- §4 (D-A16, D-C12, authorizations), §6, §7 and §8 gain dated notes.
+- §6's heading said *"`main` → `phase-4`"*. Promotion is `phase-4` → `main`.
 
 Everything new here was produced by the implementing agent, so it is **not
 independent** (§0).
@@ -189,7 +217,7 @@ repository. They are kept as written, and identity rests on the evidence above.
 - demotion and INTERRUPTIONS: TDD 4F.P l.260 and TDD 4F l.1776;
 - more ingestion sources, and model-based authoring: TDD 4F.P l.259 and §30.8 (l.3008);
 - stale slice statuses, for example TDD 4F.4 l.21 (*"PR #32 is not merged"*);
-- slice declarations, and the "PR reviewed" ruling: the 4F.8 record §14.4 (l.1368, l.1377, l.1386), **present only on PR #42** (`6b0093b`). If #42 does not merge, the 4F closure PR must re-record both.
+- slice declarations, and the "PR reviewed" ruling: the 4F.8 record §14.4 (l.1368, l.1377, l.1386), **present only on PR #42** (`6b0093b`). If #42 does not merge, the 4F closure PR must re-record both. *(2026-10-26: #42 merged, as `43c6b12`. §14.4 is on `phase-4` at the same lines, so the condition no longer arises.)*
 
 ---
 
@@ -205,7 +233,14 @@ repository. They are kept as written, and identity rests on the evidence above.
 | `phase-4f8-tdd` | `aff01ae` | Retained |
 | `phase-4f8-post-merge` | `6b0093b` | PR #42's head |
 
+*(2026-10-26: superseded by §1.6. `phase-4` is `634999b`. `main` is
+unchanged at `7e273e6`, and the three retained branches are at the SHAs
+above.)*
+
 ### 1.2 Open PRs into `phase-4`, all drafts, none merged
+
+*(2026-10-26: this table is the record of 2026-10-17/18, kept as written.
+Every PR in it except #53 has merged since, at a later head: see §1.6.)*
 
 Each row's CI is the conclusion of every check run **at that exact head**.
 Implementation PRs are one engine each, or platform-only (SAD 15 §4 item 1).
@@ -230,6 +265,11 @@ no conflict**. This was checked in a scratch worktree and never pushed. **No
 CI has run on that combination**, and none can run on `phase-4` itself
 without a dispatch (R-05).
 
+*(2026-10-26: superseded. The PRs were merged one at a time. Each was first
+updated onto the `phase-4` head of the moment, so each merge commit carries
+the tree that CI tested at that PR's final head (§1.6). `phase-4`'s tree now
+is the tree tested at #52's head. No workflow has run on `phase-4` itself.)*
+
 Every head above has 0 GitHub reviews. The PR Checks run of each head is the
 one in the run list (`list_workflow_runs`, 2026-10-17); only #43's contains a
 flaky test.
@@ -248,6 +288,26 @@ The scopes are those of the 4F.4 record.
 
 Per PR: #43 +163, #44 +149, #45 +143, #46 +105, #50 +40, #47 +31; #48, #49,
 #51 and #52 add 0 (tests and configuration). **The gate is not crossed.**
+
+*(2026-10-26.)* The merged `phase-4`, measured the same way at each merge
+commit:
+
+| Tree | Comparable | Wider | Full | 4F scope | Headroom to 50,000 |
+|---|---|---|---|---|---|
+| `phase-4` `634999b`, merged | 38,694 | 44,035 | 48,100 | **48,944** | **1,056** |
+
+Per merge (4F scope):
+- **+183:** #43. Its R-06, R-07 and R-08 commits added 20 to the +163 above.
+- **+149:** #44.
+- **+177:** #45. Its logging amendments added 34.
+- **+105:** #46.
+- **+31:** #47.
+- **+114:** #50. Its logging amendments added 74.
+- **0:** #42, #54, #55, #49, #48, #51 and #52.
+
+The 128 above the scratch figure of 48,816 comes from those amendments,
+which the scratch merge did not contain. `a7d52c1` still measures 48,185.
+**The gate is not crossed.**
 
 ### 1.4 Local evidence this pass
 
@@ -278,6 +338,107 @@ locally and **has not been pushed**.
 | #44 | The test said unsubscribe "stops delivery at the broker", but it inferred that from frames not arriving. No positive control after unsubscribe; close-cleanup untested | X-20 (`ws-gateway` §9.1 item 6) | Amendment prepared: a monitored NATS and `/subsz` counts, a positive-control topic, a close-cleanup test. Three mutations each caught locally; 10/10 local runs. **Reconnect after a broker restart stays untested** |
 | #45, #50 | Configuration logs had no `correlation_id`, no target `user_id`, no refused writes. Before-values come from a separate read | N-02, L-15 | Amendments prepared (§3.6 N-02 gives the fields). **Still operational stdout logs, not an audit trail** |
 | #47 | 39/40 at its head (`checks`: F-4FP-6) | N-12, N-13, F-4FP-10 | Needs green CI at an exact head; R-02's spec fix prepared for this branch |
+
+*(2026-10-26.)* Each amendment above was later pushed to its PR, on the
+owner's authorization, and merged with it (§1.6). One more #48 commit,
+found later in review, is listed with them:
+
+| PR | Amendment | Commit |
+|---|---|---|
+| #48 | `precision = 4` and `tools/tests/test_coverage_gate.py` | `f3fdaf3` |
+| #48 *(found later)* | Doc 16's lowest figure: 89.82%, not 90.18% | `c81a5c6` |
+| #48 | The guard's dependency on the gateways' `--cov` | Met: #43 (`8a9e294`) and #44 merged before #48 |
+| #44 | Monitored NATS, `/subsz` counts, a positive-control topic, close-cleanup | `b25bb99`. Reconnect after a broker restart is **still untested** |
+| #45 | `correlation_id`, target `user_id`, refusals | `58a0f8f`, `5195171`, `5220515` |
+| #50 | The same fields | `5876292`, `fe77cde` |
+| #47 | Green at an exact head, after #49 removed F-4FP-6 | 41/41 at `86b70f6` |
+| #47 | R-02's spec fix | `1f9ef1d` |
+
+The #45 and #50 lines are **still operational stdout logs, not an audit
+trail** (D-C5).
+
+### 1.6 Merged into `phase-4`, 2026-10-23 … 2026-10-26 *(added 2026-10-26)*
+
+Each merge was made on the owner's explicit authorization for that PR. The
+method was GitHub's *"Create a merge commit"*, pinned to the expected head.
+None was a squash or a rebase, and none used auto-merge. Before each merge, the
+PR was updated onto the then-current `phase-4` by a normal merge, so every
+merge's first parent is an ancestor of its PR's head.
+
+| Order | PR | Final head | Merge commit | Merged (UTC) | CI at that exact head | Merge tree = head tree |
+|---|---|---|---|---|---|---|
+| 1 | #42 | `6b0093b` | `43c6b12` | 2026-10-23 19:55 | **40/40** (runs 38462664060, 38462664034, 38462663775) | Yes, `48a9e6a` |
+| 2 | #54 | `cfbc6df` | `6e24d80` | 2026-10-25 12:18 | **40/40** (40016604295, 40016604371, 40016604288) | Yes, `a2bd276` |
+| 3 | #55 | `02dcecd` | `96430aa` | 2026-10-25 13:58 | **40/40** (40196625968, 40196625796, 40196625838) | Yes, `75d5fce` |
+| 4 | #43 | `e2700b9` | `cdeef3c` | 2026-10-25 14:17 | **40/40** (40200567489, 40200567502, 40200567485) | Yes, `57602b0` |
+| 5 | #44 | `8bffcae` | `550bc78` | 2026-10-25 15:49 | **41/41** (40207293546, 40207293502, 40207293500) | Yes, `4ec9ccc` |
+| 6 | #45 | `7df095d` | `6663062` | 2026-10-25 20:06 | **41/41** (40228266797, 40228266682, 40228266718) | Yes, `cd690af` |
+| 7 | #46 | `7575806` | `8751f80` | 2026-10-25 20:20 | **41/41** (40229634583, 40229634585, 40229634590) | Yes, `5158352` |
+| 8 | #49 | `0b1d4cc` | `30a8d78` | 2026-10-25 21:22 | **41/41** (40234258877, 40234258751, 40234258723) | Yes, `05564fc` |
+| 9 | #47 | `86b70f6` | `ea0234d` | 2026-10-25 22:33 | **41/41** (40235375882, 40235375840, 40235375832) | Yes, `ee3d360` |
+| 10 | #48 | `c81a5c6` | `a916a6e` | 2026-10-25 23:09 | **41/41** (40242528270, 40242528347, 40242528311) | Yes, `5b87444` |
+| 11 | #50 | `a910a62` | `c64a377` | 2026-10-26 19:46 | **41/41** (40247900448, 40247900453, 40247900470) | Yes, `3d55f4b` |
+| 12 | #51 | `38af782` | `c28194f` | 2026-10-26 20:20 | **41/41** (40392180012, 40392179943, 40392179849) | Yes, `ae7d41c` |
+| 13 | #52 | `3adfa1b` | `634999b` | 2026-10-26 22:48 | **41/41** (40395839307, 40395839183, 40395839283) | Yes, `1a25e5e` |
+
+How to read the table:
+- **Merge commits.** Each has two parents: the previous row's merge commit,
+  or `a7d52c1` for #42, then the PR head.
+- **Runs.** Each cell lists the run IDs in the order PR Checks,
+  Real-Infrastructure Checks, Build & Scan. Every check run is first-attempt
+  `success`.
+- **40 or 41 checks.** Real-Infrastructure has a 16th job, `ws-gateway`, from
+  #44 on.
+- **What the merges brought in.** `a7d52c1..634999b` holds 53 commits: 28
+  non-merge commits, the 13 merges, and 12 merges of `phase-4` into PR
+  branches. The 28, by PR:
+
+  | PR | Commits |
+  |---|---|
+  | #42 | `6b0093b` |
+  | #54 | `afae2d6` |
+  | #55 | `72f2137`, `02dcecd` |
+  | #43 | `692ae2b`, `8a9e294`, `d7876cb`, `3ccb017` (R-06), `746eb3e` (R-07, R-08) |
+  | #44 | `4f27c7c`, `b25bb99` |
+  | #45 | `fd1fb04`, `22ef074`, `58a0f8f`, `5195171`, `5220515` |
+  | #46 | `ab0ac0f` |
+  | #49 | `b4b28d9` |
+  | #47 | `7b9d020`, `1f9ef1d` (R-02) |
+  | #48 | `ab4e667`, `f3fdaf3`, `c81a5c6` |
+  | #50 | `0ca0b7b`, `5876292`, `fe77cde` |
+  | #51 | `65c2683` |
+  | #52 | `5b3a61e` |
+
+**What this evidence is, and is not:**
+- **It is CI at each PR's exact final head.** That head's tree is
+  byte-identical to the tree its merge commit put on `phase-4`.
+- **It is not post-merge CI.** No workflow has run on any of the thirteen
+  merge commits: GitHub reports 0 runs and 0 check runs for each. The triggers
+  are `pull_request`, `push` to `main`, `schedule` and `workflow_dispatch`
+  (R-05).
+- **It is not a §16 rule 7 record.** Master scope §16 rule 7 asks for a
+  post-merge verification of `phase-4`. The 4F.8 record §14.2 shows that
+  verification for PR #41. Each merge here was checked at merge time: its
+  parents, its tree against the head's, the `phase-4` pointer, `main`
+  unchanged, and no other branch moved. The owner received a report of each
+  check, and this table is their only record in the repository. No
+  §14.2-style record with local gates on `phase-4` exists for these merges
+  (§7 step 4).
+
+**State at `634999b`, read 2026-10-26:**
+- `main` = `7e273e6`, unchanged, an ancestor of `phase-4`.
+- PR #53, this document, is the only open PR into `phase-4`.
+
+**Cited lines that have moved since `a7d52c1`:**
+
+| File | At `a7d52c1` | On `634999b` |
+|---|---|---|
+| Master scope | l.1266, l.1338, l.1383 (l.59 is unchanged) | l.1291, l.1363, l.1408 |
+| 4F.8 record | l.568 | l.573. §14.4's l.1368, l.1377 and l.1386 are already `phase-4`'s |
+| `api-gateway` `domain/routing.py` | l.165–200 | l.197–232 |
+| `api-gateway` `api/auth.py` | l.66 | l.88 |
+| `cognitive-state-panel.spec.ts` | l.154 | l.159 |
+| `api-gateway` `api/forward.py` l.124 and `clients/upstream.py` l.97–104 | The defects R-07 and R-08 cite | Replaced by their fixes; read them at `a7d52c1` |
 
 ---
 
@@ -336,7 +497,8 @@ R-06, 2026-10-19.)*
 **18 items are settled and unchanged**, all named:
 CF-1, CF-2, CF-3, CF-7 and CF-12 (4D Gate Review §21.9); L-7 and L-12 (4F.3
 record §10.1); L-29 and L-31; L-13 and L-26, settled by `a7d52c1` and
-recorded only on PR #42; F-4F7-1, repaired under A-4F7-6 (a) (TDD 4F.P
+recorded only on PR #42 *(2026-10-26: recorded on `phase-4` since #42's
+merge, `43c6b12`)*; F-4F7-1, repaired under A-4F7-6 (a) (TDD 4F.P
 l.2409); and F-4F8-3, -6, -9, -13, -14 and -16, which are by design and
 **must be disclosed in the 4F Gate Review**.
 
@@ -344,8 +506,8 @@ l.2409); and F-4F8-3, -6, -9, -13, -14 and -16, which are by design and
 
 | Disposition | Count | IDs |
 |---|---|---|
-| CLOSED ON VERIFIED EVIDENCE | **0** | Nothing is merged |
-| FIX REQUIRED | **18** | Fix in an unmerged PR (status source: §1.2): L-8, L-16, L-19, F-4FP-6, F-4FP-10, N-03, N-04, N-05, N-08, N-11 (**fix incomplete**, §1.5), N-12, N-13, X-06 (**live scrape unverified**). No fix in any PR: R-01, R-02 (a fix is prepared, not pushed), R-06 (a fix is prepared, not pushed), R-07 (a fix is prepared, not pushed), R-08 (a fix is prepared, not pushed) |
+| CLOSED ON VERIFIED EVIDENCE | **0** | Nothing is merged *(2026-10-26: thirteen PRs are merged now, §1.6. Still 0: this document closes no row; §2.5)* |
+| FIX REQUIRED | **18** | Fix in an unmerged PR (status source: §1.2): L-8, L-16, L-19, F-4FP-6, F-4FP-10, N-03, N-04, N-05, N-08, N-11 (**fix incomplete**, §1.5), N-12, N-13, X-06 (**live scrape unverified**). No fix in any PR: R-01, R-02 (a fix is prepared, not pushed), R-06 (a fix is prepared, not pushed), R-07 (a fix is prepared, not pushed), R-08 (a fix is prepared, not pushed) *(by merge state since 2026-10-26: below the table)* |
 | DOCUMENTATION REQUIRED | **34** | L-1 … L-6, L-9, L-10, L-20 … L-25, L-27, L-28, L-30; CF-6, CF-9, CF-11; 4F.6 F-3, F-5; stale slice statuses; X-01, X-02, X-10 … X-16; N-07; R-04 |
 | USER DECISION REQUIRED | **52** | AC-3, AC-4; CF-4, CF-5, CF-8, CF-10; L-11, L-14, L-15, L-17, L-18; A-4F8-9; 4F.6 F-1, F-2, F-4, F-7; F-4F7-4, K-1, K-6; K-5, A-4F6-4, demotion/INTERRUPTIONS; FP-7/FP-15, FP-13, FP-18, A-4FP-14(b), more ingestion sources, model-based authoring; F-4FP-4, F-4FP-7; slice declarations; the "PR reviewed" ruling; X-03, X-04, X-05, X-07, X-08, X-09, X-17 … X-22; N-01, N-02, N-06, N-09, N-10, N-14; R-03, R-05 |
 | APPROVED DEFERRAL | **0** | No open item is fully discharged by a recorded approval. Only clauses are: AC-3's plan and trace (2026-09-06) and AC-4's clauses 2–3 (2026-09-07), with no receiving milestone named |
@@ -353,11 +515,67 @@ l.2409); and F-4F8-3, -6, -9, -13, -14 and -16, which are by design and
 
 18 + 34 + 52 = **104**. *(102 before R-07 and R-08; 101 before R-06.)*
 
+*Revised 2026-10-26.* The FIX row's 18, by merge state (status source:
+§1.6). Each is still open, and still counted in the 104:
+- **FIX MERGED, open (15):** L-8, L-16, L-19, F-4FP-6, F-4FP-10, N-03, N-04,
+  N-08, N-11 (`f3fdaf3` completed it), N-12, N-13, R-02, R-06, R-07, R-08.
+- **FIX MERGED, verification incomplete (1):** X-06. No `promtool check
+  config` has been run, and no live Prometheus scrape has been observed.
+- **Fix in this PR, not merged (1):** N-05.
+- **No fix in any PR (1):** R-01.
+
+The DOCUMENTATION and DECISION rows are unchanged. Some of their rows cite a
+merged PR now (§3), but no decision has been made, and none moves.
+
 **Unverified, and outside the 104:** AC-1, AC-2, AC-5, AC-6, AC-7 and AC-8
 at the final SHA (met at `a7d52c1`'s code); a live Prometheus scrape (X-06);
 the first ~5,767 lines of the 4F.8 E2E log, which the log tool cannot return.
+*(2026-10-26: also a `promtool check config` of the merged
+`infra/observability/prometheus.yml` (X-06). The acceptance runs at every
+§1.6 head passed, but no SHA is yet the final one.)*
 
 **Zero rows are closed by this document.**
+
+### 2.5 What closing a FIX MERGED row needs *(added 2026-10-26)*
+
+Nothing in the protocol closes a row because a PR merged. This document's
+rule (§0) makes a row FIXED with code or tests and exact-head CI, then keeps it
+pending until the merge. The protocol asks for more, and so does the
+precedent the 4F.8 record set:
+- every claim traceable to an inspection at a named commit (§0.3 items 1
+  and 3);
+- master scope §16 rule 7, a verification of `phase-4` after each merge;
+- the 4F.8 record §14.2–§14.3. It settled L-13 and L-26 only once each row's
+  own rule (*"settles on merge"*) was met. A post-merge record of `phase-4`
+  came first: its parents, its tree, its content, CI on that tree, and local
+  gates on it.
+
+**What exists for the 15 FIX MERGED rows:**
+- the fix's commits, named in §1.6 and in each row;
+- CI at the PR's exact final head, 40/40 or 41/41;
+- that head's tree, which the merge commit carries unchanged;
+- an inspection at `634999b`, 2026-10-26, finding each fix present by path
+  and content.
+
+**What does not exist:**
+- **CI on `phase-4` itself** (R-05). The procedure is the owner's decision
+  (D-A14);
+- **a §16 rule 7 record** for these merges, with local gates on `phase-4`
+  (§7 step 4);
+- **the owner's decision to close them.** No row says *"closes on merge"*,
+  and this document is not a Gate Review (§0).
+
+So the 15 stay open, as FIX MERGED. Closing them is left to the owner, at
+the 4F closure PR or the Phase 4 Gate Review, on the evidence above.
+
+Whatever is decided about the 15, four things stay as they are:
+- **X-06** is not among them. Its verification is incomplete: no `promtool`
+  check, no live scrape.
+- **N-11's merged gate** leaves D-A12 open. Doc 16 says *line* coverage, and
+  the config measures branches.
+- **R-02's merged spec fix** leaves X-03's C-7 series and D-A7 open.
+- **L-15 and N-02** are decision rows, not FIX rows. Their merged log lines
+  are partial fixes, and D-C5 stays open.
 
 ---
 
@@ -375,7 +593,8 @@ defined by the request. DEFER, ACCEPT RISK and N/A are proposals until approved.
 
 **Sources.** A status of the form "FIX ready (#N)" cites PR #N's head and CI
 in §1.2. Every other status cites the record in its Evidence column. A status
-with neither is **UNVERIFIED**.
+with neither is **UNVERIFIED**. *(2026-10-26: a status of the form "FIX
+MERGED (#N)" cites §1.6. The row is still open, §2.5.)*
 
 ### 3.1 Acceptance criteria (master scope §1)
 
@@ -383,9 +602,9 @@ with neither is **UNVERIFIED**.
 |---|---|---|---|---|---|
 | **AC-3** | *"Every Phase 3 sub-phase … exercised from the browser"*: plan, trace, install, approval | 1 of 4 clauses met (install). Plan and trace are deferred by approval (2026-09-06; 4B C-2), but no receiver is designated. **Approval clause (B5, this pass):** the approval spec skips because stage 3 denies every Critical action. In CI there is no identity signal (confidence 0.0), so passing would need a critical-tier threshold of 0.0. 4B's design rejected that explicitly; P8's harness already discloses `negligible: 0.0` as test configuration | GO | DEFER | **D-C2**: approve the deferral through closure and promotion (receiver UNASSIGNED), **or** approve a disclosed test-only critical threshold so the approval clause can be demonstrated |
 | **AC-4** | Containers; *"renders live agent instances, supervisor structure, and at least one real peer-review round"* | Clause 1 (containers) met in 4C.1. Clauses 2 and 3 deferred by approval (2026-09-07); provider-gated, receiver undesignated. **Supervisor structure (B4, this pass):** rendered as the single `engineering` supervisor, the observed topology per 4C scope-mapping decision 6 (`api/agents.py`), unit-tested (`agents-panel.test.tsx` l.223). **No Playwright spec opens the Agents panel**, so nothing is browser-evidenced. Membership is empty without a provider | GO | DEFER + VERIFY | **D-C2**: classify supervisor structure, either as met by design with a browser test to add, or as inside clause 2's deferral. Then approve the carry |
-| AC-1, AC-2, AC-6 | — | Met, as recorded in the 4B and 4E Gate Reviews; golden path green at every head in §1.2 | GO | VERIFY | Re-verify at the final candidate SHA |
+| AC-1, AC-2, AC-6 | — | Met, as recorded in the 4B and 4E Gate Reviews; golden path green at every head in §1.2 *(and in §1.6, 2026-10-26)* | GO | VERIFY | Re-verify at the final candidate SHA |
 | AC-5 (alias FP-8) | — | Met: approving a Level-1 suggestion executes nothing (`api/autonomy.py`, decide) | GO | VERIFY + DOCUMENT | The Gate Review states this reading |
-| AC-7, AC-8 | — | Met in CI (P-AC7-1, P-AC8-1; acceptance runs at every head in §1.2) | GO | VERIFY + DOCUMENT | State AC-7's reading and limits. The roadmap's original text ("IDE", "1 s") differs; disclose it (protocol §5.4) |
+| AC-7, AC-8 | — | Met in CI (P-AC7-1, P-AC8-1; acceptance runs at every head in §1.2 *(and in §1.6, 2026-10-26)*) | GO | VERIFY + DOCUMENT | State AC-7's reading and limits. The roadmap's original text ("IDE", "1 s") differs; disclose it (protocol §5.4) |
 
 ### 3.2 Carry-forwards
 
@@ -395,14 +614,14 @@ CF-1, CF-2, CF-3, CF-7 and CF-12 are closed.
 |---|---|---|---|---|---|
 | CF-4, CF-5, CF-8 | Master scope §4 | Open, carried | 4F | DEFER | **D-C15**: carry, owner UNASSIGNED |
 | **CF-6** | Real-Postgres verification for personality, communication and perception (*"not claimed as closure"*) | **Now evidenced:** the CI logs at `6b0093b` show 5, 13 and 28 real-infrastructure tests passed, with 0 failed or skipped | 4F | DOCUMENT | Close in the 4F record, citing the job logs |
-| CF-9 | ADR-032 point 2: the identity-confidence write surface | Conditions 1, 3 and 4 evidenced (4F.4 record §9.2). Its writes are now logged (#50) | 4F | DOCUMENT | Record conditions 2 and 5 |
+| CF-9 | ADR-032 point 2: the identity-confidence write surface | Conditions 1, 3 and 4 evidenced (4F.4 record §9.2). Its writes are now logged (#50) *(merged, `c64a377`)* | 4F | DOCUMENT | Record conditions 2 and 5 |
 | **CF-10** | The Trust Engine input does not exist; `_trust_denies` never refuses | `decision.py` l.324–350; Level 2 selectable | **GO** | DEFER + ACCEPT RISK | **D-C7**: defer beyond Phase 4, explicitly accepting that trust never refuses. Receiver UNASSIGNED |
 | CF-11 | The initiative trigger's claims | Claim 3 evidenced (E-14, in CI) | 4F | DOCUMENT | Record claim 4 |
 
 ### 3.3 Ledger, L-1 … L-31
 
 Settled: L-7, L-12, L-29, L-31. L-13 and L-26 are settled by `a7d52c1`,
-recorded on PR #42.
+recorded on PR #42 *(merged, `43c6b12`)*.
 
 | Row | Obligation | Evidence | Class | Action / status |
 |---|---|---|---|---|
@@ -411,18 +630,18 @@ recorded on PR #42.
 | L-4 | Roadmap 4F row | Still *"2 of 8 slices merged"* | DOCUMENT | With L-1 |
 | L-5 | Master scope §17 SLOC and §2 methodology | Not reconciled | DOCUMENT | With L-1; §1.3 here holds the figures |
 | L-6 | README for the new engines | No Phase 4 mention | DOCUMENT | With X-15 |
-| **L-8** | `ws-gateway` README: the `perception.*` narrowing | — | **FIX ready (#44)** | 18 topics listed, L-8 narrowing documented |
+| **L-8** | `ws-gateway` README: the `perception.*` narrowing | — | **FIX ready (#44)** → ***FIX MERGED (#44, `550bc78`), open*** | 18 topics listed, L-8 narrowing documented (`4f27c7c`) |
 | L-9, L-10 | Consistency and staleness sweeps | Not run | DOCUMENT | With L-1 |
 | L-11 | Multi-modal fusion | Not built | DEFER | **D-C1** (with A-4F8-9) |
 | L-14 | Per-source filesystem consent (Doc 22 §8) | The workspace path never calls `has_active_consent` | DEFER + ACCEPT RISK | **D-C9** (privacy) |
-| **L-15** | Identity-confidence policy changes unaudited | **#50 now logs every change**, before and after, at WARNING when a tier loosens. It is not persisted, so D-4F4-3 stands | Partly FIX + DEFER | **D-C5**: is a log line sufficient, or is a persisted audit required? |
-| **L-16** | `action-engine` README omits the policy routes | — | **FIX ready (#50)** | — |
-| L-17 | The panel can re-enable an `AUTO_EXECUTE` policy | `AutonomyPanel.tsx` l.266–273. Re-enabling is now logged with `effect=auto_execute` and enabled false → true (#45) | ACCEPT RISK | **D-C6** |
+| **L-15** | Identity-confidence policy changes unaudited | **#50 now logs every change**, before and after, at WARNING when a tier loosens. It is not persisted, so D-4F4-3 stands. *(2026-10-26: #50 merged, `c64a377`. It also logs refusals, with `correlation_id` (`5876292`, `fe77cde`). Still stdout, not persisted)* | Partly FIX + DEFER | **D-C5**: is a log line sufficient, or is a persisted audit required? *(Still open)* |
+| **L-16** | `action-engine` README omits the policy routes | — | **FIX ready (#50)** → ***FIX MERGED (#50, `c64a377`), open*** | `0ca0b7b` |
+| L-17 | The panel can re-enable an `AUTO_EXECUTE` policy | `AutonomyPanel.tsx` l.266–273. Re-enabling is now logged with `effect=auto_execute` and enabled false → true (#45) *(merged, `6663062`)* | ACCEPT RISK | **D-C6** *(still open)* |
 | L-18 | The NATS SDK leaves `NoRespondersError` untranslated | 4F.5 record §10.4; TDD 4F.5 l.754 (owner `nova-eventbus-sdk`) | DEFER | **D-C15**. *(2026-10-18: FP-18 is no longer recorded as an alias; see §3.8)* |
-| **L-19** | `autonomy-engine` README is a scaffold | — | **FIX ready (#45)** | Gate order corrected in `22ef074` |
+| **L-19** | `autonomy-engine` README is a scaffold | — | **FIX ready (#45)** → ***FIX MERGED (#45, `6663062`), open*** | Gate order corrected in `22ef074` |
 | L-20 | Doc 20 omits the cognitive-state sensor copy | 0 hits | DOCUMENT | With L-1 |
 | L-21, L-22, L-24, L-27, L-30 | Dated status notes in the TDDs, health records, roadmap and README | The roadmap never mentions 4F.P | DOCUMENT | With L-1 |
-| L-23 (FP-24) | TDD 4D §4.3 *"exactly four outcomes"* | Six exist (`DecisionOutcome`) | DOCUMENT | Dated note with L-1. #47 aligns the web client |
+| L-23 (FP-24) | TDD 4D §4.3 *"exactly four outcomes"* | Six exist (`DecisionOutcome`) | DOCUMENT | Dated note with L-1. #47 aligns the web client *(merged, `ea0234d`; the TDD note is still owed)* |
 | L-25, L-28 | A compose comment; three test docstrings (V-6(b)) | Compose l.1030–1032 contradicts l.637 | DOCUMENT (comment-only outside `docs/`) | First commit of the 4F closure PR |
 
 ### 3.4 4F findings and decisions
@@ -438,8 +657,8 @@ recorded on PR #42.
 | K-5; A-4F6-4; demotion and INTERRUPTIONS | Focus `signals_used` is always empty; TTL; Part 6 interruptions | 4F | Decision | **B3 done (2026-10-17):** no slice delivers any of the three, and TDD 4F §24.12 lists all three as OPEN. *(2026-10-22: §24.12 lists TTL, the Focus signals and INTERRUPTIONS; automatic demotion is deferred by TDD 4F.P l.260, §21.)* Master scope §5 names the *"Focus System"* and *"Attention Layers"* as 4F scope, so K-5 and INTERRUPTIONS are partial deliveries of it; TTL is 4F.6's open semantics (TDD 4F l.1607, l.1767). **D-C3** |
 | FP-7/FP-15; more ingestion sources; model-based authoring; A-4FP-14(b); FP-13 | TDD 4F.P §30.8, *"Beyond 4F.P"*, approval not found | 4F | DEFER | **D-C15** |
 | F-4FP-4; F-4FP-7 | 4F.P record §8.1 | 4F | DEFER | **D-C15** |
-| **F-4FP-10** | `decisionResultSchema` listed 4 of 6 outcomes | 4F | **FIX ready (#47)** | A drift guard reads `DecisionOutcome` |
-| **F-4FP-6** | Recurring CI flake: `"ada"` matched inside a random UUID | — | **FIX ready (#49)** | Reproduced deterministically. It recurred on #47 |
+| **F-4FP-10** | `decisionResultSchema` listed 4 of 6 outcomes | 4F | **FIX ready (#47)** → ***FIX MERGED (#47, `ea0234d`), open*** | A drift guard reads `DecisionOutcome` (`7b9d020`) |
+| **F-4FP-6** | Recurring CI flake: `"ada"` matched inside a random UUID | — | **FIX ready (#49)** → ***FIX MERGED (#49, `30a8d78`), open*** | Reproduced deterministically. It recurred on #47 *(before #49 merged)*. The fix is `b4b28d9`. Every §1.6 head from #49's on passed the `checks` job |
 | Slice-completion declarations (4F.5, 4F.6, 4F.7, 4F.P, 4F.8) | Records | 4F | BLOCKED | Reserved to the owner, after D-C11 and D-C12 |
 | "PR reviewed" rulings | 0 GitHub reviews; agent reviews are not independent | 4F | DOCUMENT (ruling) | **D-C12** |
 | Stale slice statuses (4F.1, 4F.3–4F.8) | "PR open", "not merged" | 4F | DOCUMENT | Dated notes with L-1 |
@@ -450,10 +669,10 @@ recorded on PR #42.
 |---|---|---|---|---|---|
 | X-01 | 4A Gate Review and `phase-4a.md` (4B C-6) | Absent | GO | DOCUMENT | Phase 4 closure PR |
 | X-02 | 4C.1 Gate Review | 4C Gate Review §19.3 | GO | DOCUMENT | Phase 4 closure PR |
-| **X-03** | **4B C-7**: promote E2E to a required check once it is stable (bar ≥10×, protocol §9.2) | **Corrected 2026-10-18.** The unit is a **workflow run** of PR Checks, counted by `list_workflow_runs` (4B Gate Review §7.2, l.791–800); the discharge row adds *"against an unchanged SHA"* (l.1470). **Attempts are not runs:** #140 is one run with 7 attempts, so the earlier "7 at one SHA" was wrong. **Retries are not passes:** Playwright retries once in CI, and #150 was green with one flaky test. Measured (2026-10-17): E2E green in every run #139–#157 (19), across 13 branches and 19 SHAs; whole-run conclusions break at #149 (`checks`), leaving 8 (#150–#157); **no SHA has more than one run, so 0 qualify under the strict reading**. The job is still *"staged, non-blocking"* | GO | Decision, then evidence | **D-A7**: the strict reading is 10 consecutive dispatched runs at the final code SHA, each with E2E green and 0 flaky. Dispatches must be sequential: `pr-checks.yml` cancels an in-progress run on the same ref. Making the job *required* needs branch protection (X-17) |
+| **X-03** | **4B C-7**: promote E2E to a required check once it is stable (bar ≥10×, protocol §9.2) | **Corrected 2026-10-18.** The unit is a **workflow run** of PR Checks, counted by `list_workflow_runs` (4B Gate Review §7.2, l.791–800); the discharge row adds *"against an unchanged SHA"* (l.1470). **Attempts are not runs:** #140 is one run with 7 attempts, so the earlier "7 at one SHA" was wrong. **Retries are not passes:** Playwright retries once in CI, and #150 was green with one flaky test. Measured (2026-10-17): E2E green in every run #139–#157 (19), across 13 branches and 19 SHAs; whole-run conclusions break at #149 (`checks`), leaving 8 (#150–#157); **no SHA has more than one run, so 0 qualify under the strict reading**. The job is still *"staged, non-blocking"*. *(2026-10-26: not re-measured. Each §1.6 head has one PR Checks run, so the strict count is still 0; no run has been dispatched)* | GO | Decision, then evidence | **D-A7**: the strict reading is 10 consecutive dispatched runs at the final code SHA, each with E2E green and 0 flaky. Dispatches must be sequential: `pr-checks.yml` cancels an in-progress run on the same ref. Making the job *required* needs branch protection (X-17) |
 | X-04 | 4B DEV-4: `GET /v1/system/health` never built | 4B Gate Review l.418 | GO | DEFER (ratify) | **D-A5** |
-| X-05 | `ws-gateway`'s broad `communication.*` and `personality.*` bus subscriptions | `events/subscribed.py` l.28, l.49; documented in #44 | 4F | DEFER or FIX | **D-C15**. A narrowing is a one-engine change if wanted |
-| **X-06** (F-4F7-7) | Prometheus scrapes only `nova-core` | — | 4F | **FIX ready (#51)** | 20 services plus a drift guard |
+| X-05 | `ws-gateway`'s broad `communication.*` and `personality.*` bus subscriptions | `events/subscribed.py` l.28, l.49; documented in #44 *(merged, `550bc78`)* | 4F | DEFER or FIX | **D-C15**. A narrowing is a one-engine change if wanted |
+| **X-06** (F-4F7-7) | Prometheus scrapes only `nova-core` | — | 4F | **FIX ready (#51)** → ***FIX MERGED (#51, `c28194f`); verification incomplete, open*** | 20 services plus a drift guard (`65c2683`). The guard checks the configuration against the compose file. ***Not verified:*** no `promtool check config` has been run on it, and no Prometheus has been seen scraping any of the 20 targets |
 | X-07, X-09 | 4E findings 1 (testkit image drift) and 3 (outbox guard misses `memory`) | 4E Gate Review §13.1 | 4F | DEFER or FIX | **D-C15** |
 | **X-08** | **4E finding 2**: six digital-twin operations take a caller-supplied `user_id` (security) | `routing.py` l.165–200; no browser consumer | 4F | ACCEPT RISK or FIX | **D-C8**: deny at the gateway (a small `api-gateway` PR), or accept with Phase 7 as a topical receiver |
 | X-10 | SLOC method, Option A or B | Open since 4D | — | DOCUMENT (optional) | §1.3 records the method used |
@@ -467,31 +686,31 @@ recorded on PR #42.
 | X-19 | SAD 15 §4 non-conformance on PRs #23–#41: 12 item-1 fails, 5 item-4, 10 item-5 | Reconciliation §5.1 | 4F/GO | ACCEPT RISK (retrospective) | **D-C11** |
 | **X-20** | §9.1 gaps (aliases K-7, K-8, observability packaging) | §5 below: 41 cells changed this pass | 4F/GO | Partly FIX + decisions | **D-A8, D-A9, D-C14** |
 | X-21 | The promotion PR's SAD 15 §4 obligations | §6 | P | BLOCKED | After GO; **D-C13** |
-| X-22 | `ubuntu-latest` moves to Ubuntu 26 from **2026-10-19**; Node 20 deprecation | Run annotations | — (risk to final CI) | ACCEPT RISK or FIX | **D-A10 (new)**: pin `ubuntu-24.04` for the closure window, or accept the drift |
+| X-22 | `ubuntu-latest` moves to Ubuntu 26 from **2026-10-19**; Node 20 deprecation | Run annotations | — (risk to final CI) | ACCEPT RISK or FIX | **D-A10 (new)**: pin `ubuntu-24.04` for the closure window, or accept the drift. *(2026-10-26: not decided, and no pin was made. All five jobs on `phase-4` still name `ubuntu-latest`, so which image each §1.6 run used is unknown, as D-A10 records)* |
 
 ### 3.6 Found by the reconciliation (2026-10-15)
 
 | ID | Item | Blocks | Class | Status |
 |---|---|---|---|---|
 | **N-01** | Every engine port and an unauthenticated NATS are published on all host interfaces. That contradicts doc 11 l.148 (*"on `localhost` only"*) and lets anyone who can reach the host bypass the gateway. **Scope, measured 2026-10-17:** all **36** published ports bind every interface; NATS (4222, 8222) and Redis (6379) have no authentication; Postgres, Neo4j, MinIO and Grafana use the default password; Grafana allows anonymous viewers; seven images are unpinned `:latest`; perception's identity and consent write routes are reachable on 8009 | **GO** | FIX or ACCEPT RISK | **D-C4.** Binding to `127.0.0.1` closes access from other hosts only. It does not protect against processes on the same host, other containers on the compose network, or DNS rebinding through the user's browser |
-| **N-02** | `autonomy-engine` level, policy and permission changes had no record | 4F | Partly FIX (#45: before and after log lines) | **D-C5**: persisted audit or not. *(2026-10-18: #45's lines lack `correlation_id` and target `user_id`, and refused writes were unlogged. The prepared amendment adds `outcome`, `user_id` (server-side, the target), `correlation_id` (a header; not attribution), `actor` (always null: not determinable under the single-token model), and a refusal line for 422 and 404. They remain stdout operational logs, not an audit trail)* |
-| **N-03** | `rate_limit.py` claimed a Redis limiter that does not exist | GO | **FIX ready (#43)** | Corrected, quoting the original |
-| **N-04** | `ws-gateway` README omitted `agent_os.task.completed` | 4F | **FIX ready (#44)** | — |
-| **N-05** | `docs/design/phase-4/` had no README | GO | **FIX ready (this PR)** | — |
+| **N-02** | `autonomy-engine` level, policy and permission changes had no record | 4F | Partly FIX (#45: before and after log lines) | **D-C5**: persisted audit or not. *(2026-10-18: #45's lines lack `correlation_id` and target `user_id`, and refused writes were unlogged. The prepared amendment adds `outcome`, `user_id` (server-side, the target), `correlation_id` (a header; not attribution), `actor` (always null: not determinable under the single-token model), and a refusal line for 422 and 404. They remain stdout operational logs, not an audit trail)* *(2026-10-26: the amendment merged with #45, `6663062`: `58a0f8f`, `5195171`, `5220515`. Still stdout, not an audit trail. D-C5 is still open)* |
+| **N-03** | `rate_limit.py` claimed a Redis limiter that does not exist | GO | **FIX ready (#43)** → ***FIX MERGED (#43, `cdeef3c`), open*** | Corrected, quoting the original (`692ae2b`) |
+| **N-04** | `ws-gateway` README omitted `agent_os.task.completed` | 4F | **FIX ready (#44)** → ***FIX MERGED (#44, `550bc78`), open*** | `4f27c7c` |
+| **N-05** | `docs/design/phase-4/` had no README | GO | **FIX ready (this PR)** *(2026-10-26: still unmerged; it merges with this document)* | — |
 | N-06 | 4B DEV-5 (cosmetic) | — | ACCEPT RISK | **D-C15** |
 | N-07 | About 20 retained Phase 4 branches; remote deletion is blocked to this session | — | DOCUMENT | Report in the Gate Review |
-| **N-08** | `created_at` had no `nova-contracts` test (protocol §8.1) | GO | **FIX ready (#52)** | 3 tests and a negative control |
+| **N-08** | `created_at` had no `nova-contracts` test (protocol §8.1) | GO | **FIX ready (#52)** → ***FIX MERGED (#52, `634999b`), open*** | 3 tests and a negative control (`5b3a61e`, `test_memory_events.py`). The model is unchanged; only tests were added. **Not closed:** §2.5 says what closing it needs |
 
 ### 3.7 Found this pass (2026-10-16/17)
 
 | ID | Item | Evidence | Blocks | Class | Status |
 |---|---|---|---|---|---|
-| **N-09** | About 30 `_seconds` histograms in 13 pre-Phase-4 engines use the SDK's millisecond-default buckets, so almost every observation lands in the lowest bucket and percentiles are unreadable | A scan of every `create_histogram` call; 0 of them set buckets | — (quality) | DEFER or FIX | **D-A11 (new)**. Proposed fix: one `View` in `nova-observability` for `*_seconds` instruments, a single shared-package PR. Not made: it changes every engine's metric output. The four Phase 4 services already set second-scale buckets (#43–#46) |
-| **N-10** | The rate limiter deviates from TDD 4A §2.3 and doc 11 §5: in-process fixed window with two classes, versus Redis token bucket with three. The deviation was undisclosed | `domain/rate_limit.py` | GO | DEFER or ACCEPT RISK | Disclosed in #43. **D-C16 (new)**: ratify, or build |
-| **N-11** | The 85% domain-coverage gate (doc 16 §1) was never enforced in CI: package-directory runs ignore the root config. A package at 81% passed | Demonstrated | GO | **FIX ready (#48), incomplete** | Gate on in CI; log shows all 19 packages pass. **D-A12 (new)**: doc 16 says *line*, the config says *branch*. *(2026-10-18: the gate still passes 84.5–85% by rounding; see §1.5. #48's head is not a sufficient fix)* |
-| **N-12** | TDD 4A §7: *"401 → the frontend re-runs the first-run session flow"* was not built. A 401 left the workspace up with failing panels | 6 of 8 failure-path tests fail on `phase-4` | GO | **FIX ready (#47)** | — |
-| **N-13** | TDD 4A §7: *"429 with a structured retry hint"*. The 429 carried no hint, and the client could not show one | Tests fail before the change | GO | **FIX ready (#43 server, #47 client)** | `Retry-After`; no envelope change |
-| **N-14** | 4B's TDD was never written and, unlike 4C's, never waived; master scope §17 still says *"Planned"* | 4B Gate Review l.462; master scope l.1383 | GO | DOCUMENT (waiver) | **D-A13 (new)**: waive, as 4C's was. The §17 rows for doc 14 and this package's README wait for PR #42, which edits the same table |
+| **N-09** | About 30 `_seconds` histograms in 13 pre-Phase-4 engines use the SDK's millisecond-default buckets, so almost every observation lands in the lowest bucket and percentiles are unreadable | A scan of every `create_histogram` call; 0 of them set buckets | — (quality) | DEFER or FIX | **D-A11 (new)**. Proposed fix: one `View` in `nova-observability` for `*_seconds` instruments, a single shared-package PR. Not made: it changes every engine's metric output. The four Phase 4 services already set second-scale buckets (#43–#46) *(all four merged; §1.6)* |
+| **N-10** | The rate limiter deviates from TDD 4A §2.3 and doc 11 §5: in-process fixed window with two classes, versus Redis token bucket with three. The deviation was undisclosed | `domain/rate_limit.py` | GO | DEFER or ACCEPT RISK | Disclosed in #43 *(merged, `cdeef3c`)*. **D-C16 (new)**: ratify, or build *(still open)* |
+| **N-11** | The 85% domain-coverage gate (doc 16 §1) was never enforced in CI: package-directory runs ignore the root config. A package at 81% passed | Demonstrated | GO | **FIX ready (#48), incomplete** → ***FIX MERGED (#48, `a916a6e`), open*** | Gate on in CI; log shows all 19 packages pass. **D-A12 (new)**: doc 16 says *line*, the config says *branch*. *(2026-10-18: the gate still passes 84.5–85% by rounding; see §1.5. #48's head is not a sufficient fix)* *(2026-10-26: `f3fdaf3` set `precision = 4`, with `tools/tests/test_coverage_gate.py`, and merged with #48. At `c81a5c6`, the `checks` job's log (job 121317204270) shows *"Tasks: 32 successful"* and *"Required test coverage of 85.0% reached"*, with the gate on. D-A12 is still open: doc 16 says so, as an open question)* |
+| **N-12** | TDD 4A §7: *"401 → the frontend re-runs the first-run session flow"* was not built. A 401 left the workspace up with failing panels | 6 of 8 failure-path tests fail on `phase-4` *(at `a7d52c1`)* | GO | **FIX ready (#47)** → ***FIX MERGED (#47, `ea0234d`), open*** | `7b9d020` |
+| **N-13** | TDD 4A §7: *"429 with a structured retry hint"*. The 429 carried no hint, and the client could not show one | Tests fail before the change | GO | **FIX ready (#43 server, #47 client)** → ***FIX MERGED (#43 `d7876cb`, #47 `7b9d020`), open*** | `Retry-After`; no envelope change |
+| **N-14** | 4B's TDD was never written and, unlike 4C's, never waived; master scope §17 still says *"Planned"* | 4B Gate Review l.462; master scope l.1383 | GO | DOCUMENT (waiver) | **D-A13 (new)**: waive, as 4C's was. The §17 rows for doc 14 and this package's README wait for PR #42, which edits the same table. *(2026-10-26: D-A13 is not decided. #42 merged without adding the two rows, so §17 has neither. Adding them edits master scope, outside this PR's three files, and needs authorization)* |
 
 ### 3.8 Found by the re-audit (2026-10-17/18)
 
@@ -501,14 +720,14 @@ risks R-1 … R-6, which the Phase 4 Gate Review re-checks (TDD 4F.8 §20.2).
 
 | ID | Item | Evidence | Blocks | Class | Status |
 |---|---|---|---|---|---|
-| **R-01** (AUD-2) | CI runs no `cargo audit`, though doc 13 §9 requires it for every PR | doc 13 l.111; `build-and-scan.yml` has no `cargo` step. A local run (cargo-audit 0.22.2, RustSec DB `999ec89`): 98 crates, 0 vulnerabilities, 1 yanked (`yoke-derive` 0.8.3, via `ureq`) | GO | FIX | No fix in any PR. CI addition planned; needs authorization |
-| **R-02** (AUD-3) | `cognitive-state-panel.spec.ts:154` races: it clicks Refresh when the first section has settled, while another may be on its first fetch, which TanStack Query reuses rather than re-issues | Run #150 annotation (*"Expected: >= 3, Received: 2"*); `query-core` 5.102.8 `query.ts` l.401–411. Local harness, retries off: old spec 10/10 failed with one section in flight, fixed spec 10/10 passed, both 10/10 with no delay | GO (C-7) | FIX | A test-only fix is prepared for #47's branch, not pushed. Not product behaviour |
+| **R-01** (AUD-2) | CI runs no `cargo audit`, though doc 13 §9 requires it for every PR | doc 13 l.111; `build-and-scan.yml` has no `cargo` step. A local run (cargo-audit 0.22.2, RustSec DB `999ec89`): 98 crates, 0 vulnerabilities, 1 yanked (`yoke-derive` 0.8.3, via `ureq`) | GO | FIX | No fix in any PR. CI addition planned; needs authorization. *(2026-10-26: unchanged. `build-and-scan.yml` on `phase-4` still has no `cargo` step; D-A15 is open)* |
+| **R-02** (AUD-3) | `cognitive-state-panel.spec.ts:154` races: it clicks Refresh when the first section has settled, while another may be on its first fetch, which TanStack Query reuses rather than re-issues | Run #150 annotation (*"Expected: >= 3, Received: 2"*); `query-core` 5.102.8 `query.ts` l.401–411. Local harness, retries off: old spec 10/10 failed with one section in flight, fixed spec 10/10 passed, both 10/10 with no delay | GO (C-7) | FIX | A test-only fix is prepared for #47's branch, not pushed. Not product behaviour. *(2026-10-26: **FIX MERGED (#47, `ea0234d`), open.** The fix is `1f9ef1d`, and the golden-path job passed at #47's head and every later §1.6 head. Whether the E2E job is flake-free is C-7's question (X-03, D-A7), not settled here)* |
 | **R-03** (AUD-5) | Neither gateway checks `Origin`. SameSite=Strict keeps the cookie from other sites but not from other ports on the same host, so a page served from `localhost` could read the public event stream or send body-less POSTs | `ws-gateway/api/stream.py` handshake; `api-gateway/api/auth.py` l.66 | — (P for networked use) | Decision | No document requires the check. Accept with the stated threat model, or add an allow-list |
 | **R-04** (AUD-6) | TDD 4F §15 row 1 (*"Companion absent or crashed: sensors report unavailable"*) is not built. RS-3a and A-4F8-1 rule out inferring failure from silence, so a crashed companion leaves the sensor `running`, labelled with its `reported_at` | TDD 4F l.781; TDD 4F.8 l.582, l.1322; TDD 4F.7 §14 | 4F | DOCUMENT | A dated note on TDD 4F §15 that the ratified rule supersedes row 1 |
-| **R-05** (AUD-9) | `pr-checks.yml` never runs on `phase-4`: it triggers on `pull_request`, on `push` to `main` only, and on dispatch. It has 0 runs on `phase-4` | `pr-checks.yml` l.15–30; `list_workflow_runs` for `branch=phase-4` | GO | Decision | Add a `push` trigger for `phase-4`, or record the procedure: update each PR onto the fresh head before merging, and dispatch once at the final SHA |
-| **R-06** | `api-gateway` matched a route's prefix on the decoded path, then built the upstream URL with `httpx`, which removes `.` and `..` segments and reads a decoded `?` or `#` as a query or fragment. So an authenticated caller could reach any path on a fronted engine, `/internal/*` included: `GET /v1/digital-twin/../../internal/health` returned that engine's `/internal/health`, and `/v1/digital-twin/..%23` reached its `/v1`. A decoded NUL made `httpx` raise outside the client's error handling, an unstructured 500. A browser cannot send these paths, because it normalizes them | Local probe (2026-10-18/19) of the real app under uvicorn, h11 and httptools, with the real `UpstreamClient`, at `a7d52c1` and at #43's `d7876cb`: every dot segment, literal or percent-encoded (`%2E`, `%2F`, `%252E`), and every decoded `?` or `#` changed the forwarded path, and most left the prefix. `test_gateway.py`'s `/v1/../internal/health` case never reaches the app: the test client normalizes it | GO (condition 10: doc 11 l.148, master scope l.1266, `forward.py`'s first invariant) | FIX | A fix is prepared, not pushed: the route table refuses any path it could not forward unchanged, with 43 tests. Placement, #43 or its own PR, needs authorization |
-| **R-07** | A non-ASCII request header value reaches `httpx` as a `str`, and `httpx` raises `UnicodeEncodeError`, which is not an `httpx.HTTPError`. `UpstreamClient` does not catch it, so an authenticated request gets an unstructured 500 (*"Internal Server Error"*, no stack trace). An unauthenticated one gets the structured 401 first. That breaks `forward.py`'s invariant 3, *"A failure is always a structured error"* | `clients/upstream.py` l.97 and l.103, at `a7d52c1` and at #43's `d7876cb`; `httpx` 0.28.1. Local probe (2026-10-22) of the real app under uvicorn, h11 and httptools: header values `caf\xe9`, `\xff\xfe` and UTF-8 each gave the 500 | GO (`forward.py` invariant 3) | FIX | A fix is prepared for #43's branch, not pushed: headers are forwarded as the latin-1 bytes received, with an ASGI-level test that fails without it |
-| **R-08** | The 502 `upstream_unavailable` body carries `str(exc)`, which names the upstream's internal URL (*"upstream unreachable: http://…:8000/…"*), to an authenticated caller | `api/forward.py` l.124 and `clients/upstream.py` l.102 and l.104, at `a7d52c1`; the same at `d7876cb` | — (hygiene; no document requires it) | FIX | A fix is prepared for #43's branch, not pushed: the body names the engine's public name only and the log keeps the detail; a test fails without it |
+| **R-05** (AUD-9) | `pr-checks.yml` never runs on `phase-4`: it triggers on `pull_request`, on `push` to `main` only, and on dispatch. It has 0 runs on `phase-4` | `pr-checks.yml` l.15–30; `list_workflow_runs` for `branch=phase-4` | GO | Decision | Add a `push` trigger for `phase-4`, or record the procedure: update each PR onto the fresh head before merging, and dispatch once at the final SHA. *(2026-10-26: **still open**, and still 0 runs on `phase-4`. Every merge in §1.6 followed the first half of that procedure, updating the PR onto the fresh head. That is practice, not a decision, and no dispatch has been made. D-A14 is undecided)* |
+| **R-06** | `api-gateway` matched a route's prefix on the decoded path, then built the upstream URL with `httpx`, which removes `.` and `..` segments and reads a decoded `?` or `#` as a query or fragment. So an authenticated caller could reach any path on a fronted engine, `/internal/*` included: `GET /v1/digital-twin/../../internal/health` returned that engine's `/internal/health`, and `/v1/digital-twin/..%23` reached its `/v1`. A decoded NUL made `httpx` raise outside the client's error handling, an unstructured 500. A browser cannot send these paths, because it normalizes them | Local probe (2026-10-18/19) of the real app under uvicorn, h11 and httptools, with the real `UpstreamClient`, at `a7d52c1` and at #43's `d7876cb`: every dot segment, literal or percent-encoded (`%2E`, `%2F`, `%252E`), and every decoded `?` or `#` changed the forwarded path, and most left the prefix. `test_gateway.py`'s `/v1/../internal/health` case never reaches the app: the test client normalizes it | GO (condition 10: doc 11 l.148, master scope l.1266, `forward.py`'s first invariant) | FIX | A fix is prepared, not pushed: the route table refuses any path it could not forward unchanged, with 43 tests. Placement, #43 or its own PR, needs authorization. *(2026-10-26: **FIX MERGED (#43, `cdeef3c`), open.** It was placed on #43 as `3ccb017` (`domain/routing.py` `is_canonical`). CI was 40/40 at #43's final head `e2700b9` (§1.6))* |
+| **R-07** | A non-ASCII request header value reaches `httpx` as a `str`, and `httpx` raises `UnicodeEncodeError`, which is not an `httpx.HTTPError`. `UpstreamClient` does not catch it, so an authenticated request gets an unstructured 500 (*"Internal Server Error"*, no stack trace). An unauthenticated one gets the structured 401 first. That breaks `forward.py`'s invariant 3, *"A failure is always a structured error"* | `clients/upstream.py` l.97 and l.103, at `a7d52c1` and at #43's `d7876cb`; `httpx` 0.28.1. Local probe (2026-10-22) of the real app under uvicorn, h11 and httptools: header values `caf\xe9`, `\xff\xfe` and UTF-8 each gave the 500 | GO (`forward.py` invariant 3) | FIX | A fix is prepared for #43's branch, not pushed: headers are forwarded as the latin-1 bytes received, with an ASGI-level test that fails without it. *(2026-10-26: **FIX MERGED (#43, `cdeef3c`), open**, as `746eb3e`)* |
+| **R-08** | The 502 `upstream_unavailable` body carries `str(exc)`, which names the upstream's internal URL (*"upstream unreachable: http://…:8000/…"*), to an authenticated caller | `api/forward.py` l.124 and `clients/upstream.py` l.102 and l.104, at `a7d52c1`; the same at `d7876cb` | — (hygiene; no document requires it) | FIX | A fix is prepared for #43's branch, not pushed: the body names the engine's public name only and the log keeps the detail; a test fails without it. *(2026-10-26: **FIX MERGED (#43, `cdeef3c`), open**, as `746eb3e`)* |
 | **FP-18** | `action-engine`'s identity client does not translate a no-responders error; `autonomy-engine` then records `TIMEOUT` for an action that stopped before executing | TDD 4F.P l.1627 (*"the L-18 family"*; *"`action-engine` is a non-goal"*) | 4F | DEFER | **D-C15** (carry). Owner UNASSIGNED |
 
 ---
@@ -531,7 +750,7 @@ supported by the evidence; it is not a decision.
 | D-C9 | L-14, per-source consent | Defer with an explicit privacy acceptance | 4F |
 | D-C10 | SAD 15 §1, §3, §6 and §7 versus reality | A documented deviation; optionally, protect `main` with required checks only | Phase 4 GO |
 | D-C11 | Past PRs' SAD 15 §4 gaps | A retrospective approval naming the PRs; a recorded deviation for item 5 | 4F, GO |
-| D-C12 | Do the agent's technical reviews satisfy "PR reviewed"? | The owner's ruling; options as in the 4F.8 record §14.4 *(2026-10-22: §14.4 is on PR #42, `6b0093b`, not yet on `phase-4`; see D-A16)* | Slice declarations |
+| D-C12 | Do the agent's technical reviews satisfy "PR reviewed"? | The owner's ruling; options as in the 4F.8 record §14.4 *(2026-10-22: §14.4 is on PR #42, `6b0093b`, not yet on `phase-4`; see D-A16)* *(2026-10-26: §14.4 is on `phase-4` since `43c6b12`. The ruling is still open. Every PR in §1.6 had technical reviews by the implementing agent only, and 0 GitHub reviews)* | Slice declarations |
 | D-C13 | The promotion PR | Item-1 exception in advance; merge commit (master scope §16) | Promotion |
 | D-C14 | §9.1 dispositions (§5) | Approve the N/A cells; decide traces (D-A9); set or waive performance targets | 4F, GO |
 | D-C15 | Carry list (CF-4/5/8, K-1, K-6, F-4F7-4, F-4FP-4/7, X-05, X-07, X-09, L-18, FP-18, the FP items, N-06) | Carry, owners UNASSIGNED | 4F |
@@ -547,7 +766,7 @@ supported by the evidence; it is not a decision.
 | D-A13 | Waive the 4B TDD | Waive on the record, as 4C's was | GO |
 | **D-A14 (new)** | R-05, CI on `phase-4` | Record the procedure (update each PR onto the fresh head before merging; dispatch at the final SHA) rather than add a `push` trigger *(2026-10-22: `build-and-scan.yml` has no `workflow_dispatch`, so this procedure cannot run Build & Scan at the final SHA; the decision request's option (a) adds the trigger. No dispatched run exists in this repository, and `main`'s copies of `pr-checks.yml` and `build-and-scan.yml` lack the trigger, so whether a dispatch on `phase-4` runs is unverified until the owner's first attempt)* | GO |
 | **D-A15 (new)** | R-01: what `cargo audit` fails on | Fail on vulnerabilities, as `pip-audit` does; report yanked, unmaintained and unsound warnings without failing, each listed in the Gate Review (today: `yoke-derive` 0.8.3, yanked) | R-01's fix |
-| **D-A16 (new)** | PR #42 (the post-merge record of #41, and the only record that L-13 and L-26 are settled): merge it on its own, or leave it open to become the 4F closure PR | Merge it on its own, after its CI is refreshed at an updated head. The 4F closure PR is then a new documentation PR. Reuse would change #42's title, description and scope, and would hold the §16 rule 7 record until 4F closes | Step 2's #42; step 3's shape |
+| **D-A16 (new)** | PR #42 (the post-merge record of #41, and the only record that L-13 and L-26 are settled): merge it on its own, or leave it open to become the 4F closure PR | Merge it on its own, after its CI is refreshed at an updated head. The 4F closure PR is then a new documentation PR. Reuse would change #42's title, description and scope, and would hold the §16 rule 7 record until 4F closes *(2026-10-26: PR #42 was merged on its own, at its head `6b0093b`, as `43c6b12`, on the owner's merge authorization for #42. A merged PR is not reused (protocol §11.1), so the 4F closure PR will be a new one. No recorded decision on D-A16 itself is cited here; the merge is the fact)* | Step 2's #42; step 3's shape |
 
 *Added 2026-10-18.* D-A1 … D-A6 point to the reconciliation, a session
 report outside the repository. Their recommendations, restated so they can
@@ -562,21 +781,36 @@ PR #42 as the 4F closure PR; each merge; opening the Phase 4 closure PR;
 opening the promotion PR; triggering C-7 runs; any further code branch beyond
 those listed.
 
+*(2026-10-26.)* Given since, each for one PR only: the merge of each PR in
+§1.6, and the updates and amendments pushed to those PRs before their merges
+(§1.5). Reusing PR #42 is moot, because it is merged. Not given: merging this
+PR; opening the Phase 4 closure PR or the promotion PR; triggering C-7 runs;
+the N-01 (D-C4) and X-08 (D-C8) PRs; R-01's CI addition; any change to the
+runner or the workflow triggers (D-A10, D-A14).
+
 ---
 
 ## 5. SAD 15 §9.1, after this pass
 
 **Legend:** P = pass; F = fail; N = proposed N/A; U = unverified; **→P** =
-passes once the named PR merges.
+passes once the named PR merges. *(2026-10-26: **P (#n)** = was →P #n, and
+PR #n has merged (§1.6); the named code is present at `634999b`. An item-3
+cell that read →P #n also needs doc 14, which is this PR, so it now reads
+→P doc 14.)*
 
 | Subsystem | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 |
 |---|---|---|---|---|---|---|---|---|---|---|
-| `apps/web-client` | P | →P doc 14 | →P doc 14 | N | P | N | N | →P #47 | N | N |
+| `apps/web-client` | P | →P doc 14 | →P doc 14 | N | P | N | N | P (#47) | N | N |
 | `packages/nova-ui` | F | N | →P doc 14 | N | P | N | N | N | N | N |
-| `api-gateway` | P | →P doc 14 | →P #43 | P | P | N | F | P | →P #43 | metrics →P #43; traces F |
-| `ws-gateway` | P | →P doc 14 | →P #44 | →P #44 | P | →P #44 | F | P | →P #44 | metrics →P #44; traces F |
-| `autonomy-engine` | P | →P doc 14 | →P #45 | →P #45 | P | P | F | P (B2) | →P #45 | metrics →P #45; traces F |
-| `cognitive-state-engine` | P | →P doc 14 | →P #46 | P (verified, #46) | P | P | F | P (B2) | P | metrics →P #46; traces F |
+| `api-gateway` | P | →P doc 14 | →P doc 14 (#43 merged) | P | P | N | F | P | P (#43) | metrics P (#43); traces F |
+| `ws-gateway` | P | →P doc 14 | →P doc 14 (#44 merged) | P (#44) | P | P (#44) | F | P | P (#44) | metrics P (#44); traces F |
+| `autonomy-engine` | P | →P doc 14 | →P doc 14 (#45 merged) | P (#45) | P | P | F | P (B2) | P (#45) | metrics P (#45); traces F |
+| `cognitive-state-engine` | P | →P doc 14 | →P doc 14 (#46 merged) | P (verified, #46) | P | P | F | P (B2) | P | metrics P (#46); traces F |
+
+*(2026-10-26: before this revision, every cell that now reads P (#n) or
+"(#n merged)" read →P #n. Nothing else in the table changed. Item 10's
+metrics are exposed. Whether Prometheus scrapes them is X-06's open
+verification.)*
 | `companion/nova-companion` | F | →P doc 14 | →P doc 14 | P | P | N | P | F (R-04) | F | F |
 | `companion/sensors` | F | →P doc 14 | →P doc 14 | N | P | N | P | P | N | N |
 
@@ -611,12 +845,21 @@ passes once the named PR merges.
 
 ---
 
-## 6. Promotion readiness (`main` → `phase-4`), unchanged since the reconciliation
+## 6. Promotion readiness (`phase-4` → `main`), unchanged since the reconciliation
+
+*(2026-10-26: the heading read "`main` → `phase-4`" until this revision.
+Promotion is `phase-4` → `main`, master scope §16.)*
 
 - **API surface:** 0 operations removed or changed, 15 added to existing
-  engines, 30 in new services (generated OpenAPI, in memory).
+  engines, 30 in new services (generated OpenAPI, in memory). *(2026-10-26:
+  no route was added or removed by the §1.6 merges. A diff of every
+  `services/*/src` and `agent-os/*/src` file from `a7d52c1` to `634999b`
+  adds or removes no route decorator. The OpenAPI documents were not
+  regenerated in this revision.)*
 - **Contracts:** one model changed, additively: `LongTermMemoryCreatedPayload.created_at`
-  (N-08, #52).
+  (N-08, #52). *(2026-10-26: the change predates #52, which adds only its
+  tests. `packages/nova-contracts` changed only in
+  `tests/test_memory_events.py` between `a7d52c1` and `634999b`.)*
 - **Required before the promotion PR opens:**
   - Phase 4 GO;
   - D-C13;
@@ -660,7 +903,28 @@ passes once the named PR merges.
    later merge runs on one image. #43 carries R-06, R-07 and R-08 as separate
    commits; R-07 and R-08 build on #43's own log line, so they cannot go
    separately before it.
+
+   *Status, 2026-10-26.* Step 2 is done except for this PR. The order taken
+   was §1.6's, which differs from the one above:
+   - **#42 first.** It was merged on its own, at the owner's authorization
+     (see D-A16's note).
+   - **#54 and #55 next.** These are dependency fixes that did not exist on
+     2026-10-18. Advisories published after the old heads' runs made
+     `dependency-audit` fail on `phase-4`'s unchanged lockfiles.
+   - **Then:** #43, #44, #45, #46, #49, #47, #48, #50, #51 and #52.
+
+   How the merges went:
+   - **Constraints held.** #49 merged before #47. #43 and #44 merged before
+     #48. R-06, R-07 and R-08 went in on #43, as separate commits.
+   - **No CI PR came first.** D-A10, D-A14 and D-A15 are undecided, so none
+     was opened.
+   - **Updated and green.** Each PR was updated onto the then-current
+     `phase-4` and was green at that head. Playwright's flaky count was
+     reported, not gated, because D-A7 is undecided.
+   - **No N-01 or X-08 PR exists.** D-C4 and D-C8 are undecided.
 4. **Post-merge verification** of `phase-4` (master scope §16 rule 7).
+   *(2026-10-26: not yet recorded for the §1.6 merges. §1.6 lists what was
+   checked at each merge and what is missing.)*
 5. **C-7** per D-A7, then the **Phase 4 Gate Review** (X-01, X-02, X-11, X-12,
    X-14, X-16 … X-19, AC re-verification at the final SHA). That is its own PR.
 6. **Promotion PR**, only after **GO** and the owner's authorization to open
@@ -675,11 +939,11 @@ passes once the named PR merges.
 |---|---|
 | **Can Phase 5 *planning* start?** | **Yes**, as reading and design only. It changes no Phase 4 obligation |
 | **Can Phase 5 *implementation* start?** | **No.** Master scope §16 requires `phase-4` closed and promoted first. One milestone branch at a time |
-| **Is Phase 4 closed?** | **No.** 4F is not closed; no Phase 4 Gate Review exists |
+| **Is Phase 4 closed?** | **No.** 4F is not closed; no Phase 4 Gate Review exists *(unchanged, 2026-10-26)* |
 | **What Phase 5 can build on** | The REST and realtime transport (gateways, envelope, session), the 11 web-client panels, `@nova/ui`, the companion's process model, and the Level 0–2 autonomy path. All are additive-compatible (§6) |
 | **Phase 5 dependencies on unfinished Phase 4 work** | **Deliverables that must not slide in silently:** desktop supervision of `nova-companion` (roadmap Phase 5) depends on A-4F8-9's sensors and actuators (D-C1). The *"full panel set"* depends on AC-4's provider-gated clauses (D-C2) |
 | **Security limits before dependent features** | **Must be addressed before any multi-user or networked feature:** N-01 (host exposure); X-08 (caller `user_id`); CF-10 (trust never refuses); D-C5 (no persisted audit); the single-token session model (TDD 4A §4.2, Phase 7) |
-| **Test and observability work that should precede new features** | The Prometheus targets (#51) and coverage gate (#48), merged; the N-09 buckets; trace propagation (D-A9); a Playwright spec for every panel (roadmap Phase 5's own testing strategy) |
+| **Test and observability work that should precede new features** | The Prometheus targets (#51) and coverage gate (#48), merged; the N-09 buckets; trace propagation (D-A9); a Playwright spec for every panel (roadmap Phase 5's own testing strategy). *(2026-10-26: #51 and #48 are merged, §1.6. X-06's live scrape and `promtool` check are still unverified. The others are not started)* |
 
 No Phase 4 obligation is moved into Phase 5 by this document. Each transfer
 needs the owner's approval, and an entry in the roadmap.

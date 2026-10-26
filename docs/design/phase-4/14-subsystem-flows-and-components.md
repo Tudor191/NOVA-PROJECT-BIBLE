@@ -20,6 +20,30 @@ matrix for the owner's disposition.
 **(PR #n, not merged)**, and is not presented as merged. Where a diagram and
 the code disagree, the code is right and this document is the defect.
 
+**Re-read 2026-10-26 against `phase-4` = `634999b`.** Every pull request
+these diagrams marked as unmerged has merged since:
+
+| PR | Merge commit | Subsystem |
+|---|---|---|
+| #43 | `cdeef3c` | `api-gateway` |
+| #44 | `550bc78` | `ws-gateway` |
+| #45 | `6663062` | `autonomy-engine` |
+| #46 | `8751f80` | `cognitive-state-engine` |
+| #47 | `ea0234d` | `apps/web-client` |
+
+So each **(PR #n, not merged)** marker now reads **(PR #n, merged)**. The
+behaviour each marks is unchanged. Two diagrams no longer match the code, and
+are corrected:
+
+- **§3.2.** Two of #43's commits landed after the diagram was drawn: `3ccb017`
+  (R-06) and `746eb3e` (R-07, R-08).
+- **§5.3.** Its last line ran the decision log and the log lines together, and
+  it lacked the 422 branch. #45's `5195171` logs that branch.
+
+A note under each diagram says what changed. Between the PR heads these
+diagrams were read from and `634999b`, `src/` changed in no other subsystem
+drawn here.
+
 The subsystems: [`apps/web-client`](#1-appsweb-client) ·
 [`packages/nova-ui`](#2-packagesnova-ui) · [`api-gateway`](#3-api-gateway) ·
 [`ws-gateway`](#4-ws-gateway) · [`autonomy-engine`](#5-autonomy-engine) ·
@@ -101,13 +125,13 @@ sequenceDiagram
   else 2xx, shape wrong
     H-->>P: ContractViolationError (rendered, never partial data)
   else 429
-    G-->>H: rate_limited (+ Retry-After, PR #43, not merged)
-    H-->>P: GatewayError, isRateLimited, retryAfterSeconds (PR #47, not merged)
+    G-->>H: rate_limited (+ Retry-After, PR #43, merged)
+    H-->>P: GatewayError, isRateLimited, retryAfterSeconds (PR #47, merged)
     P->>P: "Too many requests … Try again in N s." No retry
   else 401
     G-->>H: unauthenticated
     H-->>P: GatewayError, isUnauthenticated
-    QC->>G: re-ask GET /v1/auth/session (PR #47, not merged)
+    QC->>G: re-ask GET /v1/auth/session (PR #47, merged)
     alt the probe agrees: {authenticated: false}
       QC->>QC: SessionGate shows the token form
     else the probe disagrees
@@ -146,7 +170,7 @@ sequenceDiagram
 A handshake refused for a lost session is not distinguishable here: the
 browser API reports no HTTP status for a failed WebSocket handshake, so the
 client keeps backing off until the next REST request's 401 returns the user to
-the token form (PR #47, not merged).
+the token form (PR #47, merged).
 
 ---
 
@@ -189,7 +213,7 @@ graph TD
   fwd --> env[domain/envelope.py<br/>success · failure]
   fwd --> up[clients/upstream.py]
   auth --> sess
-  main --> obs[observability.py<br/>GatewayMetrics — PR #43, not merged]
+  main --> obs[observability.py<br/>GatewayMetrics — PR #43, merged]
 ```
 
 ### 3.2 Forwarding one request
@@ -202,14 +226,14 @@ sequenceDiagram
   B->>F: METHOD /v1/{path}
   alt no valid cookie or bearer
     F-->>B: 401 unauthenticated
-  else prefix not in the route table
+  else prefix not in the route table, or a path the engine would not receive unchanged (R-06)
     F-->>B: 404 no_route (allow-list, not a pattern)
   else rate limiter refuses (read / write class)
-    F-->>B: 429 rate_limited (+ Retry-After, PR #43, not merged)
+    F-->>B: 429 rate_limited (+ Retry-After, PR #43, merged)
   else forwarded 1:1, no path rewriting (D-6)
     F->>U: same method, path and body
     alt upstream unreachable
-      F-->>B: 502 upstream_unavailable
+      F-->>B: 502 upstream_unavailable, naming the engine only (R-08)
     else upstream status ≥ 400
       U-->>F: error
       F-->>B: same status, error envelope with upstream_status
@@ -221,7 +245,19 @@ sequenceDiagram
 ```
 
 Every refusal and failure is logged with `correlation_id`, and counted by
-outcome (PR #43, not merged).
+outcome (PR #43, merged).
+
+*(Corrected 2026-10-26, from #43's commits after this diagram was drawn:)*
+- **R-06** (`3ccb017`): the 404 branch also refuses a path that `httpx` would
+  forward changed. That is a `.` or `..` segment, an empty segment other than
+  one trailing slash, or a decoded character outside RFC 3986's `pchar` set,
+  `?` and `#` among them. `%` and `;` are refused too (`domain/routing.py`,
+  `is_canonical`).
+- **R-08** (`746eb3e`): the 502 body names the engine's public name and not
+  its internal URL. The log line keeps the detail.
+- **R-07** (`746eb3e`): a non-ASCII header value is forwarded as the latin-1
+  bytes received, so it never reaches the caller as an unstructured 500.
+  This adds no branch.
 
 ---
 
@@ -237,7 +273,7 @@ graph TD
   stream --> sess[domain/session.py<br/>cookie check on the handshake]
   stream --> bus[(BoundEventBus, NATS core)]
   main --> sub[events/subscribed.py<br/>bus-side allow-list]
-  main --> obs[observability.py<br/>WsGatewayMetrics — PR #44, not merged]
+  main --> obs[observability.py<br/>WsGatewayMetrics — PR #44, merged]
 ```
 
 ### 4.2 One connection
@@ -267,9 +303,9 @@ sequenceDiagram
     loop each bus message on a subscribed topic
       N-->>S: envelope
       alt payload not serialisable
-        S->>S: dropped, counted "undeliverable" (PR #44, not merged)
+        S->>S: dropped, counted "undeliverable" (PR #44, merged)
       else client queue full (slow client)
-        S->>S: dropped, counted "dropped_slow_client" (PR #44, not merged)
+        S->>S: dropped, counted "dropped_slow_client" (PR #44, merged)
       else
         S-->>B: {type: event, topic, data, meta}. No causation_id, no source_engine
       end
@@ -300,7 +336,7 @@ graph TD
   decide --> dispatch[clients/action_dispatch.py<br/>action.execute, 15 s bound]
   api --> repo[repository/postgres_autonomy_repository.py]
   orch --> repo
-  main --> obs[observability.py<br/>AutonomyMetrics — PR #45, not merged]
+  main --> obs[observability.py<br/>AutonomyMetrics — PR #45, merged]
 ```
 
 ### 5.2 A triggered decision (`autonomy.decision.requested`)
@@ -361,7 +397,9 @@ sequenceDiagram
   participant R as api/autonomy.py
   participant D as gates
   B->>R: decide {approve | reject}
-  alt no such suggestion
+  alt body or id fails validation
+    R-->>B: 422
+  else no such suggestion
     R-->>B: 404
   else already decided
     R-->>B: 409, the first decision stands
@@ -371,11 +409,23 @@ sequenceDiagram
     R->>R: status approved or rejected
     R-->>B: {suggestion, outcome: propose | deny, executed: false}
   end
-  R->>R: every attempt is logged, refusals included (TDD 4D §13)
+  R->>R: decision_log row for each decision and each 409 found before the write (TDD 4D §13)
+  R->>R: a log line for every attempt, the 422 and 404 included (PR #45, merged)
 ```
 
 **Approving executes nothing** (AC-5, FP-8). It records the decision only.
 Rejecting is always permitted.
+
+*(Corrected 2026-10-26.)* The diagram's last line read *"every attempt is
+logged, refusals included (TDD 4D §13)"*. That ran two records together:
+- **the decision log**, at `a7d52c1` and still, gets a row for each decision
+  and for each 409 found before the write. It gets none for a 404, and none
+  for the 409 that a concurrent decision causes at the conditional write
+  (`decide_suggestion`);
+- **the log lines** are #45's. They covered the 404 at #45's head then
+  (`22ef074`), and the 422 from `5195171`. The 422 branch is added above.
+
+They are operational stdout, not an audit record (D-C5).
 
 ---
 
@@ -398,7 +448,7 @@ graph TD
   ingest --> repo
   promote --> repo
   h --> repo
-  main --> obs[observability.py<br/>CognitiveStateMetrics — PR #46, not merged]
+  main --> obs[observability.py<br/>CognitiveStateMetrics — PR #46, merged]
 ```
 
 ### 6.2 A workspace observation becomes, at most, one initiative
@@ -563,7 +613,8 @@ only after both processes restart. Nothing infers a revocation from silence.
 
 - **Timing.** §9.1 item 1's *"before implementation"* (above).
 - **Traces.** No span is created anywhere in the repository, so no diagram
-  shows trace propagation. That is an open decision, A9 in the closure matrix.
+  shows trace propagation. That is an open decision, D-A9 in the closure
+  matrix. *(This line read "A9" until 2026-10-26.)*
 - **Performance targets** (§9.1 item 7). Only AC-7's five seconds is a ratified
   target. The others are proposals awaiting the owner.
 - **Proposed N/As.** Where a subsystem has nothing to draw (`nova-ui` item 2),

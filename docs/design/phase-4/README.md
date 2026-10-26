@@ -48,3 +48,8 @@ master scope §5–§6 and D-8 as 4B's acceptance source instead. Whether to wai
 it on the record, as 4C's was, is the owner's decision (closure matrix, N-14).
 Master scope §17 also has no row for document 14 or for this README. Both rows
 wait for PR #42, which edits the same table, so the two changes do not collide.
+
+*(2026-10-26.)* PR #42 has merged, as `43c6b12` on 2026-10-23. It did not
+add either row, so §17 still has neither. Adding them means editing master
+scope, which is outside this pull request's three files. That edit needs the
+owner's authorization (closure matrix, N-05 and N-14).
