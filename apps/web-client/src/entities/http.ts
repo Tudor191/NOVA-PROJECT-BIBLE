@@ -54,20 +54,43 @@ export async function gatewayFetchNoContent(
   } catch {
     payload = null;
   }
-  const parsed = envelopeSchema.safeParse(payload);
-  const error = parsed.success ? parsed.data.error : null;
-  throw new GatewayError(
-    error?.code ?? "http_error",
-    error?.message ?? `The gateway returned ${response.status}.`,
-    response.status,
-    correlationOf(payload),
-    error?.upstream_status ?? null,
-  );
+  throw gatewayErrorOf(response, payload);
 }
 
 function correlationOf(body: unknown): string | null {
   const parsed = envelopeSchema.safeParse(body);
   return parsed.success ? parsed.data.meta.correlation_id : null;
+}
+
+/**
+ * RFC 9110 §10.2.3's delta-seconds form only. The HTTP-date form is not read:
+ * `api-gateway` sends seconds, and turning a date into a wait would need this
+ * browser's clock to agree with the gateway's.
+ */
+function retryAfterOf(response: Response): number | null {
+  const value = response.headers.get("retry-after")?.trim();
+  return value !== undefined && /^\d+$/.test(value) ? Number(value) : null;
+}
+
+/**
+ * One structured failure from a non-2xx response. A retry hint is carried as
+ * a number **and** appended to the message, so every notice that renders the
+ * message -- not only those that know about rate limits -- tells the user when
+ * to try again (TDD 4A §7: surfaced, never retried invisibly).
+ */
+function gatewayErrorOf(response: Response, payload: unknown): GatewayError {
+  const parsed = envelopeSchema.safeParse(payload);
+  const error = parsed.success ? parsed.data.error : null;
+  const retryAfterSeconds = retryAfterOf(response);
+  const message = error?.message ?? `The gateway returned ${response.status}.`;
+  return new GatewayError(
+    error?.code ?? "http_error",
+    retryAfterSeconds === null ? message : `${message} Try again in ${retryAfterSeconds} s.`,
+    response.status,
+    correlationOf(payload),
+    error?.upstream_status ?? null,
+    retryAfterSeconds,
+  );
 }
 
 export async function gatewayFetch<T>(
@@ -97,15 +120,7 @@ export async function gatewayFetch<T>(
   }
 
   if (!response.ok) {
-    const parsed = envelopeSchema.safeParse(payload);
-    const error = parsed.success ? parsed.data.error : null;
-    throw new GatewayError(
-      error?.code ?? "http_error",
-      error?.message ?? `The gateway returned ${response.status}.`,
-      response.status,
-      correlationOf(payload),
-      error?.upstream_status ?? null,
-    );
+    throw gatewayErrorOf(response, payload);
   }
 
   return parseEnvelope(payload, dataSchema);

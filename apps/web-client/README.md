@@ -57,6 +57,21 @@ empty list. The System Pulse animates once per real heartbeat and goes
 rate limit and a contract mismatch each render a `DegradationNotice` with the
 error code and correlation id — never an empty panel.
 
+*(Added 2026-10-16 — TDD 4A §7's two request-failure rows, which were not
+built as written until now; `tests/unit/failure-paths.test.tsx` holds both.)*
+
+- **A 401 re-runs the first-run session flow.** `createQueryClient()` re-asks
+  `GET /v1/auth/session` whenever any query or mutation fails
+  unauthenticated, and `SessionGate` returns to the token prompt if the
+  gateway agrees the session is gone. Before this, a refused request only
+  said "This session is no longer valid" in its own panel. The session's own
+  requests are excluded, so the probe cannot loop and a refused token stays
+  the form's answer.
+- **A 429 is surfaced with its retry hint.** `GatewayError.retryAfterSeconds`
+  carries the gateway's `Retry-After` (delta-seconds only; nothing is
+  estimated), and the hint is appended to the message so every notice shows
+  it. Nothing retries: the query client's `retry: false` stands.
+
 ## The Cognitive State panel (Phase 4F.7, 2026-09-26)
 
 `/cognitive-state` (`panels/cognitiveState/`, `entities/cognitiveState.ts`) shows
@@ -86,7 +101,7 @@ capacity, and the lifecycle state each sensor last reported (TDD 4F.7 §12).
 ## Checks
 
 ```
-pnpm --filter @nova/web-client run test       # vitest, 87 tests
+pnpm --filter @nova/web-client run test       # vitest, 87 tests (258 on 2026-10-16)
 pnpm --filter @nova/web-client run typecheck  # tsc --noEmit, strict
 pnpm --filter @nova/web-client run lint       # eslint
 pnpm --filter @nova/web-client run build      # vite production build

@@ -143,6 +143,11 @@ test.describe("the Cognitive State panel", () => {
 
     await page.getByTestId("nav-cognitive-state").click();
     await expect(page.getByTestId("panel-empty").first()).toBeVisible();
+    // Every section must have settled before Refresh, not just the first. A
+    // query still on its first fetch has no data, and TanStack Query then
+    // reuses that in-flight request instead of issuing a new one, so a
+    // Refresh clicked early sends two GETs, not three (run #150).
+    await expect(page.getByTestId("panel-loading")).toHaveCount(0);
 
     const seen: string[] = [];
     page.on("request", (req) => {

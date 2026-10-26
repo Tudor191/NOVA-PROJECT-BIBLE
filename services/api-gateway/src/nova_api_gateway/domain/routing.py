@@ -17,10 +17,40 @@ mechanism does not change, only the entries.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 #: Endpoint classes for rate limiting, doc 11 §5.
 READ_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
+
+#: One path segment as the ASGI server hands it over, already percent-decoded:
+#: RFC 3986 `pchar`s other than `%` and `;`. No fronted route needs anything
+#: else. `httpx` would re-encode or reinterpret each excluded character, and
+#: `;` starts a path parameter some servers strip, which would turn `..;` into
+#: `..` behind them.
+_SEGMENT = re.compile(r"[A-Za-z0-9\-._~!$&'()*+,=:@]+")
+
+
+def is_canonical(path: str) -> bool:
+    """True only for a path the gateway forwards to the engine unchanged.
+
+    The prefix match is the gateway's only check of *where* a request goes, so
+    it must see the path the engine will receive (closure matrix R-06).
+    `httpx` removes `.` and `..` segments when it builds the upstream URL, and
+    reads a decoded `?` or `#` as the start of a query or fragment, so
+    `/v1/digital-twin/../../internal/health` would match `/v1/digital-twin`
+    here and reach `/internal/health` there. An empty segment is refused too,
+    except one trailing slash.
+    """
+    if not path.startswith("/"):
+        return False
+    segments = path[1:].split("/")
+    if segments[-1] == "":
+        segments.pop()
+    return all(
+        _SEGMENT.fullmatch(segment) is not None and segment not in (".", "..")
+        for segment in segments
+    )
 
 
 @dataclass(frozen=True)
@@ -47,6 +77,8 @@ class RouteTable:
         self._routes = sorted(routes, key=lambda r: len(r.prefix), reverse=True)
 
     def resolve(self, path: str) -> UpstreamRoute | None:
+        if not is_canonical(path):
+            return None
         for route in self._routes:
             if path == route.prefix or path.startswith(route.prefix.rstrip("/") + "/"):
                 return route

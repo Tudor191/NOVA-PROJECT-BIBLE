@@ -106,6 +106,13 @@ jobs:
           # fake repository can violate. TDD 4F §13 makes this tier mandatory.
           - package: cognitive-state-engine
             path: services/cognitive-state-engine
+          # Added 2026-10-16 (SAD 15 §9.1 item 6; protocol §10.1). `ws-gateway`
+          # depends on NATS, yet every one of its tests ran against a fake bus.
+          # `test_stream_real_nats.py` serves the real app with uvicorn and
+          # connects a real WebSocket client, so delivery, the public
+          # allow-list and unsubscribe are decided at a real broker.
+          - package: ws-gateway
+            path: services/ws-gateway
           - package: kernel
             path: agent-os/kernel
           - package: registry

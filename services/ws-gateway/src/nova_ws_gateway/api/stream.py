@@ -14,12 +14,21 @@ The bridge subscribes to the bus **once per connection, per allowed topic**,
 through `BoundEventBus`, which independently refuses any subject absent from
 `events/subscribed.py`. Two allow-lists therefore guard the boundary: the
 public one a browser may name, and the bus-side one this service may reach.
+
+Every connection gets a `connection_id`, carried by each log line about it,
+and every decision -- handshake refused or accepted, message malformed,
+topic refused, subscribed, frame queued or dropped -- is counted in
+`observability.py`'s instruments (SAD 15 §9.1 items 9 and 10). A log line
+about an event also carries that event's own `event_id` and
+`correlation_id`, so a frame can be traced back to the request that caused
+it.
 """
 
 from __future__ import annotations
 
 import asyncio
 import contextlib
+from uuid import uuid4
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from nova_contracts import EventEnvelope
@@ -36,6 +45,7 @@ from nova_ws_gateway.domain.protocol import (
     to_event_frame,
 )
 from nova_ws_gateway.domain.session import extract_presented_token
+from nova_ws_gateway.observability import WsGatewayMetrics, bounded_topic
 
 logger = get_logger("ws-gateway")
 
@@ -46,16 +56,45 @@ router = APIRouter(tags=["stream"])
 WS_POLICY_VIOLATION = 1008
 WS_INTERNAL_ERROR = 1011
 
+#: How much of a refused, client-supplied topic list a log line repeats. The
+#: names are the client's text, so they are capped in count and length.
+_LOGGED_REJECTED_TOPICS = 10
+_LOGGED_TOPIC_LENGTH = 120
+
 
 class ConnectionBridge:
     """One browser connection's subscriptions and outbound queue."""
 
-    def __init__(self, websocket: WebSocket, bus: object, max_queued: int) -> None:
+    def __init__(
+        self,
+        websocket: WebSocket,
+        bus: object,
+        max_queued: int,
+        *,
+        connection_id: str = "",
+        metrics: WsGatewayMetrics | None = None,
+    ) -> None:
         self._websocket = websocket
         self._bus = bus
         self._queue: asyncio.Queue[str] = asyncio.Queue(maxsize=max_queued)
         self._subscriptions: dict[str, object] = {}
+        self._metrics = metrics
+        self.connection_id = connection_id
         self.dropped_frames = 0
+
+    def _count_frame(self, subject: str, outcome: str) -> None:
+        if self._metrics is not None:
+            self._metrics.frames_total.add(
+                1, {"topic": bounded_topic(subject), "outcome": outcome}
+            )
+
+    def _event_context(self, envelope: EventEnvelope) -> dict[str, object]:
+        return {
+            "connection_id": self.connection_id,
+            "topic": envelope.subject,
+            "event_id": str(envelope.event_id),
+            "correlation_id": str(envelope.correlation_id),
+        }
 
     @property
     def topics(self) -> list[str]:
@@ -74,8 +113,9 @@ class ConnectionBridge:
             # Dropped with a log: never forwarded half-formed, never allowed
             # to take the subscription down with it.
             logger.warning(
-                "undeliverable event dropped", extra={"subject": envelope.subject}
+                "undeliverable event dropped", extra=self._event_context(envelope)
             )
+            self._count_frame(envelope.subject, "undeliverable")
             return
         try:
             self._queue.put_nowait(serialised)
@@ -84,8 +124,11 @@ class ConnectionBridge:
             # allowed to grow this queue without bound.
             self.dropped_frames += 1
             logger.warning(
-                "client too slow; frame dropped", extra={"topic": envelope.subject}
+                "client too slow; frame dropped", extra=self._event_context(envelope)
             )
+            self._count_frame(envelope.subject, "dropped_slow_client")
+            return
+        self._count_frame(envelope.subject, "queued")
 
     async def subscribe(self, topics: list[str]) -> list[str]:
         subscribed: list[str] = []
@@ -103,8 +146,12 @@ class ConnectionBridge:
                 logger.error(
                     "public topic is not bus-subscribable; check "
                     "events/subscribed.py",
-                    extra={"topic": topic},
+                    extra={"topic": topic, "connection_id": self.connection_id},
                 )
+                if self._metrics is not None:
+                    self._metrics.bus_subscribe_refused_total.add(
+                        1, {"topic": bounded_topic(topic)}
+                    )
                 continue
             self._subscriptions[topic] = subscription
             subscribed.append(topic)
@@ -128,10 +175,22 @@ class ConnectionBridge:
                 # Teardown must not raise: the connection is going away and
                 # a leaked log line is better than a lost cleanup pass over
                 # the remaining subscriptions.
-                logger.warning("failed to unsubscribe cleanly", extra={"topic": topic})
+                logger.warning(
+                    "failed to unsubscribe cleanly",
+                    extra={"topic": topic, "connection_id": self.connection_id},
+                )
 
     async def next_frame(self) -> str:
         return await self._queue.get()
+
+
+def _count_message(metrics: WsGatewayMetrics | None, outcome: str) -> None:
+    if metrics is not None:
+        metrics.client_messages_total.add(1, {"outcome": outcome})
+
+
+def _loggable_topics(topics: list[str]) -> list[str]:
+    return [t[:_LOGGED_TOPIC_LENGTH] for t in sorted(topics)[:_LOGGED_REJECTED_TOPICS]]
 
 
 @router.websocket("/v1/stream")
@@ -139,6 +198,8 @@ async def stream(websocket: WebSocket) -> None:
     settings = websocket.app.state.settings
     validator = websocket.app.state.session_validator
     bus = websocket.app.state.bus
+    metrics: WsGatewayMetrics | None = getattr(websocket.app.state, "metrics", None)
+    connection_id = uuid4().hex
 
     presented = extract_presented_token(
         websocket.cookies.get(settings.session_cookie_name),
@@ -147,11 +208,27 @@ async def stream(websocket: WebSocket) -> None:
     if not validator.is_valid(presented):
         # Rejected during the handshake: no subscription is ever created for
         # an unauthenticated caller, so it cannot observe bus activity at all.
+        logger.info(
+            "connection refused",
+            extra={"reason": "unauthenticated", "connection_id": connection_id},
+        )
+        if metrics is not None:
+            metrics.connections_total.add(1, {"outcome": "unauthenticated"})
         await websocket.close(code=WS_POLICY_VIOLATION, reason="unauthenticated")
         return
 
     await websocket.accept()
-    bridge = ConnectionBridge(websocket, bus, settings.max_queued_frames)
+    if metrics is not None:
+        metrics.connections_total.add(1, {"outcome": "accepted"})
+        metrics.open_connections.add(1)
+    logger.info("client connected", extra={"connection_id": connection_id})
+    bridge = ConnectionBridge(
+        websocket,
+        bus,
+        settings.max_queued_frames,
+        connection_id=connection_id,
+        metrics=metrics,
+    )
 
     # One task owns the socket. Inbound client messages and outbound bus
     # frames are multiplexed by racing two awaitables rather than by running a
@@ -182,6 +259,11 @@ async def stream(websocket: WebSocket) -> None:
             try:
                 message = parse_client_message(raw)
             except MalformedClientMessage as exc:
+                logger.info(
+                    "client message rejected",
+                    extra={"reason": "malformed", "connection_id": connection_id},
+                )
+                _count_message(metrics, "malformed")
                 await websocket.send_text(
                     error_frame("malformed_message", str(exc)[:300]).model_dump_json()
                 )
@@ -189,6 +271,17 @@ async def stream(websocket: WebSocket) -> None:
 
             allowed, rejected = partition_topics(message.topics)
             if rejected:
+                logger.info(
+                    "subscription refused",
+                    extra={
+                        "reason": "topic_not_allowed",
+                        "connection_id": connection_id,
+                        "action": message.action,
+                        "rejected_count": len(rejected),
+                        "rejected": _loggable_topics(rejected),
+                    },
+                )
+                _count_message(metrics, "topic_not_allowed")
                 await websocket.send_text(
                     error_frame(
                         "topic_not_allowed",
@@ -205,14 +298,26 @@ async def stream(websocket: WebSocket) -> None:
             else:
                 topics = await bridge.unsubscribe(allowed)
                 ack = ControlFrame(type="unsubscribed", topics=sorted(topics))
+            _count_message(metrics, message.action)
+            logger.info(
+                ack.type,
+                extra={"connection_id": connection_id, "topics": sorted(topics)},
+            )
             await websocket.send_text(ack.model_dump_json())
 
     except WebSocketDisconnect:
         # Normal client-side close. Not an error; the reconnect is the
         # browser's job and `realtime/` handles it with backoff.
-        logger.info("client disconnected", extra={"topics": bridge.topics})
+        logger.info(
+            "client disconnected",
+            extra={
+                "connection_id": connection_id,
+                "topics": bridge.topics,
+                "dropped_frames": bridge.dropped_frames,
+            },
+        )
     except Exception:
-        logger.exception("stream failed")
+        logger.exception("stream failed", extra={"connection_id": connection_id})
         # The socket may already be closed; there is nothing left to tell
         # the client either way.
         with contextlib.suppress(RuntimeError):
@@ -221,3 +326,5 @@ async def stream(websocket: WebSocket) -> None:
         receive_task.cancel()
         frame_task.cancel()
         await bridge.close()
+        if metrics is not None:
+            metrics.open_connections.add(-1)

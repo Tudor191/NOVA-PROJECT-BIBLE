@@ -88,6 +88,12 @@ branch = true
 
 [tool.coverage.report]
 fail_under = 85
+# coverage.py fails a run only when `round(total, precision) < fail_under`, so
+# at the default precision 0 a package at 84.55% rounds to 85 and passes while
+# the report prints "FAIL ... not reached". Four decimals keep every total
+# strictly below 85% failing for any package up to 100,000 statements plus
+# branches; `tools/tests/test_coverage_gate.py` holds that.
+precision = 4
 show_missing = true
 skip_covered = false
 

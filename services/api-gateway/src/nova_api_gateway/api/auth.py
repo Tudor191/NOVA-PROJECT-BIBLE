@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Request, Response, status
 from fastapi.responses import JSONResponse
+from nova_observability import get_logger
 
 from nova_api_gateway.domain.envelope import (
     Envelope,
@@ -24,7 +25,15 @@ from nova_api_gateway.domain.envelope import (
 )
 from nova_api_gateway.domain.session import extract_presented_token
 
+logger = get_logger("api-gateway")
+
 router = APIRouter(prefix="/v1/auth", tags=["auth"])
+
+
+def _count(request: Request, outcome: str) -> None:
+    metrics = getattr(request.app.state, "metrics", None)
+    if metrics is not None:
+        metrics.session_exchanges_total.add(1, {"outcome": outcome})
 
 
 @router.post("/session", response_model=Envelope)
@@ -36,6 +45,11 @@ async def issue_session(body: SessionIssueRequest, request: Request) -> Response
     if not validator.configured:
         # Fail closed and say so. An unconfigured gateway must not look like
         # a rejected password -- the operator needs to know the difference.
+        logger.warning(
+            "session exchange refused",
+            extra={"reason": "session_not_configured", "correlation_id": correlation_id},
+        )
+        _count(request, "not_configured")
         return JSONResponse(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             content=failure(
@@ -46,6 +60,12 @@ async def issue_session(body: SessionIssueRequest, request: Request) -> Response
         )
 
     if not validator.is_valid(body.token):
+        # The presented value is never logged: a near-miss token is a secret.
+        logger.warning(
+            "session exchange refused",
+            extra={"reason": "invalid_token", "correlation_id": correlation_id},
+        )
+        _count(request, "invalid_token")
         return JSONResponse(
             status_code=status.HTTP_401_UNAUTHORIZED,
             content=failure(
@@ -53,6 +73,8 @@ async def issue_session(body: SessionIssueRequest, request: Request) -> Response
             ).model_dump(mode="json"),
         )
 
+    logger.info("session issued", extra={"correlation_id": correlation_id})
+    _count(request, "issued")
     response = JSONResponse(
         content=success(
             SessionState(authenticated=True).model_dump(mode="json"), correlation_id

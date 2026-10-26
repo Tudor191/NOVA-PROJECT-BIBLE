@@ -153,6 +153,9 @@ state for it), so there is nothing to migrate.
 2. Add a service block to this compose file (copy `nova-core`'s, change the
    Dockerfile path and container name).
 3. Add a scrape target to `../observability/prometheus.yml`.
+   *(2026-10-16: no engine after `nova-core` ever had, so this step is now
+   checked. `tools/tests/test_prometheus_targets.py` fails on any HTTP service
+   that has no target, and on any target that no service backs.)*
 4. If the engine is Postgres-backed, add it to the `ENGINES` array in
    `run-migrations.sh` **and** gate its compose service on `migrations` with
    `condition: service_completed_successfully`. Both are checked by

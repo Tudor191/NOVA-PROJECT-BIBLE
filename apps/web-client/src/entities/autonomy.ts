@@ -187,13 +187,36 @@ const suggestionListSchema = z.object({
 });
 
 /**
+ * Every `DecisionOutcome` `autonomy-engine` serves -- the enum its OpenAPI
+ * publishes for `DecisionResultResponse.outcome`. `outcome-vocabulary.test.ts`
+ * reads the engine's own `domain/models.py` and fails if the two differ.
+ *
+ * *(Added 2026-10-16, F-4FP-10.)* The schema below listed four values. It
+ * already lacked 4F.5's `timeout`, and 4F.P's A-4FP-7 added
+ * `execution_failed`. The decide route produces only `propose` and `deny`
+ * today, so no response was rejected; the list now matches what the
+ * contract permits instead of what one route happens to send.
+ */
+export const DECISION_OUTCOMES = [
+  "observe_only",
+  "propose",
+  "deny",
+  "execute",
+  "timeout",
+  "execution_failed",
+] as const;
+
+/**
  * What a decision did. **`executed` is always `false`** and is carried rather
  * than assumed: AC-5 measures exactly that an approved suggestion is recorded
  * and not executed, so the server states it and this panel renders it.
+ *
+ * *(2026-10-16: `outcome` read `z.enum(["observe_only", "propose", "deny",
+ * "execute"])`; see `DECISION_OUTCOMES`.)*
  */
 const decisionResultSchema = z.object({
   suggestion: suggestionSchema,
-  outcome: z.enum(["observe_only", "propose", "deny", "execute"]),
+  outcome: z.enum(DECISION_OUTCOMES),
   executed: z.boolean(),
 });
 

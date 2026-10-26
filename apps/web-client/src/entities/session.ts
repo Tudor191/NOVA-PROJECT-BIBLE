@@ -43,6 +43,9 @@ export function useSession() {
 export function useIssueSession() {
   const queryClient = useQueryClient();
   return useMutation({
+    // Keyed under the session so `createQueryClient()`'s 401 handling knows a
+    // refused token is this form's answer, not a lost session.
+    mutationKey: [...sessionKeys.current, "issue"],
     mutationFn: async (token: string) => {
       const { data } = await gatewayFetch("/v1/auth/session", sessionStateSchema, {
         method: "POST",
@@ -59,6 +62,7 @@ export function useIssueSession() {
 export function useEndSession() {
   const queryClient = useQueryClient();
   return useMutation({
+    mutationKey: [...sessionKeys.current, "end"],
     mutationFn: async () => {
       const { data } = await gatewayFetch("/v1/auth/session", sessionStateSchema, {
         method: "DELETE",
