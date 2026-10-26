@@ -94,7 +94,13 @@ class UpstreamClient:
             response = await self._client.request(
                 method,
                 url,
-                headers=filter_request_headers(headers),
+                # As the bytes the caller sent: the ASGI server decoded them as
+                # latin-1, and `httpx` would refuse a non-ASCII `str` with an
+                # error outside its own hierarchy -- an unstructured 500.
+                headers=[
+                    (name.encode("latin-1"), value.encode("latin-1"))
+                    for name, value in filter_request_headers(headers).items()
+                ],
                 params=list(params) if params is not None else None,
                 content=content,
             )
