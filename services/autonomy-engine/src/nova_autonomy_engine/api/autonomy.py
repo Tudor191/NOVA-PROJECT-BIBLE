@@ -21,14 +21,31 @@ There is also **no identity-confidence-policy route**: CF-9 stays open and
 
 **Nothing here executes anything.** Approving a suggestion records the user's
 decision; `DecisionResultResponse.executed` is `False` and says so explicitly.
+
+**Every change to this engine's authority is logged and counted** *(added
+2026-10-16, SAD 15 §9.1 items 9 and 10)*. Setting the level, creating,
+updating or deleting a policy, and replacing permission grants each emit one
+`autonomy configuration changed` log line carrying the values before and
+after, and increment `autonomy_configuration_changes_total`. These are the
+changes that can let an action execute without approval (an `AUTO_EXECUTE`
+policy at Level 2), so an operator must be able to see when they happened.
+This is a log line, **not an audit trail**: nothing is persisted, and who
+made the change is not recorded beyond the single trusted user of ADR-025.
+A persisted audit of these changes is an open decision (closure matrix
+N-02), not something this module claims to provide.
 """
 
 from __future__ import annotations
 
+import logging
+import re
 from typing import Annotated
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, HTTPException, Query, Request, status
+from fastapi.exceptions import RequestValidationError
+from fastapi.routing import APIRoute
+from nova_observability import get_logger
 
 from nova_autonomy_engine.api.schemas import (
     AutonomyOverviewResponse,
@@ -80,7 +97,164 @@ from nova_autonomy_engine.domain.ports import (
 from nova_autonomy_engine.domain.trust import compute_trust_score
 from nova_autonomy_engine.repository.cursor import InvalidCursorError
 
-router = APIRouter(prefix="/v1/autonomy", tags=["autonomy"])
+logger = get_logger("autonomy-engine")
+
+#: The header `api-gateway` forwards (its `domain/envelope.py`; restated, not
+#: imported, per ADR-004). The gateway accepts a caller-supplied value and a
+#: direct caller sends none, so it ties a line to a request trace and proves
+#: nothing about who sent the request.
+_CORRELATION_ID_HEADER = "x-correlation-id"
+
+#: A caller-written string this engine will log as written: a UUID, as
+#: `api-gateway` mints, or another short token of these characters. Anything
+#: else -- too long, a line break, a quote, a control or non-ASCII character --
+#: is logged as a marker, never as the caller's text.
+_TOKEN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,127}")
+_INVALID = "<invalid>"
+_UNRECOGNIZED = "<unrecognized>"
+
+#: A refused request's validation errors beyond this many are counted, not listed.
+_MAX_REASONS = 10
+
+#: A refusal without an error class is named by its status, never its message.
+_STATUS_REASONS = {404: "not_found", 409: "conflict"}
+
+#: The routes that change this engine's authority, by route template.
+_CONFIGURATION_ROUTES = {
+    "/v1/autonomy/level": "level",
+    "/v1/autonomy/policies": "policy",
+    "/v1/autonomy/policies/{policy_id}": "policy",
+    "/v1/autonomy/permissions": "permissions",
+}
+_OPERATIONS = {"PUT": "set", "POST": "create", "PATCH": "update", "DELETE": "delete"}
+_DECISION_ROUTE = "/v1/autonomy/suggestions/{suggestion_id}/decide"
+
+#: Every name a configuration or decision request may legitimately carry. A
+#: validation error's location is logged only through this set, so a field
+#: name or key the caller chose never reaches the log.
+_KNOWN_LOCATIONS = frozenset({"body", "query", "path"}).union(
+    *(
+        model.model_fields
+        for model in (
+            SetLevelRequest,
+            PolicyCreateRequest,
+            PolicyUpdateRequest,
+            SetPermissionsRequest,
+            PermissionGrantResponse,
+            DecideSuggestionRequest,
+        )
+    )
+)
+
+
+def _validation_reason(exc: RequestValidationError) -> list[dict[str, object]]:
+    """Locations and error types only, never the rejected values, and at most
+    `_MAX_REASONS` of them: the caller decides how many errors a body has."""
+    errors = exc.errors()
+    reason: list[dict[str, object]] = [
+        {
+            "loc": [
+                part if isinstance(part, int) or part in _KNOWN_LOCATIONS else _UNRECOGNIZED
+                for part in error["loc"]
+            ],
+            "type": error["type"],
+        }
+        for error in errors[:_MAX_REASONS]
+    ]
+    if len(errors) > _MAX_REASONS:
+        reason.append({"more": len(errors) - _MAX_REASONS})
+    return reason
+
+
+def _refusal_reason(exc: HTTPException) -> str:
+    """An explicit refusal is named by its error class or its status, never by
+    its message, which can quote the rejected value (an unselectable level's
+    does)."""
+    if exc.__cause__ is not None:
+        return type(exc.__cause__).__name__
+    return _STATUS_REASONS.get(exc.status_code, f"http_{exc.status_code}")
+
+
+def _token(value: str | None, *, marker: str) -> str | None:
+    if value is None:
+        return None
+    return value if _TOKEN.fullmatch(value) else marker
+
+
+def _context(request: Request) -> dict[str, object]:
+    """What a configuration line is about, as far as this engine can know.
+
+    `user_id` is the target, resolved server-side (ADR-025). `actor` is always
+    None: `api-gateway` authenticates one shared session token and forwards no
+    principal, and a request reaching the engine directly carries none, so
+    the engine cannot tell who asked."""
+    return {
+        "correlation_id": _token(request.headers.get(_CORRELATION_ID_HEADER), marker=_INVALID),
+        "user_id": str(request.app.state.settings.primary_user_id),
+        "actor": None,
+    }
+
+
+def _configuration_refused(
+    request: Request, *, kind: str, status_code: int, reason: object
+) -> None:
+    logger.warning(
+        "autonomy configuration change refused",
+        extra={
+            "kind": kind,
+            "operation": _OPERATIONS[request.method],
+            "outcome": "refused",
+            "status_code": status_code,
+            "reason": reason,
+            **_context(request),
+        },
+    )
+
+
+class _ConfigurationRoute(APIRoute):
+    """Logs a refused write to a configuration route, or an inbox decision
+    whose body fails validation, then lets FastAPI answer it exactly as before.
+    A 422 from request validation is raised before the handler runs, so the
+    handler alone cannot log it."""
+
+    def get_route_handler(self):  # type: ignore[no-untyped-def]
+        handler = super().get_route_handler()
+        kind = _CONFIGURATION_ROUTES.get(self.path)
+        decision = self.path == _DECISION_ROUTE
+        if (kind is None and not decision) or not self.methods & _OPERATIONS.keys():
+            return handler
+
+        async def logged(request: Request):  # type: ignore[no-untyped-def]
+            try:
+                return await handler(request)
+            except RequestValidationError as exc:
+                reason = _validation_reason(exc)
+                if kind is not None:
+                    _configuration_refused(request, kind=kind, status_code=422, reason=reason)
+                else:
+                    # The handler logs every decision it reaches; this is the
+                    # one refusal it never sees. Neither the id nor the
+                    # decision is logged: either may be what failed validation.
+                    _suggestion_decision(
+                        request,
+                        suggestion_id=None,
+                        decision=None,
+                        result="refused_invalid_request",
+                        status_code=422,
+                        reason=reason,
+                    )
+                raise
+            except HTTPException as exc:
+                if kind is not None and 400 <= exc.status_code < 500:
+                    _configuration_refused(
+                        request, kind=kind, status_code=exc.status_code, reason=_refusal_reason(exc)
+                    )
+                raise
+
+        return logged
+
+
+router = APIRouter(prefix="/v1/autonomy", tags=["autonomy"], route_class=_ConfigurationRoute)
 
 _UNCONFIGURED_LEVEL = AutonomyLevel.OBSERVATION_ONLY
 """What an unconfigured instance behaves as. Bible Part 14's Level 0 -- *"NOVA
@@ -90,6 +264,72 @@ configures something (TDD §19)."""
 
 def _state(request: Request):  # type: ignore[no-untyped-def]
     return request.app.state
+
+
+def _configuration_changed(
+    request: Request, *, kind: str, operation: str, **detail: object
+) -> None:
+    """One log line and one count for each change to this engine's authority.
+
+    An operational log line, not an audit record: it goes to stdout and is
+    not persisted. The `*_before` values come from a read made before the
+    write, in a separate statement, so under a concurrent write they may not
+    be the value this write replaced."""
+    logger.info(
+        "autonomy configuration changed",
+        extra={
+            "kind": kind,
+            "operation": operation,
+            "outcome": "applied",
+            **detail,
+            **_context(request),
+        },
+    )
+    metrics = getattr(request.app.state, "metrics", None)
+    if metrics is not None:
+        metrics.configuration_changes_total.add(1, {"kind": kind, "operation": operation})
+
+
+def _policy_snapshot(policy: Policy | None) -> dict[str, object] | None:
+    """The fields that decide what a policy permits -- never its free-text name
+    alone, which says nothing about its effect. `capability_class` is the
+    caller's text, so it is logged only if it is a short identifier."""
+    if policy is None:
+        return None
+    return {
+        "effect": policy.effect.value,
+        "enabled": policy.enabled,
+        "category": policy.match.category.value if policy.match.category else None,
+        "min_risk": policy.match.min_risk.value if policy.match.min_risk else None,
+        "capability_class": _token(policy.match.capability_class, marker=_UNRECOGNIZED),
+    }
+
+
+def _suggestion_decision(
+    request: Request,
+    *,
+    suggestion_id: UUID | None,
+    decision: str | None,
+    result: str,
+    status_code: int,
+    reason: object = None,
+) -> None:
+    """One line for every decision attempt, refused or not. Operational stdout,
+    not an audit record: the decision log is the persisted record."""
+    outcome = "applied" if status_code < 400 else "refused"
+    logger.log(
+        logging.INFO if outcome == "applied" else logging.WARNING,
+        "suggestion decision",
+        extra={
+            "suggestion_id": str(suggestion_id) if suggestion_id is not None else None,
+            "decision": decision,
+            "result": result,
+            "outcome": outcome,
+            "status_code": status_code,
+            "reason": reason,
+            **_context(request),
+        },
+    )
 
 
 def _level_options() -> list[LevelOption]:
@@ -271,7 +511,15 @@ async def set_level(body: SetLevelRequest, request: Request) -> LevelResponse:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
         ) from exc
+    previous = await state.repository.get_level(state.settings.primary_user_id)
     await state.repository.set_level(state.settings.primary_user_id, level)
+    _configuration_changed(
+        request,
+        kind="level",
+        operation="set",
+        level_before=int(previous.level) if previous is not None else None,
+        level_after=int(level),
+    )
     return await _level_response(state, state.settings.primary_user_id)
 
 
@@ -297,7 +545,16 @@ async def create_policy(body: PolicyCreateRequest, request: Request) -> PolicyRe
         ),
         enabled=body.enabled,
     )
-    return _policy_response(await state.repository.create_policy(policy))
+    created = await state.repository.create_policy(policy)
+    _configuration_changed(
+        request,
+        kind="policy",
+        operation="create",
+        policy_id=str(created.id),
+        policy_before=None,
+        policy_after=_policy_snapshot(created),
+    )
+    return _policy_response(created)
 
 
 @router.patch("/policies/{policy_id}", response_model=PolicyResponse)
@@ -336,15 +593,36 @@ async def update_policy(
     updated = await state.repository.replace_policy(merged)
     if updated is None:  # pragma: no cover - only reachable on a concurrent delete
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="no such policy")
+    _configuration_changed(
+        request,
+        kind="policy",
+        operation="update",
+        policy_id=str(policy_id),
+        policy_before=_policy_snapshot(existing),
+        policy_after=_policy_snapshot(updated),
+    )
     return _policy_response(updated)
 
 
 @router.delete("/policies/{policy_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_policy(policy_id: UUID, request: Request) -> None:
     state = _state(request)
-    deleted = await state.repository.delete_policy(state.settings.primary_user_id, policy_id)
+    user_id = state.settings.primary_user_id
+    # Read first only so the log line can say what was removed: deleting a
+    # `deny` policy widens authority as surely as creating an `auto_execute`
+    # one, and a bare id would not show which happened.
+    existing = await state.repository.get_policy(user_id, policy_id)
+    deleted = await state.repository.delete_policy(user_id, policy_id)
     if not deleted:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="no such policy")
+    _configuration_changed(
+        request,
+        kind="policy",
+        operation="delete",
+        policy_id=str(policy_id),
+        policy_before=_policy_snapshot(existing),
+        policy_after=None,
+    )
 
 
 # --- Permission matrix ------------------------------------------------------
@@ -363,6 +641,8 @@ async def set_permissions(
     how a partial write would widen authority."""
     state = _state(request)
     user_id = state.settings.primary_user_id
+    existing_grants = await state.repository.list_permission_grants(user_id)
+    before = {grant.category.value: grant for grant in existing_grants}
     await state.repository.upsert_permission_grants(
         user_id,
         [
@@ -374,6 +654,29 @@ async def set_permissions(
             )
             for grant in body.grants
         ],
+    )
+
+    def _grant(grant: object | None) -> dict[str, object] | None:
+        if grant is None:
+            return None
+        max_risk = getattr(grant, "max_risk", None)
+        above = getattr(grant, "requires_approval_above", None)
+        return {
+            "max_risk": max_risk.value if max_risk is not None else None,
+            "requires_approval_above": above.value if above is not None else None,
+        }
+
+    _configuration_changed(
+        request,
+        kind="permissions",
+        operation="set",
+        changes={
+            grant.category.value: {
+                "before": _grant(before.get(grant.category.value)),
+                "after": _grant(grant),
+            }
+            for grant in body.grants
+        },
     )
     return await _permission_matrix(state, user_id)
 
@@ -438,6 +741,13 @@ async def decide_suggestion(
 
     suggestion = await state.repository.get_suggestion(user_id, suggestion_id)
     if suggestion is None:
+        _suggestion_decision(
+            request,
+            suggestion_id=suggestion_id,
+            decision=body.decision,
+            result="not_found",
+            status_code=404,
+        )
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="no such suggestion")
 
     policies = await state.repository.list_policies(user_id)
@@ -465,6 +775,13 @@ async def decide_suggestion(
     # UPDATE below is still the race-safe backstop -- this check is for the
     # clearer message, not for correctness.
     if suggestion.status is not SuggestionStatus.PROPOSED:
+        _suggestion_decision(
+            request,
+            suggestion_id=suggestion_id,
+            decision=body.decision,
+            result="refused_already_decided",
+            status_code=409,
+        )
         await state.repository.append_decision_log(
             _entry(
                 DecisionOutcome.DENY,
@@ -480,6 +797,13 @@ async def decide_suggestion(
         )
 
     if approving and gates.denied:
+        _suggestion_decision(
+            request,
+            suggestion_id=suggestion_id,
+            decision=body.decision,
+            result=f"refused_{gates.gate}_gate",
+            status_code=409,
+        )
         await state.repository.append_decision_log(
             _entry(
                 DecisionOutcome.DENY,
@@ -507,12 +831,37 @@ async def decide_suggestion(
             log_entry=entry,
         )
     except SuggestionNotFoundError as exc:
+        # Removed between the read above and this write.
+        _suggestion_decision(
+            request,
+            suggestion_id=suggestion_id,
+            decision=body.decision,
+            result="not_found",
+            status_code=404,
+        )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="no such suggestion"
         ) from exc
     except SuggestionAlreadyDecidedError as exc:
+        _suggestion_decision(
+            request,
+            suggestion_id=suggestion_id,
+            decision=body.decision,
+            result="refused_already_decided",
+            status_code=409,
+        )
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
 
+    _suggestion_decision(
+        request,
+        suggestion_id=suggestion_id,
+        decision=body.decision,
+        result=decided.status.value,
+        status_code=200,
+    )
+    metrics = getattr(request.app.state, "metrics", None)
+    if metrics is not None:
+        metrics.decisions_total.add(1, {"source": "suggestion_inbox", "outcome": outcome.value})
     return DecisionResultResponse(
         suggestion=_suggestion_response(decided, gates), outcome=outcome, executed=False
     )

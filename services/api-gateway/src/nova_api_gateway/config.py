@@ -60,8 +60,10 @@ class Settings(BaseSettings):
     session_cookie_max_age_seconds: int = 60 * 60 * 24 * 30
 
     # --- rate limiting ----------------------------------------------------
-    # Redis-backed token bucket per (session, endpoint class), doc 11 §5.
-    # Redis already exists in the local stack; no new infrastructure.
+    # In-process fixed-window counter per (session, endpoint class); see
+    # `domain/rate_limit.py`, which also records how this deviates from TDD
+    # 4A §2.3's Redis-backed token bucket. `redis_url` is reserved for that
+    # design and is read by nothing today.
     redis_url: str = "redis://redis:6379/0"
     rate_limit_enabled: bool = True
     rate_limit_read_per_minute: int = 600
