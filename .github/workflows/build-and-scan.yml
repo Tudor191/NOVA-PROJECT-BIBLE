@@ -15,7 +15,9 @@ concurrency:
 
 jobs:
   dependency-audit:
-    runs-on: ubuntu-latest
+    # D-A10: pinned for the Phase 4 closure window while `ubuntu-latest`
+    # migrates to Ubuntu 26. Temporary: reconsider after Phase 4 is promoted.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
@@ -47,7 +49,9 @@ jobs:
         run: pnpm audit --audit-level=high
 
   build-and-scan:
-    runs-on: ubuntu-latest
+    # D-A10: pinned for the Phase 4 closure window while `ubuntu-latest`
+    # migrates to Ubuntu 26. Temporary: reconsider after Phase 4 is promoted.
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         # One entry per deployable Dockerfile. Add a line here whenever

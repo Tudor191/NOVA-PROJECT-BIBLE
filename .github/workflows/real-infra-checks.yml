@@ -37,7 +37,9 @@ concurrency:
 
 jobs:
   real-infra:
-    runs-on: ubuntu-latest
+    # D-A10: pinned for the Phase 4 closure window while `ubuntu-latest`
+    # migrates to Ubuntu 26. Temporary: reconsider after Phase 4 is promoted.
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       # nova-testkit exercises all four fixture types directly (its own
