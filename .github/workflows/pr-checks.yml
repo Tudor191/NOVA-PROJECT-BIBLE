@@ -31,7 +31,9 @@ concurrency:
 
 jobs:
   checks:
-    runs-on: ubuntu-latest
+    # D-A10: pinned for the Phase 4 closure window while `ubuntu-latest`
+    # migrates to Ubuntu 26. Temporary: reconsider after Phase 4 is promoted.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
@@ -173,7 +175,9 @@ jobs:
   # its *content* came from the fallback, not from a model.
   e2e:
     name: Playwright golden path (staged, non-blocking)
-    runs-on: ubuntu-latest
+    # D-A10: pinned for the Phase 4 closure window while `ubuntu-latest`
+    # migrates to Ubuntu 26. Temporary: reconsider after Phase 4 is promoted.
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
