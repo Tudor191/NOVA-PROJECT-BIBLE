@@ -166,15 +166,35 @@ async def test_an_expired_contribution_from_the_other_sensor_is_not_combined() -
     assert row.payload["gaze_direction"] == "unknown"  # too old (correlation_window_seconds=2.5)
 
 
-async def test_a_raising_detection_call_reports_the_sensor_error_and_publishes_nothing() -> None:
+async def test_a_raising_detection_call_reports_the_sensor_error_and_publishes_no_signal() -> None:
+    """*(Retargeted 2026-09-26, Phase 4F.7 -- TDD 4F §24.4 RS-3a, TDD 4F.7 §8.1.)*
+    The sensor's move to `failed` is now reported: exactly one outbox row, the
+    `perception.sensor.health_changed` lifecycle report, correlated to this
+    observation. What this test always protected still holds -- **no addressee
+    signal** is published for a failed window.
+
+    *(This test was `test_a_raising_detection_call_reports_the_sensor_error_and_
+    publishes_nothing`, asserting `repository.outbox == {}`, which held while
+    the subject had no publisher. Preserved per protocol §0.3.4.)*"""
     sensor = FakeSensor(raise_on_detect=True)
     repository = FakePerceptionRepository()
     app = _FakeApp(sensors_by_source={"microphone": sensor}, repository=repository)
-    outcome = await handle_observation_window(app, source="microphone", window=b"audio")
+    correlation_id = uuid4()
+    outcome = await handle_observation_window(
+        app, source="microphone", window=b"audio", correlation_id=correlation_id
+    )
     assert outcome is not None
     assert outcome.presence_detected is True
     assert outcome.published is False
-    assert repository.outbox == {}
+    rows = list(repository.outbox.values())
+    assert [row.subject for row in rows] == ["perception.sensor.health_changed"]
+    assert rows[0].payload == {
+        "sensor_id": "fake-sensor-1",
+        "sensor_type": "voice",
+        "status": "failed",
+        "schema_version": 1,
+    }
+    assert rows[0].correlation_id == correlation_id
     assert sensor.state() == "failed"
     assert len(sensor.errors) == 1
 

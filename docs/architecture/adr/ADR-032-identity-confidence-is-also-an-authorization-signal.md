@@ -139,3 +139,38 @@ mode Doc 22 Principle 7 already forbids for recognition but says nothing about f
   constraint under ADR-031), that tension is escalated to the user rather than
   resolved silently, the same standing every other permanent principle in this
   project's ADR log is held to.
+
+## Implementation status — added 2026-09-06 (Phase 4B closure pass)
+
+*Additive note. The decision above is unchanged; this records how much of it
+exists in the repository, so the undischarged obligation is discoverable from
+here rather than only from a Gate Review three phases away.*
+
+**Decision point 2 has no implementation.** `action-engine` **enforces** the
+gate and **models** the policy, but nothing can **create** one:
+
+| Decision point | Status as of `phase-4b` |
+|---|---|
+| 1 — identity confidence is an authorization signal, not only a recognition output | **Implemented.** `domain/pipeline.py:180-192` reads it at stage 3 (Check Permissions) and denies below threshold |
+| 2 — *"a configurable identity-confidence threshold per privileged capability (or per capability class), never a single hardcoded system-wide threshold"* | **NOT implemented.** `IdentityConfidencePolicy` exists (`domain/models.py:46`) and the `action.identity_confidence_policy` table exists (`repository/models.py:87`), but the only code path is the read, `find_identity_confidence_policy`. There is **no endpoint, no seed, no migration insert and no admin surface** that writes a row. The sole write anywhere is a `real_infra` test inserting the ORM row directly |
+| 3 — `perception-engine` never gates | **Implemented.** It scores; it does not decide |
+| 4 — binding on Action Engine (Phase 3/NAOS) and Autonomy Engine (Phase 4) | **Partially.** Action Engine gates; Autonomy Engine is not yet built (Phase 4D) |
+
+**Consequence, observed rather than predicted.** With no policy row the gate
+falls back to TDD 3D §7's *"absent policy → fails closed"*, requiring confidence
+1.0. `perception-engine`'s own `SINGLE_SIGNAL_CONFIDENCE_CEILING = 0.75`
+(`domain/identity_fusion.py:46`) means a single-signal identity **cannot**
+clear that. So the gate is passable only *with* a policy row, and the missing
+mechanism of point 2 is therefore mandatory rather than optional. Every
+Critical-risk Action in the Phase 4B stack is denied at stage 3 and never
+reaches the Phase 3D approval loop.
+
+**Tracked as CF-9** in [`docs/design/phase-4/00-master-scope.md`](../../design/phase-4/00-master-scope.md)
+§4 and routed to Phase 4D's policy surface (Policy Engine, Permission Matrix)
+as the appropriate future home. That is a **forward routing decision**, not a
+reassignment of ownership: the obligation is Phase 3D's under this ADR and
+remains so.
+
+**No threshold value is proposed here.** Choosing the first one is a security
+decision about a real user, and this note deliberately leaves it open rather
+than seeding a number that would then be cited as precedent.

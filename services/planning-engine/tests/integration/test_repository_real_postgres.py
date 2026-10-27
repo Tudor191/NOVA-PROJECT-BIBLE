@@ -15,6 +15,7 @@ wasn't verifiable here.
 from __future__ import annotations
 
 import os
+from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID, uuid4
 
@@ -30,6 +31,7 @@ from nova_planning_engine.repository.postgres_planning_repository import (
     PostgresPlanningRepository,
 )
 from nova_testkit.postgres import run_alembic_upgrade
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from testcontainers.postgres import PostgresContainer
 
@@ -383,3 +385,117 @@ async def test_a_fresh_repository_instance_reads_back_a_graph_written_earlier(
     second_repository = PostgresPlanningRepository(postgres_session_factory)
     fetched = await second_repository.find_by_id(graph.id)
     assert fetched == graph
+
+
+# --- `list_all` (Phase 4B condition C-3) -------------------------------------
+#
+# Added by the Phase 4B Conditional-GO closure pass. `list_all` is the read
+# behind `GET /v1/plans`, which the Planning panel calls through
+# `api-gateway`. It shipped in 4B with in-memory-fake coverage only -- Gate
+# Review section 8 item 6 -- so neither its `ORDER BY created_at DESC` nor its
+# `selectinload` of the nodes had ever run against a real Postgres.
+
+
+async def _stamp_created_at(
+    session_factory: async_sessionmaker[AsyncSession], stamps: dict[UUID, datetime]
+) -> None:
+    """Give each graph a distinct `created_at`.
+
+    Not decoration, and not a substitute for the production write path. The
+    column is `server_default=func.now()`, and Postgres' `now()` is
+    *transaction-start* time -- constant for every row written inside this
+    fixture's single outer transaction. Left alone, all three rows below would
+    carry the identical timestamp, the `ORDER BY` would have nothing to order
+    by, and the assertion would pass or fail on whatever order Postgres
+    happened to return. That is precisely the non-contract the `ORDER BY`
+    exists to replace, so the timestamps are set explicitly and the ordering
+    is then asserted against known values.
+    """
+    async with session_factory() as session, session.begin():
+        for graph_id, created_at in stamps.items():
+            await session.execute(
+                text("UPDATE planning.task_graph SET created_at = :ts WHERE id = :id"),
+                {"ts": created_at, "id": graph_id},
+            )
+
+
+async def test_list_all_returns_newest_first(
+    postgres_session_factory: async_sessionmaker[AsyncSession],
+    repository: PostgresPlanningRepository,
+) -> None:
+    """Newest first, asserted against timestamps this test controls.
+
+    `TaskGraph` carries no timestamp of its own, so a caller cannot re-sort
+    this list -- the order the repository returns is the only order the
+    Planning panel can show.
+    """
+    oldest, middle, newest = _graph(), _graph(), _graph()
+    for graph in (oldest, middle, newest):
+        await repository.insert(graph, outbox_event_builder=_builder())
+
+    await _stamp_created_at(
+        postgres_session_factory,
+        {
+            oldest.id: datetime(2026, 1, 1, tzinfo=UTC),
+            middle.id: datetime(2026, 2, 1, tzinfo=UTC),
+            newest.id: datetime(2026, 3, 1, tzinfo=UTC),
+        },
+    )
+
+    listed = await repository.list_all()
+
+    assert [graph.id for graph in listed] == [newest.id, middle.id, oldest.id]
+
+
+async def test_list_all_honours_its_limit_from_the_newest_end(
+    postgres_session_factory: async_sessionmaker[AsyncSession],
+    repository: PostgresPlanningRepository,
+) -> None:
+    """A limit on an unordered read returns an arbitrary subset; a limit on
+    this one returns the most recent plans, which is what a panel showing a
+    capped list has to mean."""
+    oldest, middle, newest = _graph(), _graph(), _graph()
+    for graph in (oldest, middle, newest):
+        await repository.insert(graph, outbox_event_builder=_builder())
+
+    await _stamp_created_at(
+        postgres_session_factory,
+        {
+            oldest.id: datetime(2026, 1, 1, tzinfo=UTC),
+            middle.id: datetime(2026, 2, 1, tzinfo=UTC),
+            newest.id: datetime(2026, 3, 1, tzinfo=UTC),
+        },
+    )
+
+    listed = await repository.list_all(limit=2)
+
+    assert [graph.id for graph in listed] == [newest.id, middle.id]
+
+
+async def test_list_all_returns_graphs_with_their_nodes_loaded(
+    repository: PostgresPlanningRepository,
+) -> None:
+    """The `selectinload`, asserted by comparing against the domain object.
+
+    Equality holds only if every node came back with it. Without the eager
+    load the relationship would be resolved after the repository's session
+    closed -- a `MissingGreenlet` at read time, not a quietly empty list, and
+    the panel would report an unreachable engine rather than a plan.
+    """
+    first, second = _graph(), _graph()
+    await repository.insert(first, outbox_event_builder=_builder())
+    await repository.insert(second, outbox_event_builder=_builder())
+
+    listed = await repository.list_all()
+
+    assert {graph.id for graph in listed} == {first.id, second.id}
+    assert sorted(listed, key=lambda g: g.id) == sorted([first, second], key=lambda g: g.id)
+
+
+async def test_list_all_is_empty_before_any_plan_exists(
+    repository: PostgresPlanningRepository,
+) -> None:
+    """The Planning panel's honest empty state -- distinguishable from an
+    engine it could not reach, which is the distinction 4B's panels are built
+    on."""
+    assert await repository.list_all() == []

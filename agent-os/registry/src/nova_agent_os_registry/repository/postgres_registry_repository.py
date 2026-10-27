@@ -73,6 +73,23 @@ class PostgresRegistryRepository:
             )
             return [_to_domain(row) for row in result.scalars().all()]
 
+    async def list_all(self) -> list[AgentPackage]:
+        """Ordered in SQL, not in Python -- the database is the only layer
+        that can order the rows it is already scanning, and doing it here
+        keeps the guarantee in one place rather than leaving every caller
+        to re-sort. See `domain/ports.py` for why this order is
+        `(category, version, id)` and why it is deliberately not a semantic
+        version order."""
+        async with self._session_factory() as session:
+            result = await session.execute(
+                select(AgentPackageORM).order_by(
+                    AgentPackageORM.category,
+                    AgentPackageORM.version,
+                    AgentPackageORM.id,
+                )
+            )
+            return [_to_domain(row) for row in result.scalars().all()]
+
     async def insert(self, package: AgentPackage) -> AgentPackage:
         row = AgentPackageORM(
             id=package.id,

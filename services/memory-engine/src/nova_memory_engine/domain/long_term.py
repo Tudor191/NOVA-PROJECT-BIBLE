@@ -62,6 +62,11 @@ async def write(
             confidence=record.confidence,
             privacy_level=record.privacy_level,
             knowledge_node_id=record.knowledge_node_id,
+            # The record's own timestamp, not the publish time -- see the field's
+            # docstring in nova_contracts. For a write through this function the
+            # two are the same instant; for a historically-dated record they are
+            # not, and the consumer needs this one.
+            created_at=record.created_at,
         ).model_dump(mode="json"),
         correlation_id=correlation_id,
     )

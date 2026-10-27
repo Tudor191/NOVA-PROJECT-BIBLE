@@ -106,3 +106,48 @@ def test_approve_plan_returns_404_for_an_unknown_task_graph_id(harness) -> None:
     response = client.post(f"/v1/plans/{uuid4()}/approve")
 
     assert response.status_code == 404
+
+
+# --- GET /v1/plans (Phase 4B, the Planning panel's initial state) ----------
+
+
+def test_listing_plans_is_empty_before_anything_is_planned(harness) -> None:  # type: ignore[no-untyped-def]
+    client, _ = harness
+    response = client.get("/v1/plans")
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+def test_listing_plans_returns_newest_first(harness) -> None:  # type: ignore[no-untyped-def]
+    """Order is the assertion, not just the count.
+
+    A panel opening on a long history should show current work; unsorted
+    output would show whatever the repository happened to return first.
+    """
+    client, repository = harness
+    older = _graph()
+    newer = _graph()
+    for graph in (older, newer):
+        asyncio.run(
+            repository.insert(
+                graph,
+                outbox_event_builder=lambda _graph: OutboxEvent(
+                    subject="planning.task_graph.created",
+                    payload={},
+                    correlation_id=uuid4(),
+                ),
+            )
+        )
+
+    body = client.get("/v1/plans").json()
+    assert [graph["id"] for graph in body] == [str(newer.id), str(older.id)]
+
+
+def test_the_list_route_is_not_shadowed_by_the_id_route(harness) -> None:  # type: ignore[no-untyped-def]
+    """FastAPI matches in declaration order.
+
+    Declared after `/{task_graph_id}`, `GET /v1/plans` would be swallowed by
+    the dynamic route and fail parsing `""` as a UUID -- a 422, not a list.
+    """
+    client, _ = harness
+    assert client.get("/v1/plans").status_code == 200

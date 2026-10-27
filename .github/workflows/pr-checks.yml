@@ -16,6 +16,14 @@ on:
   pull_request:
   push:
     branches: [main]
+  # Manual re-runs against an unchanged commit. Added by the Phase 4B G-8 fix:
+  # the `e2e` job is staged precisely because it has to *demonstrate* stability
+  # rather than be assumed stable, and one green run of a job that used to fail
+  # ~40% of the time proves the run was lucky, not that the property holds.
+  # Establishing that needs several runs of the same SHA, and without this the
+  # only way to get one is to push another commit -- which changes the SHA and
+  # so answers a different question. This adds no gate and no required check.
+  workflow_dispatch:
 
 concurrency:
   group: pr-checks-${{ github.workflow }}-${{ github.ref }}
@@ -23,7 +31,9 @@ concurrency:
 
 jobs:
   checks:
-    runs-on: ubuntu-latest
+    # D-A10: pinned for the Phase 4 closure window while `ubuntu-latest`
+    # migrates to Ubuntu 26. Temporary: reconsider after Phase 4 is promoted.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
@@ -70,6 +80,22 @@ jobs:
       # agent loaded first, plus "import file mismatch" on the duplicate test
       # module names. mypy has the identical collision. `ruff check` is static
       # and needs no isolation, so it runs once over the whole tree.
+      # Phase 4F.3 (D-4F-7, TDD 4F §16.4). `companion/` is a Cargo workspace,
+      # not a pnpm or uv workspace member, so Turborepo and `uv` never see it --
+      # the same reason `tools/tests` and the Agent Packages above run as their
+      # own steps. One step, three commands, no global CI policy change and no
+      # Rust anywhere else in the pipeline.
+      #
+      # `--locked` so CI fails on a stale `Cargo.lock` rather than silently
+      # resolving something the committed lockfile does not describe.
+      - name: Rust companion (companion/, not a workspace member)
+        run: |
+          set -euo pipefail
+          cd companion
+          cargo fmt --all --check
+          cargo clippy --all-targets --locked -- -D warnings
+          cargo test --all-targets --locked
+
       - name: Lint Agent Packages (agents/*, not workspace members)
         run: uv run ruff check agents/
 
@@ -103,8 +129,836 @@ jobs:
       - name: Lint every package
         run: pnpm turbo run lint
 
+      # Type-checks the generated TypeScript contract surface and every
+      # workspace package that declares a `typecheck` script. Added in Phase
+      # 4A: nothing had ever compiled the codegen output, which is how 395
+      # TS2308 collisions in the generated barrel stayed invisible.
+      - name: Type-check TypeScript
+        run: pnpm turbo run typecheck
+
+      # COVERAGE_RCFILE (added 2026-10-16, finding N-11): each package's
+      # `test` script runs in its own directory, where coverage.py does not
+      # read the root `pyproject.toml`, so its `fail_under = 85` was never
+      # applied and a package below 85% passed. Pointing coverage at the
+      # root config makes the gate doc 16 §1 describes an enforced one.
+      # `turbo.json` declares the variable, or turbo's strict env mode would
+      # drop it before the task runs.
       - name: Test every package
+        env:
+          COVERAGE_RCFILE: ${{ github.workspace }}/pyproject.toml
         run: pnpm turbo run test
 
       - name: Validate docker-compose.local.yml
         run: docker compose -f infra/docker/docker-compose.local.yml config --quiet
+
+  # Phase 4 AC-1's golden path: open the web client, authenticate, hold a live
+  # text conversation, see it rendered. TDD 4A §11 requires this to be its own
+  # job -- it needs a browser and a running stack, and a failure here must not
+  # be able to mask a unit-suite failure (or vice versa) by sharing one job's
+  # exit status.
+  #
+  # STAGED, like `real-infra-checks.yml`, and for the same reason: Docker has
+  # been unavailable in the development environment throughout Phase 3 and
+  # Phase 4A, so this job has NEVER been executed anywhere. Its correctness
+  # rests on GitHub-hosted runners' standard Docker Engine, not on an
+  # empirical run. Treat the first real executions as the actual verification,
+  # and do NOT add it to branch protection until it has demonstrated stable,
+  # non-flaky runs -- the same discipline the real-infra workflow adopted.
+  #
+  # What a green run here does and does not prove: it exercises the whole
+  # transport loop -- browser -> api-gateway -> communication-engine -> bus ->
+  # ws-gateway -> browser -- including `communication.intent.delivered`, the
+  # event without which NOVA's reply never reaches a subscriber. It does NOT
+  # prove model generation: with no LLM provider configured, reasoning-engine
+  # cannot generate and `conversation_orchestration` delivers its honest
+  # fallback message instead. The reply is real and really travelled the loop;
+  # its *content* came from the fallback, not from a model.
+  e2e:
+    name: Playwright golden path (staged, non-blocking)
+    # D-A10: pinned for the Phase 4 closure window while `ubuntu-latest`
+    # migrates to Ubuntu 26. Temporary: reconsider after Phase 4 is promoted.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+
+      - name: Install JS dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browser
+        run: pnpm --filter @nova/web-client exec playwright install --with-deps chromium
+
+      - name: Provision the instance session token
+        # Decision D-3: one long-lived local token, shared by both gateways
+        # because they are two external surfaces of a single instance. Both
+        # fail closed when it is empty, so it has to exist before they start.
+        run: |
+          echo "NOVA_SESSION_TOKEN=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+
+      # Phase 4F.P, P8 (TDD 4F.P A-4FP-12, §28.4 C-12). One workspace for the
+      # whole stack: compose binds it at `/workspace` into `capability-engine`,
+      # as its sandbox root, and into `nova-companion`, as its watch root. It
+      # must exist before the first `up`, because that starts
+      # `capability-engine`; compose falls back to `./workspace` beside the
+      # compose file when the variable is unset (local use).
+      - name: Provision the shared workspace (4F.P P8)
+        run: |
+          workspace="${RUNNER_TEMP}/nova-workspace"
+          mkdir -p "$workspace"
+          echo "NOVA_WORKSPACE_DIR=$workspace" >> "$GITHUB_ENV"
+          echo "shared workspace: $workspace"
+
+      - name: Start the stack
+        env:
+          NOVA_SESSION_TOKEN: ${{ env.NOVA_SESSION_TOKEN }}
+        run: |
+          # `migrations` is named explicitly for the log, though compose would
+          # pull it in regardless: every engine below gates on it through
+          # `service_completed_successfully`, so compose runs it to completion
+          # first and holds the engines until it exits 0.
+          #
+          # Two of these are not obvious and are what the first real Playwright
+          # run proved necessary:
+          #
+          # - `nova-core` is the only publisher of `nova.heartbeat`. Without it
+          #   the System Pulse is honestly `unknown` forever, and the shell's
+          #   telemetry assertion has nothing real to report.
+          # - `communication-engine-worker` is the only thing that drains the
+          #   communication outbox, so without it neither
+          #   `communication.turn.received` nor `communication.intent.delivered`
+          #   ever reaches the bus and the transcript stays empty however long
+          #   the test waits.
+          #
+          # Phase 4B adds the four engines the observability panels read
+          # through `api-gateway`, plus the two outbox workers that make
+          # their events reach a browser. `action-engine` and
+          # `capability-engine` need no worker -- the first publishes
+          # directly to the bus, the second publishes no domain events at
+          # all -- which `tools/tests/test_e2e_stack_completeness.py`
+          # asserts rather than leaves to memory.
+          # Phase 4C (4C.1, decision D-5) adds the three `agent-os`
+          # components. They are here because AC-4's first clause is
+          # literally "`agent-os` runs as containers under `docker compose
+          # up`", and this job is the only place in the repository where the
+          # stack is ever brought up -- an image that builds in
+          # `build-and-scan.yml` proves it compiles, not that it starts.
+          # None of the three is reachable from the browser: `api-gateway`'s
+          # route table is unchanged by 4C.1, and the Kernel's read-only
+          # `/v1/agents` surface is 4C.2's work.
+          #
+          # Phase 4E appends three, and the reason is one dependency rather
+          # than three: AC-6's reconstruction is `digital-twin-engine` deriving
+          # Bible Part 16's domains from `memory.long_term.created`, which only
+          # `memory-engine-worker` ever publishes (its outbox is the sole
+          # publish path, and nothing ran it -- see the compose file's own
+          # comment on that service). `memory-engine` is named for the same
+          # reason `communication-engine` is: an engine and its worker are one
+          # deployment, and starting half of it is the defect this list has
+          # already been caught by twice.
+          #
+          # `digital-twin-engine` is named **explicitly**, though `api-gateway`
+          # would drag it in through `depends_on`. An implicit start is not a
+          # declaration: it survives only as long as that edge does, and the
+          # engine whose panel AC-6 is measured in should not be a side effect
+          # of a routing entry.
+          #
+          # `cognitive-state-engine` (Phase 4F.7, A-4F7-5 default (a)) is named
+          # explicitly on the same terms: the Cognitive State panel's Playwright
+          # spec reads its three `GET`s through `api-gateway`. No seed and no
+          # `perception-engine` -- the spec asserts panel/API parity and the
+          # honest empty states, which K-1's startup race cannot disturb.
+          docker compose -f infra/docker/docker-compose.local.yml up -d --build \
+            nats postgres redis migrations \
+            nova-core \
+            world-model-engine personality-engine reasoning-engine \
+            ai-model-orchestration-engine communication-engine \
+            communication-engine-worker \
+            planning-engine capability-engine action-engine \
+            planning-engine-worker reasoning-engine-worker \
+            ai-model-orchestration-engine-worker \
+            api-gateway ws-gateway \
+            agent-os-kernel agent-os-registry agent-os-supervisors \
+            autonomy-engine \
+            memory-engine memory-engine-worker digital-twin-engine \
+            cognitive-state-engine
+
+      - name: Confirm the schema migration completed
+        run: |
+          set -euo pipefail
+          compose="docker compose -f infra/docker/docker-compose.local.yml"
+          echo "--- migrator output ---"
+          $compose logs migrations
+          code=$(docker inspect -f '{{.State.ExitCode}}' "$($compose ps -aq migrations)")
+          if [ "$code" != "0" ]; then
+            echo "::error::the schema migrator exited $code; engines were never started"
+            exit 1
+          fi
+          echo "schema migrator exited 0"
+
+      - name: Confirm the agent_os schema reached head
+        run: |
+          set -euo pipefail
+          compose="docker compose -f infra/docker/docker-compose.local.yml"
+          psql="$compose exec -T postgres psql -U ${POSTGRES_USER:-nova} -d ${POSTGRES_DB:-nova} -X"
+
+          # Phase 4C, 4C.1. The migrator's exit code above covers every schema
+          # at once; this names the one 4C.1 introduces. The two `agent-os`
+          # entries are the only pair in `run-migrations.sh` that share a
+          # schema, and each creates it with `CREATE SCHEMA IF NOT EXISTS`, so
+          # a bug in that interaction would show up as one table present and
+          # the other missing -- which the exit code alone would not catch.
+          echo "--- agent_os tables ---"
+          $psql -c "SELECT tablename FROM pg_tables WHERE schemaname = 'agent_os' ORDER BY tablename;"
+          for table in agent_instance agent_package; do
+            present="$($psql -tAc "SELECT count(*) FROM pg_tables
+                                    WHERE schemaname = 'agent_os'
+                                      AND tablename = '${table}';" | tr -d '[:space:]')"
+            if [ "${present}" != "1" ]; then
+              echo "::error::agent_os.${table} does not exist after migration."
+              echo "agent-os-kernel and agent-os-registry would start against a"
+              echo "schema-less database and crash-loop on their first query."
+              exit 1
+            fi
+            echo "agent_os.${table}: present"
+          done
+
+          # Each component stamps its own version table (they are independent
+          # alembic histories that happen to share a schema). The tables live
+          # in the connection's default schema, not `agent_os` -- see each
+          # component's own `alembic/env.py` for why.
+          for version_table in alembic_version_agent_os_kernel alembic_version_agent_os_registry; do
+            head="$($psql -tAc "SELECT version_num FROM public.${version_table};" | tr -d '[:space:]')"
+            if [ -z "${head}" ]; then
+              echo "::error::${version_table} is empty; that component's migration never ran"
+              exit 1
+            fi
+            echo "${version_table}: ${head}"
+          done
+
+      - name: Confirm the engines are running rather than crash-looping
+        run: |
+          set -euo pipefail
+          compose="docker compose -f infra/docker/docker-compose.local.yml"
+          # The original defect presented as repeated restarts, not as an
+          # absent container, so counting restarts is the check that would
+          # actually have caught it.
+          failed=()
+          # `communication-engine-worker` and `nova-core` are in this list for
+          # the same reason as the engines: a worker that cannot reach Redis
+          # exits and is restarted forever, and the only symptom downstream is
+          # a transcript that never fills -- a 30s assertion timeout that names
+          # nothing. A restart count here names it immediately.
+          # The three `agent-os` components (Phase 4C, D-5) are checked here
+          # and not merely started, because "no crash loop" is the whole of
+          # what 4C.1 claims about them. Two failure modes are specifically in
+          # scope: an image whose `uv sync --package` resolved without a
+          # transitively-imported workspace package (which is what
+          # `agent-os/kernel` would have done before 4C.1 declared
+          # `nova-agent-sdk`), and a component started against a database with
+          # no `agent_os` schema. Both present as a restart count, not as an
+          # absent container.
+          for svc in nova-core \
+                     world-model-engine personality-engine reasoning-engine \
+                     ai-model-orchestration-engine communication-engine \
+                     communication-engine-worker \
+                     planning-engine capability-engine action-engine \
+                     planning-engine-worker reasoning-engine-worker \
+                     ai-model-orchestration-engine-worker \
+                     agent-os-kernel agent-os-registry agent-os-supervisors; do
+            cid=$($compose ps -aq "$svc")
+            state=$(docker inspect -f '{{.State.Status}}' "$cid")
+            restarts=$(docker inspect -f '{{.RestartCount}}' "$cid")
+            echo "$svc: $state (restarts=$restarts)"
+            if [ "$state" != "running" ] || [ "$restarts" -gt 0 ]; then
+              failed+=("$svc")
+            fi
+          done
+          if [ ${#failed[@]} -ne 0 ]; then
+            echo "::error::engines not healthy: ${failed[*]}"
+            $compose logs --tail=200 "${failed[@]}"
+            exit 1
+          fi
+
+      - name: Wait for both gateways to answer
+        run: |
+          set -euo pipefail
+          for url in http://localhost:8014/internal/readiness http://localhost:8015/internal/readiness; do
+            echo "waiting for $url"
+            for attempt in $(seq 1 60); do
+              if curl -fsS "$url" >/dev/null 2>&1; then
+                echo "$url is ready"
+                break
+              fi
+              if [ "$attempt" -eq 60 ]; then
+                echo "::error::$url did not become ready within 5 minutes"
+                docker compose -f infra/docker/docker-compose.local.yml logs --tail=200
+                exit 1
+              fi
+              sleep 5
+            done
+          done
+
+      # AC-3's approval clause needs a Critical-risk Action to exist before
+      # the browser can decide it. Nothing in the 4B stack can request one:
+      # `action.execute` is an Event Bus RPC whose only permitted publisher is
+      # `agent-os/kernel`, and `agent-os` has no compose service until Phase
+      # 4C (D-5). This step stands in for the Kernel for that one call, using
+      # the Kernel's own `BoundEventBus` allow-list rather than bypassing it.
+      #
+      # Everything after the request is real and browser-driven -- the
+      # pending approval is read and decided through `api-gateway`, and the
+      # resulting `action.approval.decided` arrives over `ws-gateway`.
+      # `continue-on-error` because the approval spec skips itself when
+      # `NOVA_E2E_ACTION_ID` is unset: a driver that cannot reach the bus must
+      # not turn into a false failure of the golden path.
+      # This job is otherwise Node-only -- it has never needed Python. The
+      # driver below is Python because it speaks the Event Bus through the
+      # project's own SDK, which is the whole point of it: the allow-list is
+      # enforced by the real `BoundEventBus` rather than re-implemented in a
+      # test.
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          python-version: "3.12"
+
+      - name: Install Python workspace
+        run: uv sync --all-packages --frozen
+
+      - name: Request a risky action for the approval E2E
+        id: risky_action
+        continue-on-error: true
+        env:
+          EVENT_BUS_BACKEND: nats
+          NATS_URL: nats://localhost:4222
+        run: |
+          set -o pipefail
+          # `tee` so a traceback survives into the log. The first two attempts
+          # at this step failed silently -- once because `uv` was absent, once
+          # on a validation error -- and `continue-on-error` reports both as a
+          # green step, so the output is the only place the reason can live.
+          uv run python tools/e2e_request_risky_action.py 2>&1 | tee /tmp/risky-action.log
+          action_id="$(tail -n 1 /tmp/risky-action.log)"
+          echo "requested Critical-risk action ${action_id}"
+
+          # The Action only reaches the approval loop if it survives stage 3's
+          # ADR-032 identity-confidence gate. That gate fails closed: with no
+          # `IdentityConfidencePolicy` row the required threshold is 1.0, and
+          # with no perception activity the observed confidence is 0.0, so a
+          # Critical action is *denied* at Check Permissions and never blocks
+          # for approval. That is the gate working as designed, and seeding a
+          # zero-threshold policy to get past it would be weakening a security
+          # control to make a test green.
+          #
+          # So the id is exported only when an undecided approval actually
+          # exists. When it does not, `NOVA_E2E_ACTION_ID` stays empty and the
+          # approval spec skips itself with its own stated reason rather than
+          # failing for something outside Phase 4B's scope.
+          compose="docker compose -f infra/docker/docker-compose.local.yml"
+          psql="$compose exec -T postgres psql -U ${POSTGRES_USER:-nova} -d ${POSTGRES_DB:-nova} -X"
+          rows="$($psql -tAc "SELECT count(*) FROM action.pending_approval
+                               WHERE action_id = '${action_id}' AND decision IS NULL;" \
+                  | tr -d '[:space:]')"
+          if [ "${rows}" = "1" ]; then
+            echo "action_id=${action_id}" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::${action_id} never reached the approval loop -- see the next step."
+            echo "action_id=" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Reports; does not gate. If the Action was denied at stage 3 rather
+      # than blocked at the approval loop, that is ADR-032's fail-closed
+      # default doing its job, not a Phase 4B defect -- see the driver step
+      # above. The job must not go red for it, but the log must say so.
+      - name: Report whether the action reached the approval loop
+        # `outputs.action_id` is deliberately empty when the Action was denied
+        # at stage 3 and no approval row exists (G-7). Without that second
+        # condition this step still ran, interpolated an empty id into the
+        # query, and printed `ERROR: invalid input syntax for type uuid: ""`
+        # plus a red `##[error]` that `continue-on-error` then swallowed --
+        # a scary-looking non-event in an otherwise green log.
+        if: steps.risky_action.outcome == 'success' && steps.risky_action.outputs.action_id != ''
+        continue-on-error: true
+        # Before the browser is involved at all: the gate is `action-engine`'s
+        # and it must already have fired. A row here proves the pipeline
+        # stopped at Prepare Resources rather than executing a `delete`.
+        run: |
+          set -uo pipefail
+          compose="docker compose -f infra/docker/docker-compose.local.yml"
+          psql="$compose exec -T postgres psql -U ${POSTGRES_USER:-nova} -d ${POSTGRES_DB:-nova} -X"
+          id='${{ steps.risky_action.outputs.action_id }}'
+
+          echo "--- every undecided approval action-engine is holding ---"
+          $psql -c "SELECT action_id, risk, requested_at, decision
+                      FROM action.pending_approval ORDER BY requested_at;"
+
+          # An assertion, not a report. `psql -c` exits 0 on an empty result,
+          # so the previous version of this step passed while proving nothing
+          # -- which is exactly how run #75 was misread as "the row exists".
+          rows="$($psql -tAc "SELECT count(*) FROM action.pending_approval
+                               WHERE action_id = '${id}' AND decision IS NULL;" | tr -d '[:space:]')"
+          echo "undecided rows for ${id}: ${rows}"
+          if [ "${rows}" != "1" ]; then
+            echo "This Action did NOT block for approval. Expected when no"
+            echo "IdentityConfidencePolicy exists: stage 3 requires confidence"
+            echo "1.0 and observes 0.0, so it is denied before the approval"
+            echo "loop. Status below should read 'denied'."
+            $psql -c "SELECT id, action_type, risk, status FROM action.action
+                       WHERE id = '${id}';"
+            $compose logs --tail=30 action-engine
+          fi
+
+      # Phase 4D. AC-5 needs a proposed suggestion in the browser, and no
+      # shipped component produces one: decision D-4D-1 removed the Event Bus
+      # origin and TDD 4D §8.1 defines no creation route, because 4D builds
+      # the decision surface rather than the initiative surface. This driver
+      # stands in for the producer a later milestone will build -- it runs the
+      # real decision pipeline, with the real gates in their binding order,
+      # and persists through the real repository in one transaction.
+      #
+      # `continue-on-error` for the same reason the approval driver has it: if
+      # the pipeline declines to propose, that is a real answer, and the spec
+      # must skip itself rather than turn a correct denial into a red build.
+      - name: Record a suggestion for the AC-5 E2E
+        id: autonomy_suggestion
+        continue-on-error: true
+        env:
+          AUTONOMY_ENGINE_POSTGRES_DSN: postgresql+asyncpg://nova:nova_dev_password@localhost:5432/nova
+        run: |
+          set -o pipefail
+          uv run python tools/e2e_seed_autonomy_suggestion.py 2>&1 | tee /tmp/autonomy-suggestion.log
+          suggestion_id="$(tail -n 1 /tmp/autonomy-suggestion.log)"
+          echo "recorded suggestion ${suggestion_id}"
+
+          # Exported only when the row is really there and still undecided --
+          # the same evidence-before-export rule the approval driver follows.
+          compose="docker compose -f infra/docker/docker-compose.local.yml"
+          psql="$compose exec -T postgres psql -U ${POSTGRES_USER:-nova} -d ${POSTGRES_DB:-nova} -X"
+          rows="$($psql -tAc "SELECT count(*) FROM autonomy.suggestion
+                               WHERE id = '${suggestion_id}' AND status = 'proposed';" \
+                  | tr -d '[:space:]')"
+          if [ "${rows}" = "1" ]; then
+            echo "suggestion_id=${suggestion_id}" >> "$GITHUB_OUTPUT"
+          else
+            echo "no proposed suggestion row for ${suggestion_id}; the AC-5 spec will skip"
+            $compose logs --tail=30 autonomy-engine || true
+          fi
+
+      # Phase 4E. AC-6 needs a project whose newest memory is weeks old, and
+      # no shipped component can produce one: a memory is created when it is
+      # created, and ratified decision TDD 4E section 20.1 settled that the gap
+      # is simulated in the *data* rather than in the clock. This driver stands
+      # in for elapsed time -- it persists real MemoryRecords with real past
+      # created_at values through the real PostgresMemoryRepository, with the
+      # real outbox row in the same transaction, so memory-engine's own worker
+      # publishes and digital-twin-engine's own subscriber derives.
+      #
+      # `continue-on-error` for the same reason the other two drivers have it:
+      # if the seeding does not take, the spec skips itself rather than turning
+      # an unseeded stack into a red build.
+      - name: Seed a historical project for the AC-6 E2E
+        id: digital_twin_project
+        continue-on-error: true
+        env:
+          MEMORY_ENGINE_POSTGRES_DSN: postgresql+asyncpg://nova:nova_dev_password@localhost:5432/nova
+        run: |
+          set -o pipefail
+          uv run python tools/e2e_seed_digital_twin_project.py 2>&1 | tee /tmp/digital-twin-seed.log
+          project_id="$(tail -n 1 /tmp/digital-twin-seed.log)"
+          echo "seeded project ${project_id}"
+
+          # Exported only when the rows are really there *and* really old --
+          # the same evidence-before-export rule the other drivers follow, with
+          # the extra check that matters here. Before the section 20.1 fix,
+          # create_long_term omitted created_at and the column default replaced
+          # every value with now(); the gap would have been zero and the spec
+          # would have "passed" against a reconstruction of nothing.
+          compose="docker compose -f infra/docker/docker-compose.local.yml"
+          psql="$compose exec -T postgres psql -U ${POSTGRES_USER:-nova} -d ${POSTGRES_DB:-nova} -X"
+          rows="$($psql -tAc "SELECT count(*) FROM memory.memory_record
+                               WHERE project_id = '${project_id}'
+                                 AND created_at < now() - interval '21 days';" \
+                  | tr -d '[:space:]')"
+          if [ "${rows}" = "5" ]; then
+            echo "project_id=${project_id}" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::expected 5 memories older than 21 days for ${project_id}, found ${rows}"
+            echo "the historical created_at values did not persist; the AC-6 spec will skip"
+            $psql -c "SELECT id, memory_type, privacy_level, created_at
+                        FROM memory.memory_record WHERE project_id = '${project_id}'
+                        ORDER BY created_at;"
+            echo "project_id=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run the golden path
+        env:
+          NOVA_SESSION_TOKEN: ${{ env.NOVA_SESSION_TOKEN }}
+          NOVA_E2E_ACTION_ID: ${{ steps.risky_action.outputs.action_id }}
+          NOVA_E2E_SUGGESTION_ID: ${{ steps.autonomy_suggestion.outputs.suggestion_id }}
+          NOVA_E2E_PROJECT_ID: ${{ steps.digital_twin_project.outputs.project_id }}
+          # The client is served single-origin and Vite's `preview` proxy
+          # forwards `/v1` and `/ws` to the gateways -- the same shape a real
+          # deployment has. Pointing the client straight at the gateway ports
+          # instead would break it outright: the session cookie is
+          # `SameSite=Strict`, so a cross-origin request would never carry it
+          # and every call would 401.
+          NOVA_API_GATEWAY_URL: http://localhost:8014
+          NOVA_WS_GATEWAY_URL: http://localhost:8015
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        # `tee` so the reason survives: Playwright's global errors -- a
+        # `webServer` that never came up, a config that failed to load -- are
+        # not test results and so are absent from the JSON reporter's output.
+        # The last run proved that gap exists: the summary step reported
+        # "results file lists no failures" while the step had plainly failed.
+        run: |
+          set -o pipefail
+          # Stamped so a screenshot of this step is self-dating. A superseded
+          # run was once read as current because nothing in the output said
+          # which commit produced it.
+          #
+          # The head SHA, not `GITHUB_SHA`: on a `pull_request` event the
+          # latter is the ephemeral merge commit GitHub builds for the run,
+          # which appears nowhere in the branch. Stamping it would leave a
+          # reader unable to tie the run to a commit they can check out --
+          # the exact problem this line exists to solve.
+          echo "golden path @ ${HEAD_SHA}, webServer target ${NOVA_WEB_CLIENT_URL:-http://127.0.0.1:4173}"
+          pnpm --filter @nova/web-client run test:e2e 2>&1 | tee /tmp/playwright-stdout.log
+
+      # G-8's standing evidence. Runs on success as well as failure, which is
+      # the whole point: the transport trace below only runs on `failure()`, so
+      # for as long as a run was green nothing ever looked at whether the
+      # outboxes had actually drained. That is how the arq worker collision
+      # survived -- the golden path passed on the ~1-in-4 tick that happened to
+      # land on `communication-engine-worker`, and a green run reported nothing
+      # about the other three quarters.
+      #
+      # `communication` is asserted, because the golden path's own turn depends
+      # on it. Every other engine's outbox is reported rather than asserted: how
+      # much any of them has to publish is a fact about what the stack was asked
+      # to do on the day, and pinning it is how an E2E assertion becomes wrong.
+      - name: Confirm no engine outbox was left stranded
+        if: always()
+        run: |
+          set -uo pipefail
+          compose="docker compose -f infra/docker/docker-compose.local.yml"
+          psql="$compose exec -T postgres psql -U ${POSTGRES_USER:-nova} -d ${POSTGRES_DB:-nova} -X"
+
+          for schema in communication reasoning model_orchestration planning; do
+            echo "--- ${schema}.outbox_event ---"
+            $psql -c "SELECT subject,
+                             count(*) AS rows,
+                             count(dispatched_at) AS dispatched,
+                             count(*) - count(dispatched_at) AS undispatched
+                      FROM ${schema}.outbox_event
+                      GROUP BY subject ORDER BY subject;" || echo "(no ${schema} outbox)"
+          done
+
+          # The assertion. A stranded `communication.turn.received` is exactly
+          # what made the golden path flaky, and it is invisible from the test's
+          # own failure message -- which says only that a transcript entry never
+          # appeared.
+          stranded="$($psql -tAc "SELECT count(*) FROM communication.outbox_event
+                                   WHERE subject = 'communication.turn.received'
+                                     AND dispatched_at IS NULL;" | tr -d '[:space:]')"
+          total="$($psql -tAc "SELECT count(*) FROM communication.outbox_event
+                                WHERE subject = 'communication.turn.received';" \
+                   | tr -d '[:space:]')"
+          echo "communication.turn.received: ${total} row(s), ${stranded} undispatched"
+          if [ "${total}" = "0" ]; then
+            echo "::error::no communication.turn.received row exists at all; the golden path never sent a turn"
+            exit 1
+          fi
+          if [ "${stranded}" != "0" ]; then
+            echo "::error::${stranded} communication.turn.received row(s) never reached the Event Bus."
+            echo "That is G-8's signature: an engine worker consumed another engine's"
+            echo "cron tick, or a colliding cron job id swallowed this engine's enqueue."
+            $compose logs --tail=40 communication-engine-worker
+            exit 1
+          fi
+
+      # Phase 4F.8 (TDD 4F.8 D3, A-4F8-2 (a); §29.4): the operator's declaration
+      # for AC-7's "known project". One folder in the shared workspace is bound
+      # to a project id fresh for this run.
+      # - Exported before the P8 services start, because perception-engine reads
+      #   its bindings at startup.
+      # - The folder is created now, so the companion's recursive watch includes
+      #   it from its first event.
+      # - The binding stays inert until the project is seen on
+      #   `memory.long_term.created`. `tools/e2e_acceptance.py ac7-latency` makes
+      #   that happen through memory-engine's own route.
+      - name: Declare the AC-7 known project (4F.8 D3)
+        if: ${{ !cancelled() }}
+        run: |
+          run_id="$(python3 -c 'import uuid; print(uuid.uuid4().hex[:12])')"
+          project_id="$(python3 -c 'import uuid; print(uuid.uuid4())')"
+          folder="ac7-known-${run_id}"
+          mkdir -p "${NOVA_WORKSPACE_DIR}/${folder}"
+          {
+            echo "NOVA_ACCEPTANCE_RUN_ID=${run_id}"
+            echo "NOVA_ACCEPTANCE_KNOWN_PROJECT_ID=${project_id}"
+            echo "NOVA_ACCEPTANCE_KNOWN_FOLDER=${folder}"
+            echo "NOVA_PROJECT_FOLDER_BINDINGS={\"/workspace/${folder}\": \"${project_id}\"}"
+          } >> "$GITHUB_ENV"
+          echo "known project ${project_id}, declared at /workspace/${folder}"
+
+      # Phase 4F.P, P8 -- real end-to-end execution (TDD 4F.P A-4FP-12; §15's
+      # V-1 ... V-5, V-6 (a), V-7 (a1), in §28.4 C-14's composed tier).
+      #
+      # The e2e stack gains `perception-engine`, its outbox worker and
+      # `nova-companion` here, **after** the golden path rather than in the
+      # first `up`. The Cognitive State panel's spec asserts the honest empty
+      # states of an unseeded stack -- "no `perception-engine` runs in this
+      # job, so no sensor has reported" -- and `perception-engine` reports its
+      # sensors as it starts. Starting it later keeps that premise true for
+      # every spec, and puts the three services in this job's stack as A-4FP-12
+      # requires. `cognitive-state-engine`, `autonomy-engine`, `action-engine`,
+      # `capability-engine` and `world-model-engine` are already running.
+      #
+      # `!cancelled()`, so the proof runs, and reports, whatever the golden
+      # path did; its own failure fails the job.
+      #
+      # Phase 4F.8 (TDD 4F.8 §28.7 (B), §29.2): with the acceptance-only
+      # override, the companion runs as uid 1100 with this runner's gid. It
+      # reaches the runner-created workspace through the group bits, and
+      # `capability-engine` (uid 1000) through the other bits. So AC-7's
+      # revocation, `chmod g-rx`, withdraws the sensor's permission and not
+      # `capability-engine`'s. This is the only step that applies the override
+      # (`tools/tests/test_acceptance_override.py`).
+      - name: Start the P8 services (perception-engine, its worker, nova-companion)
+        if: ${{ !cancelled() }}
+        run: |
+          NOVA_ACCEPTANCE_COMPANION_GID="$(id -g)"
+          export NOVA_ACCEPTANCE_COMPANION_GID
+          echo "NOVA_ACCEPTANCE_COMPANION_GID=${NOVA_ACCEPTANCE_COMPANION_GID}" >> "$GITHUB_ENV"
+          docker compose -f infra/docker/docker-compose.local.yml -f infra/docker/docker-compose.acceptance.yml \
+            up -d --build perception-engine perception-engine-worker nova-companion
+
+      # Writes real files into the shared workspace, configures Level 2, one
+      # AUTO_EXECUTE policy, one grant and A-4FP-11's disclosed identity
+      # threshold through production routes only, observes the bus without
+      # publishing, and reads every engine's store by independent SQL. No
+      # stand-in anywhere in the chain; see the driver's own docstring.
+      - name: Prove real end-to-end execution (4F.P P8)
+        if: ${{ !cancelled() }}
+        env:
+          NATS_URL: nats://localhost:4222
+          NOVA_E2E_POSTGRES_DSN: postgresql://nova:nova_dev_password@localhost:5432/nova
+          NOVA_E2E_DEADLINE_SECONDS: "180"
+        run: |
+          set -o pipefail
+          uv run python tools/e2e_real_execution.py 2>&1 | tee /tmp/p8-real-execution.log
+
+      # Phase 4F.8: AC-7 and AC-8 against this stack, in TDD 4F.8 §29.4.1's
+      # order, after 4F.P's P8 proof:
+      # - AC-8's two runs, then P-AC8-1;
+      # - AC-7's latency samples at Level 0;
+      # - P-AC7-1, which makes the genuine revocation;
+      # - the revocation's evidence (E-5, E-6, E-18).
+      # Each step runs and reports whatever the one before did; each failure
+      # fails the job. The Playwright runs are separate invocations after the
+      # P8 services start (F-4F8-16), and override the reporter, so the golden
+      # path's report files are kept.
+      - name: AC-8 acceptance (4F.8 D6)
+        id: ac8
+        if: ${{ !cancelled() }}
+        env:
+          NATS_URL: nats://localhost:4222
+          NOVA_E2E_POSTGRES_DSN: postgresql://nova:nova_dev_password@localhost:5432/nova
+          NOVA_E2E_DEADLINE_SECONDS: "180"
+        run: |
+          set -o pipefail
+          uv run python tools/e2e_acceptance.py ac8 2>&1 | tee /tmp/ac8-acceptance.log
+
+      - name: P-AC8-1 in a browser (4F.8 D7)
+        if: ${{ !cancelled() }}
+        env:
+          NOVA_SESSION_TOKEN: ${{ env.NOVA_SESSION_TOKEN }}
+          NOVA_API_GATEWAY_URL: http://localhost:8014
+          NOVA_WS_GATEWAY_URL: http://localhost:8015
+          NOVA_ACCEPTANCE_AC8_LEVEL1_LABEL: ${{ steps.ac8.outputs.ac8_level1_label }}
+          NOVA_ACCEPTANCE_AC8_LEVEL1_SUBJECT_ID: ${{ steps.ac8.outputs.ac8_level1_subject_id }}
+          NOVA_ACCEPTANCE_AC8_LEVEL2_LABEL: ${{ steps.ac8.outputs.ac8_level2_label }}
+          NOVA_ACCEPTANCE_AC8_LEVEL2_SUBJECT_ID: ${{ steps.ac8.outputs.ac8_level2_subject_id }}
+        run: |
+          set -o pipefail
+          pnpm --filter @nova/web-client exec playwright test tests/e2e/acceptance-ac8.spec.ts \
+            --reporter=list,github --output=test-results-acceptance-ac8 2>&1 | tee /tmp/playwright-ac8.log
+
+      - name: AC-7 latency (4F.8 D5)
+        if: ${{ !cancelled() }}
+        env:
+          NATS_URL: nats://localhost:4222
+          NOVA_E2E_POSTGRES_DSN: postgresql://nova:nova_dev_password@localhost:5432/nova
+          NOVA_E2E_DEADLINE_SECONDS: "180"
+        run: |
+          set -o pipefail
+          uv run python tools/e2e_acceptance.py ac7-latency 2>&1 | tee /tmp/ac7-latency.log
+
+      - name: P-AC7-1 in a browser, with the genuine revocation (4F.8 D7)
+        if: ${{ !cancelled() }}
+        env:
+          NOVA_SESSION_TOKEN: ${{ env.NOVA_SESSION_TOKEN }}
+          NOVA_API_GATEWAY_URL: http://localhost:8014
+          NOVA_WS_GATEWAY_URL: http://localhost:8015
+          NOVA_ACCEPTANCE_WORKSPACE: ${{ env.NOVA_WORKSPACE_DIR }}
+        run: |
+          set -o pipefail
+          pnpm --filter @nova/web-client exec playwright test tests/e2e/acceptance-ac7.spec.ts \
+            --reporter=list,github --output=test-results-acceptance-ac7 2>&1 | tee /tmp/playwright-ac7.log
+
+      - name: AC-7 revocation evidence (4F.8 E-5, E-6, E-18)
+        if: ${{ !cancelled() }}
+        env:
+          NATS_URL: nats://localhost:4222
+          NOVA_E2E_POSTGRES_DSN: postgresql://nova:nova_dev_password@localhost:5432/nova
+          NOVA_E2E_DEADLINE_SECONDS: "180"
+        run: |
+          set -o pipefail
+          uv run python tools/e2e_acceptance.py ac7-revocation 2>&1 | tee /tmp/ac7-revocation.log
+
+      - name: Collect the P8 path's logs on failure
+        if: failure()
+        run: |
+          docker compose -f infra/docker/docker-compose.local.yml logs --tail=60 \
+            nova-companion perception-engine perception-engine-worker \
+            cognitive-state-engine autonomy-engine action-engine capability-engine \
+            || true
+
+      - name: Collect stack logs on failure
+        if: failure()
+        # Deliberately short. `--tail=400` per service produced thousands of
+        # lines and buried the actual test failure beyond the log viewer's
+        # reach; the engines' own errors show up in the first few lines when
+        # they matter, and the step above carries the reason that counts.
+        run: docker compose -f infra/docker/docker-compose.local.yml logs --tail=8
+
+      # Where the reply actually stopped, stage by stage.
+      #
+      # The transport has no log line that names the intent gate's outcome --
+      # it is recorded as a metric, not a log -- so `docker compose logs`
+      # cannot answer "did NOVA produce a reply, and was it published?".
+      # Postgres can, exactly:
+      #
+      #   * an `outbox_event` row per subject, and whether it was dispatched,
+      #     separates "never created" from "created but never published";
+      #   * an `outbound` row in `conversation_turn` proves reasoning and
+      #     personality both completed and the reply text exists, because
+      #     `intent_gate.py` persists the turn even when it then refuses to
+      #     call the delivery `delivered`.
+      #
+      # Read-only. It changes nothing and asserts nothing; it reports.
+      - name: Trace the reply through the transport
+        if: failure()
+        run: |
+          set -uo pipefail
+          compose="docker compose -f infra/docker/docker-compose.local.yml"
+          psql="$compose exec -T postgres psql -U ${POSTGRES_USER:-nova} -d ${POSTGRES_DB:-nova} -X"
+
+          echo "--- outbox: what was created, and what actually reached the bus ---"
+          $psql -c "SELECT subject,
+                           count(*) AS rows,
+                           count(dispatched_at) AS dispatched,
+                           count(*) - count(dispatched_at) AS undispatched
+                    FROM communication.outbox_event
+                    GROUP BY subject ORDER BY subject;" || echo "(query failed)"
+
+          echo "--- turns: did NOVA produce a reply at all? ---"
+          $psql -c "SELECT direction, personality_validated,
+                           left(content, 70) AS content
+                    FROM communication.conversation_turn
+                    ORDER BY created_at;" || echo "(query failed)"
+
+          echo "--- outbox dispatcher: is it draining? ---"
+          $compose logs --tail=25 communication-engine-worker || echo "(no worker logs)"
+
+      # Two failures wear the same red X and mean opposite things:
+      #
+      #   A. the `webServer` never became ready, so NOTHING was tested; or
+      #   B. the browser ran the golden path and an assertion failed.
+      #
+      # A reader who cannot tell them apart draws the wrong conclusion, and
+      # that has already happened once here. So the verdict is stated first,
+      # in one line, before any detail.
+      - name: Report why the golden path failed
+        if: failure()
+        run: |
+          set -uo pipefail
+          results=apps/web-client/playwright-results.json
+          if [ ! -f "$results" ]; then
+            echo "VERDICT A: no Playwright results file at all."
+            echo "The run died before it could write one -- the webServer never came up,"
+            echo "or the config failed to load. NO browser test executed."
+            exit 0
+          fi
+          node -e '
+            const r = require("./apps/web-client/playwright-results.json");
+            const globals = (r.errors ?? []).map((e) => e.message ?? String(e));
+            let specsRun = 0;
+            let specsFailed = 0;
+            const failures = [];
+            const walk = (suite) => {
+              (suite.suites ?? []).forEach(walk);
+              (suite.specs ?? []).forEach((spec) => {
+                const attempts = (spec.tests ?? [])
+                  .flatMap((t) => t.results ?? [])
+                  .filter((res) => res.status !== "skipped");
+                if (!attempts.length) return;
+                specsRun += 1;
+                if (spec.ok === false) specsFailed += 1;
+                for (const res of attempts) {
+                  if (res.status === "passed") continue;
+                  failures.push({ title: spec.title, status: res.status,
+                    error: (res.error?.message ?? "").split("\n").slice(0, 12).join("\n") });
+                }
+              });
+            };
+            (r.suites ?? []).forEach(walk);
+
+            console.log("=".repeat(72));
+            if (specsRun === 0) {
+              console.log("VERDICT A: the webServer never became ready.");
+              console.log("NO browser test executed, so the golden path was not evaluated.");
+              console.log("Nothing below is an assertion failure -- fix the server, not the test.");
+            } else {
+              console.log(`VERDICT B: the webServer came up and ${specsRun} test(s) ran against`);
+              console.log(`the live stack; ${specsFailed} failed. These ARE assertion failures.`);
+            }
+            console.log("=".repeat(72));
+
+            for (const g of globals) {
+              console.log("GLOBAL ERROR:", g.split("\n").slice(0, 20).join("\n"));
+            }
+            for (const f of failures) {
+              console.log("-".repeat(72));
+              console.log(`FAILED (${f.status}): ${f.title}`);
+              console.log(f.error);
+            }
+          '
+
+      - name: Show Playwright's own output
+        if: failure()
+        run: |
+          echo "--- last 60 lines of the golden path's stdout ---"
+          tail -n 60 /tmp/playwright-stdout.log || echo "(no stdout captured)"
+
+      - name: Upload the Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: apps/web-client/playwright-report/
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Tear down
+        if: always()
+        run: docker compose -f infra/docker/docker-compose.local.yml down -v

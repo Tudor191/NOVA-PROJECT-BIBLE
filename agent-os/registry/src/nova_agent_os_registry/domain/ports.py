@@ -89,6 +89,35 @@ class RegistryRepository(Protocol):
 
     async def list_by_category(self, category: str) -> list[AgentPackage]: ...
 
+    async def list_all(self) -> list[AgentPackage]:
+        """Every installed row, in a **deterministic total order**:
+        `(category, version, id)`.
+
+        Added in Phase 4C milestone 4C.2a to serve
+        `agent_os.registry.list_packages.request`. Deliberately distinct
+        from `list_by_category` + `select_dispatch_version`: this reports
+        what *is installed*, and applies no health or version policy at
+        all. A caller wanting the one package a dispatch should use asks
+        `find_healthy_package`, which is the RPC that owns that judgement.
+
+        **The ordering is a stable listing order, not a semantic version
+        order.** `version` is `TEXT`, so `"1.10.0"` sorts before `"1.9.0"`
+        here. That is deliberate rather than overlooked: dotted-integer
+        comparison lives in `domain/selection.py::select_dispatch_version`
+        and is what dispatch selection uses. Duplicating it here would put
+        a second version-ordering rule in the codebase, and a listing has
+        no need to rank. `(category, version)` is already unique, so `id`
+        is redundant for totality and is included anyway so the order
+        cannot depend on how Postgres happens to break a tie if that
+        constraint ever changes.
+
+        No pagination: Phase 3's discovery installs the five packages under
+        `agents/` at Registry startup and nothing else ever adds one, so
+        this collection is bounded by the repository's own contents rather
+        than unbounded by design (doc 11 §2's cursor rule addresses the
+        latter)."""
+        ...
+
     async def insert(self, package: AgentPackage) -> AgentPackage:
         """Inserts a new row. A `(category, version)` collision must be
         caught by the caller and raises `AgentPackageAlreadyExistsError`,

@@ -25,12 +25,16 @@ def harness(monkeypatch):  # type: ignore[no-untyped-def]
         yield client
 
 
-def test_list_sensors_reports_both_shipped_sensors_running(harness) -> None:  # type: ignore[no-untyped-def]
+def test_list_sensors_reports_every_registered_sensor_running(harness) -> None:  # type: ignore[no-untyped-def]
+    """*(Named `..._both_shipped_sensors_...` and pinned to two ids until Phase
+    4F.3 registered the `filesystem` source. The set is asserted exactly, not
+    loosened to a subset: a sensor appearing here unannounced is exactly what
+    this should catch.)*"""
     response = harness.get("/v1/perception/sensors")
     assert response.status_code == 200
     body = response.json()
     ids = {s["sensor_id"] for s in body}
-    assert ids == {"voice-sensor-1", "camera-sensor-1"}
+    assert ids == {"voice-sensor-1", "camera-sensor-1", "companion-filesystem"}
     assert all(s["state"] == "running" and s["available"] for s in body)
 
 
@@ -49,5 +53,6 @@ def test_diagnostics_reports_sensors_and_correlation_window(harness) -> None:  #
     response = harness.get("/v1/perception/diagnostics")
     assert response.status_code == 200
     body = response.json()
-    assert len(body["sensors"]) == 2
+    # Three since 4F.3 registered the `filesystem` source; two before it.
+    assert len(body["sensors"]) == 3
     assert body["correlation_window_seconds"] == 2.5

@@ -32,6 +32,9 @@ from nova_agent_os_registry.domain.ports import CommunicationPort, RegistryRepos
 from nova_agent_os_registry.events.find_healthy_package_handler import (
     make_find_healthy_package_handler,
 )
+from nova_agent_os_registry.events.list_packages_handler import (
+    make_list_packages_handler,
+)
 from nova_agent_os_registry.events.published import PUBLISHABLE_SUBJECTS
 from nova_agent_os_registry.events.subscribed import SUBSCRIBABLE_SUBJECTS
 
@@ -119,6 +122,15 @@ def create_app(
         await bus.serve(
             "agent_os.registry.find_healthy_package.request",
             make_find_healthy_package_handler(app),
+            source_engine="registry",
+        )
+        # Phase 4C (4C.2a). Served after installation above, so a caller that
+        # gets a reply is seeing the fully-discovered set rather than a
+        # partially-installed one -- the same ordering the dispatch RPC
+        # already relies on.
+        await bus.serve(
+            "agent_os.registry.list_packages.request",
+            make_list_packages_handler(app),
             source_engine="registry",
         )
 

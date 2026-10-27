@@ -158,6 +158,17 @@ confirmed domain-agnostic in `01-tdd-preparation-and-fork-resolutions.md`
 only — no `/v1/...` public REST surface, since the Kernel's actual work
 is Event-Bus-driven and internal-async-loop-driven, not request/reply.
 
+> **Amended by Phase 4C, 2026-09-09 (recorded here 2026-09-10).** The
+> narrowing above was correct for Phase 3, in which nothing consumed a Kernel
+> API, and it is preserved as written. **Phase 4C decision D-4 amends it**: the
+> Kernel now also serves a minimal, **read-only** `/v1/agents` surface — three
+> `GET` routes, no mutation path — because the Agents panel needs
+> point-in-time queries ("what packages are registered", "what is instance X
+> doing") that an event stream cannot answer for a client joining mid-stream.
+> `/internal/*` is unchanged and remains unroutable through `api-gateway`.
+> This is an explicit Phase 4 amendment to a ratified Phase 3E narrowing, not
+> a correction of it; see Phase 4 master scope §9 and §9.1.
+
 **Kernel Scheduler** (`12-agent-architecture.md:229-238`, implemented
 literally): on `planning.task_graph.created` (subscribed), for each
 `TaskNode` with `status="ready"` (all `depends_on` complete): (1) query
@@ -783,3 +794,40 @@ plus a matrix comment that no longer says `services/*` only, four
 `agent-os` image, and updates to
 [`14-deployment-architecture.md`](../../architecture/14-deployment-architecture.md)
 and `infra/docker/README.md`. Tracked as Gate Review condition **C-3**.
+
+**Discharged 2026-09-07 by Phase 4C milestone 4C.1 (decision D-5).** Recorded
+here additively; nothing above is rewritten — the Phase 3E deferral was
+correct on its own criterion-by-criterion evidence, and this note records its
+outcome, not a correction of it.
+
+Against this section's own inherited-work list, item by item:
+
+| Inherited | Delivered |
+|---|---|
+| "four Dockerfiles (or a reasoned decision that `sdk/python` is library-shaped and needs none)" | **The reasoned decision, and three Dockerfiles.** `sdk/python` is a library and ships no image, consistent with `packages/*`. Enforced by `tools/tests/test_e2e_stack_completeness.py::test_the_agent_os_library_has_no_container`, not just asserted |
+| "four `build-and-scan.yml` matrix entries" | **Three** — `agent-os-kernel`, `agent-os-registry`, `agent-os-supervisors`. **The first Trivy results for any `agent-os` image** |
+| "a matrix comment that no longer says `services/*` only" | Done. The matrix also stopped *deriving* the path from the name: it was `file: services/${{ matrix.service }}/Dockerfile`, and each entry now carries its own `dockerfile`. Guarded by the new `tools/tests/test_build_and_scan_matrix.py`, which requires every Dockerfile in the repository to be either in the matrix or in an `UNSCANNED` map with a stated reason |
+| "four `docker-compose.local.yml` services" | **Three**, on ports 8016–8018, all three started and restart-checked by `pr-checks.yml`'s e2e job — because an image that builds is not an image that starts |
+| "updates to `14-deployment-architecture.md` and `infra/docker/README.md`" | Both updated |
+
+**Two things this section did not anticipate, both found by the first build:**
+
+1. **`run-migrations.sh`.** `agent-os/kernel` and `agent-os/registry` were
+   excluded from it on the stated grounds that neither had a compose service.
+   Giving them one removes the premise; without the matching `ENGINES` entries
+   both containers would start against a database with no `agent_os` schema
+   and crash-loop.
+2. **`agent-os/kernel` never declared `nova-agent-sdk`**, though
+   `domain/ports.py`, `domain/scheduler.py` and `domain/execution_backend.py`
+   have all imported it since Phase 3E. `uv sync --frozen --no-dev --package
+   kernel` resolved without it, so the image would have raised
+   `ModuleNotFoundError` at startup. Invisible while the component was only
+   ever built as a workspace package in an environment that installs
+   everything — which is precisely the condition this section describes.
+
+**What C-3 did *not* cover, and what remains open.** C-3 was about packaging.
+Phase 4C's acceptance criterion **AC-4** additionally requires the Agents panel
+to render live instances and a real peer-review round; both are **Deferred by
+explicit user approval, 2026-09-07** (Phase 4 master scope §1.1), because the
+only code path that creates an `agent_instance` row runs through an
+LLM-dependent planning decomposition. **AC-4 remains NOT MET.**

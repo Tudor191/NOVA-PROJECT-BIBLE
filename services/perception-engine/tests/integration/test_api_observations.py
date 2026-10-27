@@ -39,6 +39,7 @@ from nova_perception_engine.main import create_app
 
 from tests.fakes.ai_model_port import FakeAIModelOrchestrationPort
 from tests.fakes.repository import FakePerceptionRepository
+from tests.integration.startup_reports import take_startup_reports
 
 _LOUD_AUDIO = bytes([200]) * 320  # mean byte value 200 >= VoiceSensor's 30.0 energy threshold
 _SILENT_AUDIO = bytes([0]) * 320  # mean byte value 0 < threshold -- presence gate rejects
@@ -48,6 +49,10 @@ _ENCRYPTION_KEY = "3ktMjuHsQ9TNWhEiReuORzkawsz4KEYq2zDMZByQhHo="  # test-only Fe
 
 @pytest.fixture
 def harness(monkeypatch):  # type: ignore[no-untyped-def]
+    """*(Updated 2026-09-26, Phase 4F.7.)* Startup now enqueues six
+    `perception.sensor.health_changed` lifecycle reports (RS-3a). They are
+    asserted exactly and then removed, so the outbox assertions below start from
+    the empty outbox they always did (`startup_reports.py`)."""
     monkeypatch.setenv("EVENT_BUS_BACKEND", "in_memory")
     repository = FakePerceptionRepository()
     app = create_app(
@@ -56,6 +61,7 @@ def harness(monkeypatch):  # type: ignore[no-untyped-def]
         ai_model_port=FakeAIModelOrchestrationPort(),
     )
     with TestClient(app) as client:
+        take_startup_reports(repository)
         yield client, repository
 
 
@@ -129,6 +135,7 @@ def test_ai_model_orchestration_unavailable_degrades_gracefully_not_a_crash(monk
         ai_model_port=FakeAIModelOrchestrationPort(available=False),
     )
     with TestClient(app) as client:
+        take_startup_reports(repository)  # Phase 4F.7: asserted, then removed
         response = client.post(
             "/v1/perception/observations", params={"source": "microphone"}, content=_LOUD_AUDIO
         )
@@ -158,6 +165,7 @@ def test_unconfigured_primary_user_id_publishes_nothing(monkeypatch) -> None:  #
         Settings(), repository=repository, ai_model_port=FakeAIModelOrchestrationPort()
     )
     with TestClient(app) as client:
+        take_startup_reports(repository)  # Phase 4F.7: asserted, then removed
         response = client.post(
             "/v1/perception/observations", params={"source": "microphone"}, content=_LOUD_AUDIO
         )
@@ -192,6 +200,7 @@ def test_enrolled_and_consented_voice_match_reaches_the_payload(  # type: ignore
         ai_model_port=FakeAIModelOrchestrationPort(voice_embedding=embedding),
     )
     with TestClient(app) as client:
+        take_startup_reports(repository)  # Phase 4F.7: asserted, then removed
         response = client.post(
             "/v1/perception/observations", params={"source": "microphone"}, content=_LOUD_AUDIO
         )

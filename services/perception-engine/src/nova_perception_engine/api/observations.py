@@ -28,6 +28,11 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
 from nova_perception_engine.observation_orchestration import handle_observation_window
+from nova_perception_engine.workspace_orchestration import (
+    WorkspaceObservationOutcome,
+    WorkspaceObservationRequest,
+    handle_workspace_event,
+)
 
 router = APIRouter(tags=["observations"])
 
@@ -59,3 +64,38 @@ async def submit_observation(
         presence_detected=outcome.presence_detected,
         published=outcome.published,
     )
+
+
+@router.post(
+    "/v1/perception/workspace-observations",
+    response_model=WorkspaceObservationOutcome,
+    status_code=202,
+)
+async def submit_workspace_observation(
+    request: Request,
+    observation: WorkspaceObservationRequest,
+    source: str,
+    correlation_id: UUID | None = None,
+) -> WorkspaceObservationOutcome:
+    """Phase 4F.2's structured intake -- TDD 4F §8.1's ratified second route.
+
+    **A sibling of the route above, not a change to it.** That one takes a raw
+    capture window and runs detection; this one takes structured filesystem
+    metadata, for which there is nothing to detect. Sharing one route would
+    mean a body that is sometimes bytes and sometimes JSON, discriminated by a
+    query parameter -- the kind of contract that is only ever right by
+    convention.
+
+    **Internal only.** `/v1/perception` is **not** among `api-gateway`'s nine
+    proxied prefixes, so no browser can reach either route; the companion
+    speaks to this engine on the internal Docker network. Adding a gateway
+    prefix for perception is explicitly out of scope -- the browser sees
+    normalized state through the Cognitive State REST surface, never raw
+    sensor observations.
+    """
+    outcome = await handle_workspace_event(
+        request.app, source=source, request=observation, correlation_id=correlation_id
+    )
+    if outcome is None:
+        raise HTTPException(status_code=404, detail=f"No sensor registered for source {source!r}.")
+    return outcome

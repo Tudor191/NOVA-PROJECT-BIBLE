@@ -22,6 +22,9 @@ from nova_observability import configure_observability, get_logger, prometheus_a
 
 from nova_action_engine.api.approvals import router as approvals_router
 from nova_action_engine.api.health import router as health_router
+from nova_action_engine.api.identity_confidence_policy import (
+    router as identity_confidence_policy_router,
+)
 from nova_action_engine.clients.capability_client import CapabilityClient
 from nova_action_engine.clients.communication_client import CommunicationClient
 from nova_action_engine.clients.identity_client import IdentityClient
@@ -157,6 +160,9 @@ def create_app(
     fastapi_app = FastAPI(title="action-engine", version="0.1.0", lifespan=lifespan)
     fastapi_app.include_router(health_router)
     fastapi_app.include_router(approvals_router)
+    # Phase 4F.4 -- CF-9's write surface. Mounted here on `/v1/action`, the
+    # prefix `api-gateway` already forwards, so no gateway change is required.
+    fastapi_app.include_router(identity_confidence_policy_router)
     fastapi_app.mount("/internal/metrics", prometheus_asgi_app())
     return fastapi_app
 

@@ -22,6 +22,29 @@ from nova_planning_engine.domain.ports import TaskGraphNotFoundError
 router = APIRouter(prefix="/v1/plans", tags=["plans"])
 
 
+@router.get("", response_model=list[TaskGraph])
+async def list_plans(request: Request, limit: int = 50) -> list[TaskGraph]:
+    """Phase 4B: the Planning panel's initial state.
+
+    Declared **before** `/{task_graph_id}` because FastAPI matches routes in
+    declaration order and `""` would otherwise never be reached -- the
+    dynamic route would take `/v1/plans` and fail parsing the empty string
+    as a UUID.
+
+    `list_all` carries a disclosed gap this endpoint inherits rather than
+    hides: `task_graph` has no ownership column, so there is no `user_id` to
+    filter by and every graph is returned. That is out of 4B's scope to fix
+    (it is a schema change), and the panel shows what the system actually
+    holds rather than pretending a filter exists.
+
+    Newest first, so a panel opening on a long history shows current work
+    rather than the oldest plan the instance ever made -- ordered by the
+    repository, which is the only layer that can: `TaskGraph` exposes no
+    timestamp, the column lives on the row alone.
+    """
+    return await request.app.state.repository.list_all(limit=limit)
+
+
 @router.get("/{task_graph_id}", response_model=TaskGraph)
 async def get_plan(task_graph_id: UUID, request: Request) -> TaskGraph:
     graph = await request.app.state.repository.find_by_id(task_graph_id)

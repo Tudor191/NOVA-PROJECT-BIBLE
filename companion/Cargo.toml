@@ -1,0 +1,43 @@
+# The `companion/` Cargo workspace -- doc 02's repository tree:
+# "companion/ -- Rust OS-level perception/action daemon".
+#
+# Two members, matching that tree's own split: `nova-companion/` is the binary
+# (TDD 4F §7 calls it the Cargo workspace root; doc 02 lists it and `sensors/`
+# as siblings, and this file reconciles the two by making the workspace the
+# directory that contains both), and `sensors/` is the library the binary
+# drives. `actuators/` is deliberately absent -- TDD 4F §7.3 puts actuators
+# behind `action-engine` action types, and 4F.3 implements none.
+[workspace]
+resolver = "3"
+members = ["nova-companion", "sensors"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "UNLICENSED"
+publish = false
+
+# Pinned once here and inherited by both members, so the two cannot drift onto
+# different versions of the same crate. The set is deliberately small
+# (TDD 4F.3 §16): a filesystem watcher, a blocking HTTP client, JSON, and a
+# timestamp formatter.
+#
+# **No async runtime.** The TDD anticipated "whatever the HTTP client
+# requires"; a blocking client requires none, which is smaller than what was
+# anticipated rather than larger. `notify` already delivers events on its own
+# thread, so there is nothing for an executor to interleave.
+#
+# **No TLS.** The companion speaks to `perception-engine` on the internal
+# Docker network only (TDD 4F §8), so `ureq` is taken with default features
+# off rather than dragging in a TLS stack that would never be used.
+#
+# **No logging crate.** `observability.rs` is ~40 lines emitting the exact five
+# fields `nova-observability` emits, which is less code than configuring a
+# logging framework to match them.
+[workspace.dependencies]
+notify = "8.2.0"
+serde_json = "1.0.151"
+time = { version = "0.3.55", features = ["formatting"] }
+# `json` only: the request body and the engine's reply are JSON. Default
+# features stay off so no TLS stack is pulled in for a plaintext internal hop.
+ureq = { version = "3.4.2", default-features = false, features = ["json"] }

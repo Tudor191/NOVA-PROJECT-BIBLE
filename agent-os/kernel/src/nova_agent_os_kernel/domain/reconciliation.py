@@ -14,6 +14,7 @@ from uuid import UUID, uuid4
 
 from nova_contracts import AgentOsTaskCompletedPayload, EventEnvelope
 
+from nova_agent_os_kernel.domain.activity import AgentActivityKind, new_activity
 from nova_agent_os_kernel.domain.ports import EventPublisher, KernelRepository
 
 __all__ = ["reconcile_running_instances"]
@@ -40,18 +41,57 @@ async def reconcile_running_instances(
 
     Returns the ids of every instance reconciled, for the caller (`main.py`
     startup) to log.
+
+    **Agent activity, wired in Phase 4C milestone 4C.2d.** Each reconciled row
+    also records one `interrupted` activity, written **in the same transaction
+    as the `"failed"` transition** it describes -- an instance cannot be
+    marked interrupted without the record of why, and cannot carry that record
+    without the transition.
+
+    `correlation_id` follows decision **B2**: the activity reuses *the exact
+    UUID the published `agent_os.task.completed` carries*, so the row and the
+    event are joinable on it. The payload is therefore built before the
+    transition and read back from, rather than the id being minted twice or
+    minted here and copied -- there is one `uuid4()` call per reconciled
+    instance, in the same condition as before, and the published event is
+    unchanged.
+
+    An orphan with **no** `assigned_task_node_id` publishes no event, so no
+    correlation id exists and the activity stores `NULL`. That asymmetry is
+    the honest answer: minting an id for the column alone would manufacture
+    provenance linking nothing, which `domain/activity.py` rules out.
     """
     orphaned = await repository.list_by_status("running")
     reconciled_instance_ids: list[UUID] = []
     for instance in orphaned:
-        await repository.update_status(instance.id, status="failed")
-        if instance.assigned_task_node_id is not None:
-            payload = AgentOsTaskCompletedPayload(
-                task_node_id=instance.assigned_task_node_id,
+        task_node_id = instance.assigned_task_node_id
+        payload = (
+            AgentOsTaskCompletedPayload(
+                task_node_id=task_node_id,
                 agent_instance_id=instance.id,
                 outcome="interrupted",
                 correlation_id=uuid4(),
             )
+            if task_node_id is not None
+            else None
+        )
+
+        detail: dict = {"reason": "kernel_restart"}
+        if task_node_id is not None:
+            detail["task_node_id"] = str(task_node_id)
+
+        await repository.update_status(
+            instance.id,
+            status="failed",
+            activity=new_activity(
+                agent_instance_id=instance.id,
+                kind=AgentActivityKind.INTERRUPTED,
+                correlation_id=payload.correlation_id if payload is not None else None,
+                detail=detail,
+            ),
+        )
+
+        if payload is not None:
             await event_publisher.publish(
                 EventEnvelope(
                     subject="agent_os.task.completed",

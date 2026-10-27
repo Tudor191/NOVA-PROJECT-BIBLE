@@ -19,6 +19,67 @@ the Bible's requirements well.
 | MinIO / S3 | memory-engine, knowledge-engine, nova-core (backups) | File attachments, documents, PDFs, memory/world snapshots, backup archives |
 | TimescaleDB (Phase 2+) | world-model-engine | System health time series (CPU/GPU/RAM/temperature/network history) |
 
+> **Corrected 2026-09-23 (Phase 4F.6), additively.** `cognitive-state-engine`
+> does **not** keep Active Thoughts or Attention Layers in Redis. Since Phase
+> 4F.1 they have lived in **PostgreSQL**, in the engine's own schema,
+> `cognitive_state.active_thought` (migration `0001`). The attention layer is a
+> column on that table, and Focus is derived rather than stored. Phase 4F.6's
+> migration `0002` adds exactly **one nullable `JSONB` column**,
+> `proposed_action`. No `cog:*` Redis key exists anywhere in the repository.
+> The Redis row above and the two `cog:*` rows in §5 are left as written, as
+> the original design prediction.
+
+> **Added 2026-09-26 (Phase 4F.7, ratified A-4F7-1), additively.** The
+> `cognitive_state` schema gains its second table, **`cognitive_state.sensor_state`**
+> (migration `0003`; [TDD 4F.7](../design/phase-4/11-tdd-4f7-cognitive-state-panel.md)
+> §28.1). It is **current-state storage**: exactly **one record per sensor**
+> (`sensor_id` primary key, plus `sensor_type`, `state`, `reported_at`,
+> `last_event_id`), maintained by a single conditional upsert, so a redelivered
+> report (same `event_id`) or an older one changes nothing. It holds **no
+> history and no audit**: no row per event, no superseded states, no heartbeat
+> log, no audit columns, no expiry and no deletion, and nothing resets it on
+> startup. `state` holds only a `perception-engine` `SensorState` lifecycle
+> value. It is a projection of `perception.sensor.health_changed`, owned and
+> read only by `cognitive-state-engine`; `perception-engine` remains the owner
+> of the sensor lifecycle itself. No existing table is altered.
+
+> **Added 2026-10-05 (Phase 4F.P), additively.** 4F.P adds **no migration and
+> no table** ([TDD 4F.P](../design/phase-4/13-tdd-4fp-production-promotion.md)
+> §14, §30.2). Three changes reach stored data:
+>
+> - `cognitive_state.active_thought.proposed_action` (JSONB) gains two keys,
+>   **`operation`** and **`parameters`**. Both are required in a stored
+>   proposal (A-4FP-4). No production row existed before them.
+> - `cognitive-state-engine` writes `active_thought` through two new
+>   statements: an **insert-if-absent** keyed on `thought_id`
+>   (`INSERT … ON CONFLICT (thought_id) DO NOTHING RETURNING`, A-4FP-1), and a
+>   **compare-and-set** on `attention_layer`
+>   (`UPDATE … WHERE thought_id = … AND attention_layer = … RETURNING`,
+>   A-4FP-8).
+> - `autonomy.decision_log.outcome` (`TEXT`, no CHECK) gains one value,
+>   **`execution_failed`**. It is recorded when `action-engine` replies with
+>   any status other than `completed` or `denied`. **`execute` is now recorded
+>   only for `completed`** (A-4FP-7).
+>
+> The `autonomy.decision_log` DDL sketch later in this document is left as
+> written.
+
+> **Added 2026-10-11 (Phase 4F.8, ratified A-4F8-2 (a1)), additively.** The
+> `perception` schema gains one table, **`perception.known_project`** (migration
+> `0002`; [TDD 4F.8](../design/phase-4/12-tdd-4f8-acceptance-verification.md)
+> §29.1, §33).
+>
+> - **What it holds:** one row per project identity `perception-engine` has
+>   seen on `memory.long_term.created`, with `project_id` as the primary key,
+>   plus `first_observed_at` and the `source_event_id` that first made it known.
+> - **Current state only**, as `cognitive_state.sensor_state` is. There is no
+>   history, no row per event, no audit and no expiry. A repeat sighting writes
+>   nothing (`INSERT … ON CONFLICT DO NOTHING`).
+> - **What uses it:** it activates the operator's declared folder for a
+>   project. It is owned and read only by `perception-engine`, which learns
+>   project identities over the bus and never reads `memory.*`.
+> - **No existing table is altered.**
+
 **Rule:** exactly one engine owns each table/collection/graph label. No engine queries
 another engine's schema directly, even within the same physical Postgres instance —
 cross-engine data access is always through the owning engine's API/events. Each engine
@@ -100,7 +161,12 @@ CREATE TABLE autonomy.decision_log (
 -- phase-scoped schema in docs/design/phase-3/08-tdd-3e-agent-os.md §4/§5
 -- and docs/design/phase-3/14-3e-agent-os-research.md §4, which are
 -- authoritative for Phase 3E implementation once approved and built.
--- Approved 2026-08-19; not yet implemented.)
+-- Approved 2026-08-19.
+--
+-- Status corrected 2026-09-10 (Phase 4C.2g): the two tables below were
+-- "not yet implemented" when this was written; both shipped in Phase 3E
+-- (kernel migration 0001, registry migration 0001), and agent_activity
+-- below was added by Phase 4C milestone 4C.2b.)
 CREATE TABLE agent_os.agent_instance (
     id UUID PRIMARY KEY,
     agent_package_id UUID NOT NULL,
@@ -121,7 +187,38 @@ CREATE TABLE agent_os.agent_package (
     health_status TEXT NOT NULL DEFAULT 'unknown',
     UNIQUE (category, version)
 );
+
+-- Added by Phase 4C milestone 4C.2b (migration `0002_agent_activity`),
+-- recorded here 2026-09-10. Append-only: the repository exposes insert and
+-- read only -- no update, no delete, and no HTTP write path.
+CREATE TABLE agent_os.agent_activity (
+    id UUID PRIMARY KEY,
+    agent_instance_id UUID NOT NULL REFERENCES agent_os.agent_instance(id),
+    occurred_at TIMESTAMPTZ NOT NULL,
+    kind TEXT NOT NULL CHECK (kind IN (
+        'dispatched', 'completed', 'failed',
+        'restart_planned', 'interrupted', 'peer_review')),
+    correlation_id UUID,
+    detail JSONB NOT NULL DEFAULT '{}'
+);
+CREATE INDEX agent_activity_instance_time_idx
+    ON agent_os.agent_activity (agent_instance_id, occurred_at, id);
 ```
+
+Three details of `agent_activity` are deliberate and worth stating, because
+each would be easy to "fix" into a defect:
+
+- **`occurred_at` has no `DEFAULT now()`.** Postgres `now()` is
+  *transaction-start* time, so a default would stamp every row written in one
+  transaction identically and make the ordering key lie about what happened
+  first. Python supplies the value at the moment of the event.
+- **The index and cursor are `(agent_instance_id, occurred_at, id)`.**
+  Timestamp ties are real, so `id` makes the sort total; the API's keyset
+  cursor carries both fields for exactly that reason.
+- **`correlation_id` is a first-class nullable column, not a key inside
+  `detail`.** It is the join key that makes "reasoning → plan → instance →
+  activity" traversable, so it is typed and queryable. `NULL` means no
+  correlation is known — it is never fabricated to avoid a null.
 
 Every table has a corresponding SQLAlchemy model in `services/<engine>/src/.../models/`
 and an Alembic migration chain scoped to that engine's schema (`alembic/versions/<engine>/`),

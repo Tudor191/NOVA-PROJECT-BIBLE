@@ -37,7 +37,9 @@ concurrency:
 
 jobs:
   real-infra:
-    runs-on: ubuntu-latest
+    # D-A10: pinned for the Phase 4 closure window while `ubuntu-latest`
+    # migrates to Ubuntu 26. Temporary: reconsider after Phase 4 is promoted.
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       # nova-testkit exercises all four fixture types directly (its own
@@ -49,12 +51,32 @@ jobs:
         include:
           - package: nova-testkit
             path: packages/nova-testkit
+          # Added by the Phase 4B G-8 fix. `test_worker_real_redis.py` asserts
+          # the arq worker-isolation invariant against a real Redis and real
+          # arq workers -- a Redis keyspace guard and arq's own job-claim loop
+          # are the only layer where it is decidable, so there is no cheaper
+          # tier this could live in.
+          - package: nova-service-kit
+            path: packages/nova-service-kit
           - package: communication-engine
             path: services/communication-engine
           - package: personality-engine
             path: services/personality-engine
           - package: perception-engine
             path: services/perception-engine
+          # Phase 4E. memory-engine had no real-Postgres coverage at all, and
+          # that is how `create_long_term` shipped without writing `created_at`
+          # or `updated_at`: the column defaults filled them in, so every tier
+          # above the real driver saw a plausible timestamp and the caller's own
+          # value was discarded silently. AC-6 turns on that field, so the tier
+          # that can see it is now mandatory (TDD 4E §20.1).
+          #
+          # Its own test file composes a `pgvector/pgvector:pg16` container
+          # rather than nova-testkit's `postgres:16-alpine` fixture -- migration
+          # 0001 opens with `CREATE EXTENSION IF NOT EXISTS vector`, which the
+          # alpine image cannot satisfy. See that file's module docstring.
+          - package: memory-engine
+            path: services/memory-engine
           - package: digital-twin-engine
             path: services/digital-twin-engine
           - package: capability-engine
@@ -70,6 +92,29 @@ jobs:
           # `tests/integration/test_repository_real_postgres.py` now runs here.
           - package: reasoning-engine
             path: services/reasoning-engine
+          # Phase 4D. autonomy-engine's repository has real SQL, a real
+          # foreign key between `suggestion` and doc 07's append-only
+          # `decision_log`, and real keyset pagination -- so it needs the tier
+          # that found 4C.2's two defects. TDD 4D §16 makes this mandatory
+          # rather than optional for exactly that reason.
+          - package: autonomy-engine
+            path: services/autonomy-engine
+          # Phase 4F.1. `cognitive-state-engine`'s repository writes the two
+          # timestamp columns explicitly so a historical `created_at` survives
+          # the round trip -- the defect Phase 4E found in `memory-engine`'s
+          # `create_long_term`, which no tier above the real driver could see
+          # because the column default filled in a plausible value. It also has
+          # real CHECK constraints and a real ordering tie, neither of which a
+          # fake repository can violate. TDD 4F §13 makes this tier mandatory.
+          - package: cognitive-state-engine
+            path: services/cognitive-state-engine
+          # Added 2026-10-16 (SAD 15 §9.1 item 6; protocol §10.1). `ws-gateway`
+          # depends on NATS, yet every one of its tests ran against a fake bus.
+          # `test_stream_real_nats.py` serves the real app with uvicorn and
+          # connects a real WebSocket client, so delivery, the public
+          # allow-list and unsubscribe are decided at a real broker.
+          - package: ws-gateway
+            path: services/ws-gateway
           - package: kernel
             path: agent-os/kernel
           - package: registry

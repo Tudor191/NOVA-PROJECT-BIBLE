@@ -24,6 +24,7 @@ from nova_eventbus_sdk import BoundEventBus, get_event_bus
 from nova_observability import configure_observability, get_logger, prometheus_asgi_app
 from nova_service_kit import make_health_router
 
+from nova_agent_os_kernel.api.agents import router as agents_router
 from nova_agent_os_kernel.clients.action_client import ActionClient
 from nova_agent_os_kernel.clients.model_gateway_client import ModelGatewayClient
 from nova_agent_os_kernel.clients.registry_client import RegistryClient
@@ -122,6 +123,10 @@ def create_app(
 
     fastapi_app = FastAPI(title="kernel", version="0.1.0", lifespan=lifespan)
     fastapi_app.include_router(make_health_router())
+    # Decision D-4 (master scope §9), Phase 4C milestone 4C.2c: a minimal,
+    # read-only `/v1` surface. Reachable only through `api-gateway`;
+    # `/internal/*` below stays unroutable (doc 11 §3).
+    fastapi_app.include_router(agents_router)
     fastapi_app.mount("/internal/metrics", prometheus_asgi_app())
     return fastapi_app
 

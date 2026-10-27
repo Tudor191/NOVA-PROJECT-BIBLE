@@ -57,6 +57,13 @@ class FakeActionRepository:
     async def find_pending_approval(self, action_id: UUID) -> PendingApproval | None:
         return self.pending_approvals.get(action_id)
 
+    async def list_pending_approvals(self, *, limit: int = 50) -> list[PendingApproval]:
+        # Undecided only, oldest first -- the same contract the Postgres
+        # repository implements. A fake that returned everything in
+        # arbitrary order would let a wrong query pass its tests.
+        undecided = [a for a in self.pending_approvals.values() if a.decision is None]
+        return sorted(undecided, key=lambda a: a.requested_at)[:limit]
+
     async def decide_pending_approval(
         self, action_id: UUID, *, decision: Literal["approved", "denied"], decided_at: datetime
     ) -> None:
@@ -83,3 +90,14 @@ class FakeActionRepository:
         self, user_id: UUID
     ) -> IdentityConfidencePolicy | None:
         return self.identity_confidence_policies.get(user_id)
+
+    async def upsert_identity_confidence_policy(
+        self, policy: IdentityConfidencePolicy
+    ) -> IdentityConfidencePolicy:
+        """Phase 4F.4. Replaces wholesale, as the real one does -- a merge here
+        would let a test pass against behaviour Postgres does not have."""
+        self.identity_confidence_policies[policy.user_id] = policy
+        return policy
+
+    async def delete_identity_confidence_policy(self, user_id: UUID) -> bool:
+        return self.identity_confidence_policies.pop(user_id, None) is not None

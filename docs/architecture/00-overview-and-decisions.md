@@ -204,6 +204,20 @@ Engine converts into channel-appropriate output, filtered through the Personalit
 for tone/style consistency (Part 17). This is what guarantees "the illusion of a single
 mind" (Part 1) at the architecture level, not just the prompt level.
 
+**Clarification — what `delivered` asserts.** `IntentDeliveryOutcome.delivered` means
+*the configured channel adapter accepted the utterance for transmission*. It does not
+assert that the utterance reached a person, was displayed, or was read. No channel can
+promise that, and the WebSocket adapters never could either — writing to a socket proves
+a write, not a reading.
+
+A channel's transport may be a live socket (`TextChannelAdapter`, `VoiceChannelAdapter`)
+or the Event Bus (`BusTextChannelAdapter`), whose subscribers reach the browser through
+`ws-gateway` — the only component permitted to bridge bus subjects to a client
+([09](09-event-bus-architecture.md) §6). Bus-backed acceptance follows pub/sub semantics:
+publication succeeds whether or not a subscriber is currently attached, and a subscriber
+attaching later does not receive earlier utterances. So `delivered=True` on a bus-backed
+channel does not guarantee that a browser was connected, nor that it rendered the message.
+
 ### ADR-006 — Event Bus abstracted behind an explicit `EventBus` interface
 
 **Context.** NATS JetStream was approved as the *initial* Event Bus implementation

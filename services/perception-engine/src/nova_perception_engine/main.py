@@ -23,16 +23,22 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from datetime import timedelta
 from typing import TYPE_CHECKING
+from uuid import uuid4
 
 from fastapi import FastAPI
 from nova_eventbus_sdk import bind_event_bus
 from nova_observability import configure_observability, get_logger, prometheus_asgi_app
 from nova_service_kit import make_health_router
 
+from nova_perception_engine import sensor_lifecycle
 from nova_perception_engine.api.consent import router as consent_router
 from nova_perception_engine.api.identities import router as identities_router
 from nova_perception_engine.api.observations import router as observations_router
+from nova_perception_engine.api.permission_revocations import (
+    router as permission_revocations_router,
+)
 from nova_perception_engine.api.sensors import router as sensors_router
 from nova_perception_engine.clients.ai_model_orchestration_client import (
     AIModelOrchestrationClient,
@@ -41,11 +47,16 @@ from nova_perception_engine.config import Settings
 from nova_perception_engine.domain.correlation_buffer import WindowCorrelationBuffer
 from nova_perception_engine.domain.ports import AIModelOrchestrationPort, PerceptionRepository
 from nova_perception_engine.domain.session_activity import SessionActivityTracker
-from nova_perception_engine.events.handlers import make_session_dispatch_handler
+from nova_perception_engine.domain.workspace import WorkspaceObservationDebouncer
+from nova_perception_engine.events.handlers import (
+    make_known_project_handler,
+    make_session_dispatch_handler,
+)
 from nova_perception_engine.events.published import PUBLISHABLE_SUBJECTS
 from nova_perception_engine.events.subscribed import SUBSCRIBABLE_SUBJECTS
 from nova_perception_engine.observability import create_metrics
 from nova_perception_engine.sensors.camera_sensor import CameraSensor
+from nova_perception_engine.sensors.filesystem_sensor import FilesystemSensor
 from nova_perception_engine.sensors.voice_sensor import VoiceSensor
 
 if TYPE_CHECKING:
@@ -98,10 +109,26 @@ def create_app(
         camera_sensor = CameraSensor(
             repository=repo, ai_model_port=ai_model_port, encryption_key=encryption_key
         )
-        await voice_sensor.initialize()
-        await voice_sensor.start()
-        await camera_sensor.initialize()
-        await camera_sensor.start()
+        # Phase 4F.3 (L-12). The registry entry for the `nova-companion`
+        # filesystem source -- ratified as D-4F3-1. It performs no detection;
+        # real OS observation is the companion's, in Rust. It exists because
+        # `handle_workspace_event` resolves `sensors_by_source[source]` and
+        # gates on `state() != "running"`, so without it every workspace
+        # observation 404s.
+        filesystem_sensor = FilesystemSensor()
+
+        # Phase 4F.7 (RS-3a, A-4F7-2). The same six calls, in the same order,
+        # each now reporting the state it reached on
+        # `perception.sensor.health_changed` through the outbox
+        # (`sensor_lifecycle.py`). Startup has no request, so one fresh
+        # correlation id ties this startup's reports together.
+        startup_correlation_id = uuid4()
+        startup_actions: tuple[sensor_lifecycle.LifecycleAction, ...] = ("initialize", "start")
+        for sensor in (voice_sensor, camera_sensor, filesystem_sensor):
+            for action in startup_actions:
+                await sensor_lifecycle.transition(
+                    sensor, action, repository=repo, correlation_id=startup_correlation_id
+                )
 
         await bus.connect()
         await bus.subscribe(
@@ -109,6 +136,11 @@ def create_app(
         )
         await bus.subscribe(
             "communication.session.completed", make_session_dispatch_handler(session_tracker)
+        )
+        # Phase 4F.8 (A-4F8-2 (a)): project identities, learned over the bus.
+        await bus.subscribe(
+            "memory.long_term.created",
+            make_known_project_handler(repo, primary_user_id=settings.primary_user_id),
         )
 
         app.state.settings = settings
@@ -120,9 +152,31 @@ def create_app(
         app.state.sensors_by_id = {
             voice_sensor.sensor_id: voice_sensor,
             camera_sensor.sensor_id: camera_sensor,
+            filesystem_sensor.sensor_id: filesystem_sensor,
         }
-        app.state.sensors_by_source = {"microphone": voice_sensor, "camera": camera_sensor}
+        app.state.sensors_by_source = {
+            "microphone": voice_sensor,
+            "camera": camera_sensor,
+            "filesystem": filesystem_sensor,
+        }
         app.state.correlation_buffer = WindowCorrelationBuffer()
+
+        # Phase 4F.2. The debouncer is real and wired.
+        #
+        # *(This comment read "the filesystem sensor that feeds it is 4F.3's
+        # `nova-companion` work, so `sensors_by_source` gains no 'filesystem'
+        # entry here ... the workspace route 404s on an unknown source, which
+        # is the honest answer." -- true until 4F.3 registered it above.)*
+        app.state.workspace_debouncer = WorkspaceObservationDebouncer(
+            window=timedelta(seconds=settings.workspace_debounce_seconds)
+        )
+        # AC-7's "known project" correlation. *(Until 4F.8 this was an empty
+        # `app.state.known_projects` dict keyed by `object_id` hash, with no
+        # population path -- ledger row L-13.)* Since 4F.8 (A-4F8-2 (a)) it is
+        # the operator's `settings.project_folder_bindings`, each active only
+        # once its project is in `perception.known_project`, learned from
+        # `memory.long_term.created` above. `memory-engine` owns `project_id`,
+        # and this engine never reads its database (ADR-004).
         app.state.ready = True
 
         yield
@@ -132,9 +186,13 @@ def create_app(
         # §3.3) -- `stop()` from a non-running/paused state is an illegal
         # transition (domain/sensor.py's own state machine, §5), so shutdown
         # guards it the same way `api/consent.py`'s revocation handler does.
-        for sensor in (voice_sensor, camera_sensor):
+        # Phase 4F.7: each `stop()` that happens is reported, as at startup.
+        shutdown_correlation_id = uuid4()
+        for sensor in (voice_sensor, camera_sensor, filesystem_sensor):
             if sensor.state() in ("running", "paused"):
-                await sensor.stop()
+                await sensor_lifecycle.transition(
+                    sensor, "stop", repository=repo, correlation_id=shutdown_correlation_id
+                )
         await bus.close()
         if engine is not None:
             await engine.dispose()
@@ -145,6 +203,9 @@ def create_app(
     fastapi_app.include_router(consent_router)
     fastapi_app.include_router(sensors_router)
     fastapi_app.include_router(observations_router)
+    # Phase 4F.8 (A-4F8-1 (a1)): the one internal route the companion reports a
+    # lost OS permission on. Internal only, like the workspace intake above.
+    fastapi_app.include_router(permission_revocations_router)
     fastapi_app.mount("/internal/metrics", prometheus_asgi_app())
     return fastapi_app
 

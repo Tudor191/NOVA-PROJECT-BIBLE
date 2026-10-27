@@ -3,8 +3,10 @@
 
 from __future__ import annotations
 
+from pathlib import PurePosixPath
 from uuid import UUID
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -37,6 +39,17 @@ class Settings(BaseSettings):
     every 2-3 seconds while a presence session is active, a starting
     parameter tuned by Sec20's calibration tests, not a fixed constant."""
 
+    workspace_debounce_seconds: float = 1.0
+    """Phase 4F.2 (TDD 4F §9's *"debounce and coalesce high-frequency OS
+    signals"*). One editor save emits several filesystem events within a few
+    hundred milliseconds; one second collapses that burst while leaving two
+    genuinely separate edits distinguishable.
+
+    **Well inside AC-7's 5-second budget**, and deliberately so: debouncing
+    delays the first observation of an object by nothing at all -- the first
+    is always admitted -- so this spends no part of that budget on the path
+    AC-7 measures."""
+
     ai_model_orchestration_timeout_ms: int = 5000
     """Event-Bus request/reply timeout for the four biometric/wake RPCs
     (Sec0.2) -- `clients/ai_model_orchestration_client.py`."""
@@ -52,3 +65,33 @@ class Settings(BaseSettings):
     but `observation_orchestration.py::handle_observation_window` degrades
     explicitly (publishes nothing, logs a warning) rather than guessing a
     user identity whenever it is unset -- never a silent fallback."""
+
+    project_folder_bindings: dict[str, UUID] = {}
+    """Phase 4F.8, A-4F8-2 (a), ratified 2026-10-11 (TDD 4F.8 §29.1). The
+    operator's declaration of which folder belongs to which project: an absolute
+    folder path, as `nova-companion` reports paths, mapped to a project
+    identity. Set as JSON, e.g.
+    `PERCEPTION_ENGINE_PROJECT_FOLDER_BINDINGS='{"/workspace/atlas": "<uuid>"}'`.
+
+    **Empty by default**, so nothing is a known project until an operator says
+    so. A location is declared, never inferred.
+
+    **A binding is inert until its project identity has been seen** on
+    `memory.long_term.created` (`perception.known_project`). Declaring a folder
+    for a project NOVA does not hold makes nothing known."""
+
+    @field_validator("project_folder_bindings")
+    @classmethod
+    def _bindings_name_absolute_folders(cls, value: dict[str, UUID]) -> dict[str, UUID]:
+        """Normalized to one spelling per folder, and refused unless absolute: a
+        relative folder would match against whatever the companion's working
+        directory happened to be."""
+        normalized: dict[str, UUID] = {}
+        for folder, project_id in value.items():
+            path = PurePosixPath(folder.strip())
+            if not path.is_absolute() or path == PurePosixPath("/"):
+                raise ValueError(
+                    f"a project folder binding must name an absolute folder below /: {folder!r}"
+                )
+            normalized[str(path)] = project_id
+        return normalized

@@ -1,0 +1,11 @@
+{
+  "name": "@nova/autonomy-engine",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "lint": "uv run --package autonomy-engine ruff check . && uv run --package autonomy-engine mypy src",
+    "test": "uv run --package autonomy-engine pytest -m \"not real_infra\" --cov=nova_autonomy_engine.domain",
+    "build": "echo 'autonomy-engine: no build step (container image built via Dockerfile in CI)'",
+    "dev": "uv run --package autonomy-engine uvicorn nova_autonomy_engine.main:app --reload --port 8000"
+  }
+}

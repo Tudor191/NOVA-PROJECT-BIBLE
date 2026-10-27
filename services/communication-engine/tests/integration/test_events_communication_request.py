@@ -98,8 +98,12 @@ async def test_session_create_and_intent_deliver_round_trip_through_the_real_eve
         deliver_reply = CommunicationIntentDeliverReplyPayload.model_validate(
             deliver_reply_envelope.payload
         )
-        assert deliver_reply.delivered is False  # no live channel connection registered
-        assert deliver_reply.rejection_reason == "no_live_channel_connection"
+        # No live socket is registered, but the session is `text`, so the
+        # Event Bus carries it (`BusTextChannelAdapter`) and the gate reports
+        # a real delivery. `delivered` asserts a channel accepted the
+        # utterance -- not that a person saw it (ADR-005).
+        assert deliver_reply.delivered is True
+        assert deliver_reply.rejection_reason is None
 
         updated_session = await repository.get_session(session_id)
         assert updated_session is not None

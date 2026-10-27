@@ -54,6 +54,15 @@ class IntentDeliveryOutcome(BaseModel):
     degraded: bool = False
     turn_id: UUID | None = None
     rejection_reason: str | None = None
+    delivered_content: str | None = None
+    """The text that actually reached the channel, **post**-validation.
+
+    Phase 4A addition. The caller needs this to publish
+    `communication.intent.delivered`, and it has to be the adjusted content
+    rather than the requested content: 02-personality-engine.md Sec8 may
+    rewrite an utterance, and a subscriber that saw the pre-validation text
+    would be shown something NOVA never said. Set only on a path that
+    reached the channel, so `delivered_content is None` on every rejection."""
 
 
 async def deliver_intent(
@@ -155,6 +164,7 @@ async def deliver_intent(
             personality_validated=personality_validated,
             degraded=degraded,
             turn_id=saved_turn.turn_id,
+            delivered_content=final_content,
         )
 
     await channel_adapter.deliver(
@@ -166,4 +176,5 @@ async def deliver_intent(
         personality_validated=personality_validated,
         degraded=degraded,
         turn_id=saved_turn.turn_id,
+        delivered_content=final_content,
     )

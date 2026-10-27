@@ -96,6 +96,75 @@ Every row cites the Bible passage it implements.
 | 17 | Engine crash | nova-core detects missed heartbeat → `nova.module.status_changed {status: down}` | nova-core restarts the module; on recovery the module replays missed JetStream events; dependent engines are notified | Part 20 "Fault Tolerance", "Recovery Engine" |
 | 18 | Mode change (e.g., user starts gaming) | any engine or user action → `nova.mode.changed {mode: "gaming"}` | communication-engine silences non-critical notifications; autonomy-engine adjusts interruption thresholds; world-model-engine raises Attention on performance monitoring | Part 6 "Attention shifts... if gaming begins, performance monitoring becomes dominant"; Part 13 "Communication Policies" |
 
+> **Added 2026-09-23 (Phase 4F.6), additively.** Rows 8 and 13 predicted how
+> autonomy would be reached. The initiative path as actually built is:
+> **`cognitive-state-engine` → `autonomy.decision.requested`** (internal
+> request/reply) **→ `autonomy-engine`**. It fires when a thought carrying a
+> complete `ProposedAction` is promoted to the `IMMEDIATE` attention layer.
+> `autonomy-engine` derives the decision's identity from the envelope's
+> `event_id` and reads level, policies and grants server-side for
+> `primary_user_id`. It then runs the existing Policy → Permission → Trust →
+> Level decision. **Only at Level 2**, with every TDD 4F.5 §22.4 precondition
+> met, does it request **`action.execute`** from `action-engine`. The producer
+> never publishes `action.execute` and never names a user or a decision
+> identity. See [TDD 4F.6](../design/phase-4/10-tdd-4f6-initiative-trigger.md)
+> §19. Rows 8 and 13 are left as written: neither of their subjects exists.
+
+> **Added 2026-09-26 (Phase 4F.7), additively.** A second cross-engine flow
+> reaches `cognitive-state-engine`:
+> **`perception-engine` → outbox → `perception.sensor.health_changed` →
+> `cognitive-state-engine`** (and, as before, `ws-gateway`). `perception-engine`
+> reports each real sensor lifecycle transition with the `SensorState` value it
+> reached (A-4F7-2); `cognitive-state-engine` validates it, accepts only those
+> six values, and keeps the latest per sensor in `cognitive_state.sensor_state`
+> for its read-only `/v1/cognitive-state/sensors`. **ADR-004 holds**:
+> `cognitive-state-engine` never calls `perception-engine`'s
+> `GET /v1/perception/sensors`, and neither engine imports the other — the
+> vocabulary is restated, with a test that parses `perception-engine`'s source to
+> keep the two identical. See
+> [TDD 4F.7](../design/phase-4/11-tdd-4f7-cognitive-state-panel.md) §8–§10.
+
+> **Added 2026-10-05 (Phase 4F.P), additively.** The 4F.6 note above describes
+> the initiative path from a promotion onward. 4F.P builds what feeds that path
+> and what follows it, so the path is now built end to end
+> ([TDD 4F.P](../design/phase-4/13-tdd-4fp-production-promotion.md) §5,
+> §30.2):
+>
+> 1. **A file write in the watched workspace → `nova-companion` →
+>    `perception-engine` → outbox → `perception.workspace.observed` →
+>    `cognitive-state-engine`.**
+>    - It creates **one Active Thought per observed object**, inserted only if
+>      absent.
+>    - It authors a `ProposedAction` from a closed table.
+>    - The step that created the thought promotes it to `IMMEDIATE`, **once**,
+>      by compare-and-set.
+> 2. **→ `autonomy.decision.requested`**, now carrying the authored `operation`
+>    and `parameters`, **→ `autonomy-engine`.**
+> 3. At Level 2, **→ `action.execute`**, whose `parameters` are
+>    `{"operation": …, …}`, **→ `action-engine`.**
+>    - It runs its twelve stages.
+>    - It calls `capability.invoke.request` **→ `capability-engine`.**
+> 4. **→ the reply → `autonomy-engine`**, which records the outcome that reply
+>    maps to. It records `execute` only for `completed`.
+>
+> **ADR-004 holds.** No engine imports another or calls another's REST.
+> `action-engine` and `capability-engine` are unchanged. The composed evidence
+> for this path is TDD 4F.P's P8.
+
+> **Added 2026-10-11 (Phase 4F.8), additively.** Two flows are added, and no
+> engine calls another
+> ([TDD 4F.8](../design/phase-4/12-tdd-4f8-acceptance-verification.md) §29.1):
+>
+> - **`memory-engine` → outbox → `memory.long_term.created` → `perception-engine`**
+>   (A-4F8-2 (a)). `perception-engine` learns which project identities exist,
+>   which activates an operator's declared folder for a project. It then
+>   attaches that `project_id` to `perception.workspace.observed`. It never
+>   reads `memory.*`.
+> - **`nova-companion` → `POST /v1/perception/permission-revocations` →
+>   `perception-engine`** (A-4F8-1 (a)). This is the companion's report of a
+>   lost OS permission, on the internal network. The companion is not an
+>   engine, so ADR-004 is not engaged, as for its workspace route.
+
 ## 3. Synchronous vs. asynchronous calls
 
 Not every cross-engine interaction should be a fire-and-forget event — some steps in

@@ -39,6 +39,7 @@ from nova_service_kit import make_health_router
 from nova_communication_engine.api.notifications import router as notifications_router
 from nova_communication_engine.api.sessions import router as sessions_router
 from nova_communication_engine.api.websocket import router as websocket_router
+from nova_communication_engine.channels.bus_text_adapter import BusTextChannelAdapter
 from nova_communication_engine.config import Settings
 from nova_communication_engine.domain import session_lifecycle
 from nova_communication_engine.domain.ports import (
@@ -181,6 +182,12 @@ def create_app(
         app.state.reasoning_port = reasoning
         app.state.digital_twin_port = digital_twin
         app.state.session_registry = SessionRegistry()
+        # Stateless, so one instance serves every session. It lives here
+        # rather than in `SessionRegistry` on purpose: the registry holds
+        # process-local live connection state, and a bus-backed channel has
+        # no connection to hold. `events/handlers.py` supplies it to the
+        # intent gate when a text session has no live socket.
+        app.state.bus_text_adapter = BusTextChannelAdapter()
         app.state.bus = bus
         app.state.metrics = metrics
 

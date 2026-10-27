@@ -40,6 +40,69 @@ want Docker at all — this second path matters for the Bible's "zero budget" an
 non-technical-user accessibility goals, and is tracked as a Phase 5+ packaging task in
 the [Roadmap](../roadmap/ENGINEERING_ROADMAP.md).
 
+> **`agent-os` became deployable in Phase 4C — noted 2026-09-07 (milestone
+> 4C.1, decision D-5).** The diagram above has named `agent-os-kernel` as part
+> of the local-first topology since this document was written, but no
+> `agent-os` component had a container image for its entire existence: Phase 3E
+> recorded that as a deferred obligation, condition **C-3**
+> ([TDD 3E](../design/phase-3/08-tdd-3e-agent-os.md) §15), which names this
+> document among the updates the discharging phase owes.
+>
+> As of 4C.1, `agent-os/kernel`, `agent-os/registry` and `agent-os/supervisors`
+> each have a `Dockerfile`, a `docker-compose.local.yml` service, and a
+> `build-and-scan.yml` matrix entry — **their first Trivy coverage**.
+> `agent-os/sdk/python` has none and needs none: it is a library, like
+> everything under `packages/`. That is the *"reasoned decision that
+> `sdk/python` is library-shaped"* §15 offered as the alternative to a fourth
+> image.
+>
+> The images follow the same shape as every `services/<name>/Dockerfile` —
+> repo-root build context, `python:3.12-slim`, `uv sync --frozen --no-dev
+> --package <name>`, non-root `nova` uid 1000, `HEALTHCHECK` on
+> `/internal/health` — so §1's *"all three [targets] run the exact same
+> container images"* now holds for `agent-os` too, and no new deployment
+> concept is introduced.
+
+> **`cognitive-state-engine` became deployable in Phase 4F.7 — noted
+> 2026-09-26.** Built in 4F.1 and extended in 4F.6, the engine had no compose
+> service until 4F.7 added one (`infra/docker/docker-compose.local.yml`, port
+> `8020`), gated on the one-shot migrator — whose `run-migrations.sh` now also
+> brings the `cognitive_state` schema to head — and fronted by `api-gateway` at
+> `/v1/cognitive-state`. Its image was already in the `build-and-scan.yml`
+> matrix; it is built from the same Dockerfile shape as every other engine. It
+> needs no worker (it has no outbox) and no Redis. See
+> [TDD 4F.7](../design/phase-4/11-tdd-4f7-cognitive-state-panel.md) §5 D7.
+
+> **`nova-companion` became a compose service in Phase 4F.P — noted
+> 2026-10-05.**
+>
+> - **The service.** The local stack gains a `nova-companion` service. It is
+>   built from the existing `companion/nova-companion/Dockerfile`, which is
+>   unchanged and already in the `build-and-scan.yml` matrix, and it watches
+>   `/workspace` read-only.
+> - **One workspace.** `capability-engine` binds the same host directory at
+>   `/workspace`, its filesystem sandbox root. The host directory is
+>   `NOVA_WORKSPACE_DIR`, which defaults to `./workspace` and is gitignored.
+> - **One user.** `perception-engine` is given
+>   `PERCEPTION_ENGINE_PRIMARY_USER_ID`, the user every other engine uses
+>   (ADR-025).
+> - **The e2e job.** `pr-checks.yml`'s e2e job starts `perception-engine`, its
+>   worker and `nova-companion` after the golden path, then runs the
+>   real-execution proof, `tools/e2e_real_execution.py`.
+>
+> No Dockerfile changes. See
+> [TDD 4F.P](../design/phase-4/13-tdd-4fp-production-promotion.md) A-4FP-12
+> and `infra/docker/README.md`.
+
+> **Added 2026-10-11 (Phase 4F.8, ratified §28.7 option (B)), additively.** The
+> local-first topology above is **unchanged**. `infra/docker/docker-compose.acceptance.yml`
+> is an **acceptance-only** compose override, applied by one CI step and never
+> by a deployment. It runs `nova-companion` as uid 1100 with the CI runner's
+> gid, so AC-7's permission revocation can withdraw the sensor's access to the
+> shared workspace without withdrawing `capability-engine`'s
+> ([TDD 4F.8](../design/phase-4/12-tdd-4f8-acceptance-verification.md) §29.2,
+> §34). The companion image's own runtime user, `nova` (uid 1000), is unchanged.
+
 ## 3. Enterprise/cloud topology
 
 ```mermaid

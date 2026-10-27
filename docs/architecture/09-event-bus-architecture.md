@@ -92,7 +92,7 @@ knowledge.node.created|updated
 knowledge.contradiction.detected
 reasoning.session.started|step.completed|result
 planning.task_graph.created|updated|completed
-agent.<agent_id>.assigned|started|completed|failed
+agent_os.task.completed                    # see the note below: the agent.<id>.* family was never built
 action.execute|result|rollback
 capability.installed|updated|health_changed
 communication.intent.received|response.ready
@@ -101,6 +101,101 @@ digital_twin.profile.updated
 executive.priority.changed|attention.shifted
 nova.heartbeat|nova.mode.changed|nova.module.status_changed
 ```
+
+> **Corrected 2026-09-10 (Phase 4C.2g closure), additively.** This list
+> previously named `agent.<agent_id>.assigned|started|completed|failed`. **No
+> such subject was ever built.** Phase 3E shipped `agent-os` without the
+> per-instance lifecycle family and without the aggregated
+> `agent_os.health.snapshot`; both were ratified as explicit narrowings in the
+> Phase 3E Gate Review (§2, DEV-2/DEV-3) and carried into Phase 4 as **CF-8**.
+> Neither has a payload in `nova-contracts`, and neither appears in any
+> component's `PUBLISHABLE_SUBJECTS`.
+>
+> `agent-os/kernel` publishes exactly one broadcast subject,
+> `agent_os.task.completed`. Its other declared subjects
+> (`agent_os.registry.*`, `agent_os.supervisor.*`) are request/reply RPC, not
+> events, and are **internal**: `ws-gateway` subscribes to `agent_os.task.*`
+> and nothing wider, so no browser can reach them (Phase 4C.2e).
+>
+> The prediction is corrected here rather than the code changed to match it —
+> a subject nothing publishes is one a subscriber waits on forever.
+
+> **Added 2026-09-23 (Phase 4F.6), additively.** The first `autonomy.*`
+> subject that exists is **not** either name listed above. It is
+> **`autonomy.decision.requested`**: an **internal** request/reply subject
+> (TDD 4F D-4F-9, ratified in
+> [TDD 4F.6](../design/phase-4/10-tdd-4f6-initiative-trigger.md) §14).
+> `cognitive-state-engine` produces it, and `autonomy-engine` is its **only**
+> consumer, through one `serve()`. It is **not** in `ws-gateway`'s
+> `PUBLIC_TOPICS`, which is still 18 entries, and no browser or gateway can
+> reach it. The reply, `AutonomyDecisionReplyPayload`, is deliberately **not**
+> a registered subject; the registry holds 120. `autonomy.decision.made` and
+> `autonomy.approval.requested` above are still unbuilt reservations, and
+> 4F.6 claims neither. The taxonomy line above is left as written.
+
+> **Added 2026-09-26 (Phase 4F.7), additively.** `perception.sensor.health_changed`
+> — registered and public since Phase 2D-B, but never published — gains its
+> **first production publisher** and its **first engine consumer**
+> ([TDD 4F.7](../design/phase-4/11-tdd-4f7-cognitive-state-panel.md) §8, §10):
+>
+> - **Publisher: `perception-engine`**, through its transactional outbox, on each
+>   existing sensor lifecycle transition that actually changes the state
+>   (startup, consent revocation, an observation-window failure, shutdown;
+>   TDD 4F §24.4 RS-3a). **Its `status` carries `perception-engine`'s
+>   `SensorState` lifecycle values** — `uninitialized`, `initialized`,
+>   `running`, `paused`, `stopped`, `failed` — never a `healthy`/`unhealthy`
+>   health string (ratified **A-4F7-2**). The payload contract in
+>   `nova-contracts` is unchanged (`status: str`).
+> - **Consumer: `cognitive-state-engine`**, through one core-NATS `subscribe()`,
+>   keeping the last reported state per sensor in `cognitive_state.sensor_state`.
+>   `ws-gateway` still receives it too, so browsers see these frames (RS-3a's
+>   accepted consequence).
+> - **No new subject; `PUBLIC_TOPICS` byte-identical at 18; the registry stays
+>   at 120.** As the durability table below records for perception traffic,
+>   delivery is **at-most-once**: a report dispatched while
+>   `cognitive-state-engine` is not subscribed is not received, and nothing
+>   replays it (TDD 4F.7 §15 K-1).
+
+> **Added 2026-10-05 (Phase 4F.P), additively.** 4F.P adds **no subject**. The
+> registry stays at **120** and `PUBLIC_TOPICS` at **18**
+> ([TDD 4F.P](../design/phase-4/13-tdd-4fp-production-promotion.md) §14,
+> §30.2).
+>
+> - **`perception.workspace.observed`** gains a second engine consumer,
+>   **`cognitive-state-engine`**, through one core-NATS `subscribe()`
+>   (A-4FP-1). The subject is still internal: it is not in `PUBLIC_TOPICS`,
+>   and no browser can reach it. As with the 4F.7 subscription above, an
+>   observation dispatched while `cognitive-state-engine` is not subscribed is
+>   not received. `world-model-engine` still receives the subject through its
+>   wildcard.
+> - **`autonomy.decision.requested`** gains two optional payload fields,
+>   **`operation`** and **`parameters`** (`AutonomyDecisionRequestedPayload`;
+>   A-4FP-6 with SD-3).
+>   - An absent field is `None`, never `{}`.
+>   - A `parameters` that names `"operation"` is rejected.
+>   - `schema_version` stays `1` (ADR-024), and the TypeScript contract is
+>     regenerated.
+> - **`action.execute`'s** payload contract is unchanged. `autonomy-engine` now
+>   fills its existing `parameters` with `{"operation": operation,
+>   **parameters}`.
+
+> **Added 2026-10-11 (Phase 4F.8), additively.** 4F.8 adds **no subject** and
+> changes no payload. The registry stays at **120** and `PUBLIC_TOPICS` at
+> **18** ([TDD 4F.8](../design/phase-4/12-tdd-4f8-acceptance-verification.md)
+> §9, §32, §33).
+>
+> - **`memory.long_term.created`** gains a consumer, **`perception-engine`**,
+>   through one core-NATS `subscribe()` (A-4F8-2 (a)). It reads only
+>   `project_id` and `user_id`, to learn which project identities NOVA holds.
+>   `digital-twin-engine` still consumes it as before.
+> - **`perception.sensor.health_changed`** can now carry `status: failed` for
+>   the filesystem sensor. It is published when `nova-companion` reports a lost
+>   OS permission on `perception-engine`'s one new **internal HTTP route**,
+>   which is not a subject (A-4F8-1 (a)).
+> - **`perception-engine`'s outbox now dispatches every second, serially**,
+>   from exactly one worker. D-4F-1 was reopened for that engine's dispatch
+>   interval only (§30, §31). Every other engine's outbox keeps its 10-second
+>   poll.
 
 Every published event carries a common envelope (defined once in `nova-contracts`):
 
