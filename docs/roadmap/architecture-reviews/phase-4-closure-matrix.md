@@ -4,6 +4,8 @@
 **Refreshed 2026-10-26** against `phase-4` = `634999be0b09dafdcc56f5b899f37f0c6ea60b03`,
 after thirteen merges (§1.6). Line citations are to the file at `a7d52c1`
 unless a row names another commit (§1.6 lists the cited lines that have moved).
+**Refreshed again 2026-10-28** against `phase-4` = `0a8ea620cdd0566392be33ac42f4e15a8e3f5724`,
+after four more merges (§1.6 rows 14–17; the revision of 2026-10-28 lists what changed).
 **Protocol:** [`PROJECT_PHASE_COMPLETION_PROTOCOL.md`](../../PROJECT_PHASE_COMPLETION_PROTOCOL.md),
 read in full from `origin/main` (sha256 `21185dd1…`, 1131 lines; identical on `phase-4`).
 
@@ -31,7 +33,9 @@ here.
 *(2026-10-26.)* Thirteen PRs have merged since, each on the owner's
 authorization for that PR (§1.6). A row whose fix has merged now reads **FIX
 MERGED**. It is **still open**, because this document still closes nothing.
-§2.5 says what closing such a row needs, and what is missing.
+§2.5 says what closing such a row needs, and what is missing. *(2026-10-28:
+seventeen PRs have merged, with #53, #57, #59 and #58, each on the owner's
+authorization for that PR. Still nothing is closed.)*
 
 **Labels are this document's own, and some collide.** *(Added 2026-10-18;
 mapping added 2026-10-19.)* X-nn, N-nn and R-nn are closure-matrix labels. Their
@@ -176,6 +180,36 @@ carries it, D-A14 only: one line, `workflow_dispatch:`, in
 
 **Nothing is closed, reclassified or re-counted:** 104 open, 0 closed. AC-3
 and AC-4 are unchanged. D-A10 and D-A15 are undecided, and are not in this PR.
+*(2026-10-28: D-A10 has since been decided, and implemented by #58, which is
+merged.)*
+
+**Revision, 2026-10-28, after the merges.** Facts are cited at
+`phase-4` = `0a8ea62`, after #53, #57, #59 and #58 merged on 2026-10-27.
+What changed:
+- §1.6 gains rows 14–17 and their commits, the state at `0a8ea62`, and a
+  note that keeps three kinds of CI evidence apart: evidence that dispatch
+  works, supporting PR CI, and final exact-SHA evidence, of which none exists
+  yet.
+- §1.6 records #59, a dependency fix with no ID here, as it records #54 and
+  #55.
+- §1.7 is new: the verification of `phase-4` after the merges that master
+  scope §16 rule 7 asks for, covering all seventeen.
+- §4.1 records Build & Scan's dispatch on `phase-4` (run `40524840958`) and
+  the owner's direction for the final SHA.
+- D-A10 is recorded as decided by the owner and implemented by #58. It is
+  not closed: the pin is temporary, and reconsidering it after promotion is a
+  carried obligation, owner UNASSIGNED. X-22 records the same, and that its
+  Node 20 half is undecided.
+- §0, §2.4, §2.5, X-22, N-05, R-05, D-A14, §4's authorizations, §5's legend
+  and §7 gain dated notes.
+- TDD 4F §16.2 gains a dated note for D-A10, so TDD 4F's lines from l.833
+  on move down by eight (§1.6).
+- Notes of this revision are dated 2026-10-28. They name PRs by number and
+  never say *"this PR"*.
+
+**Nothing is closed, reclassified or re-counted:** 104 open, 0 closed: FIX
+18, DOCUMENTATION 34, DECISION 52. No ID is added. AC-3 and AC-4 are
+unchanged. D-A10, D-A14, R-05 and X-22 are not closed. D-A15 is undecided.
 
 Everything new here was produced by the implementing agent, so it is **not
 independent** (§0).
@@ -389,6 +423,12 @@ None was a squash or a rebase, and none used auto-merge. Before each merge, the
 PR was updated onto the then-current `phase-4` by a normal merge, so every
 merge's first parent is an ancestor of its PR's head.
 
+*(2026-10-28: rows 14–17 were merged on 2026-10-27 the same way, each pinned
+to its expected head. Rows 15 and 16 needed no update, because each PR was one
+commit on the then-current `phase-4` head; `2769586` updated #53, and
+`90ed91e` updated #58. All four were drafts, and each was marked ready for
+review seconds before its merge.)*
+
 | Order | PR | Final head | Merge commit | Merged (UTC) | CI at that exact head | Merge tree = head tree |
 |---|---|---|---|---|---|---|
 | 1 | #42 | `6b0093b` | `43c6b12` | 2026-10-23 19:55 | **40/40** (runs 38462664060, 38462664034, 38462663775) | Yes, `48a9e6a` |
@@ -404,6 +444,10 @@ merge's first parent is an ancestor of its PR's head.
 | 11 | #50 | `a910a62` | `c64a377` | 2026-10-26 19:46 | **41/41** (40247900448, 40247900453, 40247900470) | Yes, `3d55f4b` |
 | 12 | #51 | `38af782` | `c28194f` | 2026-10-26 20:20 | **41/41** (40392180012, 40392179943, 40392179849) | Yes, `ae7d41c` |
 | 13 | #52 | `3adfa1b` | `634999b` | 2026-10-26 22:48 | **41/41** (40395839307, 40395839183, 40395839283) | Yes, `1a25e5e` |
+| 14 | #53 | `67d7da4` | `97ee8b6` | 2026-10-27 00:00 | **41/41** (40422429354, 40422429425, 40422429446) | Yes, `0e88c13` |
+| 15 | #57 | `5250744` | `eefbbd2` | 2026-10-27 14:47 | **41/41** (40521247929, 40521247965, 40521247959) | Yes, `5bf7f22` |
+| 16 | #59 | `4ce96fc` | `6e511dd` | 2026-10-27 16:28 | **41/41** (40538091096, 40538090842, 40538090867) | Yes, `4eaa4a4` |
+| 17 | #58 | `90ed91e` | `0a8ea62` | 2026-10-27 17:13 | **41/41** (40543323116, 40543323131, 40543323225) | Yes, `cf20fe8` |
 
 How to read the table:
 - **Merge commits.** Each has two parents: the previous row's merge commit,
@@ -433,6 +477,45 @@ How to read the table:
   | #51 | `65c2683` |
   | #52 | `5b3a61e` |
 
+  *(2026-10-28: `634999b..0a8ea62` holds 19 more commits: 13 non-merge
+  commits, the 4 merges, and 2 merges of `phase-4` into PR branches,
+  `2769586` into #53 and `90ed91e` into #58. The 13, by PR:)*
+
+  | PR | Commits |
+  |---|---|
+  | #53 | `2e384cb` (N-05), `d313a1f`, `fa679f1`, `2942f63`, `f68fa01`, `05343c1`, `ce91828`, `3fcaf97`, `853354f`, `67d7da4` |
+  | #57 | `5250744` (D-A14) |
+  | #59 | `4ce96fc` |
+  | #58 | `4007a5e` (D-A10) |
+
+- **Rows 14–17** *(2026-10-28)*. #58's first head, `4007a5e`, was 40/41:
+  Build & Scan run `40529875110` failed in `dependency-audit`, on `msgpack`
+  (#59, below), not on the pin. #59 fixed it, and `90ed91e`, a merge of
+  `phase-4` into #58 with no manual change, brought the fix in. The row gives
+  the runs at that final head.
+
+**#59, a dependency fix** *(added 2026-10-28)*. Like #54 and #55, it has no
+ID here, and nothing is counted for it.
+- **What failed.** In #58's first Build & Scan run, `40529875110`, `pip-audit`
+  2.10.1 reported **CVE-2026-114613** (alias **GHSA-j586-36cw-2gc2**) against
+  `msgpack` 1.2.1, with fix version 1.2.3. The same lockfile had passed in
+  `40524840958`, whose `pip-audit` step ended at 14:49:44Z; the same step in
+  #58's run began at 15:23:42Z. So what changed in between was the
+  vulnerability data `pip-audit` reads from PyPI, not the repository.
+- **Where `msgpack` comes from.** Only from the root development dependency
+  `pip-audit`, through `cachecontrol` 0.14.4. `uv export --all-packages
+  --no-dev` does not contain it, and every Dockerfile installs with
+  `--no-dev`, so no image contains it.
+- **The fix.** `4ce96fc` changes only `msgpack`'s entry in `uv.lock`, 1.2.1 →
+  1.2.3. The lock holds 138 packages before and after, all 70 of `msgpack`'s
+  file hashes match PyPI's metadata, and the lock's revision stays 3. In
+  1.2.3's `unpack.h`, the rejection path releases both the map key and the
+  value. That was read from the checksum-verified PyPI source releases of
+  1.2.1 and 1.2.3.
+- **Not established:** when the advisory was published, and its severity from
+  a primary source. GitHub's advisory API, OSV and NVD were unreachable from
+  the session, and Dependabot alerts are disabled.
+
 **What this evidence is, and is not:**
 - **It is CI at each PR's exact final head.** That head's tree is
   byte-identical to the tree its merge commit put on `phase-4`.
@@ -449,9 +532,35 @@ How to read the table:
   §14.2-style record with local gates on `phase-4` exists for these merges
   (§7 step 4).
 
+*(2026-10-28, rows 14–17.)* The first bullet holds for them. The second holds
+for rows 1–13 only. For rows 14–17, three kinds of evidence exist, and they are
+kept apart:
+- **Evidence that dispatch works.** Two of the four merge commits have an
+  exact-SHA run, each dispatched by the owner: PR Checks `40513811008` at
+  `97ee8b6`, and Build & Scan `40524840958` at `eefbbd2` (§4.1). Each is one
+  workflow, at a head that is no longer `phase-4`'s tip.
+- **Supporting PR CI.** PR #56's `pull_request` runs, three per head and all
+  green, are attached to `97ee8b6`, `eefbbd2`, `6e511dd` and `0a8ea62`. They
+  test the merge commit GitHub builds for #56, not the `phase-4` commit, so
+  they are supporting tree-identical evidence (§4.1). Each PR's final-head CI
+  in the table is the same kind of evidence for `phase-4`.
+- **Final exact-SHA evidence: none.** No dispatch has been made at `6e511dd`
+  or `0a8ea62`, and Real-Infrastructure Checks has never been dispatched on
+  `phase-4`.
+
+The third bullet is answered by §1.7, which records the §16 rule 7
+verification for all seventeen merges.
+
 **State at `634999b`, read 2026-10-26:**
 - `main` = `7e273e6`, unchanged, an ancestor of `phase-4`.
 - PR #53, this document, is the only open PR into `phase-4`.
+
+**State at `0a8ea62`, read 2026-10-27 and again 2026-10-28** *(added
+2026-10-28)*:
+- `main` = `7e273e6`, unchanged, an ancestor of `phase-4`.
+- No PR into `phase-4` was open when read; the 2026-10-28 revision's PR was
+  opened afterwards. PR #56, `phase-4` → `main`, is an open draft at
+  `0a8ea62`.
 
 **Cited lines that have moved since `a7d52c1`:**
 
@@ -463,6 +572,84 @@ How to read the table:
 | `api-gateway` `api/auth.py` | l.66 | l.88 |
 | `cognitive-state-panel.spec.ts` | l.154 | l.159 |
 | `api-gateway` `api/forward.py` l.124 and `clients/upstream.py` l.97–104 | The defects R-07 and R-08 cite | Replaced by their fixes; read them at `a7d52c1` |
+
+*(2026-10-28: no line cited here moved between `634999b` and `0a8ea62`. The
+dated note this revision adds to TDD 4F §16.2 puts eight lines after TDD 4F's
+l.832, so its l.1215–1217, l.1607 and l.1776, cited here at `a7d52c1`, read
+l.1223–1225, l.1615 and l.1784 once that note merges. Its l.781 does not
+move.)*
+
+### 1.7 Post-merge verification of `phase-4` (master scope §16 rule 7) *(added 2026-10-28)*
+
+Master scope §16 rule 7: *"After each merge, `phase-4` is verified to contain
+the complete milestone result and to be clean before the next branch is
+cut."* Each merge in §1.6 was checked when it was made, and the owner received
+each report. This is the record in the repository, for all seventeen at once,
+in the form of the 4F.8 record §14.2.
+
+Read-only Git and GitHub reads, 2026-10-27, repeated 2026-10-28:
+
+| Check | Result |
+|---|---|
+| `phase-4` | **`0a8ea620cdd0566392be33ac42f4e15a8e3f5724`**, #58's merge (`git ls-remote`). Nothing has been added since |
+| The seventeen merges | Each has two parents: first the previous row's merge commit, or `a7d52c1` for #42, then the PR's final head. Each first parent is an ancestor of that head. Each merge's tree equals its head's tree (§1.6) |
+| First-parent history, `a7d52c1..0a8ea62` | Exactly the seventeen merges, in §1.6's order. No other commit is on it |
+| What the merges brought in | **72 commits:** 41 non-merge commits, the 17 merges, and 14 merges of `phase-4` into PR branches |
+| `main` | **`7e273e62e942ecd5528ca807e65933d6bb675669`**, unchanged. It is an ancestor of `phase-4` |
+| The seventeen PRs | Closed and merged into `phase-4`. For each, GitHub's `merge_commit_sha` is §1.6's merge commit. When read, no PR into `phase-4` was open; the 2026-10-28 revision's PR was opened afterwards. PR #56, `phase-4` → `main`, is an open draft at `0a8ea62` |
+| Their branches | All retained, each at its PR's final head, except `claude/new-session-e1cseg`. It was the head branch of #53, #57 and #58, and was at `90ed91e`, #58's head, when read; #53's and #57's heads are ancestors of it. It is also the head branch of the 2026-10-28 revision's PR, so it moves on |
+| The content, by path, at `0a8ea62` | Eight files changed between `634999b` and `0a8ea62`: three workflows, `uv.lock` and four documents. The workflows changed in six places only: `workflow_dispatch:` in `build-and-scan.yml` (#57), and five `runs-on: ubuntu-24.04` lines, each with D-A10's comment, replacing `ubuntu-latest` (#58). So the fixes merged into them earlier, such as `ws-gateway`'s Real-Infrastructure job (#44) and N-11's `COVERAGE_RCFILE` (#48), are as merged, and §2.5's inspection of the FIX MERGED rows at `634999b` still holds. `uv.lock` holds one `msgpack` entry, 1.2.3 (#59). `docs/design/phase-4/README.md` (N-05), doc 14, and master scope §17's rows for both are present (#53) |
+| `git diff --check a7d52c1 0a8ea62` | Clean |
+
+**CI on the merged trees.** Three kinds of evidence, kept apart:
+- **Supporting PR CI.** §1.6 gives each PR's final runs, green at its exact
+  final head, whose tree is the tree the merge put on `phase-4`. They are
+  `pull_request` runs, which test the merge commit GitHub builds, so for
+  `phase-4` they are supporting evidence, as #56's are.
+- **Evidence that dispatch works.** Only two `workflow_dispatch` runs exist in
+  this repository, both made by the owner on `phase-4`: PR Checks
+  `40513811008` at `97ee8b6`, and Build & Scan `40524840958` at `eefbbd2`
+  (§4.1). Both are green. Each is one workflow, at a head that is no longer
+  the tip.
+- **Final exact-SHA evidence: none.** No dispatch has been made at `6e511dd`
+  or `0a8ea62`, and Real-Infrastructure Checks has never been dispatched on
+  `phase-4`.
+
+GitHub reports 0 runs and 0 check runs on each of the first thirteen merge
+commits, `43c6b12` … `634999b`. On the last four, `97ee8b6`, `eefbbd2`,
+`6e511dd` and `0a8ea62`, the only runs are the two dispatches above and PR
+#56's `pull_request` runs, three per head, all green. #56's runs are attached
+to those `phase-4` SHAs but test #56's merge commit, so they are supporting
+tree-identical evidence (§4.1).
+
+**Local gates on `phase-4`,** run on a branch at `0a8ea62` before this
+addendum, in this session, on 2026-10-27:
+
+| Gate | Result |
+|---|---|
+| `pnpm turbo run lint --force` | **32/32**, 0 cached |
+| `pnpm turbo run typecheck --force` | **5/5**, 0 cached |
+| `pnpm turbo run test --force` | **32/32**, 0 cached. pytest: 3,173 passed, 0 failed, 334 deselected. Vitest: 287 passed, 0 failed |
+| The same, with `COVERAGE_RCFILE` set to the root `pyproject.toml`, as CI runs it | **32/32**, 0 cached. All 21 measured packages reach the 85% gate; the lowest is 89.82% |
+| `uv run lint-imports` | **7 kept, 0 broken** |
+| `uv run pytest tools/tests -q` | **421 passed** |
+| `docker compose -f infra/docker/docker-compose.local.yml config --quiet` | **Valid**. Compose CLI v5.1.1; there is no daemon |
+| The same, with the acceptance override | Without `NOVA_ACCEPTANCE_COMPANION_GID`, it refuses, as its `:?` guard is meant to. With the variable set, as `pr-checks.yml` sets it: **valid** (re-run 2026-10-28, still at `0a8ea62`) |
+| Codegen | **118** files regenerated; **zero** drift |
+| Agent Packages: `uv run ruff check agents/`, then each package's `mypy src` and `pytest tests -q` | ruff clean; **5 of 5** packages OK |
+| Working tree after every gate | Clean |
+
+**Not run locally:**
+- Cargo;
+- the `real_infra` tiers;
+- the acceptance phases and the Playwright stack.
+
+**Why:** there is no Docker daemon here, and Cargo's revocation tests must run
+as a non-root user. Each ran in CI at every PR's final head, on the tree its
+merge put on `phase-4` (§1.6).
+
+**No unexpected change was found.** This record verifies the merges. It closes
+no row: §2.5 still applies to every FIX MERGED row.
 
 ---
 
@@ -548,6 +735,11 @@ l.2409); and F-4F8-3, -6, -9, -13, -14 and -16, which are by design and
 - **Fix in this PR, not merged (1):** N-05.
 - **No fix in any PR (1):** R-01.
 
+*(2026-10-28: N-05's fix merged with #53, as `97ee8b6`. By merge state the 18
+are now: FIX MERGED, open, 16, the 15 above and N-05; FIX MERGED, verification
+incomplete, 1, X-06; no fix in any PR, 1, R-01. None is in an unmerged PR. The
+18 and the 104 are unchanged.)*
+
 The DOCUMENTATION and DECISION rows are unchanged. Some of their rows cite a
 merged PR now (§3), but no decision has been made, and none moves.
 
@@ -581,20 +773,31 @@ precedent the 4F.8 record set:
 - an inspection at `634999b`, 2026-10-26, finding each fix present by path
   and content.
 
+*(2026-10-28: N-05 is a sixteenth, merged with #53, as `97ee8b6`. Its file,
+`docs/design/phase-4/README.md`, is on `phase-4` at `0a8ea62` (§1.7), and
+everything in this section applies to it.)*
+
 **What does not exist:**
 - **CI on `phase-4` itself** (R-05). The procedure is the owner's decision
   (D-A14). *(2026-10-27: D-A14 is decided, §4.1. PR Checks has since run on
   `phase-4` itself, dispatched at `97ee8b6`, a head whose history contains
   every §1.6 merge: run `40513811008`, green. Real-Infrastructure Checks and
   Build & Scan have not run on `phase-4`, so CI on `phase-4` for all three
-  workflows still does not exist)*;
+  workflows still does not exist)* *(2026-10-28: Build & Scan has since run on
+  `phase-4` too, dispatched at `eefbbd2` after #57's merge: run
+  `40524840958`, green. Real-Infrastructure Checks has never been dispatched
+  there. The note above was written when §1.6 held thirteen merges; neither
+  dispatch is at the current head, `0a8ea62`. So the exact-SHA evidence R-05
+  needs still does not exist)*;
 - **a §16 rule 7 record** for these merges, with local gates on `phase-4`
-  (§7 step 4);
+  (§7 step 4) *(2026-10-28: made now, for all seventeen merges, in §1.7. It
+  closes no row)*;
 - **the owner's decision to close them.** No row says *"closes on merge"*,
   and this document is not a Gate Review (§0).
 
 So the 15 stay open, as FIX MERGED. Closing them is left to the owner, at
 the 4F closure PR or the Phase 4 Gate Review, on the evidence above.
+*(2026-10-28: so does N-05, 16 in all.)*
 
 Whatever is decided about the 15, four things stay as they are:
 - **X-06** is not among them. Its verification is incomplete: no `promtool`
@@ -714,7 +917,7 @@ recorded on PR #42 *(merged, `43c6b12`)*.
 | X-19 | SAD 15 §4 non-conformance on PRs #23–#41: 12 item-1 fails, 5 item-4, 10 item-5 | Reconciliation §5.1 | 4F/GO | ACCEPT RISK (retrospective) | **D-C11** |
 | **X-20** | §9.1 gaps (aliases K-7, K-8, observability packaging) | §5 below: 41 cells changed this pass | 4F/GO | Partly FIX + decisions | **D-A8, D-A9, D-C14** |
 | X-21 | The promotion PR's SAD 15 §4 obligations | §6 | P | BLOCKED | After GO; **D-C13** |
-| X-22 | `ubuntu-latest` moves to Ubuntu 26 from **2026-10-19**; Node 20 deprecation | Run annotations | — (risk to final CI) | ACCEPT RISK or FIX | **D-A10 (new)**: pin `ubuntu-24.04` for the closure window, or accept the drift. *(2026-10-26: not decided, and no pin was made. All five jobs on `phase-4` still name `ubuntu-latest`, so which image each §1.6 run used is unknown, as D-A10 records)* |
+| X-22 | `ubuntu-latest` moves to Ubuntu 26 from **2026-10-19**; Node 20 deprecation | Run annotations | — (risk to final CI) | ACCEPT RISK or FIX | **D-A10 (new)**: pin `ubuntu-24.04` for the closure window, or accept the drift. *(2026-10-26: not decided, and no pin was made. All five jobs on `phase-4` still name `ubuntu-latest`, so which image each §1.6 run used is unknown, as D-A10 records)* *(2026-10-28: **the runner half is decided for the closure window, and X-22 stays open.** The owner chose D-A10 option (a) on 2026-10-27. #58 (`4007a5e`, merged as `0a8ea62`) pins all five jobs to `ubuntu-24.04`, each with the comment *"Temporary: reconsider after Phase 4 is promoted"*. All 41 jobs of #58's final runs, at `90ed91e`, carry the `ubuntu-24.04` label. The pin is not a full freeze: GitHub still updates that image, and its builds `20261012.334.1` and `20261025.353.1` both ran on 2026-10-27. `main`'s copies keep `ubuntu-latest` until promotion. **Outstanding:** reconsidering the pin after promotion, owner **UNASSIGNED**; and the Node 20 half, which has no decision and no decision ID. Runs still carry GitHub's notice that `actions/checkout@v4`, `actions/setup-node@v4`, `actions/upload-artifact@v4`, `astral-sh/setup-uv@v5` and `pnpm/action-setup@v4`, among others, target Node.js 20 and are forced to run on Node.js 24, for example in #58's final PR Checks run, `40543323116`)* |
 
 ### 3.6 Found by the reconciliation (2026-10-15)
 
@@ -724,7 +927,7 @@ recorded on PR #42 *(merged, `43c6b12`)*.
 | **N-02** | `autonomy-engine` level, policy and permission changes had no record | 4F | Partly FIX (#45: before and after log lines) | **D-C5**: persisted audit or not. *(2026-10-18: #45's lines lack `correlation_id` and target `user_id`, and refused writes were unlogged. The prepared amendment adds `outcome`, `user_id` (server-side, the target), `correlation_id` (a header; not attribution), `actor` (always null: not determinable under the single-token model), and a refusal line for 422 and 404. They remain stdout operational logs, not an audit trail)* *(2026-10-26: the amendment merged with #45, `6663062`: `58a0f8f`, `5195171`, `5220515`. Still stdout, not an audit trail. D-C5 is still open)* |
 | **N-03** | `rate_limit.py` claimed a Redis limiter that does not exist | GO | **FIX ready (#43)** → ***FIX MERGED (#43, `cdeef3c`), open*** | Corrected, quoting the original (`692ae2b`) |
 | **N-04** | `ws-gateway` README omitted `agent_os.task.completed` | 4F | **FIX ready (#44)** → ***FIX MERGED (#44, `550bc78`), open*** | `4f27c7c` |
-| **N-05** | `docs/design/phase-4/` had no README | GO | **FIX ready (this PR)** *(2026-10-26: still unmerged; it merges with this document. Master scope §17 now indexes the README, on the owner's authorization. N-05 stays open: once merged it is FIX MERGED, and §2.5 applies)* | — |
+| **N-05** | `docs/design/phase-4/` had no README | GO | **FIX ready (this PR)** *(2026-10-26: still unmerged; it merges with this document. Master scope §17 now indexes the README, on the owner's authorization. N-05 stays open: once merged it is FIX MERGED, and §2.5 applies)* *(2026-10-28: merged with #53, as `97ee8b6`, on 2026-10-27. `docs/design/phase-4/README.md` is on `phase-4` at `0a8ea62`. **FIX MERGED, still open**, and §2.5 applies)* | — |
 | N-06 | 4B DEV-5 (cosmetic) | — | ACCEPT RISK | **D-C15** |
 | N-07 | About 20 retained Phase 4 branches; remote deletion is blocked to this session | — | DOCUMENT | Report in the Gate Review |
 | **N-08** | `created_at` had no `nova-contracts` test (protocol §8.1) | GO | **FIX ready (#52)** → ***FIX MERGED (#52, `634999b`), open*** | 3 tests and a negative control (`5b3a61e`, `test_memory_events.py`). The model is unchanged; only tests were added. **Not closed:** §2.5 says what closing it needs |
@@ -752,7 +955,7 @@ risks R-1 … R-6, which the Phase 4 Gate Review re-checks (TDD 4F.8 §20.2).
 | **R-02** (AUD-3) | `cognitive-state-panel.spec.ts:154` races: it clicks Refresh when the first section has settled, while another may be on its first fetch, which TanStack Query reuses rather than re-issues | Run #150 annotation (*"Expected: >= 3, Received: 2"*); `query-core` 5.102.8 `query.ts` l.401–411. Local harness, retries off: old spec 10/10 failed with one section in flight, fixed spec 10/10 passed, both 10/10 with no delay | GO (C-7) | FIX | A test-only fix is prepared for #47's branch, not pushed. Not product behaviour. *(2026-10-26: **FIX MERGED (#47, `ea0234d`), open.** The fix is `1f9ef1d`, and the golden-path job passed at #47's head and every later §1.6 head. Whether the E2E job is flake-free is C-7's question (X-03, D-A7), not settled here)* |
 | **R-03** (AUD-5) | Neither gateway checks `Origin`. SameSite=Strict keeps the cookie from other sites but not from other ports on the same host, so a page served from `localhost` could read the public event stream or send body-less POSTs | `ws-gateway/api/stream.py` handshake; `api-gateway/api/auth.py` l.66 | — (P for networked use) | Decision | No document requires the check. Accept with the stated threat model, or add an allow-list |
 | **R-04** (AUD-6) | TDD 4F §15 row 1 (*"Companion absent or crashed: sensors report unavailable"*) is not built. RS-3a and A-4F8-1 rule out inferring failure from silence, so a crashed companion leaves the sensor `running`, labelled with its `reported_at` | TDD 4F l.781; TDD 4F.8 l.582, l.1322; TDD 4F.7 §14 | 4F | DOCUMENT | A dated note on TDD 4F §15 that the ratified rule supersedes row 1 |
-| **R-05** (AUD-9) | ***Superseded 2026-10-27, true when written:*** `pr-checks.yml` never runs on `phase-4`: it triggers on `pull_request`, on `push` to `main` only, and on dispatch. It has 0 runs on `phase-4`. *(2026-10-27: PR Checks has run on `phase-4`, dispatched by the owner at `97ee8b6`: run `40513811008`, §4.1. Still true: no workflow runs at a `phase-4` commit unless it is dispatched, and Build & Scan cannot be dispatched until this PR merges. PR #56's runs test its merge commit, not a `phase-4` commit)* | `pr-checks.yml` l.15–30; `list_workflow_runs` for `branch=phase-4`; run `40513811008` (2026-10-27) | GO | Decision | Add a `push` trigger for `phase-4`, or record the procedure: update each PR onto the fresh head before merging, and dispatch once at the final SHA. *(2026-10-26: **still open**, and still 0 runs on `phase-4`. Every merge in §1.6 followed the first half of that procedure, updating the PR onto the fresh head. That is practice, not a decision, and no dispatch has been made. D-A14 is undecided)* *(2026-10-27: **still open.** D-A14 is decided: the procedure, with `workflow_dispatch` added to Build & Scan by this PR, which is not merged (§4.1). The evidence R-05 needs, all three workflows dispatched green at the final SHA under §4.1, does not exist yet)* |
+| **R-05** (AUD-9) | ***Superseded 2026-10-27, true when written:*** `pr-checks.yml` never runs on `phase-4`: it triggers on `pull_request`, on `push` to `main` only, and on dispatch. It has 0 runs on `phase-4`. *(2026-10-27: PR Checks has run on `phase-4`, dispatched by the owner at `97ee8b6`: run `40513811008`, §4.1. Still true: no workflow runs at a `phase-4` commit unless it is dispatched, and Build & Scan cannot be dispatched until this PR merges. PR #56's runs test its merge commit, not a `phase-4` commit)* *(2026-10-28: #57 merged, as `eefbbd2`, so Build & Scan can now be dispatched on `phase-4`, and the owner has dispatched it once: run `40524840958`, green, §4.1. Real-Infrastructure Checks has never been dispatched there)* | `pr-checks.yml` l.15–30; `list_workflow_runs` for `branch=phase-4`; run `40513811008` (2026-10-27); run `40524840958` (2026-10-27) | GO | Decision | Add a `push` trigger for `phase-4`, or record the procedure: update each PR onto the fresh head before merging, and dispatch once at the final SHA. *(2026-10-26: **still open**, and still 0 runs on `phase-4`. Every merge in §1.6 followed the first half of that procedure, updating the PR onto the fresh head. That is practice, not a decision, and no dispatch has been made. D-A14 is undecided)* *(2026-10-27: **still open.** D-A14 is decided: the procedure, with `workflow_dispatch` added to Build & Scan by this PR, which is not merged (§4.1). The evidence R-05 needs, all three workflows dispatched green at the final SHA under §4.1, does not exist yet)* *(2026-10-28: **still open.** All three workflows can now be dispatched on `phase-4`. Two have been, once each, at heads that are no longer its tip: PR Checks at `97ee8b6` and Build & Scan at `eefbbd2`. They show that dispatch works. They are not the evidence R-05 needs, which is all three dispatched green at D under §4.1 step 5. Closing R-05 is the owner's decision)* |
 | **R-06** | `api-gateway` matched a route's prefix on the decoded path, then built the upstream URL with `httpx`, which removes `.` and `..` segments and reads a decoded `?` or `#` as a query or fragment. So an authenticated caller could reach any path on a fronted engine, `/internal/*` included: `GET /v1/digital-twin/../../internal/health` returned that engine's `/internal/health`, and `/v1/digital-twin/..%23` reached its `/v1`. A decoded NUL made `httpx` raise outside the client's error handling, an unstructured 500. A browser cannot send these paths, because it normalizes them | Local probe (2026-10-18/19) of the real app under uvicorn, h11 and httptools, with the real `UpstreamClient`, at `a7d52c1` and at #43's `d7876cb`: every dot segment, literal or percent-encoded (`%2E`, `%2F`, `%252E`), and every decoded `?` or `#` changed the forwarded path, and most left the prefix. `test_gateway.py`'s `/v1/../internal/health` case never reaches the app: the test client normalizes it | GO (condition 10: doc 11 l.148, master scope l.1266, `forward.py`'s first invariant) | FIX | A fix is prepared, not pushed: the route table refuses any path it could not forward unchanged, with 43 tests. Placement, #43 or its own PR, needs authorization. *(2026-10-26: **FIX MERGED (#43, `cdeef3c`), open.** It was placed on #43 as `3ccb017` (`domain/routing.py` `is_canonical`). CI was 40/40 at #43's final head `e2700b9` (§1.6))* |
 | **R-07** | A non-ASCII request header value reaches `httpx` as a `str`, and `httpx` raises `UnicodeEncodeError`, which is not an `httpx.HTTPError`. `UpstreamClient` does not catch it, so an authenticated request gets an unstructured 500 (*"Internal Server Error"*, no stack trace). An unauthenticated one gets the structured 401 first. That breaks `forward.py`'s invariant 3, *"A failure is always a structured error"* | `clients/upstream.py` l.97 and l.103, at `a7d52c1` and at #43's `d7876cb`; `httpx` 0.28.1. Local probe (2026-10-22) of the real app under uvicorn, h11 and httptools: header values `caf\xe9`, `\xff\xfe` and UTF-8 each gave the 500 | GO (`forward.py` invariant 3) | FIX | A fix is prepared for #43's branch, not pushed: headers are forwarded as the latin-1 bytes received, with an ASGI-level test that fails without it. *(2026-10-26: **FIX MERGED (#43, `cdeef3c`), open**, as `746eb3e`)* |
 | **R-08** | The 502 `upstream_unavailable` body carries `str(exc)`, which names the upstream's internal URL (*"upstream unreachable: http://…:8000/…"*), to an authenticated caller | `api/forward.py` l.124 and `clients/upstream.py` l.102 and l.104, at `a7d52c1`; the same at `d7876cb` | — (hygiene; no document requires it) | FIX | A fix is prepared for #43's branch, not pushed: the body names the engine's public name only and the log keeps the detail; a test fails without it. *(2026-10-26: **FIX MERGED (#43, `cdeef3c`), open**, as `746eb3e`)* |
@@ -788,11 +991,11 @@ supported by the evidence; it is not a decision.
 | **D-A7** | C-7's counting unit | Strict: 10 consecutive PR Checks workflow runs, dispatched one after another at the final code SHA, each with E2E green and **0 flaky** (`failOnFlakyTests` in CI); then make the E2E job blocking. *(2026-10-19: "blocking" means a required check, which needs branch protection or a ruleset, D-C10. 4B Gate Review §7.2 counts runs across pushes and §15.1 against an unchanged SHA; this decision chooses between them.)* *(2026-10-22: the counting rules, if approved: runs counted by run ID, first attempt only; each needs whole-run success, 0 failed, 0 flaky and only the declared skips. A failure, a flake or a timeout resets the count, and so does a cancellation after the E2E job starts. A code change restarts it. Dispatch takes a branch, not a SHA, so `phase-4` must not move during the series. The rule is stricter than either reading of the source, so it needs ratification, not only a choice)* | GO |
 | D-A8 | §9.1 applies to all eight subsystems | Yes, with N/A per cell | §5 |
 | **D-A9** | Traces (§9.1 item 10) | Keep the requirement; record repository-wide absence as a deferred gap; a propagation design for HTTP and the bus envelope is a contract decision | §5 |
-| D-A10 | Runner pin before 2026-10-19 | Pin `ubuntu-24.04` until Phase 4 is promoted *(2026-10-22: the date has passed, and the migration is a rollout, so the pin still applies. Which image any run since 2026-10-19 used is not known here: the jobs API shows only the `ubuntu-latest` label. A pin on `phase-4` does not reach `main`'s nightly run, and pins neither the image's Rust nor its Docker)* | Final CI stability |
+| D-A10 | Runner pin before 2026-10-19 | Pin `ubuntu-24.04` until Phase 4 is promoted *(2026-10-22: the date has passed, and the migration is a rollout, so the pin still applies. Which image any run since 2026-10-19 used is not known here: the jobs API shows only the `ubuntu-latest` label. A pin on `phase-4` does not reach `main`'s nightly run, and pins neither the image's Rust nor its Docker)* *(2026-10-28: **decided by the owner on 2026-10-27: option (a)**, pin all five CI jobs to `ubuntu-24.04` until Phase 4 is promoted. #58 implements it: commit `4007a5e`, merged as `0a8ea62`, changes the five `runs-on` values, adds a two-line comment to each, and changes nothing else. **D-A10 is not closed.** The pin is temporary. Reconsidering it after promotion is a carried obligation, owner **UNASSIGNED**, discharged by a PR after promotion that reconsiders the five `runs-on` lines. It is not combined with D-A15, which is undecided. This note is the decision's first record here: PR #58's description says it *"is recorded in the closure matrix, §4 D-A10 and §3.5 X-22"*, but until this revision the matrix held only the question)* | Final CI stability |
 | D-A11 | N-09 histogram buckets | One shared-package PR (a `nova-observability` View) | — |
 | D-A12 | Coverage: line (doc 16) or branch (config) | Keep branch, amend doc 16 (stricter, already passing) | — |
 | D-A13 | Waive the 4B TDD | Waive on the record, as 4C's was | GO |
-| **D-A14 (new)** | R-05, CI on `phase-4` | Record the procedure (update each PR onto the fresh head before merging; dispatch at the final SHA) rather than add a `push` trigger *(2026-10-22: `build-and-scan.yml` has no `workflow_dispatch`, so this procedure cannot run Build & Scan at the final SHA; the decision request's option (a) adds the trigger. No dispatched run exists in this repository, and `main`'s copies of `pr-checks.yml` and `build-and-scan.yml` lack the trigger, so whether a dispatch on `phase-4` runs is unverified until the owner's first attempt)* *(2026-10-27: **decided by the owner.** Add `workflow_dispatch` to `build-and-scan.yml`, with no `push` trigger and no change to permissions, inputs or jobs; record the CLI and API dispatch procedure; PR #56's tree-identical CI stays supporting evidence, not exact-SHA evidence. The question above is answered: the owner's dispatch of PR Checks on `phase-4` ran, at `97ee8b6`, and passed (run `40513811008`). This PR adds the trigger and is not merged. §4.1 records the decision, the evidence and the procedure)* | GO |
+| **D-A14 (new)** | R-05, CI on `phase-4` | Record the procedure (update each PR onto the fresh head before merging; dispatch at the final SHA) rather than add a `push` trigger *(2026-10-22: `build-and-scan.yml` has no `workflow_dispatch`, so this procedure cannot run Build & Scan at the final SHA; the decision request's option (a) adds the trigger. No dispatched run exists in this repository, and `main`'s copies of `pr-checks.yml` and `build-and-scan.yml` lack the trigger, so whether a dispatch on `phase-4` runs is unverified until the owner's first attempt)* *(2026-10-27: **decided by the owner.** Add `workflow_dispatch` to `build-and-scan.yml`, with no `push` trigger and no change to permissions, inputs or jobs; record the CLI and API dispatch procedure; PR #56's tree-identical CI stays supporting evidence, not exact-SHA evidence. The question above is answered: the owner's dispatch of PR Checks on `phase-4` ran, at `97ee8b6`, and passed (run `40513811008`). This PR adds the trigger and is not merged. §4.1 records the decision, the evidence and the procedure)* *(2026-10-28: #57 merged, as `eefbbd2`, and the owner's dispatch of Build & Scan there ran and passed: run `40524840958`, §4.1. **D-A14 is not closed:** the final-SHA dispatches it decided on, all three workflows at D, have not been made)* | GO |
 | **D-A15 (new)** | R-01: what `cargo audit` fails on | Fail on vulnerabilities, as `pip-audit` does; report yanked, unmaintained and unsound warnings without failing, each listed in the Gate Review (today: `yoke-derive` 0.8.3, yanked) | R-01's fix |
 | **D-A16 (new)** | PR #42 (the post-merge record of #41, and the only record that L-13 and L-26 are settled): merge it on its own, or leave it open to become the 4F closure PR | Merge it on its own, after its CI is refreshed at an updated head. The 4F closure PR is then a new documentation PR. Reuse would change #42's title, description and scope, and would hold the §16 rule 7 record until 4F closes *(2026-10-26: PR #42 was merged on its own, at its head `6b0093b`, as `43c6b12`, on the owner's merge authorization for #42. A merged PR is not reused (protocol §11.1), so the 4F closure PR will be a new one. No recorded decision on D-A16 itself is cited here; the merge is the fact)* | Step 2's #42; step 3's shape |
 
@@ -828,6 +1031,19 @@ the Phase 4 closure PR. The owner made the test dispatch of PR Checks on
 instruction. It is named here only because D-A14 cites its CI; D-C13 is
 unchanged.
 
+*(2026-10-28.)* Given since, each separately and for one PR or action only:
+the merge of #57 (D-A14); for D-A10 option (a), a branch from `phase-4`, the
+five pins and a draft PR (#58), then a merge of `phase-4` into #58
+(`90ed91e`), then #58's merge; for the `msgpack` fix, the branch
+`phase-4-deps-msgpack` from `eefbbd2`, one `uv.lock` commit and a draft PR
+(#59), then its merge; and the revision of 2026-10-28, on one branch from
+`phase-4` with one draft PR. The owner dispatched Build & Scan on `phase-4`
+after #57's merge (§4.1). Not given: merging the 2026-10-28 revision's PR;
+R-01's CI addition (D-A15); triggering C-7 runs; the N-01 (D-C4) and X-08
+(D-C8) PRs; updating the actions that target Node 20 (X-22); opening the
+Phase 4 closure PR; the final-SHA dispatches; any change to PR #56 or its
+description.
+
 ### 4.1 D-A14: CI at an exact `phase-4` SHA *(added 2026-10-27)*
 
 **The decision**, by the owner, 2026-10-27:
@@ -838,7 +1054,9 @@ unchanged.
 - PR #56's CI is **supporting tree-identical evidence, not exact-SHA
   evidence.** Its `pull_request` runs test the merge commit GitHub builds
   (`f555acf` at `97ee8b6`), not a `phase-4` commit.
-- The CI PR carries D-A14 only. D-A10 and D-A15 are undecided.
+- The CI PR carries D-A14 only. D-A10 and D-A15 are undecided. *(2026-10-28:
+  D-A10 has since been decided, and implemented separately by #58. D-A15 is
+  still undecided.)*
 
 This keeps the procedure §4 recommended, and adds the Build & Scan trigger
 whose absence the 2026-10-22 note found.
@@ -879,9 +1097,11 @@ the same head SHA.
 
 **What it does not show:**
 - **Final-SHA evidence.** `phase-4` moves when this PR merges, and with every
-  later merge.
+  later merge. *(2026-10-28: it has moved three times since `97ee8b6`: #57,
+  #59 and #58.)*
 - **Real-Infrastructure Checks or Build & Scan on `phase-4`.** Neither has
-  run there.
+  run there. *(2026-10-28: Build & Scan has, at `eefbbd2`, in run
+  `40524840958`, below. Real-Infrastructure Checks still has not.)*
 - **AC-3's approval clause.** The step *"Report whether the action reached
   the approval loop"* was skipped, as it is when the action leaves no
   approval row. AC-3 and AC-4 are unchanged.
@@ -894,13 +1114,45 @@ from the CLI all the same. Build & Scan's copy on `main` lacks the trigger
 too, and will until promotion, so it is dispatched the same way.
 Real-Infrastructure Checks' copy on `main` has the trigger.
 
+**Build & Scan's dispatch, after #57's merge** *(added 2026-10-28)*, made by
+the owner from the GitHub CLI:
+
+| | |
+|---|---|
+| Run | [`40524840958`](https://github.com/Tudor191/NOVA-PROJECT-BIBLE/actions/runs/40524840958), Build & Scan #186 |
+| Event | `workflow_dispatch` |
+| Branch and head SHA | `phase-4`, `eefbbd2a5c5703447b09a8b6f1b70f2496f014f8` (tree `5bf7f22`), #57's merge |
+| Attempt | 1, the only one |
+| Triggered by | `Tudor191`, the owner, at 14:49:23Z on 2026-10-27 |
+| Conclusion | **success**: all 23 jobs, `dependency-audit` and the 22 image builds. The last job completed at 14:52:38Z |
+| `phase-4` during the run | Unmoved, at `eefbbd2`. It next moved at 16:28Z, with #59's merge |
+
+**What it shows:**
+- every job's log shows `eefbbd2` checked out;
+- each of the 22 Trivy scans reported no CRITICAL or HIGH vulnerability, with
+  unfixed ones ignored, as the workflow configures;
+- `pip-audit`, 14:49:36–14:49:44Z: *"No known vulnerabilities found"*.
+  `pnpm audit --audit-level=high` passed, with 2 moderate advisories below
+  its threshold.
+
+So the trigger D-A14 added works.
+
+**What it does not show:**
+- **Final-SHA evidence.** It ran before #59 and #58 merged.
+- **A lasting audit result.** 34 minutes later, `pip-audit` failed on the same
+  lockfile in #58's run `40529875110`, on CVE-2026-114613 (§1.6, #59).
+- **PR Checks or Real-Infrastructure Checks at `eefbbd2`.** Neither was
+  dispatched there.
+
 **The procedure:**
 
 1. **Each merge into `phase-4`.** Before the merge, the PR is updated onto
    the current `phase-4` head by a merge, never a rebase, and is green at that
    head. After it: the merge commit's parents are the old `phase-4` head and
    the PR head, and its tree is the PR head's tree. §1.6 records this practice
-   for thirteen merges.
+   for thirteen merges. *(2026-10-28: for seventeen, and §1.7 verifies them.
+   Two needed no update, because each PR was one commit on the then-current
+   head.)*
 2. **The dispatches.** At the SHA under verification, the owner dispatches
    each workflow on `phase-4`. This session's credential is refused
    (HTTP 403).
@@ -910,6 +1162,9 @@ Real-Infrastructure Checks' copy on `main` has the trigger.
    | PR Checks | `326557983` | `gh workflow run 326557983 --repo Tudor191/NOVA-PROJECT-BIBLE --ref phase-4` |
    | Real-Infrastructure Checks | `329885784` | `gh workflow run 329885784 --repo Tudor191/NOVA-PROJECT-BIBLE --ref phase-4` |
    | Build & Scan | `326557982` | `gh workflow run 326557982 --repo Tudor191/NOVA-PROJECT-BIBLE --ref phase-4`, once this PR has merged |
+
+   *(2026-10-28: #57 has merged, as `eefbbd2`, and Build & Scan has been
+   dispatched on `phase-4`: run `40524840958`, above.)*
 
    The API form is `POST /repos/Tudor191/NOVA-PROJECT-BIBLE/actions/workflows/{ID}/dispatches`
    with the body `{"ref":"phase-4"}`. It answers HTTP 204, and a run must
@@ -961,7 +1216,42 @@ Real-Infrastructure Checks' copy on `main` has the trigger.
    - **Not decided here:** where the record of D's dispatches is kept, since
      a commit recording them moves the head again. 4E §18 recorded CI at its
      first documentation head, then relied on the invariant for the
-     documentation commits after it.
+     documentation commits after it. *(2026-10-28: superseded in part by the
+     owner's direction below: the record is a later documentation-only
+     commit, E. Which document holds it is still not decided.)*
+
+   *(Added 2026-10-28.)* **The owner's direction for the final SHA,** given on
+   2026-10-27. It follows 4D §22.8 and 4E §18, and weakens none of the
+   bullets above:
+   1. Complete all substantive code and documentation changes, including the
+      root `README.md` update. `README.md` is outside `docs/`, so it lands
+      before C.
+   2. Establish and verify C only after the README update is merged.
+   3. Establish D after the final substantive documentation commit.
+   4. Re-run the complete local validation battery (protocol §9.1) at D.
+   5. Dispatch all three workflows at D: PR Checks, Real-Infrastructure
+      Checks and Build & Scan, as steps 2–4 above set out.
+   6. Record the three run IDs and results in a later documentation-only
+      commit, E.
+   7. Prove that E preserves the documentation-only invariant, with the
+      commands above run against C: no code and no non-documentation tree
+      entry changes.
+   8. State explicitly that the three workflows ran at D, not at E.
+
+   What follows from it, and from 4E §18:
+   - **The battery is re-run on every documentation commit after D,
+     including E.** Condition 7 at E then rests on D's dispatches and the
+     invariant, and the Gate Review says so.
+   - **The search for build, test or CI steps that read `docs/`,** made at
+     `97ee8b6`, is re-run at C.
+   - **D's runs are identified by run ID and event,** not by the list of
+     check runs on D. PR #56's `pull_request` runs attach to every `phase-4`
+     head, so they will appear on D and on E too.
+   - **D and E will be merge commits,** because nothing reaches `phase-4`
+     except by a PR merge. The proofs name those `phase-4` SHAs, and E's PR
+     head as well.
+   - **C, D and E are not defined yet,** and no dispatch has been made at a
+     final SHA.
 
 ---
 
@@ -971,7 +1261,10 @@ Real-Infrastructure Checks' copy on `main` has the trigger.
 passes once the named PR merges. *(2026-10-26: **P (#n)** = was →P #n, and
 PR #n has merged (§1.6); the named code is present at `634999b`. An item-3
 cell that read →P #n also needs doc 14, which is this PR, so it now reads
-→P doc 14.)*
+→P doc 14.)* *(2026-10-28: doc 14 merged with #53, as `97ee8b6`, and is on
+`phase-4` at `0a8ea62`. Under the legend, a cell that reads →P doc 14 now
+waits on nothing else. The cells are not re-marked here; that is left to the
+owner.)*
 
 | Subsystem | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -1101,11 +1394,23 @@ Promotion is `phase-4` → `main`, master scope §16.)*
    *(2026-10-27: D-A14 is decided, and this PR is its CI PR. On the owner's
    instruction it carries D-A14 only. D-A10 and D-A15 are still undecided, and
    are not in it.)*
+
+   *(2026-10-28: #57 merged, as `eefbbd2`. D-A10 was decided on 2026-10-27
+   and merged separately, as #58 (`0a8ea62`), after #59 (`6e511dd`), a
+   dependency fix like #54 and #55: CVE-2026-114613 in `msgpack` made
+   `dependency-audit` fail on `phase-4`'s unchanged lockfile (§1.6). D-A15 is
+   still undecided. The revised order's *"A CI PR … comes first, so every
+   later merge runs on one image"* did not happen. Every PR merged before #58,
+   #59 included, ran its CI under the `ubuntu-latest` label. #58's own runs,
+   from its first head on, ran under `ubuntu-24.04`, as every run on
+   `phase-4`'s tree has since its merge.)*
 4. **Post-merge verification** of `phase-4` (master scope §16 rule 7).
    *(2026-10-26: not yet recorded for the §1.6 merges. §1.6 lists what was
    checked at each merge and what is missing. The owner has directed that
    the record be completed on `phase-4` after PR #53 merges. The rule itself
-   is unchanged.)*
+   is unchanged.)* *(2026-10-28: #53 merged, as `97ee8b6`, and #57, #59 and
+   #58 since. The record is made in §1.7, for all seventeen merges, with local
+   gates on `phase-4` at `0a8ea62`. It closes no row.)*
 5. **C-7** per D-A7, then the **Phase 4 Gate Review** (X-01, X-02, X-11, X-12,
    X-14, X-16 … X-19, AC re-verification at the final SHA). That is its own PR.
 6. **Promotion PR**, only after **GO** and the owner's authorization to open
