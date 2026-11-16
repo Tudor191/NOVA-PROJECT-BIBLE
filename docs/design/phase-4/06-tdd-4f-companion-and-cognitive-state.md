@@ -830,6 +830,14 @@ world object. §16 control 11 asserts it.
 explicitly outside the Phase 4F CI acceptance path** and is not claimed as
 verified by it.
 
+> **Added 2026-10-28 (closure matrix D-A10), additively.** The sentence above
+> is preserved as written. Since PR #58, merged into `phase-4` as `0a8ea62`,
+> both PR Checks jobs run on `ubuntu-24.04`, including `e2e`, which runs this
+> acceptance path. The pin is temporary, for the Phase 4 closure window, and is
+> to be reconsidered after Phase 4 is promoted; `main`'s copy of
+> `pr-checks.yml` still names `ubuntu-latest`. Only the runner label changes.
+> This note does not re-verify the rest of the paragraph.
+
 **The acceptance path uses, end to end:** a **real `nova-companion` process** · a
 **real filesystem observation** · a **real project-directory event** · the
 **genuine perception pipeline** (`POST /v1/perception/observations` →
