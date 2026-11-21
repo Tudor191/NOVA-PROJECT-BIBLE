@@ -26,6 +26,7 @@ had no real caller until now."""
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import datetime
 from typing import Any, Protocol, runtime_checkable
 from uuid import UUID
@@ -36,12 +37,16 @@ from pydantic import BaseModel
 from nova_digital_twin_engine.domain.models import (
     CommunicationProfile,
     CompletedSessionEvidence,
+    DomainEvidence,
+    DomainModel,
     HabitSignal,
     PreferenceEvolutionEntry,
     ProactiveBoundaryPolicy,
     ProactiveDeliveryRecord,
+    ProjectModel,
     TrustMetric,
     TrustMetricHistoryEntry,
+    TwinDomain,
 )
 
 __all__ = [
@@ -100,6 +105,17 @@ class DigitalTwinRepository(Protocol):
         directly by tests and ready for a future evidence source."""
         ...
 
+    async def count_preference_evolution_entries(self, user_id: UUID) -> int:
+        """How many preference fields have actually been promoted past a default.
+
+        Phase 4E reports Bible Part 16's `Preferences` domain -- already shipped in
+        2D-D -- from this count rather than from evidence rows of its own: the
+        `preference_evolution_history` table *is* that domain's evidence, and
+        restating it under a second name would be two sources of truth for one
+        fact. Zero is an honest `empty`, not a defect (Fork F: no production call
+        site feeds `evolve_field` an inferred candidate yet)."""
+        ...
+
     async def record_habit_signal(self, signal: HabitSignal) -> HabitSignal: ...
 
     async def record_completed_session_evidence(
@@ -146,6 +162,58 @@ class DigitalTwinRepository(Protocol):
         `recent_deliveries` input (Sec10.1) -- scoped to `since` (the
         policy's own configured window) so this port never returns
         unbounded history."""
+        ...
+
+    # --- Phase 4E: Bible Part 16's nine remaining domains (TDD 4E Sec9) -------
+
+    async def record_domain_derivation(
+        self,
+        *,
+        models: Sequence[DomainModel],
+        evidence: Sequence[DomainEvidence] = (),
+        projects: Sequence[ProjectModel] = (),
+    ) -> None:
+        """Persist one derivation **atomically**: domain models first, then the
+        evidence rows that justify them, then any project models.
+
+        One call rather than three, because the order matters and the atomicity
+        is load-bearing. `domain_evidence` carries a composite foreign key into
+        `domain_model`, so the parent has to exist first; and a crash between the
+        two writes would otherwise leave a domain claiming a state its evidence
+        no longer supports -- precisely the inconsistency
+        `DomainModel`'s validator exists to make unrepresentable.
+
+        Idempotent. `domain_evidence`'s primary key is
+        `(user_id, domain, source_record_id)`, so a redelivered event -- the Event
+        Bus is at-least-once -- updates its own row instead of inflating a count.
+        """
+        ...
+
+    async def list_domain_evidence(
+        self, user_id: UUID, domain: TwinDomain | None = None
+    ) -> list[DomainEvidence]:
+        """Every evidence row for this user, optionally narrowed to one domain.
+
+        This is what `POST /domains/{domain}/refresh` re-derives from: the engine's
+        **own** accumulated provenance, the only source it legally owns (ADR-004,
+        TDD 4E Sec0.1.5)."""
+        ...
+
+    async def get_domain_model(self, user_id: UUID, domain: TwinDomain) -> DomainModel | None:
+        """`None` when this domain has never been derived for this user -- the
+        caller reports it as `empty` with its spec's own reason rather than
+        inventing a row."""
+        ...
+
+    async def list_domain_models(self, user_id: UUID) -> list[DomainModel]: ...
+
+    async def list_project_models(self, user_id: UUID) -> list[ProjectModel]:
+        """Most-recently-active first; projects with no timestamped evidence last."""
+        ...
+
+    async def get_project_model(self, user_id: UUID, project_id: UUID) -> ProjectModel | None:
+        """**The AC-6 read.** `None` when no memory has ever carried this
+        `project_id` for this user."""
         ...
 
     async def enqueue_outbox(self, event: OutboxEvent) -> UUID: ...

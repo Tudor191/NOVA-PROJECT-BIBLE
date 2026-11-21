@@ -6,6 +6,7 @@ that swapping one for the other in a test changes nothing observable.
 
 from __future__ import annotations
 
+from datetime import datetime
 from uuid import UUID, uuid4
 
 from nova_perception_engine.domain.models import (
@@ -24,6 +25,7 @@ class FakePerceptionRepository:
         self.consents: list[ConsentGrant] = []
         self.observations: list[IdentityObservation] = []
         self.sensor_health: dict[str, dict[str, object]] = {}
+        self.known_projects: dict[UUID, tuple[datetime, UUID]] = {}
         self.outbox: dict[UUID, OutboxRow] = {}
 
     async def enroll_identity(self, identity: EnrolledIdentity) -> EnrolledIdentity:
@@ -103,6 +105,17 @@ class FakePerceptionRepository:
             "status": status,
             "capabilities": capabilities,
         }
+
+    async def record_known_project(
+        self, project_id: UUID, *, source_event_id: UUID, observed_at: datetime
+    ) -> bool:
+        if project_id in self.known_projects:
+            return False
+        self.known_projects[project_id] = (observed_at, source_event_id)
+        return True
+
+    async def is_project_known(self, project_id: UUID) -> bool:
+        return project_id in self.known_projects
 
     async def enqueue_outbox(self, event: OutboxEvent) -> UUID:
         from datetime import UTC, datetime

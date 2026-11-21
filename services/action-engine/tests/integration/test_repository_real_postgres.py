@@ -270,3 +270,103 @@ async def test_a_dependent_action_survives_a_full_write_read_lifecycle(
     result, error = await repository.get_result(action.id)  # type: ignore[misc]
     assert result == {"exit_code": 0}
     assert error is None
+
+
+# --- `list_pending_approvals` (Phase 4B condition C-3) -----------------------
+#
+# Added by the Phase 4B Conditional-GO closure pass. `list_pending_approvals`
+# is the read behind `GET /v1/action/approvals`, which the Approvals panel
+# calls through `api-gateway`. It shipped in 4B with in-memory-fake coverage
+# only -- Gate Review section 8 item 6 -- so its two real SQL clauses,
+# `WHERE decision IS NULL` and `ORDER BY requested_at`, had never run against
+# a real Postgres in any environment. Both are asserted here directly.
+
+
+async def _approval_at(
+    repository: PostgresActionRepository, requested_at: datetime
+) -> UUID:
+    """One undecided approval with a caller-chosen `requested_at`.
+
+    `pending_approval.action_id` carries a foreign key to `action.id`, so the
+    parent Action is inserted first -- the same ordering
+    `domain/pipeline.py::_run_approval_loop` uses in production.
+    """
+    action = _action(risk="critical")
+    await repository.insert(action)
+    await repository.insert_pending_approval(
+        PendingApproval(action_id=action.id, risk="critical", requested_at=requested_at)
+    )
+    return action.id
+
+
+async def test_list_pending_approvals_returns_undecided_rows_oldest_first(
+    repository: PostgresActionRepository,
+) -> None:
+    """Oldest first, and only what is still awaiting a decision.
+
+    Both halves matter to the panel and neither was covered by a real
+    database: an operator works the queue from the top, so a wrong order is a
+    wrong queue, and a decided approval that keeps appearing is an action the
+    panel invites you to decide twice.
+
+    `requested_at` is caller-supplied here rather than server-defaulted, so
+    the three timestamps are genuinely distinct -- unlike `task_graph`'s
+    `created_at`, whose `now()` default is transaction-start time and would
+    tie inside this fixture's single outer transaction.
+    """
+    oldest = await _approval_at(repository, datetime(2026, 1, 1, tzinfo=UTC))
+    middle = await _approval_at(repository, datetime(2026, 2, 1, tzinfo=UTC))
+    newest = await _approval_at(repository, datetime(2026, 3, 1, tzinfo=UTC))
+
+    listed = await repository.list_pending_approvals()
+
+    assert [row.action_id for row in listed] == [oldest, middle, newest]
+    assert all(row.decision is None for row in listed)
+    assert all(row.risk == "critical" for row in listed)
+
+
+async def test_list_pending_approvals_drops_a_row_once_it_is_decided(
+    repository: PostgresActionRepository,
+) -> None:
+    """`WHERE decision IS NULL`, asserted through the real UPDATE rather than
+    against a fake that filters in Python."""
+    kept = await _approval_at(repository, datetime(2026, 1, 1, tzinfo=UTC))
+    decided = await _approval_at(repository, datetime(2026, 2, 1, tzinfo=UTC))
+
+    assert len(await repository.list_pending_approvals()) == 2
+
+    await repository.decide_pending_approval(
+        decided, decision="approved", decided_at=datetime(2026, 2, 2, tzinfo=UTC)
+    )
+
+    remaining = await repository.list_pending_approvals()
+    assert [row.action_id for row in remaining] == [kept]
+
+    # The decided row still exists -- it left the queue, it was not deleted.
+    still_there = await repository.find_pending_approval(decided)
+    assert still_there is not None
+    assert still_there.decision == "approved"
+
+
+async def test_list_pending_approvals_honours_its_limit(
+    repository: PostgresActionRepository,
+) -> None:
+    """The limit truncates from the *oldest* end, because that is what
+    `ORDER BY requested_at` puts first. A limit applied to an unordered read
+    would silently return an arbitrary subset."""
+    oldest = await _approval_at(repository, datetime(2026, 1, 1, tzinfo=UTC))
+    middle = await _approval_at(repository, datetime(2026, 2, 1, tzinfo=UTC))
+    await _approval_at(repository, datetime(2026, 3, 1, tzinfo=UTC))
+
+    listed = await repository.list_pending_approvals(limit=2)
+
+    assert [row.action_id for row in listed] == [oldest, middle]
+
+
+async def test_list_pending_approvals_is_empty_when_nothing_is_waiting(
+    repository: PostgresActionRepository,
+) -> None:
+    """The Approvals panel's normal state on a quiet system, and the reason
+    it must distinguish "nothing is waiting" from "the engine is
+    unreachable" -- an exception here would present as the latter."""
+    assert await repository.list_pending_approvals() == []

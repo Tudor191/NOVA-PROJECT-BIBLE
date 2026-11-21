@@ -27,6 +27,7 @@ from nova_contracts import (
     PerceptionPresenceObservedPayload,
     PerceptionSensorHealthChangedPayload,
     PerceptionWakeDetectedPayload,
+    PerceptionWorkspaceObservedPayload,
 )
 
 from nova_perception_engine.domain.models import (
@@ -35,6 +36,7 @@ from nova_perception_engine.domain.models import (
     PresenceObservation,
 )
 from nova_perception_engine.domain.ports import OutboxEvent
+from nova_perception_engine.domain.workspace import WorkspaceObservation
 
 __all__ = [
     "addressee_signal_candidate",
@@ -44,6 +46,7 @@ __all__ = [
     "presence_observed",
     "sensor_health_changed",
     "wake_detected",
+    "workspace_observed",
 ]
 
 
@@ -134,6 +137,40 @@ def addressee_signal_candidate(
     )
     return OutboxEvent(
         subject="perception.addressee_signal.candidate",
+        payload=payload.model_dump(mode="json"),
+        correlation_id=correlation_id,
+    )
+
+
+def workspace_observed(
+    observation: WorkspaceObservation, *, user_id: UUID, correlation_id: UUID
+) -> OutboxEvent:
+    """Phase 4F.2 (TDD 4F §20.2) -- the first **object-shaped** perception
+    event, consumed by `world-model-engine`'s object-graph handler through the
+    `perception.*.observed` wildcard it has always had.
+
+    **`user_id` is a keyword argument supplied by the caller, never read from
+    the observation.** The observation comes from the companion; the identity
+    comes from `Settings.primary_user_id` (ADR-025). Keeping them in separate
+    parameters is what makes it structurally impossible for a client-supplied
+    identity to reach this payload -- `WorkspaceObservation` has no `user_id`
+    field to carry one.
+
+    `observation.object_id` is already a path hash by construction
+    (`domain/workspace.py::object_id_for_path` is the only producer of one),
+    so no raw filesystem path can reach the wire through this function.
+    """
+    payload = PerceptionWorkspaceObservedPayload(
+        object_id=observation.object_id,
+        label=observation.label,
+        user_id=user_id,
+        object_type="project",
+        project_id=observation.project_id,
+        sensor_id=observation.sensor_id,
+        observed_at=observation.observed_at,
+    )
+    return OutboxEvent(
+        subject="perception.workspace.observed",
         payload=payload.model_dump(mode="json"),
         correlation_id=correlation_id,
     )

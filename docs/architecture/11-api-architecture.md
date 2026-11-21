@@ -46,13 +46,17 @@ DELETE /v1/memory/{id}                        # user-initiated forgetting (Part 
 GET    /v1/knowledge/graph?scope=project:<id>
 GET    /v1/world-model/context
 
+GET    /v1/plans                              # list task graphs, newest first (Phase 4B)
 GET    /v1/plans/{task_graph_id}
 POST   /v1/plans/{task_graph_id}/approve      # Part 9 "Collaborative Planning"
 
-GET    /v1/agents
-GET    /v1/agents/{id}/activity
+GET    /v1/agents                             # packages + instances + supervisors (Phase 4C)
+GET    /v1/agents/{id}                        # one agent instance (4C.2c; ratified, master scope §9.1)
+GET    /v1/agents/{id}/activity               # per-instance activity, cursor-paginated
 
-POST   /v1/autonomy/approvals/{id}/decide      # approve/reject a pending autonomous action
+GET    /v1/action/approvals                    # pending approvals, undecided, oldest first (Phase 4B)
+POST   /v1/action/approvals/{id}/decide        # approve/reject — the path actually built (Phase 3D)
+POST   /v1/autonomy/approvals/{id}/decide      # planned Autonomy-Engine equivalent; superseded in practice by /v1/action (Phase 4 D-6)
 GET    /v1/autonomy/policies
 PUT    /v1/autonomy/policies                    # Part 14 "Governance"
 
@@ -63,8 +67,72 @@ DELETE /v1/capabilities/{id}
 GET    /v1/digital-twin/profile
 PATCH  /v1/digital-twin/profile                  # Part 16 "User Control"
 
-GET    /v1/system/health                          # Part 20 dashboard feed
+GET    /v1/system/health                          # Part 20 dashboard feed — NOT IMPLEMENTED, see below
 ```
+
+> **The `/v1/agents` surface, as built (Phase 4C.2c, 2026-09-09; recorded
+> 2026-09-10).** Three routes on `agent-os/kernel`, forwarded 1:1 by
+> `api-gateway` under the `/v1/agents` prefix. Decision **D-4** authorised the
+> first and third; the resource read is ratified in the Phase 4 master scope
+> §9.1.
+>
+> - **Read-only, structurally.** Every route is a `GET`. There is no create,
+>   update or delete: agent lifecycle stays Event-Bus-driven, and
+>   `agent_os.agent_activity` is append-only with no write path from HTTP at
+>   all.
+> - **`GET /v1/agents` — 503 is not an empty list.** A reachable Registry
+>   holding nothing answers `200` with `packages: []`; a Registry that cannot
+>   be reached answers **`503`**. The distinction survives every layer, and no
+>   fallback package data is substituted — reporting "no agents are installed"
+>   when the truth is "the Registry is down" is the failure this rule exists
+>   to prevent.
+> - **`GET /v1/agents/{id}` — `404` for an unknown instance**, never an empty
+>   object a client could mistake for a real instance with unset fields.
+> - **`GET /v1/agents/{id}/activity` — keyset pagination.** An opaque
+>   `cursor`, a bounded `limit` (1–200, default 50), and `next_cursor` that is
+>   `null` exactly when no further row exists. **No offset anywhere**: an
+>   append-only table growing at the head would silently repeat rows between
+>   offset pages. An unparseable cursor is a **`400`**, never a silent restart
+>   at page one. Existence is checked before paging, so an unknown instance is
+>   `404` while a known instance with no history is a successful **empty
+>   page** — two different facts that must not render alike.
+> - **Reachable only through `api-gateway`.** `/internal/*` stays unroutable
+>   (§3), and no browser addresses `agent-os/kernel` directly.
+
+> **`GET /v1/system/health` is not implemented (noted 2026-09-06, Phase 4B).**
+> Phase 4B's Health panel was the first consumer this endpoint would have had.
+> It was not built, because `nova-core` — the only natural owner of a
+> cross-module health aggregate — exposes its surface exclusively under
+> `/internal/*`, which §3 below makes permanently unroutable through the API
+> Gateway. Building it would mean giving `nova-core` a public HTTP surface,
+> which is an architectural decision no phase has taken.
+>
+> The Health panel is **push-fed** instead, over `ws-gateway`, from the three
+> streams that already carry the same facts: `nova.heartbeat`,
+> `nova.module.status_changed` and `ai_model.model.health_changed`. See the
+> [Phase 4B Gate Review](../roadmap/architecture-reviews/phase-4b-observability-panels-gate-review.md)
+> §2 and §13 (G-3), where whether to keep the push-fed design permanently or
+> build the endpoint is recorded as an open decision for the user.
+
+> **`/v1/cognitive-state` — added 2026-09-26 (Phase 4F.7).** Three routes,
+> fronted 1:1 by `api-gateway` and backing the Cognitive State panel
+> ([TDD 4F.7](../design/phase-4/11-tdd-4f7-cognitive-state-panel.md) §7):
+>
+> | Method | Path | Returns |
+> |---|---|---|
+> | `GET` | `/v1/cognitive-state/thoughts` | Every Active Thought of the instance's user, with every Bible Part 6 field, its Attention Layer, and `proposed_action` as a proposal |
+> | `GET` | `/v1/cognitive-state/focus` | The Focus set — `capacity` and ranked `entries` (`score`, `signals_used`) |
+> | `GET` | `/v1/cognitive-state/sensors` | The last lifecycle state each sensor reported, with `reported_at` |
+>
+> - **Read-only, structurally.** No write route exists; `POST`, `PUT`, `PATCH`
+>   and `DELETE` answer `405`, which the gateway forwards unchanged.
+> - **Identity is server-side** (ADR-025): no `user_id` parameter exists, and a
+>   caller-supplied one is ignored.
+> - **Empty is empty; an error is an error.** An empty store answers empty
+>   lists, and a store failure is an error response — never `[]`.
+> - **Nothing about decisions.** No route reads `autonomy-engine`, and no
+>   response carries a status, outcome, decision, `subject_id`, triggered or
+>   executed field.
 
 ## 3. Internal engine API contracts
 
@@ -82,6 +150,24 @@ reachable only inside the private network/service mesh (or, in local-first mode,
 `localhost` only). This is the concrete enforcement mechanism behind "departments never
 communicate directly with the user" (Part 4): there is no network path from the public
 internet to an engine's internal RPC surface.
+
+> **Added 2026-10-11 (Phase 4F.8, on `phase-4f8`; TDD 4F.8 §29.1, A-4F8-1
+> (a)), additively.** `perception-engine` has `/v1/perception/*` routes for
+> `nova-companion`, which captures outside the engine. They are **not** fronted
+> by `api-gateway`, which has no `/v1/perception` prefix (D-4F-4), so no browser
+> can reach them. The companion calls them on the internal network.
+>
+> | Method | Path | Added | Purpose |
+> |---|---|---|---|
+> | `POST` | `/v1/perception/workspace-observations` | 4F.2 | A filesystem observation, which `perception-engine` normalizes |
+> | `POST` | `/v1/perception/permission-revocations?source=filesystem` | **4F.8 (D2)** | The companion lost its OS permission on its watch root. The filesystem sensor moves `running → failed` through the existing error path. Answers `202` with `{sensor_id, state, transitioned}`, where a repeat is `transitioned: false`. An unratified source answers `404` |
+>
+> - **The revocation route is the only path to the filesystem sensor's
+>   `failed`.** Nothing infers it from silence.
+> - **No subject, `PUBLIC_TOPICS` entry or gateway prefix was added.** `failed`
+>   reaches the Cognitive State panel on 4F.7's existing
+>   `perception.sensor.health_changed` path.
+> - The rest of this section is unchanged.
 
 ## 4. Request/response envelope
 

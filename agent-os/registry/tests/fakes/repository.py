@@ -35,6 +35,15 @@ class FakeRegistryRepository:
     async def list_by_category(self, category: str) -> list[AgentPackage]:
         return [row for row in self.rows.values() if row.category == category]
 
+    async def list_all(self) -> list[AgentPackage]:
+        """Sorted the same way `PostgresRegistryRepository.list_all` sorts.
+
+        A fake that returned insertion order would let an ordering test pass
+        here and fail against real Postgres -- the ordering guarantee is
+        part of the port's contract (`domain/ports.py`), so the fake has to
+        hold it too."""
+        return sorted(self.rows.values(), key=lambda row: (row.category, row.version, row.id))
+
     async def insert(self, package: AgentPackage) -> AgentPackage:
         key = (package.category, package.version)
         if key in self.rows:

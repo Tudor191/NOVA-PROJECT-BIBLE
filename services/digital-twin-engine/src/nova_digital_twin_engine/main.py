@@ -33,12 +33,16 @@ from nova_eventbus_sdk import bind_event_bus
 from nova_observability import configure_observability, get_logger, prometheus_asgi_app
 from nova_service_kit import make_health_router
 
+from nova_digital_twin_engine.api.digital_twin import router as domains_router
 from nova_digital_twin_engine.api.preferences import router as preferences_router
 from nova_digital_twin_engine.api.proactive_policy import router as proactive_policy_router
 from nova_digital_twin_engine.api.profile import router as profile_router
 from nova_digital_twin_engine.config import Settings
 from nova_digital_twin_engine.domain.ports import CommunicationPort, DigitalTwinRepository
 from nova_digital_twin_engine.events.handlers import (
+    make_attention_observed_handler,
+    make_decision_recorded_handler,
+    make_memory_created_handler,
     make_preferences_get_handler,
     make_session_completed_handler,
 )
@@ -108,6 +112,16 @@ def create_app(
             make_preferences_get_handler(app),
             source_engine="digital-twin-engine",
         )
+        # Phase 4E (TDD 4E Sec8.1). Three existing subjects with existing, real
+        # publishers -- this engine becomes their consumer, and registers nothing
+        # new. These subscriptions are the *only* way it reads another engine:
+        # ADR-004 forbids a raw HTTP call into one, and the TDD's original HTTP
+        # read was withdrawn for that reason (Sec0.1.5).
+        await bus.subscribe("memory.long_term.created", make_memory_created_handler(app))
+        await bus.subscribe("memory.decision.recorded", make_decision_recorded_handler(app))
+        await bus.subscribe(
+            "perception.attention.observed", make_attention_observed_handler(app)
+        )
         app.state.ready = True
         yield
         logger.info("digital-twin-engine shutting down")
@@ -121,6 +135,9 @@ def create_app(
     fastapi_app.include_router(profile_router)
     fastapi_app.include_router(preferences_router)
     fastapi_app.include_router(proactive_policy_router)
+    # Phase 4E. Additive: the three 2D-D routers above are unchanged, and
+    # `api-gateway` fronts the whole `/v1/digital-twin` subtree 1:1 (D-6).
+    fastapi_app.include_router(domains_router)
     fastapi_app.mount("/internal/metrics", prometheus_asgi_app())
     return fastapi_app
 

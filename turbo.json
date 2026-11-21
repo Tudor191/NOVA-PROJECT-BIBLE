@@ -12,7 +12,12 @@
     "lint": {
       "outputs": []
     },
+    "typecheck": {
+      "dependsOn": ["^build"],
+      "outputs": []
+    },
     "test": {
+      "env": ["COVERAGE_RCFILE"],
       "outputs": []
     }
   }

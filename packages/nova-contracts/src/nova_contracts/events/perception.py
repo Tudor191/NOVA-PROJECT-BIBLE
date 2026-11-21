@@ -28,7 +28,9 @@ Every payload carries `schema_version: int = 1` from this first commit
 
 from __future__ import annotations
 
+from datetime import datetime
 from enum import StrEnum
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -48,6 +50,7 @@ __all__ = [
     "PerceptionSensorHealthChangedPayload",
     "PerceptionSource",
     "PerceptionWakeDetectedPayload",
+    "PerceptionWorkspaceObservedPayload",
 ]
 
 
@@ -157,6 +160,65 @@ class PerceptionAddresseeSignalCandidatePayload(BaseModel):
     gaze_direction: GazeDirection
     session_active: bool
     user_id: UUID
+    schema_version: int = 1
+
+
+@register_payload("perception.workspace.observed")
+class PerceptionWorkspaceObservedPayload(BaseModel):
+    """Phase 4F.2, ratified in TDD 4F §20.2 -- the **object-shaped** perception
+    observation, produced from a `nova-companion` filesystem sensor.
+
+    **Why a new subject was genuinely required (D-4D-1).**
+    `world-model-engine`'s `make_perception_observed_handler` needs
+    `object_id`, `label` and `user_id`. Every payload above is identity- or
+    sensor-shaped and carries none of the three -- there are zero occurrences
+    of `object_id`, `entity_id` or `object_label` in this module outside this
+    class. The subject is one segment, so it lands under that engine's
+    existing `perception.*.observed` wildcard and falls through
+    `make_perception_dispatch_handler`'s `else` branch **with zero world-model
+    changes**.
+
+    **`object_id` is a file-path hash, never the path.** `WorldObject`'s own
+    docstring names *"a window handle, a file path hash, a project UUID"* as
+    the sanctioned handle forms. A raw filesystem path is user data that has
+    no business crossing the bus, and `perception-engine` hashes it before
+    this payload is ever constructed.
+
+    **Internal only.** It carries raw sensor provenance -- `sensor_id`,
+    `observed_at`, a path hash -- so it is absent from `PUBLIC_TOPICS`,
+    `ws-gateway` cannot subscribe to it, and no browser can name it. The
+    browser sees *normalized* state through the Cognitive State REST surface
+    instead.
+    """
+
+    object_id: str
+    """The file-path **hash**. Read by the consumer via `_text_from(payload,
+    "object_id", "entity_id")`, which requires a non-empty string."""
+
+    label: str
+    """Read via `_text_from(payload, "label", "object_label")`. The consumer
+    defaults to `"Unknown"` when absent; 4F does not rely on that default."""
+
+    user_id: UUID
+    """Resolved **server-side** from `Settings.primary_user_id` (ADR-025) --
+    never supplied by the companion. The consumer skips the event without it."""
+
+    object_type: Literal["project"]
+    """A **closed** literal, so a new kind of observation cannot appear
+    unnoticed. Widening it is a contract decision, not an implementation
+    detail."""
+
+    project_id: UUID | None = None
+    """§9's enrichment result. **`None` when correlation fails** -- an honest
+    unknown, never a guess."""
+
+    sensor_id: str
+    """Provenance: which registered `Sensor` observed it."""
+
+    observed_at: datetime
+    """The **real** OS event time, and the start of AC-7's measured interval.
+    §20.1 forbids fabricating it."""
+
     schema_version: int = 1
 
 

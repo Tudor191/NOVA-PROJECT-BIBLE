@@ -243,3 +243,93 @@ async def test_update_health_status_on_unknown_id_is_a_no_op(
 ) -> None:
     # must not raise
     await repository.update_health_status(uuid4(), health_status="healthy")
+
+
+# --- list_all, Phase 4C milestone 4C.2a -------------------------------------
+#
+# Written against real Postgres rather than the fake, because the ordering is
+# produced by an `ORDER BY` the fake can only imitate: a Python `sorted()`
+# agreeing with a SQL collation is exactly the kind of thing that holds until
+# it does not. These run in the same `real_infra` tier as the rest of the file.
+
+
+async def test_list_all_returns_every_installed_row(
+    repository: PostgresRegistryRepository,
+) -> None:
+    first = await repository.insert(_package(category="coding", version="1.0.0"))
+    second = await repository.insert(_package(category="research", version="0.1.0"))
+
+    rows = await repository.list_all()
+
+    assert {row.id for row in rows} == {first.id, second.id}
+
+
+async def test_list_all_returns_an_empty_list_when_nothing_is_installed(
+    repository: PostgresRegistryRepository,
+) -> None:
+    """Healthy repository, nothing installed -- decision D-1's `200 []` case
+    at its source. This is a successful empty result, never an error."""
+    assert await repository.list_all() == []
+
+
+async def test_list_all_orders_by_category_then_version_then_id(
+    repository: PostgresRegistryRepository,
+) -> None:
+    """Inserted deliberately out of order, so a repository that returned
+    insertion order (or Postgres's physical order) would fail here."""
+    await repository.insert(_package(category="qa", version="0.1.0"))
+    await repository.insert(_package(category="architect", version="0.2.0"))
+    await repository.insert(_package(category="architect", version="0.1.0"))
+    await repository.insert(_package(category="coding", version="0.1.0"))
+
+    rows = await repository.list_all()
+
+    assert [(row.category, row.version) for row in rows] == [
+        ("architect", "0.1.0"),
+        ("architect", "0.2.0"),
+        ("coding", "0.1.0"),
+        ("qa", "0.1.0"),
+    ]
+
+
+async def test_list_all_ordering_is_stable_across_repeated_calls(
+    repository: PostgresRegistryRepository,
+) -> None:
+    """`(category, version)` is unique, so the order is a total order and
+    repeated reads must agree. Without an `ORDER BY` this can pass once and
+    fail later, when the planner picks a different scan."""
+    for category, version in (("qa", "0.1.0"), ("coding", "0.2.0"), ("coding", "0.1.0")):
+        await repository.insert(_package(category=category, version=version))
+
+    first = [(row.category, row.version) for row in await repository.list_all()]
+    second = [(row.category, row.version) for row in await repository.list_all()]
+
+    assert first == second
+    assert first == [("coding", "0.1.0"), ("coding", "0.2.0"), ("qa", "0.1.0")]
+
+
+async def test_list_all_includes_rows_the_dispatch_selection_would_reject(
+    repository: PostgresRegistryRepository,
+) -> None:
+    """The difference between reporting and choosing, asserted against the
+    real selection policy rather than described.
+
+    `select_dispatch_version` answers `None` here -- no version of `coding`
+    is healthy -- while `list_all` still reports both. An operator has to be
+    able to see an installed-but-broken package; that is precisely when it
+    matters most.
+    """
+    await repository.insert(
+        _package(category="coding", version="1.1.0", health_status="unhealthy")
+    )
+    await repository.insert(
+        _package(category="coding", version="1.2.0", health_status="unknown")
+    )
+
+    assert select_dispatch_version(await repository.list_by_category("coding")) is None
+
+    rows = await repository.list_all()
+    assert [(row.category, row.version) for row in rows] == [
+        ("coding", "1.1.0"),
+        ("coding", "1.2.0"),
+    ]

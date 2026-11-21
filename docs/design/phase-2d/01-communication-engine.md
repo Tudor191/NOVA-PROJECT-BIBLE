@@ -371,7 +371,35 @@ class ChannelAdapter(Protocol):
 
 Two concrete adapters ship this phase: `TextChannelAdapter` (WebSocket, per
 `ws-gateway`) and `VoiceChannelAdapter` (WebSocket audio frames, wrapping the
-pipeline in §4). Bible Part 13's full channel list (notifications, email, SMS,
+pipeline in §4). A third, `BusTextChannelAdapter`, was added in Phase 4A.
+
+| Adapter | Transport | Streaming | Audio | Text | Supplied when |
+|---|---|---|---|---|---|
+| `TextChannelAdapter` | this engine's own WebSocket | yes | no | yes | a client is registered in `SessionRegistry` |
+| `VoiceChannelAdapter` | this engine's own WebSocket (audio frames) | yes | yes | no | a client is registered in `SessionRegistry` |
+| `BusTextChannelAdapter` | the Event Bus, bridged by `ws-gateway` | **no** | no | yes | a **text** session has no registered client |
+
+`BusTextChannelAdapter` exists because the web client can never be one of the
+first two: doc 11 §1 forbids the frontend from connecting to an engine, so a
+browser session would otherwise have no channel at all and the §7 gate would
+correctly refuse every reply as `no_live_channel_connection`. Its transport is
+`communication.intent.delivered`, which `ws-gateway` — the only component
+permitted to bridge bus subjects to a client (doc 09 §6) — forwards to the
+subscribed browser. It reports `streaming=false` because that subject carries an
+utterance the gate has already finalized; there are no partial tokens to stream.
+It publishes nothing itself: the outbox row is written by
+`events/handlers.py`, which remains the single emission point for that event.
+
+**Adapter supply is the application layer's concern, not `SessionRegistry`'s.**
+The gate holds whichever adapter its caller supplies (§7). `SessionRegistry`
+holds only process-local *live connection* state, so a bus-backed channel — which
+has no connection — is deliberately absent from it and is supplied instead as a
+fallback in `events/handlers.py`: a registered adapter always wins, and a text
+session without one gets the bus. Voice is excluded, because
+`communication.intent.delivered` carries text and not audio, so a voice session
+with no live socket genuinely cannot be delivered and keeps its rejection.
+
+Bible Part 13's full channel list (notifications, email, SMS,
 smartwatch, AR, VR, robotics) is **explicitly not built this phase** (Master
 Blueprint §3.2) — the `ChannelAdapter` protocol exists specifically so adding one
 is implementing the protocol, never redesigning the Session Manager or Lifecycle
@@ -406,8 +434,10 @@ a `communication.intent.deliver` request (§11). The gate, in order:
    (§8.3). On success, the (possibly style-adjusted) content and a
    `personality_validated=true` flag proceed. On RPC failure/timeout, §9's
    documented fallback applies — the gate never blocks indefinitely.
-3. **Delivery** — routed to the requesting session's current Channel Adapter,
-   recorded as an outbound `ConversationTurn` (§3.3).
+3. **Delivery** — routed to the Channel Adapter the caller supplied for this
+   session (§5), recorded as an outbound `ConversationTurn` (§3.3). A clean
+   return from `deliver` means *that channel accepted the utterance for
+   transmission* — never that a person saw it (ADR-005's clarification).
 
 No other path to a Channel Adapter's `deliver` method exists in this codebase —
 this is enforced structurally (only the gate holds a reference to Channel Adapter

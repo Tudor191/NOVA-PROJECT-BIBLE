@@ -1,8 +1,10 @@
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import pytest
 from nova_contracts import (
     ConsolidationCompletedPayload,
+    EventEnvelope,
     LifecycleState,
     LifecycleTransitionedPayload,
     LongTermMemoryCreatedPayload,
@@ -46,6 +48,69 @@ def test_long_term_memory_created_validates_against_registry() -> None:
     assert isinstance(validated, LongTermMemoryCreatedPayload)
     assert validated.memory_type is MemoryType.EPISODIC
     assert validated.privacy_level is PrivacyLevel.INTERNAL
+
+
+# --- `created_at`, added by Phase 4E (TDD 4E §0.1.5) ---------------------------
+#
+# Protocol §8.1: a contract change carries its own contract test. 4E added this
+# field with consumer tests in `digital-twin-engine` and `memory-engine`, and
+# none here (closure-matrix N-08).
+
+
+def test_a_created_event_without_created_at_still_validates() -> None:
+    """ADR-024's additive rule: a producer written before 4E, or an in-flight
+    envelope, omits the field and must still be accepted -- as "no timestamp
+    evidence", never as a fabricated one."""
+    validated = validate_payload(
+        "memory.long_term.created",
+        {
+            "memory_id": str(uuid4()),
+            "user_id": str(uuid4()),
+            "memory_type": "episodic",
+            "importance_score": 0.5,
+            "privacy_level": "internal",
+        },
+    )
+    assert isinstance(validated, LongTermMemoryCreatedPayload)
+    assert validated.created_at is None
+
+
+def test_a_historical_created_at_survives_the_wire_and_is_not_the_envelopes() -> None:
+    """The field exists because a memory's creation and its event's publication
+    are different moments: the envelope's `occurred_at` is the second."""
+    created = datetime(2026, 8, 1, 9, 30, tzinfo=UTC)
+    envelope = EventEnvelope(
+        subject="memory.long_term.created",
+        source_engine="memory-engine",
+        correlation_id=uuid4(),
+        payload=LongTermMemoryCreatedPayload(
+            memory_id=uuid4(),
+            user_id=uuid4(),
+            memory_type=MemoryType.EPISODIC,
+            importance_score=0.5,
+            privacy_level=PrivacyLevel.INTERNAL,
+            created_at=created,
+        ).model_dump(mode="json"),
+    )
+
+    received = EventEnvelope.model_validate_json(envelope.model_dump_json())
+    payload = validate_payload(received.subject, received.payload)
+
+    assert isinstance(payload, LongTermMemoryCreatedPayload)
+    assert payload.created_at == created
+    assert received.occurred_at - payload.created_at > timedelta(days=1)
+
+
+def test_created_at_must_be_a_timestamp() -> None:
+    with pytest.raises(ValidationError):
+        LongTermMemoryCreatedPayload(
+            memory_id=uuid4(),
+            user_id=uuid4(),
+            memory_type=MemoryType.EPISODIC,
+            importance_score=0.5,
+            privacy_level=PrivacyLevel.INTERNAL,
+            created_at="three weeks ago",  # type: ignore[arg-type]
+        )
 
 
 def test_importance_score_must_be_in_unit_interval() -> None:

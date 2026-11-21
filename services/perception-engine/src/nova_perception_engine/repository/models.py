@@ -94,6 +94,17 @@ class SensorRegistrationORM(Base):
     error_count: Mapped[int] = mapped_column(nullable=False, default=0)
 
 
+class KnownProjectORM(Base):
+    """Phase 4F.8, A-4F8-2 (a1): a project identity NOVA holds, learned from
+    `memory.long_term.created`. Current state only (`0002_known_project.py`)."""
+
+    __tablename__ = "known_project"
+
+    project_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True)
+    first_observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    source_event_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), nullable=False)
+
+
 class OutboxEventORM(Base):
     __tablename__ = "outbox_event"
 

@@ -45,6 +45,39 @@ layers are covered primarily by integration tests rather than chased for unit
 coverage percentage, since their value is in correct wiring, not branching
 logic.
 
+> **Correction, 2026-10-16 (finding N-11).** The paragraph above is kept as
+> written, but *"checked in CI"* was not true. Each `test` script runs in its
+> package's own directory, and coverage.py reads configuration only from the
+> current directory, so the root `fail_under = 85` was never applied: a
+> package measured at 81% exited 0. `pr-checks.yml` now sets
+> `COVERAGE_RCFILE` to the root `pyproject.toml` for the test step, and
+> `turbo.json` declares the variable so it reaches each task. With the
+> variable set, the same 81% run exits 1.
+>
+> **Open question, not decided here:** this paragraph says *line* coverage,
+> while the root config it points to sets `branch = true`. The enforced gate
+> therefore measures line and branch coverage together, which is stricter.
+> Every package clears it (lowest 89.82% on 2026-10-16). Whether the
+> paragraph or the config should change is a decision for the owner,
+> recorded in the Phase 4 closure matrix.
+>
+> Two corrections to the figures above: `world-model-engine` measured
+> 84.55% with branches, passing only because coverage.py rounds to whole
+> percent; `domain/ranking.py` and `domain/simulation.py` had no test. They
+> now do, and it measures 90.77%. Locally, the gate applies only when
+> `COVERAGE_RCFILE` is set as CI sets it.
+>
+> **Correction, 2026-10-17.** The note above is kept as written, but its
+> rounding remark understates the defect: coverage.py decides the exit code
+> with `round(total, precision) < fail_under`, so at the default precision 0
+> any package from 84.5% up to 85% exited 0 while printing "FAIL … not
+> reached". Root `pyproject.toml` now sets `precision = 4`. Two decimals were
+> not enough: a package of 1,013 statements plus branches can measure 84.99506%,
+> which rounds to 85.00. At four decimals no total below 85% passes for any
+> package up to 100,000 units. `tools/tests/test_coverage_gate.py` asserts
+> that, asserts that 84.55% fails, and asserts that every `src/*/domain`
+> package's `test` script measures its `domain` with `--cov`.
+
 ## 2. Unit testing
 
 - Framework: `pytest` (Python engines), `cargo test` (companion), `vitest` (frontend).

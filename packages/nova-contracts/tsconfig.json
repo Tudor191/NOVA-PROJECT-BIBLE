@@ -1,0 +1,16 @@
+{
+  "//": "Type-checks the generated TypeScript contract surface. Added in Phase 4A: the codegen output had never been compiled by anything, which is why 395 TS2308 collisions in the generated barrel went unnoticed (see tests/test_typescript_codegen.py). `pnpm --filter @nova/nova-contracts run typecheck` runs this; CI runs it via `pnpm turbo run typecheck`.",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022"],
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true
+  },
+  "include": ["typescript/**/*.ts"]
+}

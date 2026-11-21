@@ -1,0 +1,251 @@
+"""The forwarding route table -- decision **D-6**.
+
+Doc 11 §2's documented endpoint list predates several engines and diverges
+from what actually shipped: it names `/v1/conversations`, `/v1/memory/search`
+and `/v1/autonomy/approvals/...`, while the code exposes
+`/v1/communication/sessions`, `/v1/memories` and
+`/v1/action/approvals/...`. D-6 resolved that by correcting the document
+rather than translating in the gateway, so **paths are forwarded verbatim**.
+A mapping layer between documented and real paths would be a permanent
+source of drift.
+
+The table is an allow-list, not a pattern. A prefix that is not listed is
+not forwarded -- the gateway 404s rather than proxying anything a caller
+names. 4B extends this with planning/reasoning/capability/action; the
+mechanism does not change, only the entries.
+"""
+
+from __future__ import annotations
+
+import re
+from dataclasses import dataclass
+
+#: Endpoint classes for rate limiting, doc 11 §5.
+READ_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
+
+#: One path segment as the ASGI server hands it over, already percent-decoded:
+#: RFC 3986 `pchar`s other than `%` and `;`. No fronted route needs anything
+#: else. `httpx` would re-encode or reinterpret each excluded character, and
+#: `;` starts a path parameter some servers strip, which would turn `..;` into
+#: `..` behind them.
+_SEGMENT = re.compile(r"[A-Za-z0-9\-._~!$&'()*+,=:@]+")
+
+
+def is_canonical(path: str) -> bool:
+    """True only for a path the gateway forwards to the engine unchanged.
+
+    The prefix match is the gateway's only check of *where* a request goes, so
+    it must see the path the engine will receive (closure matrix R-06).
+    `httpx` removes `.` and `..` segments when it builds the upstream URL, and
+    reads a decoded `?` or `#` as the start of a query or fragment, so
+    `/v1/digital-twin/../../internal/health` would match `/v1/digital-twin`
+    here and reach `/internal/health` there. An empty segment is refused too,
+    except one trailing slash.
+    """
+    if not path.startswith("/"):
+        return False
+    segments = path[1:].split("/")
+    if segments[-1] == "":
+        segments.pop()
+    return all(
+        _SEGMENT.fullmatch(segment) is not None and segment not in (".", "..")
+        for segment in segments
+    )
+
+
+@dataclass(frozen=True)
+class UpstreamRoute:
+    """One fronted engine."""
+
+    prefix: str
+    upstream_name: str
+    base_url: str
+
+
+class RouteTable:
+    def __init__(self, routes: list[UpstreamRoute]) -> None:
+        for route in routes:
+            if not route.prefix.startswith("/v1/"):
+                raise ValueError(
+                    f"route prefix {route.prefix!r} must start with '/v1/'. "
+                    "Only the versioned external surface is forwardable; "
+                    "'/internal/*' is never routable through the gateway "
+                    "(doc 11 §3)."
+                )
+        # Longest prefix first, so a more specific route always wins over a
+        # more general one regardless of declaration order.
+        self._routes = sorted(routes, key=lambda r: len(r.prefix), reverse=True)
+
+    def resolve(self, path: str) -> UpstreamRoute | None:
+        if not is_canonical(path):
+            return None
+        for route in self._routes:
+            if path == route.prefix or path.startswith(route.prefix.rstrip("/") + "/"):
+                return route
+        return None
+
+    @property
+    def routes(self) -> tuple[UpstreamRoute, ...]:
+        return tuple(self._routes)
+
+
+def endpoint_class(method: str) -> str:
+    return "read" if method.upper() in READ_METHODS else "write"
+
+
+def build_route_table(
+    *,
+    communication_engine_url: str,
+    planning_engine_url: str,
+    reasoning_engine_url: str,
+    capability_engine_url: str,
+    action_engine_url: str,
+    agent_os_kernel_url: str,
+    autonomy_engine_url: str,
+    digital_twin_engine_url: str,
+    cognitive_state_engine_url: str,
+) -> RouteTable:
+    """Every engine the gateway fronts, and nothing else.
+
+    4A fronted `communication-engine` alone. 4B adds the four the
+    observability panels read from, 4C the Agents panel's Kernel, 4D the
+    Autonomy panel, 4E the Digital Twin panel and 4F.7 the Cognitive State
+    panel -- exactly as this module
+    predicted, by appending entries rather than changing the mechanism. Each
+    engine's `/v1` surface already existed; no engine API was changed to be
+    fronted.
+
+    Deliberately absent:
+
+    * `executive-cognition-engine` -- it has a `/v1/executive/decisions`
+      surface, but no 4B panel reads it. Fronting an engine no panel uses
+      would widen the external attack surface for nothing.
+    * `nova-core` -- exposes only `/internal/*`, which is never routable
+      (doc 11 §3). The Health panel is fed by bus telemetry instead.
+    * `agent-os/registry` and `agent-os/supervisors` -- neither has a `/v1`
+      surface, and neither needs one: the Agents panel reads packages through
+      the Kernel, which asks Registry over the bus (ADR-004). Fronting them
+      would expose two components no panel talks to.
+
+    Every prefix here is a **panel's** data source. Adding one because an
+    engine happens to exist is how an allow-list stops being one.
+    """
+    return RouteTable(
+        [
+            UpstreamRoute(
+                prefix="/v1/communication",
+                upstream_name="communication-engine",
+                base_url=communication_engine_url.rstrip("/"),
+            ),
+            # Planning panel.
+            UpstreamRoute(
+                prefix="/v1/plans",
+                upstream_name="planning-engine",
+                base_url=planning_engine_url.rstrip("/"),
+            ),
+            # Reasoning Trace panel.
+            UpstreamRoute(
+                prefix="/v1/reasoning",
+                upstream_name="reasoning-engine",
+                base_url=reasoning_engine_url.rstrip("/"),
+            ),
+            # Capabilities panel.
+            UpstreamRoute(
+                prefix="/v1/capabilities",
+                upstream_name="capability-engine",
+                base_url=capability_engine_url.rstrip("/"),
+            ),
+            # Approvals panel.
+            UpstreamRoute(
+                prefix="/v1/action",
+                upstream_name="action-engine",
+                base_url=action_engine_url.rstrip("/"),
+            ),
+            # Agents panel (Phase 4C, decision D-4). The first upstream here
+            # that is not a `services/*` engine -- `agent-os/kernel` is
+            # control-plane infrastructure -- which changes nothing about the
+            # mechanism: one prefix, one upstream, forwarded 1:1.
+            #
+            # `/v1/agents/{id}` and `/v1/agents/{id}/activity` need no entries
+            # of their own: `resolve()` matches on prefix, so the whole
+            # subtree forwards to the Kernel. That is also why nothing here
+            # can reach `/internal/*` -- `RouteTable` refuses any prefix
+            # outside `/v1/` at construction.
+            UpstreamRoute(
+                prefix="/v1/agents",
+                upstream_name="agent-os-kernel",
+                base_url=agent_os_kernel_url.rstrip("/"),
+            ),
+            # Autonomy panel (Phase 4D). `/v1/autonomy` and its whole subtree
+            # -- levels, policies, permissions, suggestions -- forwarded 1:1
+            # (D-6), by appending one entry rather than changing the mechanism.
+            #
+            # This is **not** a duplicate of `/v1/action` above. TDD 4D §8.1
+            # draws the boundary: `action-engine`'s approval endpoint decides
+            # one already-created Action inside its execution pipeline;
+            # `/v1/autonomy/*` governs whether NOVA may act at all. Both exist,
+            # neither is reachable from the other's domain, and neither is
+            # deprecated.
+            UpstreamRoute(
+                prefix="/v1/autonomy",
+                upstream_name="autonomy-engine",
+                base_url=autonomy_engine_url.rstrip("/"),
+            ),
+            # Digital Twin panel (Phase 4E). `/v1/digital-twin` and its whole
+            # subtree, forwarded 1:1 (D-6) -- one more entry, same mechanism.
+            #
+            # **This prefix fronts more than 4E's five routes.** `resolve()`
+            # matches on prefix, so Phase 2D-D's `/profile`, `/preferences`,
+            # `/proactive-policy` and `/reset` become reachable too -- six
+            # operations in total. That is the mechanism working as D-6 defines
+            # it, identically to `/v1/agents` fronting the Kernel's whole
+            # subtree: the alternative is either five exact-path entries that
+            # drift from the engine, or a path-rewriting layer, and D-6 rejected
+            # rewriting explicitly as a permanent source of drift.
+            #
+            # **The disclosed consequence, stated rather than buried (Phase 4E
+            # finding 3).** Those six 2D-D operations take a **required,
+            # caller-supplied `user_id` query parameter**, and three of them
+            # write: `PATCH /profile`, `PATCH /proactive-policy`, `POST /reset`.
+            # Before 4E they were unreachable from outside, so the parameter
+            # never faced a caller. They now do.
+            #
+            # What that is and is not, today: **not** a confidentiality vector --
+            # ADR-025 gives one trusted user per instance, so there is no second
+            # user's data to address, and D-3 authenticates every request before
+            # any upstream call. What it *is* is an identity-at-the-edge surface
+            # of exactly the kind 4E deliberately avoided for its own five routes
+            # (which resolve `primary_user_id` server-side), plus an integrity
+            # surface: an authenticated caller can write profile rows keyed to an
+            # arbitrary UUID that nothing else reads. It also becomes a real
+            # multi-user hazard the moment ADR-025 is relaxed.
+            #
+            # **Reported, not fixed here** (protocol §13.1). Changing 2D-D's six
+            # routes to resolve identity server-side would alter shipped
+            # behaviour and desynchronise them from the
+            # `digital_twin.preferences.get.request` RPC, which carries `user_id`
+            # on the wire by design -- a decision with its own blast radius,
+            # outside Phase 4E's ratified scope. `tests/unit/test_domain.py` pins
+            # the exposed set so it cannot widen unnoticed.
+            #
+            # Nothing under `/internal/*` becomes reachable: `RouteTable` refuses
+            # any prefix outside `/v1/` at construction.
+            UpstreamRoute(
+                prefix="/v1/digital-twin",
+                upstream_name="digital-twin-engine",
+                base_url=digital_twin_engine_url.rstrip("/"),
+            ),
+            # Cognitive State panel (Phase 4F.7, TDD 4F §24 RS-5). One prefix,
+            # forwarded 1:1 (D-6). Unlike `/v1/digital-twin`, the subtree fronts
+            # exactly what the panel reads: `cognitive-state-engine` serves three
+            # `GET`s under this prefix and nothing else, with no `user_id`
+            # parameter -- identity is resolved server-side -- and answers 405 to
+            # every other method, which is forwarded unchanged. Its `/internal/*`
+            # stays unreachable: `RouteTable` refuses any prefix outside `/v1/`.
+            UpstreamRoute(
+                prefix="/v1/cognitive-state",
+                upstream_name="cognitive-state-engine",
+                base_url=cognitive_state_engine_url.rstrip("/"),
+            ),
+        ]
+    )

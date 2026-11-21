@@ -12,7 +12,18 @@ services:
   # ---------------------------------------------------------------------------
 
   postgres:
-    image: postgres:16-alpine
+    # pgvector, not plain postgres. `docs/architecture/07-database-architecture.md`
+    # §1 lists memory-engine and knowledge-engine as "PostgreSQL + pgvector" and
+    # §3 is titled "Vector storage (pgvector)"; both engines' migration 0001
+    # opens with `CREATE EXTENSION IF NOT EXISTS vector`. Against
+    # `postgres:16-alpine` that fails with `extension "vector" is not
+    # available`, so those two schemas could never be created -- the image
+    # simply did not satisfy the architecture it was serving.
+    #
+    # Same class of defect as the missing migration step, and invisible for the
+    # same reason: nothing had ever started this stack. Still PostgreSQL 16, so
+    # an existing `postgres-data` volume keeps working.
+    image: pgvector/pgvector:pg16
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-nova}
@@ -171,6 +182,38 @@ services:
       - loki
 
   # ---------------------------------------------------------------------------
+  # Schema bootstrap
+  # ---------------------------------------------------------------------------
+
+  # One-shot: brings all fourteen Postgres-backed engine schemas to head, in
+  # sequence, then exits. Every engine below gates on it completing
+  # successfully, so none of them can start against an empty or
+  # partially-migrated database.
+  #
+  # This closes a defect that predates Phase 4: the stack had no migration step
+  # of any kind, so engines crash-looped on their first query
+  # (`relation "communication.conversation_session" does not exist`). It had
+  # never been observed because nothing had ever started the stack -- CI's
+  # "Validate docker-compose.local.yml" step runs `config --quiet`, which parses
+  # the YAML and starts nothing. Phase 4A's Playwright job was the first thing
+  # to actually run it.
+  #
+  # See `run-migrations.sh` for why this is one container rather than sixteen,
+  # and why sixteen alembic histories share one database safely.
+  migrations:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.migrations
+    # A completed one-shot must not be resurrected; `service_completed_
+    # successfully` depends on it staying exited.
+    restart: "no"
+    environment:
+      NOVA_POSTGRES_DSN: postgresql+asyncpg://${POSTGRES_USER:-nova}:${POSTGRES_PASSWORD:-nova_dev_password}@postgres:5432/${POSTGRES_DB:-nova}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # ---------------------------------------------------------------------------
   # NOVA itself (docs/architecture/03-backend-architecture.md, Roadmap Phase 0)
   # ---------------------------------------------------------------------------
 
@@ -219,6 +262,63 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  # Phase 4E. memory-engine has had a complete Arq worker since Phase 1 --
+  # `nova_memory_engine.workers.WorkerSettings`, with `arq_run_outbox_dispatch`
+  # on a 10-second cron -- and no compose service ever ran it. Since
+  # `dispatch_ready_events` is the only caller of `bus.publish()` for this
+  # engine's domain events, that meant **no `memory.*` subject had ever been
+  # published in this stack**: every `memory.outbox_event` row simply
+  # accumulated, while the API reported healthy and every synchronous RPC leg
+  # worked. The same shape as the `communication-engine-worker` omission Phase
+  # 4A's first real Playwright run hit twice (`tools/tests/
+  # test_e2e_stack_completeness.py`'s own module docstring).
+  #
+  # It went unnoticed because no `memory.*` subject is in `PUBLIC_TOPICS`, so
+  # nothing a browser could observe depended on it. **Phase 4E is what changed
+  # that**, one hop removed: `digital-twin-engine` derives Bible Part 16's
+  # domains from `memory.long_term.created`, and the Digital Twin panel renders
+  # the result. AC-6's reconstruction is therefore unreachable without this
+  # service, which is exactly how CI found it.
+  #
+  # Mirrors `perception-engine-worker` exactly -- same image, no healthcheck
+  # (an Arq process serves no HTTP), same four dependencies. The embedding and
+  # consolidation crons this also starts are Phase 1 design requirements
+  # (docs/design/phase-1/01-memory-engine.md §4, §6, §10) that have likewise
+  # never run here.
+  memory-engine-worker:
+    build:
+      context: ../..
+      dockerfile: services/memory-engine/Dockerfile
+    command: ["arq", "nova_memory_engine.workers.WorkerSettings"]
+    restart: unless-stopped
+    healthcheck:
+      disable: true
+    environment:
+      EVENT_BUS_BACKEND: nats
+      NATS_URL: nats://nats:4222
+      NOVA_ENGINE_NAME: memory-engine
+      MEMORY_ENGINE_POSTGRES_DSN: postgresql+asyncpg://${POSTGRES_USER:-nova}:${POSTGRES_PASSWORD:-nova_dev_password}@postgres:5432/${POSTGRES_DB:-nova}
+      MEMORY_ENGINE_REDIS_URL: redis://redis:6379/0
+      # Carried from `memory-engine` above: the worker is the same engine in a
+      # second process and resolves the same provider. `get_embedding_provider`
+      # only *constructs* the client here -- it opens no connection -- so the
+      # worker starts whether or not `ollama` is running. A stack without it
+      # simply fails the :05/:35 embedding cron, which Arq isolates per job.
+      EMBEDDING_PROVIDER_BACKEND: ollama
+      OLLAMA_URL: http://ollama:11434
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+    depends_on:
+      nats:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
 
@@ -246,6 +346,8 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
       neo4j:
         condition: service_healthy
 
@@ -272,6 +374,8 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
       neo4j:
@@ -297,6 +401,8 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
 
   reasoning-engine:
     build:
@@ -317,6 +423,79 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  # The same image as reasoning-engine, running its Arq outbox-dispatch
+  # worker. Added in Phase 4B for the same reason
+  # `communication-engine-worker` was added in 4A: the Reasoning Trace panel
+  # subscribes to `reasoning.process.completed` / `.failed` /
+  # `reasoning.human_override.applied`, all of which leave this engine
+  # through its outbox, and `repository/outbox_dispatcher.py` has no caller
+  # but this worker. Without it the engine reasons, records, and announces
+  # nothing -- with every container reporting healthy.
+  #
+  # `tools/tests/test_e2e_stack_completeness.py` demanded this rather than
+  # anyone remembering it: making those three subjects public put
+  # reasoning-engine on the browser-reachable path, and the guard fails if a
+  # started engine whose outbox feeds a public topic has no worker.
+  # Same pattern, for the Health panel's `ai_model.model.health_changed`.
+  # This worker also runs provider health-checks and benchmarks on their own
+  # crons; with no LLM provider configured those find nothing to check,
+  # which is the documented local state and not an error.
+  ai-model-orchestration-engine-worker:
+    build:
+      context: ../..
+      dockerfile: services/ai-model-orchestration-engine/Dockerfile
+    command: ["arq", "nova_ai_model_orchestration_engine.workers.WorkerSettings"]
+    restart: unless-stopped
+    healthcheck:
+      disable: true
+    environment:
+      EVENT_BUS_BACKEND: nats
+      NATS_URL: nats://nats:4222
+      NOVA_ENGINE_NAME: ai-model-orchestration-engine
+      AI_MODEL_ORCHESTRATION_ENGINE_POSTGRES_DSN: postgresql+asyncpg://${POSTGRES_USER:-nova}:${POSTGRES_PASSWORD:-nova_dev_password}@postgres:5432/${POSTGRES_DB:-nova}
+      AI_MODEL_ORCHESTRATION_ENGINE_REDIS_URL: redis://redis:6379/0
+      AI_MODEL_ORCHESTRATION_ENGINE_OLLAMA_BASE_URL: http://ollama:11434
+      AI_MODEL_ORCHESTRATION_ENGINE_ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+    depends_on:
+      nats:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  reasoning-engine-worker:
+    build:
+      context: ../..
+      dockerfile: services/reasoning-engine/Dockerfile
+    command: ["arq", "nova_reasoning_engine.workers.WorkerSettings"]
+    restart: unless-stopped
+    # No HTTP server in this process, so the image's own HEALTHCHECK would
+    # report a permanently false "unhealthy".
+    healthcheck:
+      disable: true
+    environment:
+      EVENT_BUS_BACKEND: nats
+      NATS_URL: nats://nats:4222
+      NOVA_ENGINE_NAME: reasoning-engine
+      REASONING_ENGINE_POSTGRES_DSN: postgresql+asyncpg://${POSTGRES_USER:-nova}:${POSTGRES_PASSWORD:-nova_dev_password}@postgres:5432/${POSTGRES_DB:-nova}
+      REASONING_ENGINE_REDIS_URL: redis://redis:6379/0
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+    depends_on:
+      nats:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
 
@@ -339,6 +518,8 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
 
@@ -360,6 +541,8 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
 
   communication-engine:
     build:
@@ -380,6 +563,58 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  # The same image as communication-engine above, running its Arq
+  # outbox-dispatch worker instead of the FastAPI app.
+  #
+  # Without this container the engine's domain events never leave the
+  # database. `record_inbound_turn` and `deliver_content_to_session` write
+  # `communication.turn.received` and `communication.intent.delivered` into
+  # the outbox table; `repository/outbox_dispatcher.py` is the only thing
+  # that publishes them, and the only caller of it is the Arq cron in
+  # `workers/__init__.py`. The reasoning and personality legs are synchronous
+  # RPCs, so a conversation still *looks* like it works from the engine's
+  # logs -- 202 Accepted, an `ai_model` call, a delivered reply -- while no
+  # subscriber ever sees either half of it. That is precisely how Phase 4A's
+  # first real Playwright run failed: the socket connected, subscribed to
+  # every public topic, and received nothing.
+  #
+  # Same known gap as perception-engine-worker documents above, and the same
+  # narrow fix: this closes it for the one engine whose outbox feeds
+  # `ws-gateway`'s `PUBLIC_TOPICS`. `world-model-engine`, `reasoning-engine`
+  # and `ai-model-orchestration-engine` also have undeployed workers here;
+  # their outbox subjects reach no browser, so closing those stays out of
+  # scope, and `tools/tests/test_e2e_stack_completeness.py` states that
+  # boundary as a test rather than leaving it to this comment.
+  communication-engine-worker:
+    build:
+      context: ../..
+      dockerfile: services/communication-engine/Dockerfile
+    command: ["arq", "nova_communication_engine.workers.WorkerSettings"]
+    restart: unless-stopped
+    # The image's own HEALTHCHECK curls the FastAPI app's /internal/health --
+    # meaningless for this process (no HTTP server here), so it is disabled
+    # rather than left reporting a permanently false "unhealthy".
+    healthcheck:
+      disable: true
+    environment:
+      EVENT_BUS_BACKEND: nats
+      NATS_URL: nats://nats:4222
+      NOVA_ENGINE_NAME: communication-engine
+      COMMUNICATION_ENGINE_POSTGRES_DSN: postgresql+asyncpg://${POSTGRES_USER:-nova}:${POSTGRES_PASSWORD:-nova_dev_password}@postgres:5432/${POSTGRES_DB:-nova}
+      COMMUNICATION_ENGINE_REDIS_URL: redis://redis:6379/0
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+    depends_on:
+      nats:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
 
@@ -394,6 +629,19 @@ services:
       NOVA_ENGINE_NAME: perception-engine
       PERCEPTION_ENGINE_POSTGRES_DSN: postgresql+asyncpg://${POSTGRES_USER:-nova}:${POSTGRES_PASSWORD:-nova_dev_password}@postgres:5432/${POSTGRES_DB:-nova}
       PERCEPTION_ENGINE_REDIS_URL: redis://redis:6379/0
+      # Phase 4F.P, P8 (TDD 4F.P A-4FP-12, §28.4 C-12; ADR-025): the one
+      # primary user every other engine in this stack resolves -- the default
+      # `primary_user_id` of cognitive-state-, autonomy- and action-engine.
+      # Unset, this engine publishes no workspace observation at all (its own
+      # explicit degrade), so nothing downstream could ever trigger.
+      PERCEPTION_ENGINE_PRIMARY_USER_ID: 00000000-0000-0000-0000-000000000001
+      # Phase 4F.8 (A-4F8-2 (a); TDD 4F.8 §29.1): the operator's declared
+      # folder -> project bindings, as JSON keyed by the path the companion
+      # reports (e.g. `{"/workspace/atlas": "<project uuid>"}`). Empty unless
+      # the operator sets NOVA_PROJECT_FOLDER_BINDINGS, so nothing is a known
+      # project by default. A binding is inert until its project is seen on
+      # `memory.long_term.created`.
+      PERCEPTION_ENGINE_PROJECT_FOLDER_BINDINGS: ${NOVA_PROJECT_FOLDER_BINDINGS:-{}}
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
     ports:
       - "8009:8000"
@@ -402,6 +650,8 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
 
@@ -415,6 +665,12 @@ services:
   # scope; closing it here is Priority 1's own explicit "done" definition
   # (closure doc Sec3.5), since this pass is what makes the gap observable
   # in practice for the first time.
+  #
+  # Phase 4F.8 (TDD 4F.8 §30; D-4F-1 reopened for this engine's dispatch
+  # interval only): this worker dispatches every second, one run at a time
+  # (`max_jobs = 1`). That is safe for ONE replica only -- the outbox claims no
+  # row, so two replicas can publish one row twice. Never scale this service;
+  # tools/tests/test_perception_dispatch_cadence.py enforces it.
   perception-engine-worker:
     build:
       context: ../..
@@ -439,7 +695,29 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
       redis:
+        condition: service_healthy
+
+  # Phase 4F.P, P8 (TDD 4F.P A-4FP-12): the Rust OS-level perception daemon
+  # (slice 4F.3), watching the one bind-mounted workspace -- the same directory
+  # `capability-engine` uses as its sandbox root -- and submitting each real
+  # filesystem change to `perception-engine`'s existing workspace intake route.
+  # Read-only: it observes, and it has no actuator. No port and no Event Bus
+  # connection (its README), so it has no healthcheck to declare.
+  nova-companion:
+    build:
+      context: ../..
+      dockerfile: companion/nova-companion/Dockerfile
+    restart: unless-stopped
+    environment:
+      NOVA_COMPANION_WATCH_ROOT: /workspace
+      NOVA_COMPANION_PERCEPTION_BASE_URL: http://perception-engine:8000
+    volumes:
+      - ${NOVA_WORKSPACE_DIR:-./workspace}:/workspace:ro
+    depends_on:
+      perception-engine:
         condition: service_healthy
 
   digital-twin-engine:
@@ -461,6 +739,8 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
 
@@ -490,6 +770,8 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
 
@@ -505,6 +787,12 @@ services:
       CAPABILITY_ENGINE_POSTGRES_DSN: postgresql+asyncpg://${POSTGRES_USER:-nova}:${POSTGRES_PASSWORD:-nova_dev_password}@postgres:5432/${POSTGRES_DB:-nova}
       CAPABILITY_ENGINE_SANDBOX_FILESYSTEM_ROOT: /workspace
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+    # Phase 4F.P, P8 (TDD 4F.P A-4FP-12, §28.4 C-12): the sandbox root is the
+    # same bind-mounted workspace `nova-companion` watches, so the `filesystem`
+    # capability acts on the directory the observation came from. The image
+    # creates no `/workspace`, so without this mount the root does not exist.
+    volumes:
+      - ${NOVA_WORKSPACE_DIR:-./workspace}:/workspace
     ports:
       - "8011:8000"
     depends_on:
@@ -512,6 +800,8 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
 
   action-engine:
     build:
@@ -531,6 +821,61 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
+
+  # Phase 4D. The Autonomy Engine (Bible Part 14). It publishes and
+  # subscribes to nothing (decision D-4D-1), so it needs no NATS dependency
+  # for correctness -- but `EVENT_BUS_BACKEND` is still set, because `main.py`
+  # binds a `BoundEventBus` with two empty allow-lists so that any future
+  # publish raises rather than succeeding against an unbound client.
+  autonomy-engine:
+    build:
+      context: ../..
+      dockerfile: services/autonomy-engine/Dockerfile
+    restart: unless-stopped
+    environment:
+      EVENT_BUS_BACKEND: nats
+      NATS_URL: nats://nats:4222
+      NOVA_ENGINE_NAME: autonomy-engine
+      AUTONOMY_ENGINE_POSTGRES_DSN: postgresql+asyncpg://${POSTGRES_USER:-nova}:${POSTGRES_PASSWORD:-nova_dev_password}@postgres:5432/${POSTGRES_DB:-nova}
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+    ports:
+      - "8019:8000"
+    depends_on:
+      nats:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
+
+  # Phase 4F.7 (TDD 4F.7 §5 D7). The Cognitive State Engine (Bible Part 6),
+  # deployed for the first time: 4F.1 built it and 4F.6 wired its one
+  # publication, but no compose service ran it. It serves the Cognitive State
+  # panel's three read-only `GET`s behind `api-gateway` and subscribes to the
+  # one existing subject `perception.sensor.health_changed` (RS-3a). It has no
+  # outbox, so it needs no worker, and it uses no Redis.
+  cognitive-state-engine:
+    build:
+      context: ../..
+      dockerfile: services/cognitive-state-engine/Dockerfile
+    restart: unless-stopped
+    environment:
+      EVENT_BUS_BACKEND: nats
+      NATS_URL: nats://nats:4222
+      NOVA_ENGINE_NAME: cognitive-state-engine
+      COGNITIVE_STATE_ENGINE_POSTGRES_DSN: postgresql+asyncpg://${POSTGRES_USER:-nova}:${POSTGRES_PASSWORD:-nova_dev_password}@postgres:5432/${POSTGRES_DB:-nova}
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+    ports:
+      - "8020:8000"
+    depends_on:
+      nats:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
 
   planning-engine:
     build:
@@ -551,6 +896,8 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
 
@@ -574,7 +921,164 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
       redis:
+        condition: service_healthy
+
+  # --- Phase 4A gateways ----------------------------------------------------
+  # The only two services a browser ever talks to. `api-gateway` fronts the
+  # engines' `/v1` surfaces (doc 11 §1) and `ws-gateway` is the sole bridge
+  # from the Event Bus to a browser (doc 09 §6). Both are external surfaces of
+  # one instance, so they share the single local session token (decision D-3);
+  # an empty value means "not configured" and both refuse every request rather
+  # than allowing them, so a missing secret fails closed.
+
+  api-gateway:
+    build:
+      context: ../..
+      dockerfile: services/api-gateway/Dockerfile
+    restart: unless-stopped
+    environment:
+      EVENT_BUS_BACKEND: nats
+      NATS_URL: nats://nats:4222
+      NOVA_ENGINE_NAME: api-gateway
+      API_GATEWAY_COMMUNICATION_ENGINE_URL: http://communication-engine:8000
+      # Phase 4B: one upstream per observability panel that reads REST.
+      # `executive-cognition-engine` and `nova-core` are deliberately absent
+      # -- no panel reads them, and the route table is an allow-list.
+      API_GATEWAY_PLANNING_ENGINE_URL: http://planning-engine:8000
+      API_GATEWAY_REASONING_ENGINE_URL: http://reasoning-engine:8000
+      API_GATEWAY_CAPABILITY_ENGINE_URL: http://capability-engine:8000
+      API_GATEWAY_ACTION_ENGINE_URL: http://action-engine:8000
+      # Phase 4C (D-4): the Agents panel's read-only surface. The only
+      # non-`services/*` upstream; the container itself was added by 4C.1.
+      API_GATEWAY_AGENT_OS_KERNEL_URL: http://agent-os-kernel:8000
+      # Phase 4D: the Autonomy panel's data source.
+      API_GATEWAY_AUTONOMY_ENGINE_URL: http://autonomy-engine:8000
+      # Phase 4E: the Digital Twin panel's data source.
+      API_GATEWAY_DIGITAL_TWIN_ENGINE_URL: http://digital-twin-engine:8000
+      # Phase 4F.7: the Cognitive State panel's data source.
+      API_GATEWAY_COGNITIVE_STATE_ENGINE_URL: http://cognitive-state-engine:8000
+      API_GATEWAY_REDIS_URL: redis://redis:6379/0
+      API_GATEWAY_SESSION_TOKEN: ${NOVA_SESSION_TOKEN:-}
+      # Local development is plain HTTP, so a Secure-only cookie would never
+      # be sent back. Deployments that terminate TLS leave this at its
+      # default of true.
+      API_GATEWAY_SESSION_COOKIE_SECURE: "false"
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+    ports:
+      - "8014:8000"
+    depends_on:
+      redis:
+        condition: service_healthy
+      communication-engine:
+        condition: service_started
+      # Phase 4C (D-4). `service_started`, matching `communication-engine`
+      # above: the gateway forwards on demand and answers 502 for an upstream
+      # that is not up, so it does not need the Kernel healthy to start.
+      agent-os-kernel:
+        condition: service_started
+      # Phase 4E, on the same terms.
+      digital-twin-engine:
+        condition: service_started
+      # Phase 4F.7, on the same terms.
+      cognitive-state-engine:
+        condition: service_started
+
+  ws-gateway:
+    build:
+      context: ../..
+      dockerfile: services/ws-gateway/Dockerfile
+    restart: unless-stopped
+    environment:
+      EVENT_BUS_BACKEND: nats
+      NATS_URL: nats://nats:4222
+      NOVA_ENGINE_NAME: ws-gateway
+      WS_GATEWAY_SESSION_TOKEN: ${NOVA_SESSION_TOKEN:-}
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+    ports:
+      - "8015:8000"
+    depends_on:
+      nats:
+        condition: service_healthy
+
+  # --- Phase 4C agent-os -----------------------------------------------------
+  # Decision D-5, discharging the containerization half of Phase 3E's ratified
+  # condition C-3: these three had no Dockerfile, no compose service, and no
+  # Trivy scan. `sdk/python` is deliberately absent -- it is a library, like
+  # everything under `packages/`, and receives no container (master scope §10;
+  # the "all four components" wording in §4C is corrected there).
+  #
+  # None of the three is reachable from a browser. `api-gateway`'s route table
+  # fronts five engines and none of these; the Kernel's read-only `/v1/agents`
+  # surface (D-4) is 4C.2's work, not 4C.1's. The published ports below are for
+  # local inspection of `/internal/health` only, exactly as for every engine.
+
+  agent-os-kernel:
+    build:
+      context: ../..
+      dockerfile: agent-os/kernel/Dockerfile
+    restart: unless-stopped
+    environment:
+      EVENT_BUS_BACKEND: nats
+      NATS_URL: nats://nats:4222
+      NOVA_ENGINE_NAME: agent-os-kernel
+      AGENT_OS_KERNEL_POSTGRES_DSN: postgresql+asyncpg://${POSTGRES_USER:-nova}:${POSTGRES_PASSWORD:-nova_dev_password}@postgres:5432/${POSTGRES_DB:-nova}
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      # `AGENT_OS_KERNEL_AGENTS_ROOT` is left at its `"agents"` default, which
+      # resolves against the image's `/app` WORKDIR. `AGENT_OS_KERNEL_PRIMARY_USER_ID`
+      # is left unset, matching `capability-engine`'s own treatment: no service
+      # in this file sets a primary user id, and the Kernel fails loudly at
+      # dispatch rather than synthesizing one.
+    ports:
+      - "8016:8000"
+    depends_on:
+      nats:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
+
+  agent-os-registry:
+    build:
+      context: ../..
+      dockerfile: agent-os/registry/Dockerfile
+    restart: unless-stopped
+    environment:
+      EVENT_BUS_BACKEND: nats
+      NATS_URL: nats://nats:4222
+      NOVA_ENGINE_NAME: agent-os-registry
+      AGENT_OS_REGISTRY_POSTGRES_DSN: postgresql+asyncpg://${POSTGRES_USER:-nova}:${POSTGRES_PASSWORD:-nova_dev_password}@postgres:5432/${POSTGRES_DB:-nova}
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+    ports:
+      - "8017:8000"
+    depends_on:
+      nats:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
+
+  agent-os-supervisors:
+    build:
+      context: ../..
+      dockerfile: agent-os/supervisors/Dockerfile
+    restart: unless-stopped
+    environment:
+      EVENT_BUS_BACKEND: nats
+      NATS_URL: nats://nats:4222
+      NOVA_ENGINE_NAME: agent-os-supervisors
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+    ports:
+      - "8018:8000"
+    # No `postgres` or `migrations` dependency: this component has no schema
+    # and no DSN (TDD 3E §7, preserved unchanged by Phase 4C). Adding either
+    # would imply persistence it does not have.
+    depends_on:
+      nats:
         condition: service_healthy
 
 volumes:

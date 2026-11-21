@@ -20,7 +20,7 @@ want to change one.
 
 | Service | Port(s) | Purpose |
 |---|---|---|
-| `postgres` | 5432 | Relational system of record (docs/architecture/07 §1) |
+| `postgres` | 5432 | Relational system of record (docs/architecture/07 §1). Image is `pgvector/pgvector:pg16`, **not** plain `postgres` -- memory-engine and knowledge-engine are "PostgreSQL + pgvector" per doc 07 §1/§3 and their migration 0001 opens with `CREATE EXTENSION IF NOT EXISTS vector`, which plain Postgres cannot satisfy |
 | `neo4j` | 7474, 7687 | Knowledge Graph / World Object Graph (docs/architecture/07 §4) |
 | `redis` | 6379 | Working memory, cache (docs/architecture/07 §5) |
 | `minio` | 9000, 9001 | S3-compatible object storage |
@@ -32,6 +32,120 @@ want to change one.
 | `prometheus` | 9090 | Metrics -- scrapes every engine's `/internal/metrics` directly |
 | `grafana` | 3000 | Dashboards (provisioned: Prometheus/Tempo/Loki datasources + the NOVA Core Heartbeat dashboard) |
 | `nova-core` | 8000 | NOVA's nervous system (services/nova-core) |
+| `migrations` | -- | One-shot schema bootstrap; exits when done (see below) |
+| `api-gateway` | 8014 | The one external REST surface (doc 11 §1) |
+| `ws-gateway` | 8015 | The one bus-to-browser bridge (doc 09 §6) |
+| `agent-os-kernel` | 8016 | Agent OS control plane (agent-os/kernel) |
+| `agent-os-registry` | 8017 | Agent Package registry (agent-os/registry) |
+| `agent-os-supervisors` | 8018 | Supervision tree (agent-os/supervisors) |
+
+Thirteen engine services are omitted from the table for brevity; each exposes
+`8001`-`8013` and its own `/internal/health`.
+
+*(Updated 2026-09-26, Phase 4F.7, additively.)* **`cognitive-state-engine`**
+(port `8020`) is deployed for the first time: Bible Part 6's Cognitive State
+Engine, the Cognitive State panel's data source behind `api-gateway`
+(`/v1/cognitive-state`, three `GET`s). It subscribes to the existing
+`perception.sensor.health_changed` and keeps the last lifecycle state each
+sensor reported in `cognitive_state.sensor_state`. It has no outbox, so it has
+no worker, and it uses no Redis. `api-gateway` gains
+`API_GATEWAY_COGNITIVE_STATE_ENGINE_URL` and a `service_started` edge to it, and
+the `pr-checks` e2e job starts it. Like `autonomy-engine` (`8019`) and
+`digital-twin-engine`, it has no Prometheus scrape target in
+`../observability/prometheus.yml`.
+
+*(Updated 2026-10-04, Phase 4F.P P8, additively -- TDD 4F.P A-4FP-12, §28.4
+C-12.)* **`nova-companion`** joins the file: the Rust perception daemon (slice
+4F.3), built from `companion/nova-companion/Dockerfile`. It has no port, no
+healthcheck and no Event Bus connection, and it watches **one shared
+workspace**, mounted read-only at `/workspace`. `capability-engine` binds the
+**same** host directory at `/workspace`, which is its sandbox root. The image
+creates no `/workspace` of its own, so before this mount the `filesystem`
+capability had no root to act on. The host directory is `NOVA_WORKSPACE_DIR`,
+defaulting to `./workspace` beside this file, which is gitignored.
+`perception-engine` now sets `PERCEPTION_ENGINE_PRIMARY_USER_ID` to
+`…0001`, the default `primary_user_id` of `cognitive-state-engine`,
+`autonomy-engine` and `action-engine`. Unset, it publishes no workspace
+observation at all. The `pr-checks` e2e job starts `perception-engine`,
+`perception-engine-worker` and `nova-companion` **after** its golden path, then
+runs `tools/e2e_real_execution.py`, 4F.P's real end-to-end execution proof.
+
+The three `agent-os` services were added in **Phase 4C (4C.1, decision D-5)**,
+discharging the containerization half of Phase 3E's ratified condition **C-3**
+— these components had no Dockerfile, no compose service and no Trivy scan for
+their whole existence. `agent-os/sdk/python` is deliberately absent: it is a
+library, like everything under `packages/`, and ships no image. Their published
+ports are for local `/internal/health` inspection only — none is fronted by
+`api-gateway`, whose route table 4C.1 does not touch.
+
+## The acceptance-only override (Phase 4F.8)
+
+`docker-compose.acceptance.yml` is **not part of the local stack** and is never
+used to deploy NOVA. It sets exactly one key: `nova-companion.user`, as
+`1100:${NOVA_ACCEPTANCE_COMPANION_GID}`. It refuses to start without that
+variable.
+
+- **Why.** In the base stack, the companion and `capability-engine` both run as
+  uid 1000 against the one shared workspace. So a permission change on the
+  watched directory would revoke both. Under the override the companion reaches
+  the workspace through its group bits, and `capability-engine` through the
+  other bits. AC-7's revocation, `chmod g-rx`, then withdraws only the sensor's
+  permission (TDD 4F.8 §28.7 (B), §29.2).
+- **Where.** Only `pr-checks.yml`'s *"Start the P8 services"* step applies it,
+  with the runner's own gid.
+- **The guard.** `tools/tests/test_acceptance_override.py` keeps it to one key,
+  a non-root uid other than 1000, an unchanged companion image, and one step.
+
+## Schema bootstrap
+
+`migrations` is a one-shot service that brings all sixteen Postgres-backed
+component schemas to head, in sequence, then exits — fourteen engines, plus
+`agent-os/kernel` and `agent-os/registry` since Phase 4C. Every Postgres-backed
+service gates on it with:
+
+```yaml
+    depends_on:
+      migrations:
+        condition: service_completed_successfully
+```
+
+so none of them can start against an empty or partially-migrated database.
+
+*(Updated 2026-09-26, Phase 4F.7.)* `services/cognitive-state-engine` joins the
+`ENGINES` array, so the migrator now brings **seventeen** histories to head --
+fifteen engines plus the two `agent-os` components. Its schema (`cognitive_state`,
+version table `alembic_version_cognitive_state`) has existed since 4F.1; it was
+not migrated here only because no compose service ran the engine. The counts in
+the paragraphs above and below describe the list as 4C left it.
+
+**Why it exists.** Until Phase 4A this stack had no migration step at all --
+engines started against an empty database and exited during lifespan startup
+(`relation "communication.conversation_session" does not exist`), which
+`restart: unless-stopped` turned into a crash loop. The gap went unnoticed
+because nothing had ever started the stack: CI's compose check runs `config
+--quiet`, which parses the YAML and starts nothing. Phase 4A's Playwright job
+was the first thing to actually run it.
+
+**Why one container.** Each component image is built with `uv sync --package
+<name>` and so contains exactly one component; none can migrate another.
+`Dockerfile.migrations` installs the whole workspace, and `run-migrations.sh`
+walks them in order -- keeping the sequence in one file, and keeping the
+migrations strictly sequential by construction rather than by discipline.
+
+**Why one database is safe.** Every component namespaces its own alembic
+version table (`alembic_version_communication`, `alembic_version_memory`, ...,
+`alembic_version_agent_os_kernel`, `alembic_version_agent_os_registry` -- 15
+distinct names) and each migration `0001` issues its own `CREATE SCHEMA`. The
+histories are independent by design. `alembic upgrade head` is idempotent, so
+re-running the stack is a no-op.
+
+`agent-os/kernel` and `agent-os/registry` are the only pair that share a schema
+(`agent_os`); both create it with `IF NOT EXISTS`, so either may run first.
+They were excluded from this script until Phase 4C for the reason the script
+itself gave -- neither had a compose service -- and 4C.1 removed that premise.
+`agent-os/supervisors` remains excluded permanently: it has no alembic config,
+no `postgres_dsn` and an empty `repository/` (TDD 3E §7 names no persisted
+state for it), so there is nothing to migrate.
 
 ## Adding a new engine
 
@@ -39,3 +153,38 @@ want to change one.
 2. Add a service block to this compose file (copy `nova-core`'s, change the
    Dockerfile path and container name).
 3. Add a scrape target to `../observability/prometheus.yml`.
+   *(2026-10-16: no engine after `nova-core` ever had, so this step is now
+   checked. `tools/tests/test_prometheus_targets.py` fails on any HTTP service
+   that has no target, and on any target that no service backs.)*
+4. If the engine is Postgres-backed, add it to the `ENGINES` array in
+   `run-migrations.sh` **and** gate its compose service on `migrations` with
+   `condition: service_completed_successfully`. Both are checked by
+   `tools/tests/test_compose_migrations.py`, which fails if a Postgres-backed
+   service is missing from either -- the alternative is an engine that
+   crash-loops the moment someone starts the stack.
+5. Add it to the `build-and-scan.yml` matrix, as a `{service, dockerfile}`
+   entry. `tools/tests/test_build_and_scan_matrix.py` fails if any Dockerfile
+   in the repository is in neither the matrix nor that file's `UNSCANNED` map
+   -- an unmatrixed image is built by nothing and CVE-scanned by nothing, and
+   nothing else reports its absence.
+
+## Adding an `agent-os` component
+
+`tools/scaffold-agent-os-component.py` deliberately generates no Dockerfile and
+no compose service: doc 02 is explicit that `agent-os` components are
+control-plane infrastructure rather than instances of the standard engine
+template, and container wiring is conditional on a component actually shipping
+as its own image. When one does, the steps are the engine steps above with two
+differences:
+
+- The compose service is named after the full path (`agent-os-kernel`, not
+  `kernel`) -- a service called `registry` beside fourteen `*-engine` services
+  would say nothing about which subsystem it belongs to.
+  `tools/tests/test_compose_migrations.py::_compose_name_for` holds that
+  mapping in one place.
+- If the component resolves Agent Packages from disk (`Settings.agents_root`),
+  its image needs `COPY agents agents`. Skipping it is silent for the Registry:
+  `discover_agent_packages` returns `[]` for a missing directory, so the
+  container starts, passes its healthcheck, and registers nothing.
+
+`agent-os/sdk/python` is a library and gets neither, exactly like `packages/*`.

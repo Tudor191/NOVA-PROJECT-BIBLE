@@ -60,7 +60,11 @@ class SensorHealth(BaseModel):
 
 class SensorConfig(BaseModel):
     sensor_id: str
-    sensor_type: Literal["voice", "camera"]
+    sensor_type: Literal["voice", "camera", "filesystem"]
+    """Widened in 4F.2 for the `nova-companion` filesystem sensor. The column
+    behind it (`perception.sensor_registration.sensor_type`) is plain `TEXT`
+    with no CHECK constraint, so this is a Python-type change only -- no
+    migration, verified against the migration chain rather than assumed."""
     parameters: dict[str, object] = {}
 
 
@@ -71,13 +75,21 @@ class CalibrationResult(BaseModel):
 
 class PermissionStatus(BaseModel):
     granted: bool
-    source: Literal["microphone", "camera"]
+    source: Literal["microphone", "camera", "filesystem"]
+    """Widened in 4F.2. `perception.consent_grant.source` is likewise plain
+    `TEXT`, so no migration is required here either."""
 
 
 class SensorErrorReport(BaseModel):
     sensor_id: str
     message: str
     occurred_at: str
+    kind: Literal["error", "permission_revoked"] = "error"
+    """Phase 4F.8 (A-4F8-1 (a), TDD 4F.8 §29.1). `permission_revoked` means the
+    process that captures for this sensor lost its OS permission to do so. Only
+    `api/permission_revocations.py` reports it. Every other report is an
+    `error`. Camera and voice fail on either kind; the filesystem sensor fails
+    only on a revocation, so nothing else can move it to `failed`."""
 
 
 @runtime_checkable

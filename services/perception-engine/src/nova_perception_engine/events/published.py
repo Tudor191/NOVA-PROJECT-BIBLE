@@ -8,6 +8,18 @@ existing `perception.*.observed` wildcard subscription (Sec0.6) -- they feed
 `ActiveContext` via that engine's now-wired `fuse_and_update`/
 `upsert_present_identity`/`clear_present_identities` paths.
 
+`perception.workspace.observed` (Phase 4F.2, TDD 4F Sec20.2) matches the same
+wildcard, but takes the *other* branch of World Model's dispatcher: it is the
+first **object-shaped** perception event, so it falls through
+`make_perception_dispatch_handler`'s `else` to the object-graph handler that
+has been waiting for a producer since Phase 1. **Zero world-model changes** --
+the subject, the subscription and the handler all already existed.
+
+It is the only perception subject that is *not* browser-reachable in any form:
+`ws-gateway`'s bus allow-list was narrowed from `perception.*` to the three
+browser-relevant subjects in 4F.2 precisely so this one could not reach that
+process, the same narrowing `agent_os.task.*` already received.
+
 `perception.wake.detected` and `perception.addressee_signal.candidate`
 deliberately do NOT match that wildcard (they end in `detected`/`candidate`,
 not `observed`) -- discrete trigger events and per-utterance candidate
@@ -33,6 +45,7 @@ PUBLISHABLE_SUBJECTS: frozenset[str] = frozenset(
         "perception.presence.observed",
         "perception.identity.observed",
         "perception.attention.observed",
+        "perception.workspace.observed",
         "perception.wake.detected",
         "perception.addressee_signal.candidate",
         "perception.consent.changed",

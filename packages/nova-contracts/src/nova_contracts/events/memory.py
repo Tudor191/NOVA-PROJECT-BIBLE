@@ -90,6 +90,22 @@ class LongTermMemoryCreatedPayload(BaseModel):
     confidence: float | None = Field(default=None, ge=0.0, le=1.0)
     privacy_level: PrivacyLevel
     knowledge_node_id: str | None = None
+    created_at: datetime | None = None
+    """**The memory's own creation timestamp -- not the envelope's.**
+
+    `EventEnvelope.occurred_at` records when the event was *published*, which for
+    a memory written with a historical timestamp is a different moment entirely.
+    A `.created` event that cannot say when the thing was created leaves every
+    consumer to guess, and the only available guess is wrong.
+
+    Added by Phase 4E (TDD 4E §0.1.5) for `digital-twin-engine`, its first real
+    consumer: Bible Part 16's Project Model reconstructs *"what was I doing on
+    Project X"* across a multi-week gap, and that gap is measured in exactly this
+    field. Purely additive and defaulted, per ADR-024 -- the same shape as this
+    module's own `schema_version` backfill -- so every existing consumer and every
+    in-flight envelope is unaffected, and a consumer that receives `None` has an
+    honest "no timestamp evidence" rather than a fabricated one.
+    """
     schema_version: int = 1
 
 

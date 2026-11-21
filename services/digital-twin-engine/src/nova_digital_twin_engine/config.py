@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+from uuid import UUID
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -13,6 +15,18 @@ class Settings(BaseSettings):
 
     http_port: int = 8000
     log_level: str = "INFO"
+
+    primary_user_id: UUID = UUID("00000000-0000-0000-0000-000000000001")
+    """**The only identity this engine can attribute an unattributed observation
+    to** -- ADR-025's single trusted user per instance, the same default and the
+    same reasoning as `autonomy-engine`'s own `primary_user_id`.
+
+    Needed by Phase 4E for exactly one path: `perception.attention.observed`
+    carries a nullable `identity_id` and no `user_id`, so the Productivity
+    Patterns evidence row has to be attributed. With one user per instance there
+    is one candidate, and naming it in config is how that assumption stays
+    visible instead of hard-coded. **4E introduces no second identity concept, no
+    RBAC and no role** (TDD 4E Sec2, Sec10 item 1)."""
 
     postgres_dsn: str = "postgresql+asyncpg://nova:nova_dev_password@localhost:5432/nova"
     """SQLAlchemy-format DSN for the `digital_twin` schema (ORM, Alembic)."""

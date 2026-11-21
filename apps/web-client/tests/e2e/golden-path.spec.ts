@@ -1,0 +1,198 @@
+import { expect, test } from "@playwright/test";
+
+/**
+ * Phase 4 **AC-1**, and `3-P` §11 criterion 1: *open the web client,
+ * authenticate, hold a live text conversation, see it rendered.*
+ *
+ * This is the acceptance criterion Phase 2D set and never delivered. It runs
+ * against the real stack -- both gateways, `communication-engine`,
+ * `reasoning-engine`, `personality-engine`, NATS, Postgres -- because the
+ * property under test is precisely that those pieces connect. Stubbing any
+ * of them would test the stub.
+ *
+ * **CI-only.** Docker is unavailable in the development environment, so this
+ * has never been executed locally and no local result should be reported for
+ * it (TDD 4A §10, R-1; Phase 3E condition C-1).
+ */
+
+const SESSION_TOKEN = process.env.NOVA_SESSION_TOKEN ?? "";
+
+test.describe("the golden path", () => {
+  test.skip(
+    !SESSION_TOKEN,
+    "NOVA_SESSION_TOKEN is not set; the stack under test has no provisioned session.",
+  );
+
+  test("a user signs in and holds a live text conversation", async ({ page }) => {
+    await page.goto("/");
+
+    // 1. First-run session flow (D-3): the instance's local token, once.
+    await page.getByLabel("Session token").fill(SESSION_TOKEN);
+    await page.getByRole("button", { name: "Sign in" }).click();
+
+    // 2. The shell appears, with its instruments.
+    await expect(page.getByRole("region", { name: "Conversation" })).toBeVisible();
+
+    // 3. Open a conversation.
+    await page.getByRole("button", { name: "Start a conversation" }).click();
+    await expect(page.getByPlaceholder("Say something to NOVA")).toBeVisible();
+
+    // 4. Say something.
+    await page.getByPlaceholder("Say something to NOVA").fill("Hello NOVA, are you there?");
+    await page.getByRole("button", { name: "Send" }).click();
+
+    // 5. The user's own turn appears only once the bus confirms it --
+    //    `communication.turn.received` through ws-gateway, not an optimistic
+    //    render. This assertion is therefore a real round trip.
+    const turns = page.getByTestId("transcript-entry");
+    await expect(turns.filter({ hasText: "Hello NOVA, are you there?" })).toHaveCount(1, {
+      timeout: 30_000,
+    });
+
+    // 6. NOVA answers. This is the leg that did not exist before 4A:
+    //    `communication.intent.delivered`, published by communication-engine
+    //    after the ADR-005 intent gate passes the utterance, bridged by
+    //    ws-gateway. Without it this assertion could never pass.
+    //
+    //    KNOWN TO FAIL, and deliberately left failing rather than skipped.
+    //    ADR-005's gate calls an utterance *delivered* only once it reaches a
+    //    live `ChannelAdapter`, and the only adapters that exist are
+    //    registered by `api/websocket.py` for clients connected to
+    //    communication-engine's own socket. Doc 11 §1 forbids this client
+    //    from being one of those, so `deliver_intent` returns
+    //    `delivered=False, rejection_reason="no_live_channel_connection"`,
+    //    and `handlers.py` guards the publish on `outcome.delivered`. The
+    //    outbound turn is persisted; nothing announces it. Closing this needs
+    //    an architectural decision about whether the bus is itself a delivery
+    //    channel -- not a change this test should presume.
+    //
+    //    The timeout is raised from the 15s default deliberately, and the
+    //    arithmetic is the reason: with no LLM provider configured,
+    //    `communication_engine_reasoning_rpc_timeout_ms` (10s) has to expire
+    //    before `conversation_orchestration` falls back, and personality
+    //    validation can add its own 2s on top. A 15s budget leaves ~3s of
+    //    headroom over a 12s path, which is a flake waiting to happen rather
+    //    than a real signal. This is the *fallback* path's cost, not slowness
+    //    in the transport under test.
+    const reply = page.locator('[data-testid="transcript-entry"][data-author="nova"]');
+    await expect(reply.first()).toBeVisible({ timeout: 45_000 });
+    await expect(reply.first()).not.toHaveText("");
+
+    // 7. The envelope is rendered, not hidden (TDD 4A §5.2 property 4).
+    await expect(page.getByTestId("correlation-tag").first()).toBeVisible();
+    await expect(page.getByTestId("confidence-tier-badge").first()).toBeVisible();
+  });
+
+  test("the shell reports real telemetry and never invents it", async ({ page }) => {
+    await page.goto("/");
+    await page.getByLabel("Session token").fill(SESSION_TOKEN);
+    await page.getByRole("button", { name: "Sign in" }).click();
+
+    // The System Pulse binds to `nova.heartbeat`, published by `nova-core`
+    // every 5s. Against a running stack it must reach a real status rather
+    // than sitting at "no heartbeat yet" -- and a dot that animates while
+    // reporting `unknown` would be exactly the fake animation Bible Part 6
+    // forbids.
+    //
+    // Addressed by instrument, not by position: the header carries three
+    // dots and `.first()` only happened to be this one. When this assertion
+    // failed against a stack that had no `nova-core` running, the message
+    // named `<span data-status="unknown">` and could not say which of the
+    // three it had read.
+    const pulse = page.locator('[data-testid="status-dot"][data-instrument="system-pulse"]');
+    await expect(pulse).toHaveAttribute("data-status", /healthy|degraded|down/);
+
+    const stillUnknown = page.locator(
+      '[data-testid="status-dot"][data-status="unknown"] .nova-status-dot[data-animated="true"]',
+    );
+    await expect(stillUnknown).toHaveCount(0);
+  });
+});
+
+/**
+ * **AC-2**, from the browser's own context.
+ *
+ * The unit suite proves the client cannot be *written* to reach the bus or an
+ * engine. This proves the deployed surface does not answer if something tries
+ * anyway -- the two halves TDD 4A §9 asks for.
+ */
+test.describe("security boundaries", () => {
+  test("the browser cannot reach an engine's internal surface", async ({ page }) => {
+    await page.goto("/");
+
+    // A path with no route anywhere in the system, fetched the same way, is
+    // the control. The origin serving the client is a single-page app: it
+    // answers *any* unrouted GET with the app shell, 200 and all. So
+    // `response.ok === false` is not the property to assert -- an earlier
+    // version of this test asserted exactly that and failed against a
+    // perfectly correct stack, because the shell answered.
+    //
+    // What must hold is that `/internal/health` is not *special*: it is
+    // handled like any other path the origin does not route, and no engine
+    // is behind it (doc 11 §3, doc 11 §1).
+    const probe = await page.evaluate(async () => {
+      const fetchOnce = async (path: string) => {
+        try {
+          const response = await fetch(path, { credentials: "include" });
+          return {
+            status: response.status,
+            contentType: response.headers.get("content-type") ?? "",
+            body: (await response.text()).slice(0, 2000),
+          };
+        } catch (error) {
+          return { status: -1, contentType: "", body: "", error: String(error) };
+        }
+      };
+      return {
+        internal: await fetchOnce("/internal/health"),
+        unrouted: await fetchOnce("/__nova_no_such_route__"),
+      };
+    });
+
+    // Indistinguishable from a path that routes nowhere.
+    expect(probe.internal.status).toBe(probe.unrouted.status);
+    expect(probe.internal.contentType).toBe(probe.unrouted.contentType);
+    expect(probe.internal.body).toBe(probe.unrouted.body);
+
+    // And positively not an engine: every service's `/internal/health`
+    // answers `{"status": "healthy"}` as JSON (`api/health.py`). Neither the
+    // content type nor the body may look like that.
+    expect(probe.internal.contentType).not.toContain("application/json");
+    expect(() => JSON.parse(probe.internal.body)).toThrow();
+  });
+
+  test("the browser cannot open a socket to the event bus", async ({ page }) => {
+    await page.goto("/");
+
+    const reachedBus = await page.evaluate(async () => {
+      return await new Promise<boolean>((resolve) => {
+        let socket: WebSocket;
+        try {
+          socket = new WebSocket("ws://localhost:4222");
+        } catch {
+          resolve(false);
+          return;
+        }
+        const timer = setTimeout(() => {
+          socket.close();
+          resolve(false);
+        }, 3000);
+        socket.onopen = () => {
+          clearTimeout(timer);
+          socket.close();
+          resolve(true);
+        };
+        socket.onerror = () => {
+          clearTimeout(timer);
+          resolve(false);
+        };
+        socket.onclose = () => {
+          clearTimeout(timer);
+          resolve(false);
+        };
+      });
+    });
+
+    expect(reachedBus).toBe(false);
+  });
+});

@@ -13,11 +13,15 @@ from __future__ import annotations
 
 from typing import Any
 
-from arq import cron
 from arq.connections import RedisSettings
 from nova_eventbus_sdk import bind_event_bus
 from nova_observability import configure_observability, get_logger
-from nova_service_kit import create_engine, create_session_factory
+from nova_service_kit import (
+    create_engine,
+    create_session_factory,
+    service_cron,
+    worker_queue_name,
+)
 
 from nova_knowledge_engine.config import Settings
 from nova_knowledge_engine.events.published import PUBLISHABLE_SUBJECTS
@@ -29,6 +33,15 @@ from nova_knowledge_engine.repository.postgres_metadata_repository import (
 from nova_knowledge_engine.workers.embedding_worker import arq_run_embedding_pass
 from nova_knowledge_engine.workers.maintenance_worker import arq_run_maintenance
 from nova_knowledge_engine.workers.outbox_worker import arq_run_outbox_dispatch
+
+_SERVICE_NAME = "knowledge-engine"
+"""This worker's own engine identity, single-sourced.
+
+It names three things that must never drift apart: the Event Bus binding
+below, the arq queue this worker exclusively owns, and the arq job names its
+cron ticks are enqueued under. Sharing arq's global default queue and a
+coroutine-derived cron name is what let one engine's worker consume and
+discard another's scheduled jobs -- see `nova_service_kit.worker`."""
 
 _SETTINGS = Settings()
 logger = get_logger("knowledge-engine-worker")
@@ -64,7 +77,7 @@ async def startup(ctx: dict[str, Any]) -> None:
     await graph_store.connect()
 
     bus = bind_event_bus(
-        "knowledge-engine",
+        _SERVICE_NAME,
         publishable_subjects=PUBLISHABLE_SUBJECTS,
         subscribable_subjects=SUBSCRIBABLE_SUBJECTS,
     )
@@ -93,17 +106,23 @@ async def shutdown(ctx: dict[str, Any]) -> None:
 
 
 class WorkerSettings:
+    # This worker is the sole enqueuer and sole consumer of its own scheduled
+    # jobs. Without an explicit queue it would share arq's global `arq:queue`
+    # with every other engine's worker and consume whichever job it reached
+    # first (`nova_service_kit.worker`).
+    queue_name = worker_queue_name(_SERVICE_NAME)
     functions: list[Any] = []
     cron_jobs = [
         # Short, fixed poll -- both the graph-write saga and outbox latency should
         # be seconds, not minutes (docs/design/phase-1/02-knowledge-engine.md §17).
-        cron(arq_run_outbox_dispatch, second={0, 10, 20, 30, 40, 50}),
+        service_cron(_SERVICE_NAME, arq_run_outbox_dispatch, second={0, 10, 20, 30, 40, 50}),
         # Off the write path by design (§10); every 30s keeps semantic search
         # reasonably fresh without hammering a local Ollama instance.
-        cron(arq_run_embedding_pass, second={5, 35}),
+        service_cron(_SERVICE_NAME, arq_run_embedding_pass, second={5, 35}),
         # §6: fixed interval for Phase 1, matching Memory Engine's
         # consolidation_worker's own accepted tradeoff.
-        cron(
+        service_cron(
+            _SERVICE_NAME,
             arq_run_maintenance,
             hour=set(range(0, 24, _SETTINGS.maintenance_interval_hours)),
             minute=0,

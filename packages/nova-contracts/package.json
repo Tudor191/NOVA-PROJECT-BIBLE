@@ -6,9 +6,11 @@
   "scripts": {
     "lint": "uv run --package nova-contracts ruff check . && uv run --package nova-contracts mypy src",
     "test": "uv run --package nova-contracts pytest",
-    "build": "uv run --package nova-contracts python codegen/generate_typescript.py"
+    "build": "uv run --package nova-contracts python codegen/generate_typescript.py",
+    "typecheck": "tsc -p tsconfig.json"
   },
   "devDependencies": {
-    "json-schema-to-typescript": "^15.0.4"
+    "json-schema-to-typescript": "^15.0.4",
+    "typescript": "^5.7.0"
   }
 }

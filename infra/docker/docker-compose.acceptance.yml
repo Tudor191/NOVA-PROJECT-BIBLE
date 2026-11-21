@@ -1,0 +1,27 @@
+# Phase 4F.8: the ACCEPTANCE-ONLY override. TDD 4F.8 §28.7 option (B) and §29.2,
+# ratified 2026-10-11. It is never part of the production deployment model
+# (doc 14 §2), and `docker-compose.local.yml` is unchanged by it.
+#
+# Why it exists (F-4F8-13): in the base stack, `nova-companion` and
+# `capability-engine` both run as uid 1000 and share one workspace (A-4FP-12).
+# So no permission change on the watched directory can revoke the companion
+# without revoking `capability-engine` identically. AC-7's revocation must
+# withdraw the *sensor's* OS permission, and only it.
+#
+# Under this override the companion runs as a distinct non-root uid, with the
+# CI runner's own gid:
+# - it reaches the runner-created workspace (mode 0755) through the GROUP bits;
+# - `capability-engine` (uid/gid 1000) reaches it through the OTHER bits;
+# - the acceptance revocation is `chmod g-rx`. The runner, as the owner, can
+#   still write.
+#
+# Used ONLY by `pr-checks.yml`'s "Start the P8 services" step:
+#   docker compose -f docker-compose.local.yml -f docker-compose.acceptance.yml up ...
+# with NOVA_ACCEPTANCE_COMPANION_GID=$(id -g). The `:?` refuses to start
+# without it, rather than guessing a group.
+#
+# It sets exactly one key on exactly one service, and
+# `tools/tests/test_acceptance_override.py` keeps it that way.
+services:
+  nova-companion:
+    user: "1100:${NOVA_ACCEPTANCE_COMPANION_GID:?the acceptance override needs the runner's gid}"

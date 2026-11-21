@@ -1,0 +1,183 @@
+import {
+  Outlet,
+  RouterProvider,
+  createRootRoute,
+  createRoute,
+  createRouter,
+  lazyRouteComponent,
+} from "@tanstack/react-router";
+
+import { AppShell } from "./AppShell";
+import { SessionGate } from "./SessionGate";
+
+/**
+ * Routing, per Fork E4's stack decision (TanStack Router).
+ *
+ * Still code-based rather than the file-based generator. 4A predicted the
+ * trade would change "when 4B adds a panel per route"; having added them,
+ * it has not -- ten `createRoute` calls in one readable file still cost less
+ * than a build step plus a generated artefact to review, and the panels are
+ * not nested.
+ *
+ * **Every panel below the shell is lazily loaded.** Each pulls its own
+ * entity module, and the Reasoning and Planning panels pull generated
+ * contract types with them; bundling all seven into the initial download
+ * would make the Conversation panel -- the one AC-1 measures -- wait for
+ * six panels the operator may never open.
+ *
+ * The session gate sits *above* the router outlet rather than in a
+ * `beforeLoad` redirect. A redirect would flash the shell before bouncing,
+ * and "is this session valid" is answered by a request that may still be in
+ * flight when the route resolves.
+ */
+
+const rootRoute = createRootRoute({
+  component: () => (
+    <SessionGate>
+      <Outlet />
+    </SessionGate>
+  ),
+});
+
+/**
+ * The shell is a layout route, so it does not remount between panels.
+ * `RealtimeProvider` lives inside it: a remount would drop the WebSocket
+ * and lose every frame during the reconnect, which is most visible in the
+ * Events panel -- the one place a hole in the stream is the subject.
+ */
+const shellRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  id: "shell",
+  component: AppShell,
+});
+
+const conversationRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: "/",
+  component: lazyRouteComponent(
+    () => import("../panels/conversation/ConversationPanel"),
+    "ConversationPanel",
+  ),
+});
+
+const planningRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: "/planning",
+  component: lazyRouteComponent(
+    () => import("../panels/planning/PlanningPanel"),
+    "PlanningPanel",
+  ),
+});
+
+const reasoningRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: "/reasoning",
+  component: lazyRouteComponent(
+    () => import("../panels/reasoning/ReasoningTracePanel"),
+    "ReasoningTracePanel",
+  ),
+});
+
+const capabilitiesRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: "/capabilities",
+  component: lazyRouteComponent(
+    () => import("../panels/capabilities/CapabilitiesPanel"),
+    "CapabilitiesPanel",
+  ),
+});
+
+const approvalsRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: "/approvals",
+  component: lazyRouteComponent(
+    () => import("../panels/approvals/ApprovalsPanel"),
+    "ApprovalsPanel",
+  ),
+});
+
+const eventsRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: "/events",
+  component: lazyRouteComponent(() => import("../panels/events/EventsPanel"), "EventsPanel"),
+});
+
+const healthRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: "/health",
+  component: lazyRouteComponent(() => import("../panels/health/HealthPanel"), "HealthPanel"),
+});
+
+// Phase 4C (4C.2f). Lazily loaded like every other panel: it pulls its own
+// entity module, and an operator who never opens it should not download it.
+const agentsRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: "/agents",
+  component: lazyRouteComponent(() => import("../panels/agents/AgentsPanel"), "AgentsPanel"),
+});
+
+// Phase 4D. Lazily loaded like every other panel. Unlike the seven before
+// it, this one has no realtime half to load: `autonomy-engine` claims no
+// Event Bus subject (decision D-4D-1), so the panel's freshness comes from
+// invalidating its own queries after its own mutations.
+const autonomyRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: "/autonomy",
+  component: lazyRouteComponent(
+    () => import("../panels/autonomy/AutonomyPanel"),
+    "AutonomyPanel",
+  ),
+});
+
+// Phase 4E. Lazily loaded like every other panel, and like the Autonomy panel
+// it has no realtime half: `PUBLIC_TOPICS` gains no `digital_twin.*` entry
+// (TDD 4E Sec8.3), because a model that evolves over weeks has nothing worth
+// pushing. Its freshness comes from an explicit re-derive.
+const digitalTwinRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: "/digital-twin",
+  component: lazyRouteComponent(
+    () => import("../panels/digitalTwin/DigitalTwinPanel"),
+    "DigitalTwinPanel",
+  ),
+});
+
+// Phase 4F.7. Lazily loaded like every other panel, and read-only: three GETs
+// through `api-gateway`, no mutation, no polling and no realtime half
+// (A-4F7-3 (a)). Its freshness is an explicit Refresh that re-issues the GETs.
+const cognitiveStateRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: "/cognitive-state",
+  component: lazyRouteComponent(
+    () => import("../panels/cognitiveState/CognitiveStatePanel"),
+    "CognitiveStatePanel",
+  ),
+});
+
+const routeTree = rootRoute.addChildren([
+  shellRoute.addChildren([
+    conversationRoute,
+    planningRoute,
+    reasoningRoute,
+    capabilitiesRoute,
+    approvalsRoute,
+    eventsRoute,
+    healthRoute,
+    agentsRoute,
+    autonomyRoute,
+    digitalTwinRoute,
+    cognitiveStateRoute,
+  ]),
+]);
+
+export const router = createRouter({ routeTree });
+
+declare module "@tanstack/react-router" {
+  interface Register {
+    router: typeof router;
+  }
+}
+
+export function AppRouter() {
+  return <RouterProvider router={router} />;
+}

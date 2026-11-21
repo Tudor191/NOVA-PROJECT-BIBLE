@@ -45,6 +45,8 @@ from nova_contracts.events.agent_os import (
     AgentMessageType,
     AgentOsFindHealthyPackageReplyPayload,
     AgentOsFindHealthyPackageRequestPayload,
+    AgentOsListPackagesReplyPayload,
+    AgentOsListPackagesRequestPayload,
     AgentOsPeerReviewReplyPayload,
     AgentOsPeerReviewRequestPayload,
     AgentOsRestartPlanReplyPayload,
@@ -82,6 +84,11 @@ from nova_contracts.events.ai_model_orchestration import (
     WakePhraseDetectReplyPayload,
     WakePhraseDetectRequestPayload,
 )
+from nova_contracts.events.autonomy import (
+    AutonomyDecisionReplyPayload,
+    AutonomyDecisionRequestedPayload,
+    PermissionCategory,
+)
 from nova_contracts.events.capability import (
     Capability,
     CapabilityHandle,
@@ -94,6 +101,7 @@ from nova_contracts.events.capability import (
 )
 from nova_contracts.events.communication import (
     ChannelType,
+    CommunicationIntentDeliveredPayload,
     CommunicationIntentDeliverReplyPayload,
     CommunicationIntentDeliverRequestPayload,
     CommunicationSessionCloseReplyPayload,
@@ -172,6 +180,7 @@ from nova_contracts.events.perception import (
     PerceptionSensorHealthChangedPayload,
     PerceptionSource,
     PerceptionWakeDetectedPayload,
+    PerceptionWorkspaceObservedPayload,
 )
 from nova_contracts.events.personality import (
     CommunicationStyle,
@@ -249,6 +258,8 @@ __all__ = [
     "AgentMetrics",
     "AgentOsFindHealthyPackageReplyPayload",
     "AgentOsFindHealthyPackageRequestPayload",
+    "AgentOsListPackagesReplyPayload",
+    "AgentOsListPackagesRequestPayload",
     "AgentOsPeerReviewReplyPayload",
     "AgentOsPeerReviewRequestPayload",
     "AgentOsRestartPlanReplyPayload",
@@ -260,6 +271,8 @@ __all__ = [
     "ArbitrationOutcome",
     "AttentionShiftedPayload",
     "AttentionState",
+    "AutonomyDecisionReplyPayload",
+    "AutonomyDecisionRequestedPayload",
     "BudgetExceededPayload",
     "BudgetScope",
     "Capability",
@@ -274,6 +287,7 @@ __all__ = [
     "CognitivePriorityScore",
     "CommunicationIntentDeliverReplyPayload",
     "CommunicationIntentDeliverRequestPayload",
+    "CommunicationIntentDeliveredPayload",
     "CommunicationSessionCloseReplyPayload",
     "CommunicationSessionCloseRequestPayload",
     "CommunicationSessionCompletedPayload",
@@ -367,6 +381,8 @@ __all__ = [
     "PerceptionSensorHealthChangedPayload",
     "PerceptionSource",
     "PerceptionWakeDetectedPayload",
+    "PerceptionWorkspaceObservedPayload",
+    "PermissionCategory",
     "PermissionSet",
     "PersonalContext",
     "PersonalityMemoryUpdatePayload",

@@ -60,6 +60,26 @@ concrete case this project's own roadmap sequencing (`coding-agent` before
 `peer_reviewer_category` other than `coding-agent`'s own -- every other
 Phase 3 agent's dispatch is entirely unaffected by this addition.
 
+**Agent activity, wired in Phase 4C milestone 4C.2d.** Four of the six
+`AgentActivityKind` members are produced here, at the transitions that
+already existed -- no lifecycle path, status transition, retry rule, event
+subject or Supervisor interaction was added or changed to produce them:
+
+* `dispatched` and `completed`/`failed` are written by `_spawn_tracked` **in
+  the same transaction** as the `agent_instance` insert and terminal update
+  they describe (`KernelRepository.insert`/`update_status` take the activity
+  for exactly this reason -- 4C.2b).
+* `restart_planned` is appended by `dispatch_task_node` only when the
+  Supervisor actually returned the instance in its restart plan.
+* `peer_review` is appended by `_finalize_outcome` once per round that
+  actually ran, for all four verdicts.
+
+The last two use `append_activity`, standalone, because no `agent_instance`
+mutation happens at those points; the alternative -- inventing a state
+transition to couple them to -- would record a change that did not occur.
+Every activity carries the `correlation_id` that arrived on
+`planning.task_graph.created`; none is minted here.
+
 **`AgentContext` construction, disclosed.** TDD 3E §4's own Kernel
 Scheduler design describes registry-query/score/backend-select/dispatch
 only -- it names no mechanism for pre-scoping `relevant_memory`/
@@ -100,6 +120,7 @@ from nova_contracts import (
 )
 from nova_observability import get_logger
 
+from nova_agent_os_kernel.domain.activity import AgentActivityKind, new_activity
 from nova_agent_os_kernel.domain.models import AgentInstance, AgentInstanceHandle
 from nova_agent_os_kernel.domain.ports import (
     AgentExecutionBackend,
@@ -164,12 +185,20 @@ async def _run_peer_review(
     supervisor_port: SupervisorPort,
     execution_backend: AgentExecutionBackend,
     correlation_id: UUID,
-) -> Literal["approved", "rejected", "timed_out", "not_required"]:
+) -> tuple[Literal["approved", "rejected", "timed_out", "not_required"], bool]:
     """One peer-review round for a successful primary result whose package
     declares `peer_reviewer_category` -- see this module's own docstring
     for the full disclosure. `reviewer_available=False` covers both "no
     healthy reviewer package installed" and "the reviewer's own
-    `on_message()` raised/returned no `PEER_REVIEW_RESULT`"."""
+    `on_message()` raised/returned no `PEER_REVIEW_RESULT`".
+
+    Returns `(verdict, reviewer_available)`. The second element is returned
+    rather than recomputed by the caller because only this function knows it:
+    the Supervisor owns the verdict vocabulary (doc 12 §9), so inferring
+    "`not_required` must mean no reviewer ran" would be the Kernel guessing at
+    Supervisor policy. 4C.2d records it in the `peer_review` activity's
+    `detail`, which is what distinguishes "the reviewer approved" from "there
+    was no reviewer to ask" -- two facts that share a `"success"` outcome."""
     reviewer_package = await registry_port.find_healthy_package(
         category=reviewer_category, correlation_id=correlation_id
     )
@@ -189,13 +218,14 @@ async def _run_peer_review(
             reviewer_result = AgentResult.model_validate(reply.payload)
             reviewer_available = True
 
-    return await supervisor_port.record_peer_review(
+    verdict = await supervisor_port.record_peer_review(
         primary_result=primary_result,
         reviewer_category=reviewer_category,
         reviewer_result=reviewer_result,
         reviewer_available=reviewer_available,
         correlation_id=correlation_id,
     )
+    return verdict, reviewer_available
 
 
 async def _finalize_outcome(
@@ -205,6 +235,7 @@ async def _finalize_outcome(
     handle: AgentInstanceHandle,
     outcome: str,
     package: AgentPackageSnapshot,
+    repository: KernelRepository,
     registry_port: RegistryPort,
     supervisor_port: SupervisorPort,
     execution_backend: AgentExecutionBackend,
@@ -217,19 +248,45 @@ async def _finalize_outcome(
     `rejected` verdict republishes as `outcome="needs_revision"`; every
     other verdict (`approved`/`not_required`/`timed_out`) finalizes as
     `"success"`, matching TDD 3E §12's own non-fatal treatment of a
-    missing or unresponsive reviewer."""
+    missing or unresponsive reviewer.
+
+    **4C.2d: `repository` is threaded in for the `peer_review` activity
+    alone.** Exactly one row is appended per round that actually ran, inside
+    the same branch that ran it -- so a package with no
+    `peer_reviewer_category`, or a non-`"success"` outcome, produces no row
+    at all rather than a row saying a review happened. `append_activity` is
+    the right surface here because no `agent_instance` transition accompanies
+    a verdict; inventing one to obtain transactional coupling would record a
+    state change that did not occur."""
     result_dict = handle.result.model_dump(mode="json") if handle.result is not None else None
     final_outcome = outcome
 
     reviewer_category = package.manifest_json.get("peer_reviewer_category")
     if outcome == "success" and handle.result is not None and reviewer_category is not None:
-        peer_validation = await _run_peer_review(
+        peer_validation, reviewer_available = await _run_peer_review(
             primary_result=handle.result,
             reviewer_category=reviewer_category,
             registry_port=registry_port,
             supervisor_port=supervisor_port,
             execution_backend=execution_backend,
             correlation_id=correlation_id,
+        )
+        # All four verdicts are recorded, `not_required` and `timed_out`
+        # included: the round ran and returned an answer, and suppressing the
+        # two that mean "nobody reviewed this" would make that absence
+        # invisible in the audit trail while the task still finalized
+        # `"success"`.
+        await repository.append_activity(
+            new_activity(
+                agent_instance_id=instance.id,
+                kind=AgentActivityKind.PEER_REVIEW,
+                correlation_id=correlation_id,
+                detail={
+                    "reviewer_category": reviewer_category,
+                    "peer_validation": peer_validation,
+                    "reviewer_available": reviewer_available,
+                },
+            )
         )
         final_outcome = "needs_revision" if peer_validation == "rejected" else "success"
         if result_dict is not None:
@@ -338,7 +395,23 @@ async def _spawn_tracked(
 
     A crash between the two writes leaves exactly the row reconciliation is
     designed to find -- `"running"` with an `assigned_task_node_id` -- which
-    is the correct, recoverable outcome rather than a lost assignment."""
+    is the correct, recoverable outcome rather than a lost assignment.
+
+    **4C.2d: each of those two writes now carries its own activity row, in the
+    same transaction as the state change it describes.** `dispatched` commits
+    with the `"running"` insert and `completed`/`failed` with the terminal
+    transition, so there is no window in which the instance says one thing and
+    its history says another -- the failure mode two separate commits would
+    have: an instance that is running with no record of ever starting, or one
+    marked `"completed"` whose history stops at dispatch. A failure in either
+    write rolls back both halves together and propagates unchanged; nothing
+    here catches it, so `dispatch_ready_nodes`' existing per-node isolation
+    still decides what a failed dispatch means.
+
+    `correlation_id` is read from `context`, which `_build_context` stamped
+    with the id that arrived on `planning.task_graph.created`. Nothing is
+    minted here: the activity's provenance is the same chain the dispatch
+    itself belongs to."""
     instance_id = execution_backend.next_instance_id()
     instance = AgentInstance(
         id=instance_id,
@@ -350,15 +423,43 @@ async def _spawn_tracked(
         started_at=datetime.now(UTC),
         health_status="unknown",
     )
-    await repository.insert(instance)
+    await repository.insert(
+        instance,
+        activity=new_activity(
+            agent_instance_id=instance_id,
+            kind=AgentActivityKind.DISPATCHED,
+            correlation_id=context.correlation_id,
+            detail={
+                "task_node_id": str(node.id),
+                "category": category,
+                "agent_package_id": str(package.id),
+                "execution_backend": "inprocess",
+            },
+        ),
+    )
 
     handle = await execution_backend.spawn(package, context, instance_id=instance_id)
-    needs_restart, _outcome = _handle_outcome(handle)
+    needs_restart, outcome = _handle_outcome(handle)
 
     terminal_status = "failed" if needs_restart else "completed"
     terminal_health = "unhealthy" if needs_restart else "healthy"
+    # `error` appears only when the backend raised -- an `AgentResult` with
+    # `status="failure"` is a successfully-produced failure and carries no
+    # exception text. Omitted rather than set to null so a reader can tell
+    # "no exception" from "an exception nobody recorded".
+    detail: dict = {"task_node_id": str(node.id), "outcome": outcome}
+    if needs_restart and handle.error is not None:
+        detail["error"] = handle.error
     await repository.update_status(
-        instance.id, status=terminal_status, health_status=terminal_health
+        instance.id,
+        status=terminal_status,
+        health_status=terminal_health,
+        activity=new_activity(
+            agent_instance_id=instance.id,
+            kind=AgentActivityKind.FAILED if needs_restart else AgentActivityKind.COMPLETED,
+            correlation_id=context.correlation_id,
+            detail=detail,
+        ),
     )
     return handle, instance.model_copy(
         update={"status": terminal_status, "health_status": terminal_health}
@@ -413,6 +514,7 @@ async def dispatch_task_node(
             handle=handle,
             outcome=outcome,
             package=package,
+            repository=repository,
             registry_port=registry_port,
             supervisor_port=supervisor_port,
             execution_backend=execution_backend,
@@ -435,6 +537,7 @@ async def dispatch_task_node(
             handle=handle,
             outcome=outcome,
             package=package,
+            repository=repository,
             registry_port=registry_port,
             supervisor_port=supervisor_port,
             execution_backend=execution_backend,
@@ -442,6 +545,23 @@ async def dispatch_task_node(
             correlation_id=correlation_id,
         )
         return instance.id
+
+    # 4C.2d: the Supervisor really did return this instance in its restart
+    # plan. Recorded only here, after the membership test -- a declined
+    # restart, and an unreachable Supervisor degraded to "declined" by
+    # `_plan_restart_or_decline`, both fall to the branch above and write
+    # nothing. `append_activity` rather than a coupled write because no
+    # `agent_instance` transition happens at this point: the failed row was
+    # already stamped `"failed"` by `_spawn_tracked`, and the retry's row does
+    # not exist yet.
+    await repository.append_activity(
+        new_activity(
+            agent_instance_id=instance.id,
+            kind=AgentActivityKind.RESTART_PLANNED,
+            correlation_id=correlation_id,
+            detail={"category": category, "planned_by": "supervisor"},
+        )
+    )
 
     # Bounded, single retry -- never re-consults the Supervisor a second time.
     retry_handle, retry_instance = await _spawn_tracked(
@@ -459,6 +579,7 @@ async def dispatch_task_node(
         handle=retry_handle,
         outcome=retry_outcome,
         package=package,
+        repository=repository,
         registry_port=registry_port,
         supervisor_port=supervisor_port,
         execution_backend=execution_backend,

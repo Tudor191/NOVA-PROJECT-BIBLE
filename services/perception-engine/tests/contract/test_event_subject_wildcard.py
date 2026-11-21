@@ -18,6 +18,12 @@ _SHOULD_MATCH = {
     "perception.presence.observed",
     "perception.identity.observed",
     "perception.attention.observed",
+    # Phase 4F.2. Matching the wildcard is the *point* of this subject's name,
+    # not a side effect: one segment means `world-model-engine` receives it
+    # through the subscription it has always had, and routes it to the
+    # object-graph handler that has been waiting for an object-shaped producer
+    # since Phase 1 -- zero changes in that engine.
+    "perception.workspace.observed",
 }
 
 _SHOULD_NOT_MATCH = {

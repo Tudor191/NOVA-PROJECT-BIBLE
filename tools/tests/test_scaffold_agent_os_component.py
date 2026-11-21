@@ -1,7 +1,8 @@
 """Tests for tools/scaffold-agent-os-component.py (Fork 3E-4). Loaded via
 `importlib` (not a normal import) because the script's filename contains
-hyphens and lives outside any package -- the same reason no test file for
-`tools/scaffold-engine.py` exists yet either; this is the first.
+hyphens and lives outside any package. (`tools/scaffold-engine.py` had no test
+file when this one was written; `test_scaffold_engine.py` was added in Phase 4A
+and uses the same `importlib` technique.)
 
 Every test operates against a throwaway `tmp_path` copy of the two files the
 script mutates (`pyproject.toml`, `pnpm-workspace.yaml`), monkeypatched onto

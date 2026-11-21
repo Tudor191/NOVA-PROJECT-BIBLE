@@ -1,0 +1,30 @@
+# Added in Phase 4A alongside `infra/docker/Dockerfile.migrations`, which is
+# the first Dockerfile here to `COPY . .` -- every `services/<name>/Dockerfile`
+# copies an explicit list of paths instead, so until now the build context's
+# size only cost transfer time.
+#
+# Nothing listed below is copied by any existing Dockerfile (each names
+# `pyproject.toml`, `uv.lock`, and specific `packages/`/`services/`
+# directories), so this cannot change what those images contain -- it only
+# shrinks the context they transfer.
+
+.git
+.github
+
+# Build outputs and caches
+**/node_modules
+**/.venv
+**/dist
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+**/.turbo
+**/playwright-report
+**/test-results
+
+# Local environment
+.env
+.env.local
+**/.env.local

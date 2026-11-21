@@ -109,6 +109,28 @@ class PostgresMemoryRepository:
     async def create_long_term(
         self, record: MemoryRecord, *, outbox_event: OutboxEvent | None = None
     ) -> MemoryRecord:
+        """Insert one long-term memory, with its outbox row in the same transaction.
+
+        **`created_at`/`updated_at` are written from the record, not left to the
+        column defaults.** Every other field here already was; these two were the
+        exception, and the asymmetry was a silent data loss: `_memory_to_domain`
+        reads both columns back, so a caller who set `MemoryRecord.created_at`
+        handed in one value and got a different one out, with nothing raised.
+
+        This also makes insert agree with update. `update()` below already treats
+        the record as authoritative (`.values(updated_at=record.updated_at, ...)`),
+        and `long_term.correct()` computes that value -- only the insert path
+        deferred to Postgres. Passing both fields here leaves **one** timestamp
+        authority, the application, on both paths rather than one per path.
+
+        Both columns keep their `server_default=func.now()` and **no migration is
+        needed**: the default still covers any INSERT that omits the column, and
+        this one no longer does. The values are equivalent for an ordinary write --
+        `func.now()` is the transaction timestamp against a `DateTime(timezone=True)`
+        column, and `MemoryRecord`'s own default is `datetime.now(UTC)` -- so the
+        observable change is confined to callers that deliberately supply a
+        timestamp, which is the point (TDD 4E §20.1).
+        """
         async with self._session_factory() as session, session.begin():
             orm = MemoryRecordORM(
                 id=record.id,
@@ -128,6 +150,8 @@ class PostgresMemoryRepository:
                 type_data=record.type_data,
                 access_count=record.access_count,
                 last_accessed_at=record.last_accessed_at,
+                created_at=record.created_at,
+                updated_at=record.updated_at,
                 version=record.version,
             )
             session.add(orm)

@@ -112,6 +112,10 @@ layers that implement or wire those ports to real infrastructure.
 | Subscribes | `agent_os.task.completed` | (placeholder handler) |
 | Subscribes | `knowledge.contradiction.detected` | (placeholder handler) |
 
+*(Phase 4F.8, 2026-10-11.)* `memory.long_term.created` gains a consumer,
+`perception-engine`. It reads only `project_id` and `user_id`, to learn which
+project identities exist (TDD 4F.8 A-4F8-2 (a)). This engine is unchanged.
+
 See `events/published.py` / `events/subscribed.py` for the enforced allow-lists
 (checked by `nova_eventbus_sdk.boundary.BoundEventBus` at publish/subscribe/serve
 time). Most subscribed subjects have no real Phase 1 producer yet -- Perception,

@@ -15,5 +15,10 @@ SUBSCRIBABLE_SUBJECTS: frozenset[str] = frozenset(
     {
         "communication.session.created",
         "communication.session.completed",
+        # Phase 4F.8, A-4F8-2 (a): the existing subject carrying
+        # `MemoryRecord.project_id`, so this engine learns which project
+        # identities NOVA holds over the bus, never from `memory-engine`'s store
+        # (TDD 4F §4.1; ADR-004). No new subject; the registry is unchanged.
+        "memory.long_term.created",
     }
 )

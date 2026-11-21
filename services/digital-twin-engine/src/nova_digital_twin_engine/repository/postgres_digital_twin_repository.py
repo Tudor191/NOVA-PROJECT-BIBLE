@@ -10,31 +10,44 @@ last write that actually completed.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import func, select, update
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from nova_digital_twin_engine.domain.models import (
     CommunicationProfile,
     CompletedSessionEvidence,
+    DomainEvidence,
+    DomainModel,
+    DomainReason,
+    DomainReasonCode,
+    DomainState,
+    EvidenceKind,
     HabitSignal,
     PreferenceEvolutionEntry,
     ProactiveBoundaryPolicy,
     ProactiveDeliveryRecord,
+    ProjectModel,
     TrustMetric,
     TrustMetricHistoryEntry,
+    TwinDomain,
 )
 from nova_digital_twin_engine.domain.ports import OutboxEvent, OutboxRow
 from nova_digital_twin_engine.repository.models import (
     CommunicationProfileORM,
     CompletedSessionEvidenceORM,
+    DomainEvidenceORM,
+    DomainModelORM,
     HabitSignalORM,
     OutboxEventORM,
     PreferenceEvolutionHistoryORM,
     ProactiveBoundaryPolicyORM,
     ProactiveDeliveryRecordORM,
+    ProjectModelORM,
     TrustMetricHistoryORM,
     TrustMetricORM,
 )
@@ -135,6 +148,55 @@ def _outbox_orm(event: OutboxEvent) -> OutboxEventORM:
         payload=event.payload,
         correlation_id=event.correlation_id,
         causation_id=event.causation_id,
+    )
+
+
+# --- Phase 4E: Bible Part 16's nine remaining domains (TDD 4E Sec9) --------
+
+
+def _domain_model_to_domain(row: DomainModelORM) -> DomainModel:
+    reason = (
+        DomainReason(
+            code=DomainReasonCode(row.reason_code), detail=row.reason_detail or ""
+        )
+        if row.reason_code is not None
+        else None
+    )
+    return DomainModel(
+        user_id=row.user_id,
+        domain=TwinDomain(row.domain),
+        state=DomainState(row.state),
+        reason=reason,
+        evidence_count=row.evidence_count,
+        facts=dict(row.facts),
+        unavailable_fields=list(row.unavailable_fields),
+        derived_at=row.derived_at,
+    )
+
+
+def _domain_evidence_to_domain(row: DomainEvidenceORM) -> DomainEvidence:
+    return DomainEvidence(
+        id=row.id,
+        user_id=row.user_id,
+        domain=TwinDomain(row.domain),
+        kind=EvidenceKind(row.kind),
+        source_record_id=row.source_record_id,
+        source_created_at=row.source_created_at,
+        observed_at=row.observed_at,
+        attributes=dict(row.attributes),
+    )
+
+
+def _project_model_to_domain(row: ProjectModelORM) -> ProjectModel:
+    return ProjectModel(
+        user_id=row.user_id,
+        project_id=row.project_id,
+        memory_count=row.memory_count,
+        memory_type_counts=dict(row.memory_type_counts),
+        first_activity_at=row.first_activity_at,
+        last_activity_at=row.last_activity_at,
+        gap_days=row.gap_days,
+        derived_at=row.derived_at,
     )
 
 
@@ -345,3 +407,158 @@ class PostgresDigitalTwinRepository:
                 .where(OutboxEventORM.id == outbox_id)
                 .values(dispatched_at=func.now())
             )
+
+    async def count_preference_evolution_entries(self, user_id: UUID) -> int:
+        async with self._session_factory() as session:
+            result = await session.execute(
+                select(func.count())
+                .select_from(PreferenceEvolutionHistoryORM)
+                .where(PreferenceEvolutionHistoryORM.user_id == user_id)
+            )
+            return int(result.scalar_one())
+
+    # --- Phase 4E: Bible Part 16's nine remaining domains (TDD 4E Sec9) ----
+
+    async def record_domain_derivation(
+        self,
+        *,
+        models: Sequence[DomainModel],
+        evidence: Sequence[DomainEvidence] = (),
+        projects: Sequence[ProjectModel] = (),
+    ) -> None:
+        async with self._session_factory() as session, session.begin():
+            # Parents first: `domain_evidence` has a composite FK into this table,
+            # so an evidence row for a never-derived domain is rejected by the
+            # database rather than by a convention someone has to remember.
+            for model in models:
+                await session.execute(
+                    pg_insert(DomainModelORM)
+                    .values(
+                        user_id=model.user_id,
+                        domain=model.domain.value,
+                        state=model.state.value,
+                        reason_code=model.reason.code.value if model.reason else None,
+                        reason_detail=model.reason.detail if model.reason else None,
+                        evidence_count=model.evidence_count,
+                        facts=model.facts,
+                        unavailable_fields=model.unavailable_fields,
+                        derived_at=model.derived_at,
+                    )
+                    .on_conflict_do_update(
+                        index_elements=[DomainModelORM.user_id, DomainModelORM.domain],
+                        set_={
+                            "state": model.state.value,
+                            "reason_code": model.reason.code.value if model.reason else None,
+                            "reason_detail": model.reason.detail if model.reason else None,
+                            "evidence_count": model.evidence_count,
+                            "facts": model.facts,
+                            "unavailable_fields": model.unavailable_fields,
+                            "derived_at": model.derived_at,
+                        },
+                    )
+                )
+
+            for row in evidence:
+                # Idempotent on redelivery: the Event Bus is at-least-once, and the
+                # primary key is what makes a duplicate a no-op rather than an
+                # inflated count.
+                await session.execute(
+                    pg_insert(DomainEvidenceORM)
+                    .values(
+                        user_id=row.user_id,
+                        domain=row.domain.value,
+                        source_record_id=row.source_record_id,
+                        id=row.id,
+                        kind=row.kind.value,
+                        source_created_at=row.source_created_at,
+                        observed_at=row.observed_at,
+                        attributes=row.attributes,
+                    )
+                    .on_conflict_do_nothing(
+                        index_elements=[
+                            DomainEvidenceORM.user_id,
+                            DomainEvidenceORM.domain,
+                            DomainEvidenceORM.source_record_id,
+                        ]
+                    )
+                )
+
+            for project in projects:
+                await session.execute(
+                    pg_insert(ProjectModelORM)
+                    .values(
+                        user_id=project.user_id,
+                        project_id=project.project_id,
+                        memory_count=project.memory_count,
+                        memory_type_counts=project.memory_type_counts,
+                        first_activity_at=project.first_activity_at,
+                        last_activity_at=project.last_activity_at,
+                        gap_days=project.gap_days,
+                        derived_at=project.derived_at,
+                    )
+                    .on_conflict_do_update(
+                        index_elements=[ProjectModelORM.user_id, ProjectModelORM.project_id],
+                        set_={
+                            "memory_count": project.memory_count,
+                            "memory_type_counts": project.memory_type_counts,
+                            "first_activity_at": project.first_activity_at,
+                            "last_activity_at": project.last_activity_at,
+                            "gap_days": project.gap_days,
+                            "derived_at": project.derived_at,
+                        },
+                    )
+                )
+
+    async def list_domain_evidence(
+        self, user_id: UUID, domain: TwinDomain | None = None
+    ) -> list[DomainEvidence]:
+        async with self._session_factory() as session:
+            stmt = select(DomainEvidenceORM).where(DomainEvidenceORM.user_id == user_id)
+            if domain is not None:
+                stmt = stmt.where(DomainEvidenceORM.domain == domain.value)
+            # Oldest source first: a reconstruction reads as a history, and the
+            # ordering key is the source's own timestamp, not this row's.
+            stmt = stmt.order_by(DomainEvidenceORM.source_created_at.asc().nullslast())
+            rows = (await session.execute(stmt)).scalars().all()
+            return [_domain_evidence_to_domain(row) for row in rows]
+
+    async def get_domain_model(self, user_id: UUID, domain: TwinDomain) -> DomainModel | None:
+        async with self._session_factory() as session:
+            row = await session.get(DomainModelORM, (user_id, domain.value))
+            return _domain_model_to_domain(row) if row is not None else None
+
+    async def list_domain_models(self, user_id: UUID) -> list[DomainModel]:
+        async with self._session_factory() as session:
+            rows = (
+                (
+                    await session.execute(
+                        select(DomainModelORM).where(DomainModelORM.user_id == user_id)
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            return [_domain_model_to_domain(row) for row in rows]
+
+    async def list_project_models(self, user_id: UUID) -> list[ProjectModel]:
+        async with self._session_factory() as session:
+            rows = (
+                (
+                    await session.execute(
+                        select(ProjectModelORM)
+                        .where(ProjectModelORM.user_id == user_id)
+                        # Most recently active first; a project with no timestamped
+                        # evidence sorts last rather than oldest -- unplaceable is
+                        # not the same claim as stale.
+                        .order_by(ProjectModelORM.last_activity_at.desc().nullslast())
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            return [_project_model_to_domain(row) for row in rows]
+
+    async def get_project_model(self, user_id: UUID, project_id: UUID) -> ProjectModel | None:
+        async with self._session_factory() as session:
+            row = await session.get(ProjectModelORM, (user_id, project_id))
+            return _project_model_to_domain(row) if row is not None else None

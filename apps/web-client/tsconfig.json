@@ -1,0 +1,34 @@
+{
+  "//": "Phase 4A. Same strictness as packages/nova-contracts and packages/nova-ui. `include` covers tests as well as src: an `entities/` hook that compiles but whose test does not would defeat TDD 4A §10's contract tier, which exists so a panel cannot compile against an invented payload shape.",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "resolveJsonModule": true,
+    "types": ["node", "vite/client", "vitest/globals", "@testing-library/jest-dom"],
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  },
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "tests/**/*.ts",
+    "tests/**/*.tsx",
+    "vite.config.ts",
+    "vitest.config.ts",
+    "playwright.config.ts"
+  ]
+}

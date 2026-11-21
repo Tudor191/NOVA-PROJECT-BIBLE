@@ -3,7 +3,8 @@
 Engine exists yet, per docs/design/phase-1/04-cross-engine-integration.md).
 """
 
-from uuid import uuid4
+from datetime import UTC, datetime
+from uuid import UUID, uuid4
 
 from nova_contracts import EventEnvelope
 from nova_world_model_engine.events.handlers import (
@@ -198,3 +199,105 @@ async def test_dispatch_routes_object_shaped_events_to_object_graph_path() -> No
     history = await history_repo.list_object_history("window:1")
     assert len(history) == 1
     assert await context_repo.get_context(user_id) is None
+
+
+# --- Phase 4F.2: perception.workspace.observed, with zero changes here ----
+#
+# These are **test-only additions**. No production file in this engine changed
+# for 4F.2: the subject matches the `perception.*.observed` wildcard this
+# engine has subscribed to since Phase 1, the dispatcher's `else` branch
+# already routes it to the object handler, and that handler already reads the
+# three fields the payload supplies. These tests exist to prove that claim
+# rather than assert it -- if a later edit breaks the fit, it fails here.
+#
+# The payload is built from the registered `nova-contracts` model, not a
+# hand-written dict, so a contract change cannot drift away from what this
+# engine is tested against. `perception-engine` is deliberately not imported:
+# the contract is the shared dependency, not the producer.
+
+
+def _workspace_payload(**overrides) -> dict:
+    from nova_contracts import PerceptionWorkspaceObservedPayload
+
+    fields = {
+        "object_id": "ws-" + "b" * 64,
+        "label": "notes.md",
+        "user_id": uuid4(),
+        "object_type": "project",
+        "sensor_id": "companion-filesystem",
+        "observed_at": datetime.now(UTC),
+    }
+    fields.update(overrides)
+    return PerceptionWorkspaceObservedPayload(**fields).model_dump(mode="json")
+
+
+async def test_4f2_workspace_observed_reaches_the_object_path_through_the_dispatcher() -> None:
+    """The routing claim, end to end through the real dispatcher: a one-segment
+    `perception.workspace.observed` falls through the `else` branch to the
+    object handler, exactly as §20.2 says it does."""
+    context_repo = FakeContextRepository()
+    history_repo = FakeWorldHistoryRepository()
+    handler = make_perception_dispatch_handler(context_repo, history_repo)
+    payload = _workspace_payload()
+
+    await handler(_envelope("perception.workspace.observed", payload))
+
+    history = await history_repo.list_object_history(payload["object_id"])
+    assert len(history) == 1
+    assert history[0].new_state.value == "active"
+    assert history[0].previous_state is None
+
+
+async def test_4f2_a_second_workspace_observation_moves_idle_to_active() -> None:
+    """The `Idle -> Active` transition on a re-observation, which only works
+    because `object_id` is a *stable* hash of the same path."""
+    from nova_world_model_engine.domain.models import ObjectState, ObjectStateHistoryEntry
+
+    context_repo = FakeContextRepository()
+    history_repo = FakeWorldHistoryRepository()
+    handler = make_perception_dispatch_handler(context_repo, history_repo)
+    payload = _workspace_payload()
+
+    await handler(_envelope("perception.workspace.observed", payload))
+    await history_repo.append_object_history(
+        ObjectStateHistoryEntry(
+            object_id=payload["object_id"],
+            object_label=payload["label"],
+            user_id=UUID(payload["user_id"]),
+            previous_state=ObjectState.ACTIVE,
+            new_state=ObjectState.IDLE,
+        )
+    )
+    await handler(_envelope("perception.workspace.observed", payload))
+
+    # `list_object_history` returns newest first.
+    newest = (await history_repo.list_object_history(payload["object_id"]))[0]
+    assert newest.new_state is ObjectState.ACTIVE
+    assert newest.previous_state is ObjectState.IDLE
+
+
+async def test_4f2_the_extra_ratified_fields_are_ignored_without_error() -> None:
+    """`sensor_id`, `observed_at`, `object_type` and `project_id` mean nothing
+    to this engine. The handler reads its payload by key, so they are ignored
+    -- but "ignored" has to be demonstrated, not assumed, because the
+    alternative failure mode is a skipped event and a log line."""
+    context_repo = FakeContextRepository()
+    history_repo = FakeWorldHistoryRepository()
+    handler = make_perception_dispatch_handler(context_repo, history_repo)
+    payload = _workspace_payload(project_id=uuid4())
+
+    assert {"sensor_id", "observed_at", "object_type", "project_id"} <= set(payload)
+    await handler(_envelope("perception.workspace.observed", payload))
+    assert len(await history_repo.list_object_history(payload["object_id"])) == 1
+
+
+async def test_4f2_a_workspace_event_does_not_touch_present_identities() -> None:
+    """The dispatcher must not route an object-shaped event into the identity
+    path. Presence and identity remain the only two subjects that do."""
+    context_repo = FakeContextRepository()
+    history_repo = FakeWorldHistoryRepository()
+    handler = make_perception_dispatch_handler(context_repo, history_repo)
+
+    await handler(_envelope("perception.workspace.observed", _workspace_payload()))
+
+    assert context_repo.contexts == {}

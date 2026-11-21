@@ -1,0 +1,23 @@
+@import "tailwindcss";
+@import "@nova/ui/styles.css";
+
+/*
+ * Tailwind v4 excludes `node_modules` from source detection, and pnpm links
+ * `@nova/ui` in there -- so without this its class names would be scanned as
+ * absent and any utility used only inside the design system would be dropped
+ * from the build. `@source` re-includes it explicitly.
+ */
+@source "../../../packages/nova-ui/src";
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--nova-bg);
+  color: var(--nova-text);
+  font-family: var(--nova-font);
+}
